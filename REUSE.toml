@@ -91,8 +91,10 @@ SPDX-FileCopyrightText = "2025 Byron Williams"
 [[annotations]]
 path = [
     ".claude/settings.local.json",
+    ".claude/settings.local.json.example",  # Example configuration
     ".claude/**/*.json",  # Claude configuration files
     ".claude/**/*.md",  # Claude documentation files
+    ".claude/**/*.py",  # Claude skill scripts
     ".standards/**",  # Baseline standards (auto-updated by cruft)
     ".clusterfuzzlite/**",
     ".sonarlint/**",  # SonarLint IDE configuration
@@ -106,6 +108,7 @@ path = [
     "renovate.json",
     "validate_workflows.sh",
     "scripts/**/*.sh",  # Shell scripts for automation
+    "scripts/**/*.md",  # Script documentation
     "tmp_cleanup/**/*.txt",  # Temporary text files
     "tmp_cleanup/.gitkeep",  # Directory placeholder
     "sonar-project.properties",  # SonarCloud/SonarQube configuration
@@ -114,8 +117,60 @@ path = [
     "Makefile",  # Build automation
     "justfile",  # Just command runner
     "Taskfile.yml",  # Task runner configuration
+    # Dotfiles for tool configuration
+    ".cruft.json",  # Cruft template sync configuration
+    ".dockerignore",  # Docker ignore patterns
+    ".env.example",  # Environment template
+    ".infisical.json",  # Infisical secrets config
+    ".markdownlint.json",  # Markdown linting
+    ".mutmut_config",  # Mutation testing config
+    ".prettierrc",  # Prettier formatting
+    ".shellcheckrc",  # Shell linting
+    ".yamllint",  # YAML linting
+    "Dockerfile",  # Container definitions
+    "uv.lock",  # UV dependency lock file
 ]
 SPDX-License-Identifier = "CC0-1.0"
+SPDX-FileCopyrightText = "2025 Byron Williams"
+
+# Frontend application - MIT (source code)
+[[annotations]]
+path = [
+    "frontend/**/*.ts",
+    "frontend/**/*.tsx",
+    "frontend/**/*.js",
+    "frontend/**/*.jsx",
+]
+SPDX-License-Identifier = "MIT"
+SPDX-FileCopyrightText = "2025 Byron Williams"
+
+# Frontend configuration and assets - CC0-1.0
+[[annotations]]
+path = [
+    "frontend/.env.example",
+    "frontend/.gitignore",
+    "frontend/.prettierrc",
+    "frontend/Dockerfile",
+    "frontend/nginx.conf",
+    "frontend/package.json",
+    "frontend/tsconfig*.json",
+    "frontend/vite.config.ts",
+    "frontend/eslint.config.js",
+    "frontend/index.html",
+    "frontend/public/**",
+    "frontend/**/*.css",
+    "frontend/**/*.svg",
+    "frontend/**/.gitkeep",  # Directory placeholders
+]
+SPDX-License-Identifier = "CC0-1.0"
+SPDX-FileCopyrightText = "2025 Byron Williams"
+
+# Frontend documentation - CC-BY-4.0
+[[annotations]]
+path = [
+    "frontend/**/*.md",
+]
+SPDX-License-Identifier = "CC-BY-4.0"
 SPDX-FileCopyrightText = "2025 Byron Williams"
 
 # Benchmark results and generated metadata files - CC0-1.0
