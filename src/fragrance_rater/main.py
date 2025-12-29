@@ -13,7 +13,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fragrance_rater.api.health import router as health_router
+from fragrance_rater.api import (
+    fragrances_router,
+    health_router,
+    imports_router,
+    reviewers_router,
+)
 from fragrance_rater.core.config import settings
 from fragrance_rater.middleware import CorrelationMiddleware, add_security_middleware
 
@@ -72,6 +77,11 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health_router)
+
+# API v1 routers
+app.include_router(fragrances_router, prefix=settings.api_v1_prefix)
+app.include_router(reviewers_router, prefix=settings.api_v1_prefix)
+app.include_router(imports_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/", include_in_schema=False)
