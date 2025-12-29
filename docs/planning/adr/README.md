@@ -24,8 +24,11 @@ ADRs document significant architectural decisions along with their context and c
 ## ADR Index
 
 | ADR | Title | Status | Date |
-|-----|-------|--------|------|
-| *No ADRs yet* | Generate with `/plan` command | - | - |
+| --- | ----- | ------ | ---- |
+| [ADR-001](./adr-001-initial-architecture.md) | Initial Architecture - Docker Compose Monolith | Accepted | 2025-12-28 |
+| [ADR-002](./adr-002-data-source-strategy.md) | Data Source Strategy - Tiered Acquisition | Accepted | 2025-12-28 |
+| [ADR-003](./adr-003-llm-integration.md) | LLM Integration - OpenRouter for Recommendations | Accepted | 2025-12-28 |
+| [ADR-004](./adr-004-recommendation-algorithm.md) | V1 Recommendation Scoring Algorithm | Accepted | 2025-12-28 |
 
 ## Creating ADRs
 
@@ -83,5 +86,4 @@ See `.claude/skills/project-planning/templates/adr-template.md` for the full tem
 
 ## More Information
 
-- [Document Guide](../.claude/skills/project-planning/reference/document-guide.md)
-- [Prompting Patterns](../.claude/skills/project-planning/reference/prompting-patterns.md)
+For additional guidance on creating and maintaining ADRs, refer to the Claude Code skills documentation in `.claude/skills/project-planning/`.
