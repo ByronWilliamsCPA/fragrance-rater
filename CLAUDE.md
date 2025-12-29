@@ -337,34 +337,43 @@ END BASELINE DEVELOPMENT STANDARDS
 
 ## Project Planning Documents
 
-> **First-Time Setup**: If planning documents show "Awaiting Generation", see the [Project Setup Guide](docs/PROJECT_SETUP.md#project-planning-with-claude-code).
+> **Status**: Complete - All planning documents have been generated and reviewed.
 
 **Planning Documents** (in `docs/planning/`):
 
-- [project-vision.md](docs/planning/project-vision.md) - Problem, solution, scope, success metrics
-- [tech-spec.md](docs/planning/tech-spec.md) - Architecture, data model, APIs, security
-- [roadmap.md](docs/planning/roadmap.md) - Phased implementation plan
-- [adr/](docs/planning/adr/) - Architecture decisions with rationale
-- [PROJECT-PLAN.md](docs/planning/PROJECT-PLAN.md) - Synthesized plan with git branches (after synthesis)
+| Document | Description | Status |
+|----------|-------------|--------|
+| [PROJECT-PLAN.md](docs/planning/PROJECT-PLAN.md) | Synthesized actionable plan with git branches | Complete |
+| [project-vision.md](docs/planning/project-vision.md) | Problem, solution, scope, success metrics | Complete |
+| [tech-spec.md](docs/planning/tech-spec.md) | Architecture, data model, APIs, security | Complete |
+| [roadmap.md](docs/planning/roadmap.md) | 5-phase implementation plan with user stories | Complete |
+| [adr/](docs/planning/adr/) | 4 Architecture Decision Records | Complete |
 
-**References**:
+**Key Architecture Decisions**:
 
-- **Complete Workflow**: [Project Setup Guide](docs/PROJECT_SETUP.md#project-planning-with-claude-code)
-- **Skill Reference**: `.claude/skills/project-planning/`
+- **ADR-001**: Docker Compose monolith (React + FastAPI + PostgreSQL)
+- **ADR-002**: Tiered data acquisition (Kaggle → manual → Fragella API)
+- **ADR-003**: OpenRouter LLM for recommendation explanations
+- **ADR-004**: Weighted affinity scoring algorithm with veto mechanism
+
+### Development Phases
+
+| Phase | Branch Pattern | Focus |
+|-------|---------------|-------|
+| 0 | `feat/phase-0-*` | Foundation (Docker, FastAPI, React scaffold) |
+| 1 | `feat/phase-1-*` | Data & Seed (Kaggle import, manual entry) |
+| 2 | `feat/phase-2-*` | Core Features (Evaluations, recommendations) |
+| 3 | `feat/phase-3-*` | Enhancement (LLM explanations, enrichment) |
+| 4 | `chore/phase-4-*` | Polish (Testing, docs, deployment) |
 
 ### Quick Start
 
 ```bash
-# 1. Generate planning documents
-/plan <your project description>
+# Start Phase 0 development
+git checkout -b feat/phase-0-docker-setup
 
-# 2. Synthesize into project plan
-"Synthesize my planning documents into a project plan"
-
-# 3. Review docs/planning/PROJECT-PLAN.md
-
-# 4. Start development
-/git/milestone start feat/phase-0-foundation
+# Reference the project plan
+# See docs/planning/PROJECT-PLAN.md for deliverables and acceptance criteria
 ```
 
 ### Using Planning Documents
