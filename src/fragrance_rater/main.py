@@ -14,9 +14,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from fragrance_rater.api import (
+    evaluations_router,
     fragrances_router,
     health_router,
     imports_router,
+    recommendations_router,
     reviewers_router,
 )
 from fragrance_rater.core.config import settings
@@ -81,6 +83,8 @@ app.include_router(health_router)
 # API v1 routers
 app.include_router(fragrances_router, prefix=settings.api_v1_prefix)
 app.include_router(reviewers_router, prefix=settings.api_v1_prefix)
+app.include_router(evaluations_router, prefix=settings.api_v1_prefix)
+app.include_router(recommendations_router, prefix=settings.api_v1_prefix)
 app.include_router(imports_router, prefix=settings.api_v1_prefix)
 
 
