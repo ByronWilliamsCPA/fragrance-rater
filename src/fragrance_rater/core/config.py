@@ -28,6 +28,10 @@ class Settings(BaseSettings):
         database_url (str): PostgreSQL connection string.
         database_echo (bool): Echo SQL queries to logs.
         api_v1_prefix (str): API version 1 prefix.
+        openrouter_api_key (str): OpenRouter API key for LLM integration.
+        openrouter_model (str): Default model to use for LLM calls.
+        openrouter_base_url (str): OpenRouter API base URL.
+        llm_enabled (bool): Enable/disable LLM features.
     """
 
     model_config = SettingsConfigDict(
@@ -58,6 +62,24 @@ class Settings(BaseSettings):
 
     # API
     api_v1_prefix: str = "/api/v1"
+
+    # LLM / OpenRouter
+    openrouter_api_key: str = Field(
+        default="",
+        description="OpenRouter API key for LLM integration",
+    )
+    openrouter_model: str = Field(
+        default="anthropic/claude-3-haiku",
+        description="Default model to use (e.g., anthropic/claude-3-haiku, openai/gpt-4o-mini)",
+    )
+    openrouter_base_url: str = Field(
+        default="https://openrouter.ai/api/v1",
+        description="OpenRouter API base URL",
+    )
+    llm_enabled: bool = Field(
+        default=True,
+        description="Enable/disable LLM features",
+    )
 
 
 # A single, global instance of the settings
