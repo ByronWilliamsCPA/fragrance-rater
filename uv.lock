@@ -1045,6 +1045,7 @@ source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
     { name = "click" },
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -1127,6 +1128,7 @@ requires-dist = [
     { name = "google-api-core", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "google-auth", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "griffe-pydantic", marker = "extra == 'dev'", specifier = ">=1.1.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.82.0" },
     { name = "interrogate", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.25.0" },
