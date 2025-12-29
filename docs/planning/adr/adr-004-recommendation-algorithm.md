@@ -283,6 +283,6 @@ def get_recommendations(
 
 ## Related
 
-- [ADR-003](adr/adr-003-llm-integration.md): LLM adds explanations to these scores
-- [Tech Spec API](tech-spec.md#api-specification): Recommendation endpoints
-- [Concept Doc](concept.md): Original algorithm concept
+- [ADR-003](./adr-003-llm-integration.md): LLM adds explanations to these scores
+- [Tech Spec API](../tech-spec.md#api-specification): Recommendation endpoints
+- [Concept Doc](../../../concept.md): Original algorithm concept

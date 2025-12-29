@@ -190,6 +190,6 @@ async def create_fragrance(
 
 ## Related
 
-- [ADR-001](adr/adr-001-initial-architecture.md): Overall architecture
-- [ADR-003](adr/adr-003-llm-integration.md): LLM uses this data for recommendations
-- [Tech Spec Data Model](tech-spec.md#data-model): Entity definitions
+- [ADR-001](./adr-001-initial-architecture.md): Overall architecture
+- [ADR-003](./adr-003-llm-integration.md): LLM uses this data for recommendations
+- [Tech Spec Data Model](../tech-spec.md#data-model): Entity definitions

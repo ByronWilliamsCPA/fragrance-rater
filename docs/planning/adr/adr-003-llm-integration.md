@@ -185,6 +185,6 @@ If there are notes they typically dislike, acknowledge this as a potential conce
 
 ## Related
 
-- [ADR-001](adr/adr-001-initial-architecture.md): Overall architecture
-- [ADR-002](adr/adr-002-data-source-strategy.md): Fragrance data for prompts
-- [Tech Spec API](tech-spec.md#api-specification): Recommendation endpoints
+- [ADR-001](./adr-001-initial-architecture.md): Overall architecture
+- [ADR-002](./adr-002-data-source-strategy.md): Fragrance data for prompts
+- [Tech Spec API](../tech-spec.md#api-specification): Recommendation endpoints

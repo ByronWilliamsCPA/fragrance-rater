@@ -148,6 +148,6 @@ The architecture determines development complexity, operational burden, and futu
 
 ## Related
 
-- [ADR-002](adr/adr-002-data-source-strategy.md): Data acquisition approach
-- [ADR-003](adr/adr-003-llm-integration.md): LLM integration for recommendations
-- [Tech Spec](tech-spec.md): Detailed implementation specifications
+- [ADR-002](./adr-002-data-source-strategy.md): Data acquisition approach
+- [ADR-003](./adr-003-llm-integration.md): LLM integration for recommendations
+- [Tech Spec](../tech-spec.md): Detailed implementation specifications

@@ -359,7 +359,7 @@ A feature is complete when:
 
 ## Git Branch Strategy
 
-Per [CLAUDE.md](../../CLAUDE.md) branch requirements:
+Per CLAUDE.md branch requirements:
 
 | Phase | Branch Pattern | Example |
 |-------|----------------|---------|
