@@ -1044,8 +1044,10 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "asyncpg" },
+    { name = "beautifulsoup4" },
     { name = "click" },
     { name = "httpx" },
+    { name = "lxml" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
@@ -1121,6 +1123,7 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "bandit", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "basedpyright", marker = "extra == 'dev'", specifier = ">=1.18.0" },
+    { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "cyclonedx-bom", marker = "extra == 'supply-chain'", specifier = ">=4.6.0" },
     { name = "darglint", marker = "extra == 'dev'", specifier = ">=1.8.1" },
@@ -1134,6 +1137,7 @@ requires-dist = [
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.25.0" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "keyrings-google-artifactregistry-auth", marker = "extra == 'supply-chain'", specifier = ">=1.1.0" },
+    { name = "lxml", specifier = ">=6.0.2" },
     { name = "mkdocs", marker = "extra == 'dev'", specifier = ">=1.6.0" },
     { name = "mkdocs-autorefs", marker = "extra == 'dev'", specifier = ">=1.2.0" },
     { name = "mkdocs-gen-files", marker = "extra == 'dev'", specifier = ">=0.5.0" },

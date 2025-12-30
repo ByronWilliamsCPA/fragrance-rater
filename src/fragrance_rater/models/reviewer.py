@@ -6,6 +6,7 @@ who evaluate fragrances.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -15,8 +16,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from fragrance_rater.core.database import Base
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from fragrance_rater.models.evaluation import Evaluation
 
 

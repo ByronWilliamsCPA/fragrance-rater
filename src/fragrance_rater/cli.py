@@ -112,6 +112,121 @@ def import_kaggle(ctx: click.Context, csv_file: Path, dry_run: bool) -> None:
         sys.exit(1)
 
 
+@import_data.command(name="parfumo-url")
+@click.argument("url", type=str)
+@click.pass_context
+def import_parfumo_url(ctx: click.Context, url: str) -> None:
+    """Import a fragrance from its Parfumo URL.
+
+    URL: Full Parfumo perfume page URL.
+
+    Example: fragrance-rater import-data parfumo-url \\
+        "https://www.parfumo.com/Perfumes/brand/name"
+    """
+    from fragrance_rater.core.database import async_session_maker
+    from fragrance_rater.services.parfumo_scraper import ParfumoScraper
+
+    async def do_import() -> None:
+        async with async_session_maker() as session:
+            scraper = ParfumoScraper(session)
+
+            click.echo(f"Scraping {url}...")
+
+            fragrance_id = await scraper.import_from_url(url)
+
+            if fragrance_id:
+                click.echo(f"Imported fragrance with ID: {fragrance_id}")
+            else:
+                click.echo("Failed to import fragrance. Check the URL.", err=True)
+                sys.exit(1)
+
+            scraper.close()
+
+    try:
+        run_async(do_import())
+        logger.info("Parfumo URL import completed", url=url)
+    except Exception as e:
+        logger.exception("Parfumo import failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@import_data.command(name="parfumo-search")
+@click.argument("query", type=str)
+@click.option(
+    "--import-first",
+    is_flag=True,
+    help="Automatically import the first result",
+)
+@click.option(
+    "--limit",
+    "-n",
+    type=int,
+    default=5,
+    help="Maximum search results to show",
+)
+@click.pass_context
+def import_parfumo_search(
+    ctx: click.Context,
+    query: str,
+    import_first: bool,
+    limit: int,
+) -> None:
+    """Search Parfumo and optionally import a fragrance.
+
+    QUERY: Search terms (fragrance name, brand, or both).
+
+    Examples:
+        fragrance-rater import-data parfumo-search "Aventus Creed"
+        fragrance-rater import-data parfumo-search "Sauvage" --import-first
+    """
+    from fragrance_rater.core.database import async_session_maker
+    from fragrance_rater.services.parfumo_scraper import ParfumoScraper
+
+    async def do_search() -> None:
+        async with async_session_maker() as session:
+            scraper = ParfumoScraper(session)
+
+            click.echo(f"Searching Parfumo for '{query}'...")
+
+            results = scraper.search(query, limit=limit)
+
+            if not results:
+                click.echo("No results found.")
+                scraper.close()
+                return
+
+            click.echo(f"\nFound {len(results)} result(s):\n")
+
+            for i, result in enumerate(results, 1):
+                click.echo(f"  {i}. {result.name}")
+                click.echo(f"     Brand: {result.brand}")
+                click.echo(f"     URL: {result.url}\n")
+
+            if import_first:
+                click.echo(f"Importing first result: {results[0].name}...")
+                fragrance_id = await scraper.import_from_url(results[0].url)
+
+                if fragrance_id:
+                    click.echo(f"Imported with ID: {fragrance_id}")
+                else:
+                    click.echo("Failed to import.", err=True)
+                    sys.exit(1)
+            else:
+                click.echo("Use --import-first to automatically import the first result,")
+                click.echo("or use 'import-data parfumo-url <URL>' to import a specific one.")
+
+            scraper.close()
+
+    try:
+        run_async(do_search())
+        logger.info("Parfumo search completed", query=query)
+    except Exception as e:
+        logger.exception("Parfumo search failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
 # =============================================================================
 # Seed Commands
 # =============================================================================
