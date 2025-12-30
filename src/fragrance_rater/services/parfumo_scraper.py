@@ -9,6 +9,7 @@ Parfumo uses Cloudflare protection - be respectful of their resources.
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from dataclasses import dataclass, field
@@ -18,7 +19,14 @@ from urllib.parse import quote_plus
 import httpx
 from bs4 import BeautifulSoup
 
-from fragrance_rater.models.fragrance import Fragrance, FragranceAccord, FragranceNote, Note
+from fragrance_rater.models.fragrance import (
+    Fragrance,
+    FragranceAccord,
+    FragranceNote,
+    Note,
+)
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -135,7 +143,7 @@ class ParfumoScraper:
             return BeautifulSoup(response.text, "lxml")
         except httpx.HTTPError as e:
             # Log error but don't crash
-            print(f"HTTP request failed for {url}: {e}")
+            logger.error("HTTP request failed for %s: %s", url, e)
             return None
 
     def search(self, query: str, limit: int = 10) -> list[SearchResult]:
@@ -171,12 +179,12 @@ class ParfumoScraper:
                 # Skip if it's not a perfume detail page
                 # Parfumo URLs: /Perfumes/brand/perfume-name
                 path_parts = href.replace(self.BASE_URL, "").split("/")
-                if len(path_parts) < 4:  # noqa: PLR2004
+                if len(path_parts) < 4:
                     continue
 
                 # Try to extract name from link text or nearby elements
                 name = item.get_text(strip=True)
-                brand = path_parts[2] if len(path_parts) > 2 else ""  # noqa: PLR2004
+                brand = path_parts[2] if len(path_parts) > 2 else ""
 
                 # Clean up brand name (URL encoded)
                 brand = brand.replace("-", " ").replace("_", " ").title()
@@ -258,7 +266,7 @@ class ParfumoScraper:
             # Extract from URL if not found
             if not data.brand:
                 path_parts = url.split("/")
-                if len(path_parts) >= 4:  # noqa: PLR2004
+                if len(path_parts) >= 4:
                     data.brand = (
                         path_parts[-2].replace("-", " ").replace("_", " ").title()
                     )
@@ -295,7 +303,7 @@ class ParfumoScraper:
                     match = re.search(r"(\d+\.?\d*)", rating_text)
                     if match:
                         rating = float(match.group(1))
-                        if rating > 10:  # noqa: PLR2004
+                        if rating > 10:
                             rating = rating / 10
                         data.rating = rating
 
@@ -330,7 +338,7 @@ class ParfumoScraper:
                 data.image_url = img_elem.get("src") or img_elem.get("data-src")
 
         except Exception as e:
-            print(f"Scraping error for {url}: {e}")
+            logger.error("Scraping error for %s: %s", url, e)
 
         return data if data.name else None
 
@@ -409,7 +417,7 @@ class ParfumoScraper:
                 else:
                     accord_name = elem.get_text(strip=True).lower()
 
-                if not accord_name or len(accord_name) > 50:  # noqa: PLR2004
+                if not accord_name or len(accord_name) > 50:
                     continue
 
                 # Try to get strength from width style or data attribute

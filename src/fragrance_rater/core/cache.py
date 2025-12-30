@@ -81,7 +81,7 @@ async def get_redis() -> Redis:
             retry_on_timeout=True,
         )
 
-        logger.info("redis_connection_initialized", url=redis_url)
+        logger.info("Redis connection initialized for url: %s", redis_url)
 
     return _redis_pool
 
@@ -153,11 +153,11 @@ def cached(
                 # Try to get from cache
                 cached_value = await redis.get(cache_key)
                 if cached_value is not None:
-                    logger.debug("cache_hit", key=cache_key)
+                    logger.debug("Cache hit for key: %s", cache_key)
                     return json.loads(cached_value)
 
                 # Cache miss - call original function
-                logger.debug("cache_miss", key=cache_key)
+                logger.debug("Cache miss for key: %s", cache_key)
                 result = await func(*args, **kwargs)
 
                 # Store in cache
@@ -171,7 +171,7 @@ def cached(
 
             except RedisError as e:
                 # If Redis is unavailable, gracefully degrade (call function directly)
-                logger.warning("cache_error", error=str(e), key=cache_key)
+                logger.warning("Cache error for key %s: %s", cache_key, str(e))
                 return await func(*args, **kwargs)
 
         return wrapper
@@ -208,7 +208,7 @@ def cache_invalidate(
                 await invalidate_pattern(key_pattern)
             except RedisError as e:
                 logger.warning(
-                    "cache_invalidation_failed", pattern=key_pattern, error=str(e)
+                    "Cache invalidation failed for pattern %s: %s", key_pattern, str(e)
                 )
 
             return result
@@ -243,7 +243,7 @@ async def get_cached(key: str, default: Any = None) -> Any:
         return json.loads(value)
 
     except RedisError as e:
-        logger.warning("cache_get_failed", key=key, error=str(e))
+        logger.warning("Cache get failed for key %s: %s", key, str(e))
         return default
 
 
@@ -264,7 +264,7 @@ async def set_cached(key: str, value: Any, ttl: int = 3600) -> bool:
         return True
 
     except RedisError as e:
-        logger.warning("cache_set_failed", key=key, error=str(e))
+        logger.warning("Cache set failed for key %s: %s", key, str(e))
         return False
 
 
@@ -283,7 +283,7 @@ async def delete_cached(key: str) -> bool:
         return deleted > 0
 
     except RedisError as e:
-        logger.warning("cache_delete_failed", key=key, error=str(e))
+        logger.warning("Cache delete failed for key %s: %s", key, str(e))
         return False
 
 
@@ -314,13 +314,13 @@ async def invalidate_pattern(pattern: str) -> int:
         # Delete in batches
         if keys:
             deleted = await redis.delete(*keys)
-            logger.info("cache_invalidated", pattern=pattern, count=deleted)
+            logger.info("Cache invalidated for pattern %s: %s keys", pattern, deleted)
             return deleted
 
         return 0
 
     except RedisError as e:
-        logger.exception("cache_invalidation_failed", pattern=pattern, error=str(e))
+        logger.exception("Cache invalidation failed for pattern %s: %s", pattern, str(e))
         return 0
 
 
@@ -360,18 +360,18 @@ async def warm_cache(
 
         # Check if key exists and not forcing refresh
         if not force and await redis.exists(key):
-            logger.debug("cache_already_warm", key=key)
+            logger.debug("Cache already warm for key: %s", key)
             return False
 
         # Get value and cache it
         value = await value_fn()
         await redis.setex(key, ttl, json.dumps(value, default=str))
 
-        logger.info("cache_warmed", key=key, ttl=ttl)
+        logger.info("Cache warmed for key %s with TTL %s", key, ttl)
         return True
 
     except RedisError as e:
-        logger.exception("cache_warming_failed", key=key, error=str(e))
+        logger.exception("Cache warming failed for key %s: %s", key, str(e))
         return False
 
 
@@ -451,5 +451,5 @@ async def get_cache_stats() -> dict[str, Any]:
         }
 
     except RedisError as e:
-        logger.exception("cache_stats_failed", error=str(e))
+        logger.exception("Cache stats failed: %s", str(e))
         return {"error": str(e)}

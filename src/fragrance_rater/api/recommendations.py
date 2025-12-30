@@ -220,22 +220,22 @@ async def get_recommendation_explanation(
     heart_notes: list[str] = []
     base_notes: list[str] = []
     for fn in fragrance.notes:
-        if fn.note_type == "top":
+        if fn.position == "top":
             top_notes.append(fn.note.name)
-        elif fn.note_type == "heart":
+        elif fn.position == "heart":
             heart_notes.append(fn.note.name)
-        elif fn.note_type == "base":
+        elif fn.position == "base":
             base_notes.append(fn.note.name)
 
     fragrance_details = FragranceDetails(
         name=fragrance.name,
         brand=fragrance.brand,
-        family=fragrance.family or "Unknown",
+        family=fragrance.primary_family or "Unknown",
         subfamily=fragrance.subfamily or "Unknown",
         top_notes=top_notes,
         heart_notes=heart_notes,
         base_notes=base_notes,
-        accords=[a.accord for a in fragrance.accords],
+        accords=[a.accord_type for a in fragrance.accords],
     )
 
     # Calculate recommendation for this fragrance
