@@ -30,6 +30,7 @@ repos:
         exclude: mkdocs.yml  # Exclude mkdocs.yml due to !ENV custom tags
       - id: check-json
         stages: [pre-commit]
+        exclude: frontend/tsconfig\.(app|node)\.json  # Exclude TypeScript JSONC files
       - id: check-toml
         stages: [pre-commit]
       - id: check-added-large-files
@@ -205,7 +206,7 @@ repos:
         language: system
         types: [python]
         stages: [pre-commit]
-        exclude: ^(tests|scripts|benchmarks|tools)/
+        exclude: ^(tests|scripts|benchmarks|tools|\.claude|docs/planning)/
 
 # Exclude patterns
 exclude: |
