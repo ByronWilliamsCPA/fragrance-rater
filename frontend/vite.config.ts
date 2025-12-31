@@ -17,7 +17,11 @@ export default defineConfig({
       '/api': {
         target: process.env.VITE_API_URL || 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+      // Proxy health checks directly (not under /api prefix in backend)
+      '/health': {
+        target: process.env.VITE_API_URL || 'http://localhost:8000',
+        changeOrigin: true,
       },
       '/openapi.json': {
         target: process.env.VITE_API_URL || 'http://localhost:8000',
