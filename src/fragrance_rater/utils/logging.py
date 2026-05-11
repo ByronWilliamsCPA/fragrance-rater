@@ -107,7 +107,7 @@ def setup_logging(
     # Add correlation ID processor for request tracing
     if include_correlation:
         try:
-            from fragrance_rater.middleware.correlation import (  # noqa: PLC0415
+            from fragrance_rater.middleware.correlation import (
                 correlation_context_processor,
             )
 

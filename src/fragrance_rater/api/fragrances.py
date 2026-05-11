@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.fragrance import (
@@ -15,6 +14,9 @@ from fragrance_rater.schemas.fragrance import (
     FragranceUpdate,
 )
 from fragrance_rater.services.fragrance_service import FragranceService
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/fragrances", tags=["fragrances"])
 

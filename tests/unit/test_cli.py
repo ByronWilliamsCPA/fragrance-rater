@@ -168,9 +168,9 @@ class TestImportKaggleCommand:
                 assert result.exit_code == 0
                 assert "Imported:   1" in result.output
         finally:
-            import os
+            from pathlib import Path
 
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     @patch("fragrance_rater.core.database.async_session_maker")
     def test_kaggle_dry_run(self, mock_session_maker: MagicMock) -> None:
@@ -209,9 +209,9 @@ class TestImportKaggleCommand:
                 assert result.exit_code == 0
                 assert "[DRY RUN]" in result.output
         finally:
-            import os
+            from pathlib import Path
 
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
 
 class TestSeedReviewersCommand:

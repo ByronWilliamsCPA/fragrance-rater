@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.core.database import get_db
@@ -24,6 +23,9 @@ from fragrance_rater.services.recommendation_service import (
 )
 from fragrance_rater.services.reviewer_service import ReviewerService
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
 
@@ -36,7 +38,7 @@ class RecommendationResponse(BaseModel):
     match_score: float = Field(..., description="Match score from 0.0 to 1.0")
     match_percent: int = Field(..., description="Match score as percentage 0-100")
     vetoed: bool = Field(
-        False, description="Whether fragrance contains a disliked note"
+        default=False, description="Whether fragrance contains a disliked note"
     )
     veto_reason: str | None = Field(None, description="Reason for veto if applicable")
 
@@ -78,7 +80,7 @@ class ExplanationResponse(BaseModel):
     fragrance_name: str
     explanation: str
     model: str = Field(..., description="Model used to generate explanation")
-    cached: bool = Field(False, description="Whether response was cached")
+    cached: bool = Field(default=False, description="Whether response was cached")
 
 
 async def get_recommendation_service(
@@ -93,7 +95,9 @@ async def get_recommendations(
     reviewer_id: str,
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
     limit: int = Query(10, ge=1, le=50, description="Maximum recommendations"),
-    exclude_rated: bool = Query(True, description="Exclude already-rated fragrances"),
+    exclude_rated: bool = Query(
+        default=True, description="Exclude already-rated fragrances"
+    ),
 ) -> RecommendationListResponse:
     """Get personalized fragrance recommendations for a reviewer.
 
@@ -139,7 +143,9 @@ async def get_profile_summary(
     session: Annotated[AsyncSession, Depends(get_db)],
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
     llm_service: Annotated[LLMService, Depends(get_llm_service)],
-    include_llm: bool = Query(True, description="Include LLM-generated summary"),
+    include_llm: bool = Query(
+        default=True, description="Include LLM-generated summary"
+    ),
 ) -> ProfileSummaryResponse:
     """Get a summary of a reviewer's preference profile.
 

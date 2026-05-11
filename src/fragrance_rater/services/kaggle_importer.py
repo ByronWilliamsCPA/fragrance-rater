@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 from uuid import uuid4
 
 from fragrance_rater.models.fragrance import (
@@ -66,16 +67,28 @@ class KaggleImporter:
     """
 
     # Column name mappings (lowercase)
-    NAME_COLS = {"name", "perfume", "fragrance", "title"}
-    BRAND_COLS = {"brand", "house", "designer", "company"}
-    CONCENTRATION_COLS = {"concentration", "type", "strength"}
-    YEAR_COLS = {"year", "launch_year", "release_year", "launched"}
-    GENDER_COLS = {"gender", "for", "target", "sex"}
-    FAMILY_COLS = {"family", "main_accords", "category", "type"}
-    TOP_NOTES_COLS = {"top", "top_notes", "top notes", "opening"}
-    HEART_NOTES_COLS = {"heart", "heart_notes", "heart notes", "middle", "middle_notes"}
-    BASE_NOTES_COLS = {"base", "base_notes", "base notes", "dry_down", "drydown"}
-    ACCORDS_COLS = {"accords", "accord", "notes", "scent_profile"}
+    NAME_COLS: ClassVar[set[str]] = {"name", "perfume", "fragrance", "title"}
+    BRAND_COLS: ClassVar[set[str]] = {"brand", "house", "designer", "company"}
+    CONCENTRATION_COLS: ClassVar[set[str]] = {"concentration", "type", "strength"}
+    YEAR_COLS: ClassVar[set[str]] = {"year", "launch_year", "release_year", "launched"}
+    GENDER_COLS: ClassVar[set[str]] = {"gender", "for", "target", "sex"}
+    FAMILY_COLS: ClassVar[set[str]] = {"family", "main_accords", "category", "type"}
+    TOP_NOTES_COLS: ClassVar[set[str]] = {"top", "top_notes", "top notes", "opening"}
+    HEART_NOTES_COLS: ClassVar[set[str]] = {
+        "heart",
+        "heart_notes",
+        "heart notes",
+        "middle",
+        "middle_notes",
+    }
+    BASE_NOTES_COLS: ClassVar[set[str]] = {
+        "base",
+        "base_notes",
+        "base notes",
+        "dry_down",
+        "drydown",
+    }
+    ACCORDS_COLS: ClassVar[set[str]] = {"accords", "accord", "notes", "scent_profile"}
 
     def __init__(self, session: AsyncSession) -> None:
         """Initialize the importer with a database session.
@@ -105,7 +118,7 @@ class KaggleImporter:
         result = ImportResult()
 
         try:
-            with file_path.open(encoding="utf-8") as f:
+            with file_path.open(encoding="utf-8") as f:  # noqa: ASYNC230
                 reader = csv.DictReader(f)
                 if not reader.fieldnames:
                     return ImportResult(errors=["CSV file is empty or has no headers"])
@@ -125,7 +138,7 @@ class KaggleImporter:
                             result.imported += 1
                         else:
                             result.skipped += 1
-                    except Exception as e:
+                    except (ValueError, KeyError, TypeError) as e:
                         result.errors.append(f"Row {row_num}: {e!s}")
                         result.skipped += 1
 
@@ -192,10 +205,8 @@ class KaggleImporter:
         year_str = row.get(col_map.get("year", ""), "").strip()
         launch_year = None
         if year_str:
-            try:
+            with contextlib.suppress(ValueError, AttributeError):
                 launch_year = int(re.search(r"\d{4}", year_str).group())  # type: ignore[union-attr]
-            except (ValueError, AttributeError):
-                pass
 
         # Parse gender
         gender_raw = row.get(col_map.get("gender", ""), "").strip().lower()

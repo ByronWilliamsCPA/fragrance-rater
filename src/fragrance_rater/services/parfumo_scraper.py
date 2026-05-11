@@ -13,7 +13,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import quote_plus
 
 import httpx
@@ -82,7 +82,7 @@ class ParfumoScraper:
 
     # User agent to identify as a browser
     # Keep headers minimal to avoid Cloudflare issues
-    HEADERS = {
+    HEADERS: ClassVar[dict[str, str]] = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -140,9 +140,9 @@ class ParfumoScraper:
                 return None
 
             return BeautifulSoup(response.text, "lxml")
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             # Log error but don't crash
-            logger.error("HTTP request failed for %s: %s", url, e)
+            logger.exception("HTTP request failed for %s", url)
             return None
 
     def search(self, query: str, limit: int = 10) -> list[SearchResult]:
@@ -188,23 +188,26 @@ class ParfumoScraper:
                 # Clean up brand name (URL encoded)
                 brand = brand.replace("-", " ").replace("_", " ").title()
 
-                if name and href:
+                if name and href and not any(r.url == href for r in results):
                     # Avoid duplicates
-                    if not any(r.url == href for r in results):
-                        results.append(
-                            SearchResult(
-                                name=name,
-                                brand=brand,
-                                url=href,
-                            )
+                    results.append(
+                        SearchResult(
+                            name=name,
+                            brand=brand,
+                            url=href,
                         )
+                    )
 
             except (AttributeError, IndexError):
                 continue
 
         return results[:limit]
 
-    def scrape_perfume_page(self, url: str) -> ScrapedFragrance | None:
+    def scrape_perfume_page(  # noqa: C901, PLR0912
+        self, url: str
+    ) -> ScrapedFragrance | None:
+        # HTML scraping requires many sequential field extractions with fallbacks;
+        # splitting further would obscure the parsing flow.
         """Scrape detailed info from a perfume page.
 
         Args:
@@ -251,9 +254,7 @@ class ParfumoScraper:
                 # Remove year if present (e.g., "Polysnifferous2024" -> "Polysnifferous")
                 brand_text = brand_elem.get_text(strip=True)
                 # Remove trailing year
-                import re as regex
-
-                data.brand = regex.sub(r"\d{4}$", "", brand_text).strip()
+                data.brand = re.sub(r"\d{4}$", "", brand_text).strip()
 
             # Fallback brand extraction
             if not data.brand:
@@ -337,8 +338,8 @@ class ParfumoScraper:
             if img_elem:
                 data.image_url = img_elem.get("src") or img_elem.get("data-src")
 
-        except Exception as e:
-            logger.error("Scraping error for %s: %s", url, e)
+        except (AttributeError, ValueError, TypeError):
+            logger.exception("Scraping error for %s", url)
 
         return data if data.name else None
 
@@ -451,10 +452,7 @@ class ParfumoScraper:
                 else:
                     # Check for data-value or similar
                     data_val = elem.get("data-value") or elem.get("data-width")
-                    if data_val:
-                        weight = float(data_val) / 100
-                    else:
-                        weight = 0.5  # Default weight
+                    weight = float(data_val) / 100 if data_val else 0.5
 
                 # Clamp to 0-1
                 weight = max(0.0, min(1.0, weight))

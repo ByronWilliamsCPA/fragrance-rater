@@ -32,7 +32,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from arq import cron
 from arq.connections import RedisSettings
@@ -83,7 +83,7 @@ async def send_email_task(
     _ctx: dict[str, Any],
     recipient: str,
     subject: str,
-    body: str,
+    _body: str,
 ) -> dict:
     """Send email asynchronously.
 
@@ -91,7 +91,7 @@ async def send_email_task(
         _ctx: ARQ context (unused in this example)
         recipient: Email recipient
         subject: Email subject
-        body: Email body
+        _body: Email body (unused in this example)
 
     Returns:
         Send status
@@ -180,8 +180,6 @@ async def startup(_ctx: dict[str, Any]) -> None:
     logger.info("arq_worker_starting")
 
     # Placeholder for initialization logic
-    # Example: _ctx['db'] = await create_db_connection()
-    # Example: _ctx['config'] = load_config()
 
 
 async def shutdown(_ctx: dict[str, Any]) -> None:
@@ -211,14 +209,14 @@ class WorkerSettings:
     """
 
     # Task functions to register
-    functions = [
+    functions: ClassVar = [
         example_background_task,
         send_email_task,
         process_file_upload,
     ]
 
     # Scheduled tasks (cron)
-    cron_jobs = [
+    cron_jobs: ClassVar = [
         cron(cleanup_old_data, hour=2, minute=0),  # Run daily at 2 AM
     ]
 

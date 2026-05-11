@@ -101,7 +101,7 @@ class TestEvaluationService:
 
     async def test_get_by_reviewer(self, async_session, setup_fragrance_and_reviewer):
         """Test getting evaluations by reviewer."""
-        fragrance, reviewer = setup_fragrance_and_reviewer
+        _fragrance, reviewer = setup_fragrance_and_reviewer
 
         # Create multiple evaluations
         for i in range(3):
@@ -136,7 +136,7 @@ class TestEvaluationService:
 
     async def test_get_by_fragrance(self, async_session, setup_fragrance_and_reviewer):
         """Test getting evaluations by fragrance."""
-        fragrance, reviewer = setup_fragrance_and_reviewer
+        fragrance, _reviewer = setup_fragrance_and_reviewer
 
         # Create multiple reviewers and evaluations
         for i in range(2):

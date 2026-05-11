@@ -65,7 +65,7 @@ def import_data() -> None:
     help="Validate without writing to database",
 )
 @click.pass_context
-def import_kaggle(ctx: click.Context, csv_file: Path, dry_run: bool) -> None:
+def import_kaggle(_ctx: click.Context, csv_file: Path, dry_run: bool) -> None:
     """Import fragrances from a Kaggle CSV file.
 
     CSV_FILE: Path to the CSV file to import.
@@ -115,8 +115,8 @@ def import_kaggle(ctx: click.Context, csv_file: Path, dry_run: bool) -> None:
 @import_data.command(name="parfumo-url")
 @click.argument("url", type=str)
 @click.pass_context
-def import_parfumo_url(ctx: click.Context, url: str) -> None:
-    """Import a fragrance from its Parfumo URL.
+def import_parfumo_url(_ctx: click.Context, url: str) -> None:
+    r"""Import a fragrance from its Parfumo URL.
 
     URL: Full Parfumo perfume page URL.
 
@@ -167,7 +167,7 @@ def import_parfumo_url(ctx: click.Context, url: str) -> None:
 )
 @click.pass_context
 def import_parfumo_search(
-    ctx: click.Context,
+    _ctx: click.Context,
     query: str,
     import_first: bool,
     limit: int,
@@ -238,7 +238,7 @@ def import_parfumo_search(
 
 @cli.command(name="seed-reviewers")
 @click.pass_context
-def seed_reviewers(ctx: click.Context) -> None:
+def seed_reviewers(_ctx: click.Context) -> None:
     """Create default family reviewer profiles.
 
     Creates: Byron, Veronica, Bayden, Ariannah
@@ -273,7 +273,7 @@ def seed_reviewers(ctx: click.Context) -> None:
 @cli.command()
 @click.argument("name", type=str)
 @click.pass_context
-def profile(ctx: click.Context, name: str) -> None:
+def profile(_ctx: click.Context, name: str) -> None:
     """Show a reviewer's preference profile.
 
     NAME: Reviewer name to show profile for.

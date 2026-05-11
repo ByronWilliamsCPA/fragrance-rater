@@ -39,7 +39,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     # Import models to ensure they're registered with SQLAlchemy
-    from fragrance_rater import models as _models  # noqa: PLC0415
+    from fragrance_rater import models as _models
 
     del _models  # Silence pyright unused import warning
 

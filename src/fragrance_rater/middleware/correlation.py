@@ -47,7 +47,7 @@ from __future__ import annotations
 
 import uuid
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -270,7 +270,7 @@ def configure_sentry_correlation() -> None:
     """
     import sentry_sdk
 
-    def before_send(event, hint):
+    def before_send(event: dict[str, Any], _hint: dict[str, Any]) -> dict[str, Any]:
         """Add correlation IDs to Sentry events."""
         correlation_id = _correlation_id_ctx.get()
         request_id = _request_id_ctx.get()

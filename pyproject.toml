@@ -294,6 +294,8 @@ ignore = [
     "FBT001", # Boolean positional arg (acceptable in DSLs)
     "FBT002", # Boolean default arg (acceptable in DSLs)
     "TRY003", # Long exception messages (descriptive is good)
+    "PLC0415", # Conditional/lazy imports are legitimate for optional deps and CLI startup time
+    "PLW0603", # Singleton async connection pool uses intentional global state
 ]
 
 # McCabe Complexity Configuration (Google/Pylint alignment)

@@ -167,12 +167,12 @@ def cached(
                     json.dumps(result, default=str),
                 )
 
-                return result
-
             except RedisError as e:
                 # If Redis is unavailable, gracefully degrade (call function directly)
                 logger.warning("Cache error for key %s: %s", cache_key, str(e))
                 return await func(*args, **kwargs)
+            else:
+                return result
 
         return wrapper
 
@@ -261,11 +261,11 @@ async def set_cached(key: str, value: Any, ttl: int = 3600) -> bool:
     try:
         redis = await get_redis()
         await redis.setex(key, ttl, json.dumps(value, default=str))
-        return True
-
     except RedisError as e:
         logger.warning("Cache set failed for key %s: %s", key, str(e))
         return False
+    else:
+        return True
 
 
 async def delete_cached(key: str) -> bool:
@@ -280,11 +280,11 @@ async def delete_cached(key: str) -> bool:
     try:
         redis = await get_redis()
         deleted = await redis.delete(key)
-        return deleted > 0
-
     except RedisError as e:
         logger.warning("Cache delete failed for key %s: %s", key, str(e))
         return False
+    else:
+        return deleted > 0
 
 
 async def invalidate_pattern(pattern: str) -> int:
@@ -307,23 +307,18 @@ async def invalidate_pattern(pattern: str) -> int:
         redis = await get_redis()
 
         # Find all matching keys
-        keys = []
-        async for key in redis.scan_iter(match=pattern, count=100):
-            keys.append(key)
+        keys = [key async for key in redis.scan_iter(match=pattern, count=100)]
 
         # Delete in batches
-        if keys:
-            deleted = await redis.delete(*keys)
-            logger.info("Cache invalidated for pattern %s: %s keys", pattern, deleted)
-            return deleted
-
+        if not keys:
+            return 0
+        deleted = await redis.delete(*keys)
+    except RedisError:
+        logger.exception("Cache invalidation failed for pattern %s", pattern)
         return 0
-
-    except RedisError as e:
-        logger.exception(
-            "Cache invalidation failed for pattern %s: %s", pattern, str(e)
-        )
-        return 0
+    else:
+        logger.info("Cache invalidated for pattern %s: %s keys", pattern, deleted)
+        return deleted
 
 
 # =============================================================================
@@ -368,13 +363,12 @@ async def warm_cache(
         # Get value and cache it
         value = await value_fn()
         await redis.setex(key, ttl, json.dumps(value, default=str))
-
+    except RedisError:
+        logger.exception("Cache warming failed for key %s", key)
+        return False
+    else:
         logger.info("Cache warmed for key %s with TTL %s", key, ttl)
         return True
-
-    except RedisError as e:
-        logger.exception("Cache warming failed for key %s: %s", key, str(e))
-        return False
 
 
 # =============================================================================
@@ -453,5 +447,5 @@ async def get_cache_stats() -> dict[str, Any]:
         }
 
     except RedisError as e:
-        logger.exception("Cache stats failed: %s", str(e))
+        logger.exception("Cache stats failed")
         return {"error": str(e)}
