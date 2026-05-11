@@ -260,24 +260,21 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Collect Markdown files (excluding planning docs)
+    # Template files that contain placeholder values and should not be validated
+    EXCLUDED_FILENAMES = {"adr-template.md"}
+
+    def _is_excluded(f: Path) -> bool:
+        return any(part == "planning" for part in f.parts) or f.name in EXCLUDED_FILENAMES
+
+    # Collect Markdown files (excluding planning docs and template files)
     md_files: list[Path] = []
     for path_str in args.paths:
         path = Path(path_str)
         if path.is_dir():
-            # Exclude docs/planning/ from validation
             all_md_files = path.rglob("*.md")
-            md_files.extend(
-                [
-                    f
-                    for f in all_md_files
-                    if not any(part == "planning" for part in f.parts)
-                ]
-            )
-        elif path.suffix.lower() == ".md":
-            # Only add file if not in planning directory
-            if "planning" not in path.parts:
-                md_files.append(path)
+            md_files.extend([f for f in all_md_files if not _is_excluded(f)])
+        elif path.suffix.lower() == ".md" and not _is_excluded(path):
+            md_files.append(path)
 
     if not md_files:
         print("No Markdown files found", file=sys.stderr)

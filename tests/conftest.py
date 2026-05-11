@@ -330,6 +330,9 @@ async def test_app(tmp_path):
     # Clear any existing overrides from previous tests
     app.dependency_overrides.clear()
 
+    # Reset middleware stack so rate limiter state doesn't bleed between tests
+    app.middleware_stack = None
+
     # Create a unique database file for each test
     db_path = tmp_path / "test.db"
     db_url = f"sqlite+aiosqlite:///{db_path}"

@@ -1,4 +1,14 @@
-# Fragrance Evaluation Form
+---
+schema_type: common
+title: "Fragrance Evaluation Form"
+description: "Printable session form for offline fragrance evaluations."
+tags:
+  - evaluation
+  - forms
+status: published
+owner: core-maintainer
+purpose: "Provide a printable evaluation sheet for offline fragrance assessments to be imported later."
+---
 
 > **Instructions**: Use this form to record fragrance evaluations when offline.
 > Enter data via CLI: `fragrance-rater import-data manual evaluations.csv`
