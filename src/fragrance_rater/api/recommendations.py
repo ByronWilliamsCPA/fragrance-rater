@@ -1,12 +1,11 @@
 """Recommendation API endpoints."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.core.database import get_db
@@ -22,9 +21,6 @@ from fragrance_rater.services.recommendation_service import (
     RecommendationService,
 )
 from fragrance_rater.services.reviewer_service import ReviewerService
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 

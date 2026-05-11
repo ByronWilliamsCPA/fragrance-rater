@@ -1,13 +1,8 @@
 """Pydantic schemas for reviewer-related API models."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING
+from datetime import datetime
 
 from pydantic import BaseModel, Field
-
-if TYPE_CHECKING:
-    from datetime import datetime
 
 
 class ReviewerCreate(BaseModel):

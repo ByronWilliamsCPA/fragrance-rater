@@ -4,8 +4,7 @@ This module defines the Evaluation model representing a reviewer's
 rating of a fragrance.
 """
 
-from __future__ import annotations
-
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -15,8 +14,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from fragrance_rater.core.database import Base
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from fragrance_rater.models.fragrance import Fragrance
     from fragrance_rater.models.reviewer import Reviewer
 
@@ -61,5 +58,5 @@ class Evaluation(Base):
         default=func.now(), server_default=func.now()
     )
 
-    fragrance: Mapped[Fragrance] = relationship(back_populates="evaluations")
-    reviewer: Mapped[Reviewer] = relationship(back_populates="evaluations")
+    fragrance: Mapped["Fragrance"] = relationship(back_populates="evaluations")
+    reviewer: Mapped["Reviewer"] = relationship(back_populates="evaluations")

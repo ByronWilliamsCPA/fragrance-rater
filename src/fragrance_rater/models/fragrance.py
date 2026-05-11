@@ -7,8 +7,7 @@ This module defines the core fragrance data models including:
 - FragranceAccord: Accord types with intensity weights
 """
 
-from __future__ import annotations
-
+from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -18,8 +17,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from fragrance_rater.core.database import Base
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from fragrance_rater.models.evaluation import Evaluation
 
 
@@ -72,13 +69,13 @@ class Fragrance(Base):
     )
 
     # Relationships
-    notes: Mapped[list[FragranceNote]] = relationship(
+    notes: Mapped[list["FragranceNote"]] = relationship(
         back_populates="fragrance", cascade="all, delete-orphan"
     )
-    accords: Mapped[list[FragranceAccord]] = relationship(
+    accords: Mapped[list["FragranceAccord"]] = relationship(
         back_populates="fragrance", cascade="all, delete-orphan"
     )
-    evaluations: Mapped[list[Evaluation]] = relationship(
+    evaluations: Mapped[list["Evaluation"]] = relationship(
         back_populates="fragrance", cascade="all, delete-orphan"
     )
 

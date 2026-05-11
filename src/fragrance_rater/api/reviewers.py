@@ -1,17 +1,13 @@
 """Reviewer API endpoints."""
 
-from __future__ import annotations
-
-from typing import TYPE_CHECKING, Annotated
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.reviewer import ReviewerCreate, ReviewerResponse
 from fragrance_rater.services.reviewer_service import ReviewerService
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/reviewers", tags=["reviewers"])
 
