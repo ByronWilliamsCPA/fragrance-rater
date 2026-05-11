@@ -52,7 +52,7 @@ from typing import TYPE_CHECKING, Any
 from starlette.middleware.base import BaseHTTPMiddleware
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from fastapi import Request
     from starlette.responses import Response
@@ -201,7 +201,7 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         """Process request with correlation ID handling.
 
@@ -287,12 +287,7 @@ def configure_sentry_correlation() -> None:
 
         return event
 
-    # Get current options and add before_send
-    current_client = sentry_sdk.get_client()
-    if current_client:
-        # Note: This is a simplified approach. For production, consider
-        # using Sentry's built-in transaction tracing instead.
-        pass
+    sentry_sdk.add_event_processor(before_send)  # pyright: ignore[reportAttributeAccessIssue, reportArgumentType]
 
 
 # Export public API

@@ -27,7 +27,9 @@ import logging
 import os
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from fragrance_rater.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def init_sentry(
@@ -131,7 +133,7 @@ def init_sentry(
         attach_stacktrace=True,  # Include stack traces in messages
         send_default_pii=False,  # Don't send PII by default (GDPR compliance)
         # Custom options
-        before_send=before_send_hook,
+        before_send=before_send_hook,  # pyright: ignore[reportArgumentType]
         before_breadcrumb=before_breadcrumb_hook,
     )
 

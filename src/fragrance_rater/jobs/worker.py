@@ -30,17 +30,18 @@ Setup:
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from arq import cron
 from arq.connections import RedisSettings
 
+from fragrance_rater.utils.logging import get_logger
+
 if TYPE_CHECKING:
     from arq.connections import ArqRedis
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =============================================================================
@@ -68,7 +69,7 @@ async def example_background_task(
 
     # Access Redis for storing results
     redis: ArqRedis = ctx["redis"]
-    await redis.set(f"task_result:{user_id}", "completed", expire=3600)
+    await redis.set(f"task_result:{user_id}", "completed", ex=3600)
 
     logger.info("background_task_completed", user_id=user_id)
 
@@ -217,7 +218,7 @@ class WorkerSettings:
 
     # Scheduled tasks (cron)
     cron_jobs: ClassVar = [
-        cron(cleanup_old_data, hour=2, minute=0),  # Run daily at 2 AM
+        cron(cleanup_old_data, hour=2, minute=0),  # pyright: ignore[reportArgumentType]
     ]
 
     # Redis connection
@@ -272,6 +273,9 @@ async def enqueue_task(
         ... )
     """
     job = await redis.enqueue_job(task_name, *args, **kwargs)
+    if job is None:
+        msg = f"Failed to enqueue task: {task_name}"
+        raise RuntimeError(msg)
     logger.info("task_enqueued", task=task_name, job_id=job.job_id)
     return job.job_id
 

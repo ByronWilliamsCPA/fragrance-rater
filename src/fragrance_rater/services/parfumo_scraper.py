@@ -167,7 +167,7 @@ class ParfumoScraper:
         # Look for links to perfume pages
         for item in soup.select("a[href*='/Perfumes/']")[:limit]:
             try:
-                href = item.get("href", "")
+                href = str(item.get("href") or "")
                 if not href:
                     continue
 
@@ -336,7 +336,8 @@ class ParfumoScraper:
                 "img[itemprop='image'], .perfume-image img, .bottle-image"
             )
             if img_elem:
-                data.image_url = img_elem.get("src") or img_elem.get("data-src")
+                raw_src = img_elem.get("src") or img_elem.get("data-src")
+                data.image_url = str(raw_src) if raw_src else None
 
         except (AttributeError, ValueError, TypeError):
             logger.exception("Scraping error for %s", url)
@@ -444,14 +445,15 @@ class ParfumoScraper:
                     continue
 
                 # Try to get strength from width style or data attribute
-                style = elem.get("style", "")
+                style = str(elem.get("style") or "")
                 width_match = re.search(r"width:\s*(\d+)", style)
 
                 if width_match:
                     weight = float(width_match.group(1)) / 100
                 else:
                     # Check for data-value or similar
-                    data_val = elem.get("data-value") or elem.get("data-width")
+                    data_val_raw = elem.get("data-value") or elem.get("data-width")
+                    data_val = str(data_val_raw) if data_val_raw else None
                     weight = float(data_val) / 100 if data_val else 0.5
 
                 # Clamp to 0-1
