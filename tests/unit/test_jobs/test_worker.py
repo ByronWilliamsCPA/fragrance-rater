@@ -68,7 +68,9 @@ class TestProcessFileUpload:
         from fragrance_rater.jobs.worker import process_file_upload
 
         with patch("asyncio.sleep", new_callable=AsyncMock):
-            result = await process_file_upload({}, file_id="file-1", file_path="/tmp/test.csv")
+            result = await process_file_upload(
+                {}, file_id="file-1", file_path="/tmp/test.csv"
+            )
 
         assert result["status"] == "completed"
         assert result["file_id"] == "file-1"
@@ -81,7 +83,14 @@ class TestProcessFileUpload:
         """Verify exceptions during processing are re-raised."""
         from fragrance_rater.jobs.worker import process_file_upload
 
-        with patch("asyncio.sleep", new_callable=AsyncMock, side_effect=RuntimeError("disk full")), pytest.raises(RuntimeError, match="disk full"):
+        with (
+            patch(
+                "asyncio.sleep",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("disk full"),
+            ),
+            pytest.raises(RuntimeError, match="disk full"),
+        ):
             await process_file_upload({}, file_id="file-2", file_path="/tmp/bad.csv")
 
 
@@ -134,7 +143,9 @@ class TestEnqueueTask:
 
         job_id = await enqueue_task(mock_redis, "example_background_task", "arg1")
         assert job_id == "job-abc-123"
-        mock_redis.enqueue_job.assert_awaited_once_with("example_background_task", "arg1")
+        mock_redis.enqueue_job.assert_awaited_once_with(
+            "example_background_task", "arg1"
+        )
 
     @pytest.mark.unit
     @pytest.mark.asyncio

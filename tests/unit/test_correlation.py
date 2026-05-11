@@ -494,6 +494,7 @@ class TestConfigureSentryCorrelation:
             from fragrance_rater.middleware.correlation import (
                 configure_sentry_correlation,
             )
+
             configure_sentry_correlation()
 
         mock_add.assert_called_once()
@@ -517,7 +518,9 @@ class TestConfigureSentryCorrelation:
         def capture_processor(fn):
             captured["fn"] = fn
 
-        with patch("sentry_sdk.add_event_processor", create=True, side_effect=capture_processor):
+        with patch(
+            "sentry_sdk.add_event_processor", create=True, side_effect=capture_processor
+        ):
             configure_sentry_correlation()
 
         before_send = captured["fn"]
@@ -553,7 +556,9 @@ class TestConfigureSentryCorrelation:
         def capture_processor(fn):
             captured["fn"] = fn
 
-        with patch("sentry_sdk.add_event_processor", create=True, side_effect=capture_processor):
+        with patch(
+            "sentry_sdk.add_event_processor", create=True, side_effect=capture_processor
+        ):
             configure_sentry_correlation()
 
         before_send = captured["fn"]

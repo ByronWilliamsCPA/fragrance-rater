@@ -52,7 +52,9 @@ class TestBeforeSendHook:
         """Verify password field is redacted from request data."""
         from fragrance_rater.core.sentry import before_send_hook
 
-        event: dict = {"request": {"data": {"password": "secret123", "username": "alice"}}}
+        event: dict = {
+            "request": {"data": {"password": "secret123", "username": "alice"}}
+        }
         result = before_send_hook(event, {})
         assert result is not None
         assert result["request"]["data"]["password"] == "[REDACTED]"
@@ -133,7 +135,10 @@ class TestBeforeBreadcrumbHook:
         """Verify HTTP breadcrumbs with data but no query are not modified."""
         from fragrance_rater.core.sentry import before_breadcrumb_hook
 
-        crumb: dict = {"category": "httplib", "data": {"url": "https://api.example.com"}}
+        crumb: dict = {
+            "category": "httplib",
+            "data": {"url": "https://api.example.com"},
+        }
         result = before_breadcrumb_hook(crumb, {})
         assert result == crumb
 
@@ -158,7 +163,10 @@ class TestGetReleaseVersion:
         from fragrance_rater.core.sentry import _get_release_version
 
         with (
-            patch("subprocess.check_output", side_effect=subprocess.CalledProcessError(1, "git")),
+            patch(
+                "subprocess.check_output",
+                side_effect=subprocess.CalledProcessError(1, "git"),
+            ),
             patch("importlib.metadata.version", return_value="1.2.3"),
         ):
             result = _get_release_version()
@@ -187,7 +195,10 @@ class TestInitSentry:
         """Verify Sentry is not initialized when DSN is absent."""
         from fragrance_rater.core.sentry import init_sentry
 
-        with patch.dict("os.environ", {}, clear=True), patch("sentry_sdk.init") as mock_init:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("sentry_sdk.init") as mock_init,
+        ):
             init_sentry(dsn=None)
         mock_init.assert_not_called()
 
@@ -361,7 +372,9 @@ class TestAddBreadcrumb:
         from fragrance_rater.core.sentry import add_breadcrumb
 
         with patch("sentry_sdk.add_breadcrumb") as mock_add:
-            add_breadcrumb("import started", category="import", level="warning", data={"rows": 100})
+            add_breadcrumb(
+                "import started", category="import", level="warning", data={"rows": 100}
+            )
 
         mock_add.assert_called_once_with(
             message="import started",

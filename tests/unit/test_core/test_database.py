@@ -21,7 +21,9 @@ class TestGetSession:
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("fragrance_rater.core.database.async_session_maker", return_value=mock_ctx):
+        with patch(
+            "fragrance_rater.core.database.async_session_maker", return_value=mock_ctx
+        ):
             async with get_session() as session:
                 assert session is mock_session
 
@@ -39,7 +41,13 @@ class TestGetSession:
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("fragrance_rater.core.database.async_session_maker", return_value=mock_ctx), pytest.raises(SQLAlchemyError):
+        with (
+            patch(
+                "fragrance_rater.core.database.async_session_maker",
+                return_value=mock_ctx,
+            ),
+            pytest.raises(SQLAlchemyError),
+        ):
             async with get_session() as _session:
                 raise SQLAlchemyError("connection lost")
 
@@ -60,7 +68,9 @@ class TestGetDb:
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("fragrance_rater.core.database.async_session_maker", return_value=mock_ctx):
+        with patch(
+            "fragrance_rater.core.database.async_session_maker", return_value=mock_ctx
+        ):
             gen = get_db()
             session = await gen.__anext__()
             assert session is mock_session
@@ -81,7 +91,9 @@ class TestGetDb:
         mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
         mock_ctx.__aexit__ = AsyncMock(return_value=False)
 
-        with patch("fragrance_rater.core.database.async_session_maker", return_value=mock_ctx):
+        with patch(
+            "fragrance_rater.core.database.async_session_maker", return_value=mock_ctx
+        ):
             gen = get_db()
             _session = await gen.__anext__()
             with pytest.raises(SQLAlchemyError):

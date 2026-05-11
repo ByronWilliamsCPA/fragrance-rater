@@ -485,7 +485,9 @@ class TestKaggleImporterErrorPaths:
 
         try:
             importer = KaggleImporter(session)
-            with patch.object(importer, "_parse_row", side_effect=ValueError("bad data")):
+            with patch.object(
+                importer, "_parse_row", side_effect=ValueError("bad data")
+            ):
                 result = await importer.import_csv(temp_path, dry_run=True)
 
             assert result.total_rows == 1

@@ -464,8 +464,15 @@ class TestLLMServiceActivePath:
             top_notes=["bergamot"],
         )
 
-        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, return_value="Great match!") as mock_call:
-            response = await service.generate_recommendation_explanation(recommendation, profile, details)
+        with patch.object(
+            service,
+            "_call_openrouter",
+            new_callable=AsyncMock,
+            return_value="Great match!",
+        ) as mock_call:
+            response = await service.generate_recommendation_explanation(
+                recommendation, profile, details
+            )
 
         assert response.text == "Great match!"
         assert response.cached is False
@@ -497,8 +504,15 @@ class TestLLMServiceActivePath:
             name="Bad Scent", brand="Brand", family="woody", subfamily="earthy"
         )
 
-        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, return_value="Not ideal.") as mock_call:
-            response = await service.generate_recommendation_explanation(recommendation, profile, details)
+        with patch.object(
+            service,
+            "_call_openrouter",
+            new_callable=AsyncMock,
+            return_value="Not ideal.",
+        ) as mock_call:
+            response = await service.generate_recommendation_explanation(
+                recommendation, profile, details
+            )
 
         assert response.text == "Not ideal."
         prompt_used = mock_call.call_args.args[0]
@@ -529,8 +543,15 @@ class TestLLMServiceActivePath:
             name="Error Scent", brand="Brand", family="woody", subfamily="aromatic"
         )
 
-        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, side_effect=LLMServiceError("timeout")):
-            response = await service.generate_recommendation_explanation(recommendation, profile, details)
+        with patch.object(
+            service,
+            "_call_openrouter",
+            new_callable=AsyncMock,
+            side_effect=LLMServiceError("timeout"),
+        ):
+            response = await service.generate_recommendation_explanation(
+                recommendation, profile, details
+            )
 
         assert response.model == "fallback"
         assert response.error == "timeout"
@@ -554,7 +575,12 @@ class TestLLMServiceActivePath:
             family_affinities={"floral": 1.5},
         )
 
-        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, return_value="Summary text.") as mock_call:
+        with patch.object(
+            service,
+            "_call_openrouter",
+            new_callable=AsyncMock,
+            return_value="Summary text.",
+        ) as mock_call:
             response = await service.generate_profile_summary(profile, "Alice")
 
         assert response.text == "Summary text."
@@ -577,7 +603,12 @@ class TestLLMServiceActivePath:
 
         profile = UserProfile(reviewer_id="user-profile-err", evaluation_count=5)
 
-        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, side_effect=LLMServiceError("api down")):
+        with patch.object(
+            service,
+            "_call_openrouter",
+            new_callable=AsyncMock,
+            side_effect=LLMServiceError("api down"),
+        ):
             response = await service.generate_profile_summary(profile, "Bob")
 
         assert response.model == "fallback"

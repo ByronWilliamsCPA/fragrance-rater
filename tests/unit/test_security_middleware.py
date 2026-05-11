@@ -127,7 +127,9 @@ class TestRateLimitMiddleware:
         """Verify _cleanup_stale_entries removes IPs with no recent activity."""
         from fragrance_rater.middleware.security import RateLimitMiddleware
 
-        middleware = RateLimitMiddleware(MagicMock(), requests_per_minute=60, burst_size=10)
+        middleware = RateLimitMiddleware(
+            MagicMock(), requests_per_minute=60, burst_size=10
+        )
         now = time.time()
 
         # Add stale (>60s old) entries
@@ -147,7 +149,9 @@ class TestRateLimitMiddleware:
         """Verify LRU eviction when tracked IPs exceed max_tracked_ips."""
         from fragrance_rater.middleware.security import RateLimitMiddleware
 
-        middleware = RateLimitMiddleware(MagicMock(), requests_per_minute=60, burst_size=10)
+        middleware = RateLimitMiddleware(
+            MagicMock(), requests_per_minute=60, burst_size=10
+        )
         middleware.max_tracked_ips = 2
         now = time.time()
 
@@ -168,7 +172,9 @@ class TestRateLimitMiddleware:
         """Verify cleanup does not run before cleanup_interval has passed."""
         from fragrance_rater.middleware.security import RateLimitMiddleware
 
-        middleware = RateLimitMiddleware(MagicMock(), requests_per_minute=60, burst_size=10)
+        middleware = RateLimitMiddleware(
+            MagicMock(), requests_per_minute=60, burst_size=10
+        )
         now = time.time()
         middleware.requests["1.1.1.1"] = [now - 120]  # stale
         middleware._last_cleanup = now  # just cleaned up
@@ -236,8 +242,14 @@ class TestSSRFPreventionMiddleware:
         """Verify hostname is extracted correctly from standard URLs."""
         from fragrance_rater.middleware.security import SSRFPreventionMiddleware
 
-        assert SSRFPreventionMiddleware._extract_host_from_url("http://example.com/path") == "example.com"
-        assert SSRFPreventionMiddleware._extract_host_from_url("https://api.test.com:8080") == "api.test.com"
+        assert (
+            SSRFPreventionMiddleware._extract_host_from_url("http://example.com/path")
+            == "example.com"
+        )
+        assert (
+            SSRFPreventionMiddleware._extract_host_from_url("https://api.test.com:8080")
+            == "api.test.com"
+        )
 
     @pytest.mark.unit
     def test_extract_host_from_url_none_on_failure(self) -> None:
@@ -252,9 +264,18 @@ class TestSSRFPreventionMiddleware:
         """Verify scheme extraction returns lowercase scheme."""
         from fragrance_rater.middleware.security import SSRFPreventionMiddleware
 
-        assert SSRFPreventionMiddleware._extract_scheme_from_url("http://example.com") == "http"
-        assert SSRFPreventionMiddleware._extract_scheme_from_url("FTP://example.com") == "ftp"
-        assert SSRFPreventionMiddleware._extract_scheme_from_url("file:///etc/passwd") == "file"
+        assert (
+            SSRFPreventionMiddleware._extract_scheme_from_url("http://example.com")
+            == "http"
+        )
+        assert (
+            SSRFPreventionMiddleware._extract_scheme_from_url("FTP://example.com")
+            == "ftp"
+        )
+        assert (
+            SSRFPreventionMiddleware._extract_scheme_from_url("file:///etc/passwd")
+            == "file"
+        )
 
     @pytest.mark.unit
     def test_extract_scheme_returns_none_for_no_scheme(self) -> None:
@@ -278,7 +299,10 @@ class TestSSRFPreventionMiddleware:
         from fragrance_rater.middleware.security import SSRFPreventionMiddleware
 
         middleware = SSRFPreventionMiddleware(MagicMock())
-        assert middleware._is_blocked_url("http://169.254.169.254/latest/meta-data") is True
+        assert (
+            middleware._is_blocked_url("http://169.254.169.254/latest/meta-data")
+            is True
+        )
 
     @pytest.mark.unit
     def test_is_blocked_url_private_ip(self) -> None:
