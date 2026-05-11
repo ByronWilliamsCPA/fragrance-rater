@@ -204,7 +204,7 @@ async def async_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def sync_engine():
     """Create sync SQLite engine for testing."""
     engine = create_engine(
@@ -218,7 +218,7 @@ def sync_engine():
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture()
 def sync_session(sync_engine) -> Generator[Session, None, None]:
     """Create sync session for testing."""
     session_maker = sessionmaker(bind=sync_engine, expire_on_commit=False)
