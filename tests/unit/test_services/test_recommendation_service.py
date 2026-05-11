@@ -6,7 +6,11 @@ Tests the weighted affinity scoring algorithm per ADR-004.
 import pytest
 
 from fragrance_rater.models.evaluation import Evaluation
-from fragrance_rater.models.fragrance import Fragrance, FragranceAccord, FragranceNote, Note
+from fragrance_rater.models.fragrance import (
+    Fragrance,
+    FragranceNote,
+    Note,
+)
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.services.recommendation_service import (
     COMPONENT_WEIGHTS,
@@ -329,8 +333,12 @@ class TestRecommendationServiceIntegration:
         async_session.add_all([frag1, frag2])
 
         # Add notes to fragrances
-        fn1 = FragranceNote(fragrance_id="frag-s1", note_id="note-liked", position="heart")
-        fn2 = FragranceNote(fragrance_id="frag-s2", note_id="note-disliked", position="base")
+        fn1 = FragranceNote(
+            fragrance_id="frag-s1", note_id="note-liked", position="heart"
+        )
+        fn2 = FragranceNote(
+            fragrance_id="frag-s2", note_id="note-disliked", position="base"
+        )
         async_session.add_all([fn1, fn2])
 
         # High rating for floral, low for oud
@@ -354,4 +362,7 @@ class TestRecommendationServiceIntegration:
 
         assert summary["evaluation_count"] == 2
         # Should have liked notes (rose) and disliked notes (oud)
-        assert len(summary["top_liked_notes"]) > 0 or len(summary["top_disliked_notes"]) > 0
+        assert (
+            len(summary["top_liked_notes"]) > 0
+            or len(summary["top_disliked_notes"]) > 0
+        )

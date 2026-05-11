@@ -213,8 +213,12 @@ def import_parfumo_search(
                     click.echo("Failed to import.", err=True)
                     sys.exit(1)
             else:
-                click.echo("Use --import-first to automatically import the first result,")
-                click.echo("or use 'import-data parfumo-url <URL>' to import a specific one.")
+                click.echo(
+                    "Use --import-first to automatically import the first result,"
+                )
+                click.echo(
+                    "or use 'import-data parfumo-url <URL>' to import a specific one."
+                )
 
             scraper.close()
 

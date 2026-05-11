@@ -11,7 +11,7 @@ This module provides:
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
@@ -302,11 +302,7 @@ def mock_openrouter_response() -> dict[str, Any]:
     """Return mock OpenRouter API response."""
     return {
         "choices": [
-            {
-                "message": {
-                    "content": "This is a mock LLM response for testing."
-                }
-            }
+            {"message": {"content": "This is a mock LLM response for testing."}}
         ],
         "model": "anthropic/claude-3-haiku",
     }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -347,7 +347,10 @@ class TestKaggleImporterCSVImport:
             result = await importer.import_csv(temp_path)
 
             assert len(result.errors) == 1
-            assert "empty" in result.errors[0].lower() or "headers" in result.errors[0].lower()
+            assert (
+                "empty" in result.errors[0].lower()
+                or "headers" in result.errors[0].lower()
+            )
         finally:
             Path(temp_path).unlink()
 
@@ -365,7 +368,10 @@ class TestKaggleImporterCSVImport:
             result = await importer.import_csv(temp_path)
 
             assert len(result.errors) == 1
-            assert "name" in result.errors[0].lower() or "brand" in result.errors[0].lower()
+            assert (
+                "name" in result.errors[0].lower()
+                or "brand" in result.errors[0].lower()
+            )
         finally:
             Path(temp_path).unlink()
 

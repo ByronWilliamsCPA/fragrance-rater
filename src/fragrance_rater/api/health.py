@@ -41,7 +41,9 @@ class ReadinessCheck(BaseModel):
 
     name: str = Field(..., description="Dependency name")
     status: bool = Field(..., description="Check passed")
-    latency_ms: float | None = Field(default=None, description="Check latency in milliseconds")
+    latency_ms: float | None = Field(
+        default=None, description="Check latency in milliseconds"
+    )
     error: str | None = Field(default=None, description="Error message if failed")
 
 

@@ -320,7 +320,9 @@ async def invalidate_pattern(pattern: str) -> int:
         return 0
 
     except RedisError as e:
-        logger.exception("Cache invalidation failed for pattern %s: %s", pattern, str(e))
+        logger.exception(
+            "Cache invalidation failed for pattern %s: %s", pattern, str(e)
+        )
         return 0
 
 

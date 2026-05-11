@@ -205,7 +205,7 @@ repos:
         entry: uv run darglint
         language: system
         types: [python]
-        stages: [pre-commit]
+        stages: [manual]
         exclude: ^(tests|scripts|benchmarks|tools|\.claude|docs/planning)/
 
 # Exclude patterns

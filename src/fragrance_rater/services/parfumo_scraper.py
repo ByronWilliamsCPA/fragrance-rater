@@ -89,8 +89,7 @@ class ParfumoScraper:
             "Chrome/120.0.0.0 Safari/537.36"
         ),
         "Accept": (
-            "text/html,application/xhtml+xml,application/xml;"
-            "q=0.9,image/webp,*/*;q=0.8"
+            "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
         ),
         "Accept-Language": "en-US,en;q=0.5",
     }
@@ -253,6 +252,7 @@ class ParfumoScraper:
                 brand_text = brand_elem.get_text(strip=True)
                 # Remove trailing year
                 import re as regex
+
                 data.brand = regex.sub(r"\d{4}$", "", brand_text).strip()
 
             # Fallback brand extraction
@@ -358,17 +358,23 @@ class ParfumoScraper:
         top_block = soup.select_one(".pyramid_block.nb_t")
         if top_block:
             note_spans = top_block.select("span.pointer")
-            data.top_notes = [n.get_text(strip=True) for n in note_spans if n.get_text(strip=True)]
+            data.top_notes = [
+                n.get_text(strip=True) for n in note_spans if n.get_text(strip=True)
+            ]
 
         heart_block = soup.select_one(".pyramid_block.nb_m")
         if heart_block:
             note_spans = heart_block.select("span.pointer")
-            data.heart_notes = [n.get_text(strip=True) for n in note_spans if n.get_text(strip=True)]
+            data.heart_notes = [
+                n.get_text(strip=True) for n in note_spans if n.get_text(strip=True)
+            ]
 
         base_block = soup.select_one(".pyramid_block.nb_b")
         if base_block:
             note_spans = base_block.select("span.pointer")
-            data.base_notes = [n.get_text(strip=True) for n in note_spans if n.get_text(strip=True)]
+            data.base_notes = [
+                n.get_text(strip=True) for n in note_spans if n.get_text(strip=True)
+            ]
 
         # Method 2: Fallback - look for labeled sections
         if not any([data.top_notes, data.heart_notes, data.base_notes]):
@@ -376,20 +382,38 @@ class ParfumoScraper:
 
             for section in sections:
                 section_text = section.get_text().lower()
-                note_links = section.select("a[href*='/Notes/'], .note-name, .ingredient, span.pointer")
-                notes = [n.get_text(strip=True) for n in note_links if n.get_text(strip=True)]
+                note_links = section.select(
+                    "a[href*='/Notes/'], .note-name, .ingredient, span.pointer"
+                )
+                notes = [
+                    n.get_text(strip=True) for n in note_links if n.get_text(strip=True)
+                ]
 
-                if "top" in section_text or "head" in section_text or "kopfnote" in section_text:
+                if (
+                    "top" in section_text
+                    or "head" in section_text
+                    or "kopfnote" in section_text
+                ):
                     data.top_notes.extend(notes)
-                elif "heart" in section_text or "middle" in section_text or "herznote" in section_text:
+                elif (
+                    "heart" in section_text
+                    or "middle" in section_text
+                    or "herznote" in section_text
+                ):
                     data.heart_notes.extend(notes)
-                elif "base" in section_text or "fond" in section_text or "basisnote" in section_text:
+                elif (
+                    "base" in section_text
+                    or "fond" in section_text
+                    or "basisnote" in section_text
+                ):
                     data.base_notes.extend(notes)
 
         # Method 3: If still no notes, look for any note links
         if not any([data.top_notes, data.heart_notes, data.base_notes]):
             all_notes = soup.select("a[href*='/Notes/'], span.pointer")
-            data.heart_notes = list({n.get_text(strip=True) for n in all_notes if n.get_text(strip=True)})
+            data.heart_notes = list(
+                {n.get_text(strip=True) for n in all_notes if n.get_text(strip=True)}
+            )
 
         # Deduplicate
         data.top_notes = list(dict.fromkeys(data.top_notes))
@@ -404,9 +428,7 @@ class ParfumoScraper:
             data: ScrapedFragrance to populate.
         """
         # Parfumo shows accords with visual bars indicating strength
-        accord_elements = soup.select(
-            ".accord, .scent-profile .bar, [class*='accord']"
-        )
+        accord_elements = soup.select(".accord, .scent-profile .bar, [class*='accord']")
 
         for elem in accord_elements:
             try:
@@ -685,9 +707,7 @@ class ParfumoScraper:
                     return family
 
         # Check all notes
-        all_notes = (
-            scraped.top_notes + scraped.heart_notes + scraped.base_notes
-        )
+        all_notes = scraped.top_notes + scraped.heart_notes + scraped.base_notes
         all_notes_lower = [n.lower() for n in all_notes]
 
         for family, keywords in families.items():
@@ -710,10 +730,26 @@ class ParfumoScraper:
 
         categories = {
             "citrus": ["bergamot", "lemon", "orange", "grapefruit", "lime", "mandarin"],
-            "floral": ["rose", "jasmine", "lily", "violet", "iris", "peony", "tuberose"],
+            "floral": [
+                "rose",
+                "jasmine",
+                "lily",
+                "violet",
+                "iris",
+                "peony",
+                "tuberose",
+            ],
             "woody": ["cedar", "sandalwood", "oud", "vetiver", "birch", "guaiac"],
             "spicy": ["pepper", "cinnamon", "cardamom", "clove", "ginger", "saffron"],
-            "fruity": ["apple", "peach", "pear", "berry", "plum", "cherry", "pineapple"],
+            "fruity": [
+                "apple",
+                "peach",
+                "pear",
+                "berry",
+                "plum",
+                "cherry",
+                "pineapple",
+            ],
             "green": ["grass", "leaf", "galbanum", "basil", "mint", "tea"],
             "balsamic": ["vanilla", "benzoin", "tonka", "labdanum", "peru balsam"],
             "animalic": ["musk", "civet", "castoreum", "ambergris", "leather"],
