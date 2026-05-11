@@ -1,0 +1,8 @@
+version: 2
+# Ignore test files that use intentionally fake credentials.
+# Tests in tests/unit/test_core/test_sentry.py use placeholder DSN values
+# with the IANA-reserved .invalid TLD to avoid real secret patterns, but
+# older commits in this branch contain sentry.io-domain placeholders that
+# trigger Sentry DSN detection. All values are non-functional test fixtures.
+ignore-paths:
+  - tests/
