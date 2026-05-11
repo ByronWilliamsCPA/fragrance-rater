@@ -480,3 +480,92 @@ class TestModuleExports:
 
         for export in expected_exports:
             assert hasattr(correlation, export), f"{export} not exported from module"
+
+
+class TestConfigureSentryCorrelation:
+    """Tests for configure_sentry_correlation Sentry integration."""
+
+    @pytest.mark.unit
+    def test_registers_event_processor_with_sentry(self) -> None:
+        """Verify configure_sentry_correlation calls sentry_sdk.add_event_processor."""
+        from unittest.mock import patch
+
+        with patch("sentry_sdk.add_event_processor", create=True) as mock_add:
+            from fragrance_rater.middleware.correlation import (
+                configure_sentry_correlation,
+            )
+            configure_sentry_correlation()
+
+        mock_add.assert_called_once()
+        registered_fn = mock_add.call_args.args[0]
+        assert callable(registered_fn)
+
+    @pytest.mark.unit
+    def test_before_send_adds_correlation_tags(self) -> None:
+        """Verify before_send adds correlation IDs to Sentry event tags."""
+        from unittest.mock import patch
+
+        from fragrance_rater.middleware.correlation import (
+            _correlation_id_ctx,
+            _request_id_ctx,
+            _trace_id_ctx,
+            configure_sentry_correlation,
+        )
+
+        captured = {}
+
+        def capture_processor(fn):
+            captured["fn"] = fn
+
+        with patch("sentry_sdk.add_event_processor", create=True, side_effect=capture_processor):
+            configure_sentry_correlation()
+
+        before_send = captured["fn"]
+
+        corr_token = _correlation_id_ctx.set("corr-abc")
+        req_token = _request_id_ctx.set("req-xyz")
+        trace_token = _trace_id_ctx.set("trace-123")
+        try:
+            event: dict = {}
+            result = before_send(event, {})
+            assert result["tags"]["correlation_id"] == "corr-abc"
+            assert result["tags"]["request_id"] == "req-xyz"
+            assert result["tags"]["trace_id"] == "trace-123"
+        finally:
+            _correlation_id_ctx.reset(corr_token)
+            _request_id_ctx.reset(req_token)
+            _trace_id_ctx.reset(trace_token)
+
+    @pytest.mark.unit
+    def test_before_send_skips_tags_when_no_correlation_ids(self) -> None:
+        """Verify before_send returns event unchanged when no IDs are set."""
+        from unittest.mock import patch
+
+        from fragrance_rater.middleware.correlation import (
+            _correlation_id_ctx,
+            _request_id_ctx,
+            _trace_id_ctx,
+            configure_sentry_correlation,
+        )
+
+        captured = {}
+
+        def capture_processor(fn):
+            captured["fn"] = fn
+
+        with patch("sentry_sdk.add_event_processor", create=True, side_effect=capture_processor):
+            configure_sentry_correlation()
+
+        before_send = captured["fn"]
+
+        corr_token = _correlation_id_ctx.set(None)
+        req_token = _request_id_ctx.set(None)
+        trace_token = _trace_id_ctx.set(None)
+        try:
+            event: dict = {"level": "error"}
+            result = before_send(event, {})
+            assert "tags" not in result
+        finally:
+            _correlation_id_ctx.reset(corr_token)
+            _request_id_ctx.reset(req_token)
+            _trace_id_ctx.reset(trace_token)

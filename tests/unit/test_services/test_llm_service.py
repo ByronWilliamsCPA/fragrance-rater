@@ -3,7 +3,7 @@
 Tests the OpenRouter LLM integration for recommendation explanations.
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -426,3 +426,259 @@ class TestGetLLMService:
         service1 = get_llm_service()
         service2 = get_llm_service()
         assert service1 is service2
+
+
+@pytest.mark.asyncio
+class TestLLMServiceActivePath:
+    """Tests for active code paths when LLM service is enabled."""
+
+    @pytest.mark.unit
+    async def test_generate_recommendation_calls_openrouter(self) -> None:
+        """Verify enabled service calls _call_openrouter and returns result."""
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://openrouter.test"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+        recommendation = Recommendation(
+            fragrance_id="frag-active",
+            fragrance_name="Active Scent",
+            fragrance_brand="Brand",
+            match_score=0.80,
+            match_percent=80,
+            vetoed=False,
+        )
+        profile = UserProfile(
+            reviewer_id="user-active",
+            top_liked_notes=[("bergamot", 2.0)],
+            top_disliked_notes=[],
+            family_affinities={"fresh": 1.5},
+        )
+        details = FragranceDetails(
+            name="Active Scent",
+            brand="Brand",
+            family="fresh",
+            subfamily="citrus",
+            top_notes=["bergamot"],
+        )
+
+        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, return_value="Great match!") as mock_call:
+            response = await service.generate_recommendation_explanation(recommendation, profile, details)
+
+        assert response.text == "Great match!"
+        assert response.cached is False
+        mock_call.assert_awaited_once()
+        cache_key = service._cache_key("rec", "frag-active", "user-active")
+        assert service._cache[cache_key] == "Great match!"
+
+    @pytest.mark.unit
+    async def test_generate_recommendation_vetoed_prompt(self) -> None:
+        """Verify vetoed recommendation builds the vetoed prompt."""
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://openrouter.test"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+        recommendation = Recommendation(
+            fragrance_id="frag-vetoed",
+            fragrance_name="Bad Scent",
+            fragrance_brand="Brand",
+            match_score=0.1,
+            match_percent=10,
+            vetoed=True,
+            veto_reason="patchouli",
+        )
+        profile = UserProfile(reviewer_id="user-vetoed")
+        details = FragranceDetails(
+            name="Bad Scent", brand="Brand", family="woody", subfamily="earthy"
+        )
+
+        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, return_value="Not ideal.") as mock_call:
+            response = await service.generate_recommendation_explanation(recommendation, profile, details)
+
+        assert response.text == "Not ideal."
+        prompt_used = mock_call.call_args.args[0]
+        assert "patchouli" in prompt_used
+
+    @pytest.mark.unit
+    async def test_generate_recommendation_falls_back_on_error(self) -> None:
+        """Verify LLMServiceError triggers fallback response."""
+        from fragrance_rater.services.llm_service import LLMServiceError
+
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://openrouter.test"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+        recommendation = Recommendation(
+            fragrance_id="frag-err",
+            fragrance_name="Error Scent",
+            fragrance_brand="Brand",
+            match_score=0.70,
+            match_percent=70,
+            vetoed=False,
+        )
+        profile = UserProfile(reviewer_id="user-err")
+        details = FragranceDetails(
+            name="Error Scent", brand="Brand", family="woody", subfamily="aromatic"
+        )
+
+        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, side_effect=LLMServiceError("timeout")):
+            response = await service.generate_recommendation_explanation(recommendation, profile, details)
+
+        assert response.model == "fallback"
+        assert response.error == "timeout"
+
+    @pytest.mark.unit
+    async def test_generate_profile_summary_calls_openrouter(self) -> None:
+        """Verify enabled generate_profile_summary calls _call_openrouter."""
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://openrouter.test"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+        profile = UserProfile(
+            reviewer_id="user-profile-active",
+            evaluation_count=15,
+            top_liked_notes=[("rose", 2.0), ("jasmine", 1.5)],
+            top_disliked_notes=[("oud", -2.0)],
+            accord_affinities={"floral": 1.5, "woody": 0.8},
+            family_affinities={"floral": 1.5},
+        )
+
+        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, return_value="Summary text.") as mock_call:
+            response = await service.generate_profile_summary(profile, "Alice")
+
+        assert response.text == "Summary text."
+        assert response.cached is False
+        mock_call.assert_awaited_once()
+        cache_key = service._cache_key("profile", "user-profile-active")
+        assert service._cache[cache_key] == "Summary text."
+
+    @pytest.mark.unit
+    async def test_generate_profile_summary_falls_back_on_error(self) -> None:
+        """Verify LLMServiceError in profile summary triggers fallback."""
+        from fragrance_rater.services.llm_service import LLMServiceError
+
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://openrouter.test"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+        profile = UserProfile(reviewer_id="user-profile-err", evaluation_count=5)
+
+        with patch.object(service, "_call_openrouter", new_callable=AsyncMock, side_effect=LLMServiceError("api down")):
+            response = await service.generate_profile_summary(profile, "Bob")
+
+        assert response.model == "fallback"
+        assert response.error == "api down"
+
+
+@pytest.mark.asyncio
+class TestCallOpenRouter:
+    """Tests for _call_openrouter HTTP communication."""
+
+    def _make_service(self) -> LLMService:
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://openrouter.test"
+            mock_settings.openrouter_model = "test-model"
+            return LLMService()
+
+    @pytest.mark.unit
+    async def test_returns_content_on_success(self) -> None:
+        """Verify successful API response returns stripped content."""
+        import httpx
+
+        service = self._make_service()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "  Explanation text.  "}}]
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            result = await service._call_openrouter("test prompt")
+
+        assert result == "Explanation text."
+
+    @pytest.mark.unit
+    async def test_raises_on_http_status_error(self) -> None:
+        """Verify HTTPStatusError is re-raised as LLMServiceError."""
+        import httpx
+
+        from fragrance_rater.services.llm_service import LLMServiceError
+
+        service = self._make_service()
+        mock_request = MagicMock(spec=httpx.Request)
+        mock_http_response = MagicMock(spec=httpx.Response)
+        mock_http_response.status_code = 429
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                "Rate limited", request=mock_request, response=mock_http_response
+            )
+        )
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            with pytest.raises(LLMServiceError, match="OpenRouter API error: 429"):
+                await service._call_openrouter("test prompt")
+
+    @pytest.mark.unit
+    async def test_raises_on_request_error(self) -> None:
+        """Verify httpx.RequestError is re-raised as LLMServiceError."""
+        import httpx
+
+        from fragrance_rater.services.llm_service import LLMServiceError
+
+        service = self._make_service()
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(
+            side_effect=httpx.RequestError("connection refused")
+        )
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            with pytest.raises(LLMServiceError, match="OpenRouter request failed"):
+                await service._call_openrouter("test prompt")
+
+    @pytest.mark.unit
+    async def test_raises_on_invalid_response_format(self) -> None:
+        """Verify KeyError in response parsing raises LLMServiceError."""
+        import httpx
+
+        from fragrance_rater.services.llm_service import LLMServiceError
+
+        service = self._make_service()
+        mock_response = MagicMock(spec=httpx.Response)
+        mock_response.json.return_value = {"unexpected": "format"}
+        mock_response.raise_for_status = MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=mock_response)
+
+        with patch("httpx.AsyncClient") as mock_cls:
+            mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+            with pytest.raises(LLMServiceError, match="Invalid OpenRouter response"):
+                await service._call_openrouter("test prompt")

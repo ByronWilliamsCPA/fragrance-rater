@@ -5,7 +5,8 @@ from __future__ import annotations
 import csv
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from typing import ClassVar
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
@@ -462,3 +463,96 @@ class TestKaggleImporterPreview:
             assert len(rows) == 2
         finally:
             Path(temp_path).unlink()
+
+
+class TestKaggleImporterErrorPaths:
+    """Tests for exception handling paths in import_csv."""
+
+    @pytest_asyncio.fixture
+    async def session(self) -> AsyncMock:
+        """Create a mock database session."""
+        return AsyncMock()
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_import_handles_row_exception(self, session: AsyncMock) -> None:
+        """Should capture per-row parse exceptions without aborting the import."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            writer = csv.writer(f)
+            writer.writerow(["name", "brand"])
+            writer.writerow(["Aventus", "Creed"])
+            temp_path = f.name
+
+        try:
+            importer = KaggleImporter(session)
+            with patch.object(importer, "_parse_row", side_effect=ValueError("bad data")):
+                result = await importer.import_csv(temp_path, dry_run=True)
+
+            assert result.total_rows == 1
+            assert result.skipped == 1
+            assert any("Row 2:" in e for e in result.errors)
+        finally:
+            Path(temp_path).unlink()
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_import_handles_csv_error(self, session: AsyncMock) -> None:
+        """Should record csv.Error in result errors list."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            f.write("name,brand\n")
+            temp_path = f.name
+
+        class BrokenReader:
+            fieldnames: ClassVar[list[str]] = ["name", "brand"]
+
+            def __iter__(self):
+                raise csv.Error("malformed record")
+
+        try:
+            with patch("csv.DictReader", return_value=BrokenReader()):
+                importer = KaggleImporter(session)
+                result = await importer.import_csv(temp_path)
+
+            assert any("CSV parsing error" in e for e in result.errors)
+        finally:
+            Path(temp_path).unlink()
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_import_non_dry_run_saves_to_db(self, session: AsyncMock) -> None:
+        """Non-dry-run should call _save_fragrance and flush the session."""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+            writer = csv.writer(f)
+            writer.writerow(["name", "brand", "top_notes"])
+            writer.writerow(["Aventus", "Creed", "bergamot"])
+            temp_path = f.name
+
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        session.execute = AsyncMock(return_value=mock_result)
+
+        try:
+            importer = KaggleImporter(session)
+            result = await importer.import_csv(temp_path, dry_run=False)
+
+            assert result.imported == 1
+            session.flush.assert_awaited()
+        finally:
+            Path(temp_path).unlink()
+
+
+class TestKaggleImporterAccordsEdgeCases:
+    """Edge case tests for accord parsing."""
+
+    @pytest_asyncio.fixture
+    async def session(self) -> AsyncMock:
+        return AsyncMock()
+
+    @pytest.mark.unit
+    def test_parse_accords_skips_empty_parts(self, session: AsyncMock) -> None:
+        """Should skip empty comma-delimited parts in accords string."""
+        importer = KaggleImporter(session)
+        result = importer._parse_accords("Citrus (45%),,Woody (30%)")
+        assert "Citrus" in result
+        assert "Woody" in result
+        assert len(result) == 2
