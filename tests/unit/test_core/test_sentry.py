@@ -208,11 +208,13 @@ class TestInitSentry:
         from fragrance_rater.core.sentry import init_sentry
 
         with patch("sentry_sdk.init") as mock_init:
-            init_sentry(dsn="https://key@sentry.io/123", environment="test")
+            init_sentry(
+                dsn="https://test-key@sentry.example.invalid/123", environment="test"
+            )
 
         mock_init.assert_called_once()
         call_kwargs = mock_init.call_args.kwargs
-        assert call_kwargs["dsn"] == "https://key@sentry.io/123"
+        assert call_kwargs["dsn"] == "https://test-key@sentry.example.invalid/123"
         assert call_kwargs["environment"] == "test"
 
     @pytest.mark.unit
@@ -221,14 +223,17 @@ class TestInitSentry:
         from fragrance_rater.core.sentry import init_sentry
 
         with (
-            patch.dict("os.environ", {"SENTRY_DSN": "https://key@sentry.io/456"}),
+            patch.dict(
+                "os.environ",
+                {"SENTRY_DSN": "https://test-key@sentry.example.invalid/456"},
+            ),
             patch("sentry_sdk.init") as mock_init,
         ):
             init_sentry()
 
         mock_init.assert_called_once()
         call_kwargs = mock_init.call_args.kwargs
-        assert call_kwargs["dsn"] == "https://key@sentry.io/456"
+        assert call_kwargs["dsn"] == "https://test-key@sentry.example.invalid/456"
 
 
 class TestCaptureException:
