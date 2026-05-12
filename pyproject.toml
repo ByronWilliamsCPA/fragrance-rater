@@ -71,6 +71,10 @@ dependencies = [
     #
     # UV handles these automatically based on the Python version being used.
     # See: https://docs.astral.sh/uv/concepts/dependencies/#dependency-specifiers
+    "asyncpg>=0.31.0",
+    "httpx>=0.28.1",
+    "beautifulsoup4>=4.14.3",
+    "lxml>=6.0.2",
 ]
 
 # Optional dependency groups
@@ -83,6 +87,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-xdist>=3.3.0",
     "hypothesis>=6.82.0",
+    "aiosqlite>=0.22.1",
 
     # Code Quality (always included)
     "ruff>=0.9.0",
@@ -289,6 +294,8 @@ ignore = [
     "FBT001", # Boolean positional arg (acceptable in DSLs)
     "FBT002", # Boolean default arg (acceptable in DSLs)
     "TRY003", # Long exception messages (descriptive is good)
+    "PLC0415", # Conditional/lazy imports are legitimate for optional deps and CLI startup time
+    "PLW0603", # Singleton async connection pool uses intentional global state
 ]
 
 # McCabe Complexity Configuration (Google/Pylint alignment)

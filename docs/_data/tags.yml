@@ -74,6 +74,7 @@ allowed:
   - quality
   - quality_assurance
   - security
+  - vulnerabilities
   - compliance
   - licensing
   - license
@@ -86,9 +87,13 @@ allowed:
   - planning
   - roadmap
   - project_management
+  - project
   - changelog
   - releases
   - version_history
   - mvp
   - scope
   - boundaries
+  - feedback
+  - template
+  - forms

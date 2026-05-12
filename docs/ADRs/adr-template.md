@@ -1,18 +1,17 @@
 ---
-schema_type: adr
+schema_type: planning
 title: "ADR-NNN: Short Descriptive Title of the Decision"
 description: "Brief one-sentence description of what decision this ADR documents"
 tags:
   - architecture
-  - decision
-  - your-topic
-  - relevant-area
+  - adr
+  - decisions
 status: proposed
-owner: "Your Team Role or Name"
+owner: core-maintainer
 authors:
   - name: "Author Name"
     email: "author@example.com"
-purpose: "Document the decision to [choose X approach] for [problem area], with rationale for alternatives considered"
+purpose: "Document the decision to [choose X approach] for [problem area], with rationale for alternatives considered."
 ---
 
 > **Status**: `proposed` → Change to `published` once approved, or `deprecated`/`superseded` if no longer valid
@@ -252,20 +251,20 @@ How will we validate that this decision achieved its goals?
 
 ### Related ADRs
 
-- [ADR-001: Previous Decision](0001-previous-decision.md) - Related context
-- [ADR-005: Future Decision](0005-future-decision.md) - Builds on this ADR
+- `ADRs/0001-previous-decision.md` - Related context
+- `ADRs/0005-future-decision.md` - Builds on this ADR
 
 ### External References
 
-- [Technology/Framework Documentation](https://example.com/docs)
-- [Research Paper or Article](https://example.com/research)
-- [Related GitHub Issues](https://github.com/yourusername/yourrepo/issues/123)
+- Technology/Framework Documentation: `https://example.com/docs`
+- Research Paper or Article: `https://example.com/research`
+- Related GitHub Issues: link to the relevant issue
 
 ### Implementation References
 
-- [Implementation File](../../src/component.py)
-- [Test Coverage](../../tests/test_component.py)
-- [Configuration](../../config.yaml)
+- `src/your-component.py` - Implementation file
+- `tests/test_your_component.py` - Test coverage
+- `config.yaml` - Configuration
 
 ## Questions & Discussion
 

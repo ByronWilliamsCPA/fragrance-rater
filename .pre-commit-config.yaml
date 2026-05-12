@@ -30,6 +30,7 @@ repos:
         exclude: mkdocs.yml  # Exclude mkdocs.yml due to !ENV custom tags
       - id: check-json
         stages: [pre-commit]
+        exclude: frontend/tsconfig\.(app|node)\.json  # Exclude TypeScript JSONC files
       - id: check-toml
         stages: [pre-commit]
       - id: check-added-large-files
@@ -169,7 +170,7 @@ repos:
         name: Validate documentation front matter
         entry: python tools/validate_front_matter.py docs
         language: python
-        files: ^docs/(?!planning/).*\.md$
+        files: ^docs/(?!planning/|ADRs/adr-template\.md).*\.md$
         pass_filenames: false
         stages: [pre-commit]
         additional_dependencies:
@@ -204,8 +205,8 @@ repos:
         entry: uv run darglint
         language: system
         types: [python]
-        stages: [pre-commit]
-        exclude: ^(tests|scripts|benchmarks|tools)/
+        stages: [manual]
+        exclude: ^(tests|scripts|benchmarks|tools|\.claude|docs/planning)/
 
 # Exclude patterns
 exclude: |

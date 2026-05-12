@@ -27,7 +27,9 @@ import logging
 import os
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from fragrance_rater.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def init_sentry(
@@ -63,9 +65,9 @@ def init_sentry(
         ... )
     """
     try:
-        import sentry_sdk  # noqa: PLC0415  # Import only when Sentry is configured
-        from sentry_sdk.integrations.fastapi import FastApiIntegration  # noqa: PLC0415
-        from sentry_sdk.integrations.logging import LoggingIntegration  # noqa: PLC0415
+        import sentry_sdk  # Import only when Sentry is configured
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.logging import LoggingIntegration
         from sentry_sdk.integrations.sqlalchemy import (
             SqlalchemyIntegration,
         )
@@ -131,7 +133,7 @@ def init_sentry(
         attach_stacktrace=True,  # Include stack traces in messages
         send_default_pii=False,  # Don't send PII by default (GDPR compliance)
         # Custom options
-        before_send=before_send_hook,
+        before_send=before_send_hook,  # pyright: ignore[reportArgumentType]
         before_breadcrumb=before_breadcrumb_hook,
     )
 
@@ -150,9 +152,9 @@ def _get_release_version() -> str:
         Release version string (e.g., "myapp@1.0.0" or "myapp@abc123")
     """
     # Try to get git SHA
-    try:
-        import subprocess  # noqa: PLC0415  # Import only when needed (optional dependency)
+    import subprocess  # Import only when needed (optional dependency)
 
+    try:
         sha = (
             subprocess.check_output(
                 ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607  # Git is a trusted executable
@@ -161,20 +163,23 @@ def _get_release_version() -> str:
             .decode()
             .strip()
         )
-        return f"fragrance_rater@{sha}"
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
+    else:
+        return f"fragrance_rater@{sha}"
 
     # Fallback to package version
-    try:
-        from importlib.metadata import (
-            version,  # Import only when needed
-        )
+    from importlib.metadata import (
+        PackageNotFoundError,
+        version,  # Import only when needed
+    )
 
+    try:
         pkg_version = version("fragrance-rater")
-        return f"fragrance_rater@{pkg_version}"
-    except Exception:  # noqa: BLE001  # Intentionally broad - fallback to static version
+    except PackageNotFoundError:
         pass
+    else:
+        return f"fragrance_rater@{pkg_version}"
 
     # Ultimate fallback
     return "fragrance_rater@0.1.0"
@@ -235,9 +240,12 @@ def before_breadcrumb_hook(
         Modified breadcrumb dictionary, or None to drop the breadcrumb
     """
     # Example: Don't include query parameters in HTTP breadcrumbs
-    if crumb.get("category") == "httplib":
-        if "data" in crumb and "query" in crumb["data"]:
-            crumb["data"]["query"] = "[FILTERED]"
+    if (
+        crumb.get("category") == "httplib"
+        and "data" in crumb
+        and "query" in crumb["data"]
+    ):
+        crumb["data"]["query"] = "[FILTERED]"
 
     return crumb
 

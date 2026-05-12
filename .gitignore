@@ -44,6 +44,7 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+coverage.json
 *.cover
 *.py,cover
 .hypothesis/
@@ -266,8 +267,10 @@ logs/
 # Data and models (customize as needed)
 data/raw/
 data/processed/
-models/
+/models/
 weights/
+# But allow source code models
+!src/**/models/
 
 # Notebooks
 .ipynb_checkpoints/

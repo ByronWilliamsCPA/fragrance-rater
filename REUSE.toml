@@ -14,6 +14,7 @@ path = [
     "src/**",
     "tools/**",
     "tests/**",
+    "alembic/**",
     "validation/**",
     "fuzz/**",
     "benchmarks/**/*.py",
@@ -53,6 +54,7 @@ path = [
     "requirements/**/*.txt",  # Generated from poetry export
     "benchmarks/labelmaps/**/*.yaml",  # Benchmark label mappings
     ".zenodo.json",  # Zenodo metadata for DOI
+    "alembic.ini",  # Alembic database migration configuration
 ]
 SPDX-License-Identifier = "CC0-1.0"
 SPDX-FileCopyrightText = "2025 Byron Williams"
@@ -107,6 +109,7 @@ path = [
     "overrides/**",
     "renovate.json",
     "validate_workflows.sh",
+    "*.sh",  # Root-level shell scripts
     "scripts/**/*.sh",  # Shell scripts for automation
     "scripts/**/*.md",  # Script documentation
     "tmp_cleanup/**/*.txt",  # Temporary text files
@@ -153,6 +156,7 @@ path = [
     "frontend/Dockerfile",
     "frontend/nginx.conf",
     "frontend/package.json",
+    "frontend/package-lock.json",  # Generated npm lock file
     "frontend/tsconfig*.json",
     "frontend/vite.config.ts",
     "frontend/eslint.config.js",
