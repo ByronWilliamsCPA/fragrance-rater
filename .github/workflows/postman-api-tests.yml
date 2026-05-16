@@ -35,11 +35,8 @@ jobs:
       # TEST_MODE=true makes fragrance_rater.llm.client.LLMRatingClient
       # return a deterministic fixture instead of calling OpenRouter.
       # The Newman collection only asserts on response *structure*, so
-      # the fixture is a safe stand-in.
+      # the fixture is a safe stand-in and no API key is required here.
       TEST_MODE: "true"
-      # Dummy values so any code path that reads them does not crash.
-      # Real keys live in repository secrets and are referenced above.
-      OPENROUTER_API_KEY: "ci-stub-not-used"
 
     steps:
       - name: Checkout
@@ -92,7 +89,7 @@ jobs:
         run: |
           newman run docs/api/postman-collection.json \
             --env-var baseUrl=http://127.0.0.1:8000 \
-            --env-var apiKey=ci-stub-not-used \
+            --env-var apiKey="" \
             --reporters cli,junit \
             --reporter-junit-export newman-report.xml
 
