@@ -15,7 +15,7 @@
 | **LLM02 — Insecure Output Handling** | Not applicable (yet) | No LLM responses are rendered to users. Forward-looking guidance documented below. |
 | **LLM06 — Sensitive Information Disclosure** | Partial — guidance only | `OPENROUTER_API_KEY` is correctly declared as an env var in `.env.example`; no key-loading code yet to review. |
 | **Authentication / Session management** | Not applicable (yet) | No auth endpoints exist. One frontend pattern flagged for future hardening (`localStorage` JWT). |
-| **GitHub Actions hardening** | **Fixed (partial) — residual items documented** | SHA-pinned 2 external actions, added `step-security/harden-runner` to 5 workflows (7 jobs), fixed 1 script-injection issue. 12 reusable workflow references still pin `@main`; require upstream SHA from `ByronWilliamsCPA/.github` (out-of-repo). |
+| **GitHub Actions hardening** | **Fixed** | SHA-pinned 2 external actions + 13 reusable-workflow references (now `@c50e799a… # main` from `ByronWilliamsCPA/.github`). Added `step-security/harden-runner` to 5 workflows (7 jobs). Fixed 1 script-injection issue. |
 
 This review confirms the repository **does not currently expose LLM-related attack surface** because no prompt construction, model invocation, or LLM output rendering exists in the codebase. The findings below split into:
 
@@ -143,35 +143,31 @@ The existing `SecurityHeadersMiddleware` already sets `X-Frame-Options: DENY`, a
 
 Note: every other `actions/checkout`, `actions/setup-python`, `astral-sh/setup-uv`, `actions/upload-artifact`, `actions/github-script`, `step-security/harden-runner`, `github/codeql-action/*`, `actions/attest-build-provenance`, `fsfe/reuse-action`, `lycheeverse/lychee-action`, and `SonarSource/sonarqube-scan-action` reference in the repo was already correctly SHA-pinned (the `# vX.Y.Z` suffix is a comment; the 40-char hex before `#` is the actual pin).
 
-### 5.2 Residual: reusable workflow calls pinned to `@main`
+### 5.2 Reusable workflow calls — SHA-pinned in this PR
 
-The following references in the repo point to a **mutable branch** of a separate reusable-workflow repository (`ByronWilliamsCPA/.github`):
+All 13 prior `@main` references to reusable workflows in `ByronWilliamsCPA/.github` are now pinned to the SHA of `main` at the time of this review, `c50e799abfcd10e904749319f1b322f7eac7a813`. The pattern matches the existing convention in `.github/workflows/pr-validation.yml:35` and `.github/workflows/scorecard.yml:30` (SHA followed by `# main` for human readability).
 
-| File:Line | Reference |
+Files updated:
+
+| File | Reusable workflow |
 |---|---|
-| `.github/workflows/ci.yml:32` | `ByronWilliamsCPA/.github/.github/workflows/python-ci.yml@main` |
-| `.github/workflows/codecov.yml:26` | `…/python-codecov.yml@main` |
-| `.github/workflows/container-security.yml:42` | `…/python-container-security.yml@main` |
-| `.github/workflows/coverage.yml:26` | `…/python-qlty-coverage.yml@main` |
-| `.github/workflows/docs.yml:32` | `…/python-docs.yml@main` |
-| `.github/workflows/mutation-testing.yml:43` | `…/python-mutation.yml@main` |
-| `.github/workflows/publish-pypi.yml:20` | `…/python-publish-pypi.yml@main` |
-| `.github/workflows/python-compatibility.yml:38` | `…/python-compatibility.yml@main` |
-| `.github/workflows/qlty.yml:18` | `…/python-qlty-coverage.yml@main` |
-| `.github/workflows/release.yml:47` | `…/python-release.yml@main` |
-| `.github/workflows/sbom.yml:40` | `…/python-sbom.yml@main` |
-| `.github/workflows/security-analysis.yml:35` | `…/python-security-analysis.yml@main` |
-| `.github/workflows/slsa-provenance.yml:101` | `…/python-slsa.yml@main` |
+| `.github/workflows/ci.yml` | `python-ci.yml` |
+| `.github/workflows/codecov.yml` | `python-codecov.yml` |
+| `.github/workflows/container-security.yml` | `python-container-security.yml` |
+| `.github/workflows/coverage.yml` | `python-qlty-coverage.yml` |
+| `.github/workflows/docs.yml` | `python-docs.yml` |
+| `.github/workflows/mutation-testing.yml` | `python-mutation.yml` |
+| `.github/workflows/publish-pypi.yml` | `python-publish-pypi.yml` |
+| `.github/workflows/python-compatibility.yml` | `python-compatibility.yml` |
+| `.github/workflows/qlty.yml` | `python-qlty-coverage.yml` |
+| `.github/workflows/release.yml` | `python-release.yml` |
+| `.github/workflows/sbom.yml` | `python-sbom.yml` |
+| `.github/workflows/security-analysis.yml` | `python-security-analysis.yml` |
+| `.github/workflows/slsa-provenance.yml` | `python-slsa.yml` |
 
-**Why not fixed in this PR:** these point to a separate repository (`ByronWilliamsCPA/.github`) whose commit history is not accessible from this PR's review environment, so replacing `@main` with a SHA requires the maintainer to choose the desired upstream commit. Two workflows already follow the correct pattern and can be used as a model — `.github/workflows/pr-validation.yml:35` (`@e8fc83c98c2971ad1ece71573d28171463e30c16  # main`) and `.github/workflows/scorecard.yml:30` (`@f05c26a424a708a73fc445a0ebb5b3ce476c1793`).
+**Maintenance recommendation:** enable Dependabot for `package-ecosystem: github-actions` so these SHAs are bumped automatically and reviewed in PRs rather than drifting silently.
 
-**Recommended remediation:**
-```bash
-# For each caller above, replace @main with the current HEAD of the reusable workflow:
-SHA=$(gh api repos/ByronWilliamsCPA/.github/commits/main -q .sha)
-# Then edit each file to use @${SHA}  # main
-```
-Pair this with Dependabot's `package-ecosystem: github-actions` updater so the SHAs get bumped automatically.
+`.github/workflows/README.md` still documents the `@main` pattern as an example (lines 51, 66, 81, 92, 105, 118, 162, 221). That documentation should be updated to recommend SHA-pinning as the standard.
 
 ### 5.3 `step-security/harden-runner` added to direct-run jobs
 
@@ -251,11 +247,22 @@ The workflow is triggered by `workflow_dispatch` with a user-supplied `version` 
 
 **Files modified:**
 
-- `.github/workflows/codecov.yml` — added `harden-runner` to `report-failure` job
+- `.github/workflows/ci.yml` — SHA-pinned reusable workflow
+- `.github/workflows/codecov.yml` — added `harden-runner` to `report-failure` job, SHA-pinned reusable workflow
+- `.github/workflows/container-security.yml` — SHA-pinned reusable workflow
+- `.github/workflows/coverage.yml` — SHA-pinned reusable workflow
 - `.github/workflows/dependency-review.yml` — added `harden-runner`, SHA-pinned `dependency-review-action`
+- `.github/workflows/docs.yml` — SHA-pinned reusable workflow
 - `.github/workflows/fips-compatibility.yml` — added `harden-runner` to both jobs
+- `.github/workflows/mutation-testing.yml` — SHA-pinned reusable workflow
+- `.github/workflows/publish-pypi.yml` — SHA-pinned reusable workflow
+- `.github/workflows/python-compatibility.yml` — SHA-pinned reusable workflow
+- `.github/workflows/qlty.yml` — SHA-pinned reusable workflow
+- `.github/workflows/release.yml` — SHA-pinned reusable workflow
 - `.github/workflows/reuse.yml` — added `harden-runner` to both jobs
-- `.github/workflows/slsa-provenance.yml` — fixed script injection in `version` input handling
+- `.github/workflows/sbom.yml` — SHA-pinned reusable workflow
+- `.github/workflows/security-analysis.yml` — SHA-pinned reusable workflow
+- `.github/workflows/slsa-provenance.yml` — fixed script injection in `version` input handling, SHA-pinned reusable workflow
 - `.github/workflows/sonarcloud.yml` — added `harden-runner` to both jobs, SHA-pinned `sonarqube-quality-gate-action`
 
 **Files added:**
@@ -264,6 +271,6 @@ The workflow is triggered by `workflow_dispatch` with a user-supplied `version` 
 
 **Items not fixed in this PR (require maintainer action):**
 
-1. Pin the 13 reusable-workflow `@main` references to a SHA from `ByronWilliamsCPA/.github` (see §5.2).
-2. Migrate `sonarcloud.yml`'s `curl … | sh` UV install to the SHA-pinned `astral-sh/setup-uv` action (see §5.5).
+1. Migrate `sonarcloud.yml`'s `curl … | sh` UV install to the SHA-pinned `astral-sh/setup-uv` action (see §5.5).
+2. Update `.github/workflows/README.md` to document SHA-pinning as the recommended pattern (it currently uses `@main` in its examples).
 3. The forward-looking guidance in §1, §2, §3, §4 must be revisited when the corresponding features (LLM client, auth) are implemented per `docs/planning/roadmap.md` Phase 3.

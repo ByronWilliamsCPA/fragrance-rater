@@ -17,7 +17,7 @@ on:
 jobs:
   publish:
     name: Publish Package
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-publish-pypi.yml@main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-publish-pypi.yml@c50e799abfcd10e904749319f1b322f7eac7a813  # main
     with:
       python-version: '3.12'
       package-name: 'fragrance-rater'
