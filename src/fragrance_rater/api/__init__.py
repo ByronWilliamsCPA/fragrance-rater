@@ -1,10 +1,12 @@
 """API package for Fragrance Rater.
 
-This package will contain FastAPI routers and API-related functionality
-once the API surface is built. Currently empty after the scaffold-cleanup
-sweep removed the placeholder `health.py` module that was never wired in.
+Exports the FastAPI routers mounted by ``fragrance_rater.main``.
 """
 
 from __future__ import annotations
 
-__all__: list[str] = []
+from fragrance_rater.api.fragrances import router as fragrances_router
+from fragrance_rater.api.health import router as health_router
+from fragrance_rater.api.ratings import router as ratings_router
+
+__all__ = ["fragrances_router", "health_router", "ratings_router"]
