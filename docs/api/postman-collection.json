@@ -19,14 +19,7 @@
       "description": "Optional API key sent as the `X-API-Key` header. The current service does not require it but the variable is wired up for future use."
     }
   ],
-  "auth": {
-    "type": "apikey",
-    "apikey": [
-      {"key": "key", "value": "X-API-Key", "type": "string"},
-      {"key": "value", "value": "{{apiKey}}", "type": "string"},
-      {"key": "in", "value": "header", "type": "string"}
-    ]
-  },
+  "auth": {"type": "noauth"},
   "item": [
     {
       "name": "health",

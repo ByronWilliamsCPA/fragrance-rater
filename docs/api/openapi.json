@@ -323,16 +323,19 @@
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
                 },
-                "type": "array"
+                "type": "array",
+                "maxItems": 32
               },
               {
                 "type": "null"
               }
             ],
             "title": "Notes",
-            "description": "Optional list of fragrance notes.",
+            "description": "Optional list of fragrance notes. Capped at 32 entries of up to 64 characters each to bound prompt size and upstream cost.",
             "examples": [
               [
                 "bergamot",

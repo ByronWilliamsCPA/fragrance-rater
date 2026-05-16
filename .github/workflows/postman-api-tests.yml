@@ -6,6 +6,11 @@ on:
   push:
     branches: [main]
 
+# Least-privilege token: workflow only reads the repo and uploads
+# artifacts via the standard runner permissions.
+permissions:
+  contents: read
+
 # Cancel superseded runs for the same ref to save CI minutes.
 concurrency:
   group: postman-api-tests-${{ github.ref }}
