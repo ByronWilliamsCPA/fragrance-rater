@@ -1,0 +1,122 @@
+name: Postman API Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Least-privilege token: workflow only reads the repo and uploads
+# artifacts via the standard runner permissions.
+permissions:
+  contents: read
+
+# Cancel superseded runs for the same ref to save CI minutes.
+concurrency:
+  group: postman-api-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  newman:
+    name: Run Postman contract tests with Newman
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # --------------------------------------------------------------------
+    # Required GitHub Actions secrets (configure under
+    # Settings -> Secrets and variables -> Actions):
+    #
+    #   OPENROUTER_API_KEY   - OpenRouter API key for production LLM
+    #                          calls. NOT used by this workflow because
+    #                          we boot the app with TEST_MODE=true, but
+    #                          listed here so the same secret is
+    #                          available to other workflows that hit
+    #                          the live model.
+    #
+    # No secret is strictly required for this workflow because the
+    # rating endpoint is stubbed via TEST_MODE=true (see below).
+    # --------------------------------------------------------------------
+    env:
+      # TEST_MODE=true makes fragrance_rater.llm.client.LLMRatingClient
+      # return a deterministic fixture instead of calling OpenRouter.
+      # The Newman collection only asserts on response *structure*, so
+      # the fixture is a safe stand-in and no API key is required here.
+      TEST_MODE: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "latest"
+
+      - name: uv sync
+        run: uv sync --all-extras
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+
+      - name: Install Newman
+        run: npm install -g newman@6
+
+      - name: Start API in background (TEST_MODE stub)
+        run: |
+          # Start uvicorn detached. Logs go to api.log for debugging.
+          nohup uv run uvicorn fragrance_rater.main:app \
+            --host 127.0.0.1 --port 8000 > api.log 2>&1 &
+          echo $! > api.pid
+
+      - name: Wait for /health/live
+        run: |
+          # Poll the liveness probe until the server is ready. Fail
+          # after ~30 seconds so a broken boot doesn't hang the job.
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health/live > /dev/null; then
+              echo "API is up after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::API did not become ready in 30s"
+          cat api.log || true
+          exit 1
+
+      - name: Run Newman
+        run: |
+          newman run docs/api/postman-collection.json \
+            --env-var baseUrl=http://127.0.0.1:8000 \
+            --env-var apiKey="" \
+            --reporters cli,junit \
+            --reporter-junit-export newman-report.xml
+
+      - name: Upload Newman JUnit report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: newman-report
+          path: newman-report.xml
+          if-no-files-found: ignore
+
+      - name: Upload API log on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-log
+          path: api.log
+          if-no-files-found: ignore
+
+      - name: Stop API
+        if: always()
+        run: |
+          if [ -f api.pid ]; then
+            kill "$(cat api.pid)" 2>/dev/null || true
+          fi

@@ -1,0 +1,491 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fragrance Rater API",
+    "description": "HTTP API for the Fragrance Rater service. Provides a small fragrance catalog and an LLM-powered rating endpoint that scores a fragrance description and returns the model's reasoning. The rating endpoint calls OpenRouter (default model: `anthropic/claude-3.5-sonnet`); set `TEST_MODE=true` to use the bundled fixture response instead, which is what the Newman contract tests rely on.",
+    "contact": {
+      "name": "Byron Williams",
+      "url": "https://github.com/ByronWilliamsCPA/fragrance-rater",
+      "email": "byron@williamshome.family"
+    },
+    "license": {
+      "name": "MIT"
+    },
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health/live": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness probe",
+        "description": "Indicates if the application is running. Used by Kubernetes liveness probe.",
+        "operationId": "liveness_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Readiness probe",
+        "description": "Checks if the application can serve traffic. Used by Kubernetes readiness probe.",
+        "operationId": "readiness_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Application is ready to serve traffic",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessStatus"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Application is not ready (dependencies unavailable)"
+          }
+        }
+      }
+    },
+    "/health/startup": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Startup probe",
+        "description": "Indicates if the application has completed startup. Used by Kubernetes startup probe.",
+        "operationId": "startup_health_startup_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ratings": {
+      "post": {
+        "tags": [
+          "ratings"
+        ],
+        "summary": "Rate a fragrance with an LLM",
+        "description": "Produce an LLM-powered rating for a fragrance.\n\nAccepted fields: ``name`` (required), ``brand``, ``description``\n(required), and an optional list of accord ``notes``.\n\nReturned fields: ``score`` (1-10), ``reasoning`` (LLM-authored\nexplanation), ``model`` identifier, echoed ``notes``, and a\n``latency_warning`` string.\n\nThe endpoint calls OpenRouter using the ``anthropic/claude-3.5-sonnet``\nmodel by default (see ADR-003). When the service is started\nwith ``TEST_MODE=true``, a deterministic fixture is returned\ninstead of issuing a network call \u2014 CI relies on this seam.\n\nResponse time may vary by several seconds because the LLM\nbackend is the dominant cost; clients should not block hot\npaths on this call.",
+        "operationId": "create_rating_ratings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RatingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Rating produced successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RatingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request body failed validation."
+          },
+          "503": {
+            "description": "LLM upstream is unavailable."
+          }
+        }
+      }
+    },
+    "/fragrances": {
+      "get": {
+        "tags": [
+          "fragrances"
+        ],
+        "summary": "List fragrances in the catalog",
+        "description": "Return the fragrance catalog used by the rating workflow.\n\nThis is a read-only listing of catalog entries. No LLM call is\nmade \u2014 fragrance metadata comes from the local catalog managed\nby the data pipeline (ADR-002).",
+        "operationId": "list_fragrances_fragrances_get",
+        "responses": {
+          "200": {
+            "description": "Catalog returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FragranceListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fragrances/{fragrance_id}": {
+      "get": {
+        "tags": [
+          "fragrances"
+        ],
+        "summary": "Get a fragrance by id",
+        "description": "Look up a single fragrance by its integer id.\n\nNo LLM call is made \u2014 this endpoint only serves catalog\nmetadata. Use ``POST /ratings`` to obtain an LLM-powered score\nfor a fragrance.",
+        "operationId": "get_fragrance_fragrances__fragrance_id__get",
+        "parameters": [
+          {
+            "name": "fragrance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Fragrance Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fragrance found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Fragrance"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No fragrance with the given id."
+          },
+          "422": {
+            "description": "Path parameter failed validation."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Fragrance": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Id",
+            "description": "Stable integer identifier."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Fragrance name."
+          },
+          "brand": {
+            "type": "string",
+            "title": "Brand",
+            "description": "Fragrance house or brand."
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "Accord notes."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "brand"
+        ],
+        "title": "Fragrance",
+        "description": "A fragrance catalog entry.\n\nAttributes:\n    id: Stable integer identifier.\n    name: Fragrance name.\n    brand: Fragrance house / brand.\n    notes: Accord / top / heart / base notes."
+      },
+      "FragranceListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Fragrance"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Catalog entries."
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total",
+            "description": "Total entries available."
+          }
+        },
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "title": "FragranceListResponse",
+        "description": "Paginated-style response for ``GET /fragrances``."
+      },
+      "HealthStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Overall status: ok, degraded, or error"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp",
+            "description": "Unix timestamp"
+          },
+          "uptime_seconds": {
+            "type": "number",
+            "title": "Uptime Seconds",
+            "description": "Application uptime in seconds"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Application version",
+            "default": "0.1.0"
+          },
+          "python_version": {
+            "type": "string",
+            "title": "Python Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "uptime_seconds"
+        ],
+        "title": "HealthStatus",
+        "description": "Health check response model."
+      },
+      "RatingRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "Fragrance name, e.g. 'Aventus'.",
+            "examples": [
+              "Aventus"
+            ]
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand",
+            "description": "Fragrance house or brand, e.g. 'Creed'.",
+            "examples": [
+              "Creed"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Description",
+            "description": "Free-text description of the scent. Mention projection, longevity, season, and accords for a better rating.",
+            "examples": [
+              "Smoky pineapple opening with birch, settling into a musky vanilla dry-down."
+            ]
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "maxLength": 64,
+                  "minLength": 1
+                },
+                "type": "array",
+                "maxItems": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes",
+            "description": "Optional list of fragrance notes. Capped at 32 entries of up to 64 characters each to bound prompt size and upstream cost.",
+            "examples": [
+              [
+                "bergamot",
+                "blackcurrant",
+                "birch",
+                "musk"
+              ]
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "RatingRequest",
+        "description": "Request body for ``POST /ratings``.\n\nAttributes:\n    name: Fragrance name (required).\n    brand: Fragrance house or brand. Improves rating accuracy.\n    description: Free-text description of the scent profile.\n    notes: Optional list of accord/top/heart/base notes."
+      },
+      "RatingResponse": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Score",
+            "description": "Rating from 1 (poor) to 10 (excellent)."
+          },
+          "reasoning": {
+            "type": "string",
+            "title": "Reasoning",
+            "description": "LLM-authored explanation of the score."
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "LLM model identifier (e.g. 'anthropic/claude-3.5-sonnet')."
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "Accord notes used in the rating."
+          },
+          "latency_warning": {
+            "type": "string",
+            "title": "Latency Warning",
+            "description": "Operational note about response time variability.",
+            "default": "LLM responses vary in latency; expect 1-10 seconds per call."
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "reasoning",
+          "model"
+        ],
+        "title": "RatingResponse",
+        "description": "Response body returned by ``POST /ratings``.\n\nAttributes:\n    score: Integer rating, 1 (poor) to 10 (excellent).\n    reasoning: Human-readable explanation written by the LLM.\n    model: Identifier of the LLM that produced the rating.\n    notes: Echo of accord notes used by the model.\n    latency_warning: Reminder that LLM latency is variable."
+      },
+      "ReadinessCheck": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Dependency name"
+          },
+          "status": {
+            "type": "boolean",
+            "title": "Status",
+            "description": "Check passed"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms",
+            "description": "Check latency in milliseconds"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Error message if failed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "ReadinessCheck",
+        "description": "Individual dependency check result."
+      },
+      "ReadinessStatus": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "Overall status: ok, degraded, or error"
+          },
+          "timestamp": {
+            "type": "number",
+            "title": "Timestamp",
+            "description": "Unix timestamp"
+          },
+          "uptime_seconds": {
+            "type": "number",
+            "title": "Uptime Seconds",
+            "description": "Application uptime in seconds"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "Application version",
+            "default": "0.1.0"
+          },
+          "python_version": {
+            "type": "string",
+            "title": "Python Version"
+          },
+          "checks": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReadinessCheck"
+            },
+            "type": "object",
+            "title": "Checks",
+            "description": "Individual dependency checks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "uptime_seconds"
+        ],
+        "title": "ReadinessStatus",
+        "description": "Readiness check response with dependency details."
+      }
+    }
+  }
+}
