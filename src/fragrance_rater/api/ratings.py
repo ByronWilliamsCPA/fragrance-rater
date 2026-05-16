@@ -10,12 +10,16 @@ slow and avoid issuing it inside hot request paths.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from fragrance_rater.llm import LLMRatingClient, get_llm_client
 
 router = APIRouter(prefix="/ratings", tags=["ratings"])
+
+FragranceNote = Annotated[str, Field(min_length=1, max_length=64)]
 
 
 class RatingRequest(BaseModel):
@@ -53,9 +57,14 @@ class RatingRequest(BaseModel):
             "Smoky pineapple opening with birch, settling into a musky vanilla dry-down.",
         ],
     )
-    notes: list[str] | None = Field(
+    notes: list[FragranceNote] | None = Field(
         default=None,
-        description="Optional list of fragrance notes.",
+        max_length=32,
+        description=(
+            "Optional list of fragrance notes. Capped at 32 entries of"
+            " up to 64 characters each to bound prompt size and"
+            " upstream cost."
+        ),
         examples=[["bergamot", "blackcurrant", "birch", "musk"]],
     )
 
@@ -125,12 +134,20 @@ def create_rating(
     backend is the dominant cost; clients should not block hot
     paths on this call.
     """
-    result = client.rate(
-        name=payload.name,
-        brand=payload.brand,
-        description=payload.description,
-        notes=payload.notes,
-    )
+    try:
+        result = client.rate(
+            name=payload.name,
+            brand=payload.brand,
+            description=payload.description,
+            notes=payload.notes,
+        )
+    except RuntimeError as exc:
+        # Upstream LLM unavailable or unconfigured. Translate to the
+        # documented 503 contract instead of leaking a 500.
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="LLM upstream is unavailable",
+        ) from exc
     return RatingResponse(
         score=result.score,
         reasoning=result.reasoning,
