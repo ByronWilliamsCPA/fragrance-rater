@@ -37,6 +37,8 @@ jobs:
       python-version: '3.12'
       coverage-threshold: 80
       enable-dead-code-check: true
+      # fragrance-rater has a hatchling build backend; allow uv to build the editable install
+      no-build: false
   # ==========================================================================
   # Additional Checks (Template-Specific)
   # ==========================================================================
