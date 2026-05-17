@@ -66,10 +66,10 @@ def init_sentry(
         import sentry_sdk  # noqa: PLC0415  # Import only when Sentry is configured
         from sentry_sdk.integrations.fastapi import FastApiIntegration  # noqa: PLC0415
         from sentry_sdk.integrations.logging import LoggingIntegration  # noqa: PLC0415
-        from sentry_sdk.integrations.sqlalchemy import (
+        from sentry_sdk.integrations.sqlalchemy import (  # noqa: PLC0415
             SqlalchemyIntegration,
         )
-        from sentry_sdk.integrations.starlette import (
+        from sentry_sdk.integrations.starlette import (  # noqa: PLC0415
             StarletteIntegration,
         )
     except ImportError:
@@ -161,20 +161,22 @@ def _get_release_version() -> str:
             .decode()
             .strip()
         )
-        return f"fragrance_rater@{sha}"
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
+    else:
+        return f"fragrance_rater@{sha}"
 
     # Fallback to package version
     try:
-        from importlib.metadata import (
-            version,  # Import only when needed
+        from importlib.metadata import (  # noqa: PLC0415  # stdlib lazy import; fallback path
+            version,
         )
 
         pkg_version = version("fragrance-rater")
-        return f"fragrance_rater@{pkg_version}"
     except Exception:  # noqa: BLE001  # Intentionally broad - fallback to static version
-        pass
+        logger.debug("package_version_lookup_failed", exc_info=True)
+    else:
+        return f"fragrance_rater@{pkg_version}"
 
     # Ultimate fallback
     return "fragrance_rater@0.1.0"
@@ -193,7 +195,7 @@ def before_send_hook(
 
     Args:
         event: Sentry event dictionary
-        hint: Additional information about the event
+        _hint: Additional information about the event (unused)
 
     Returns:
         Modified event dictionary, or None to drop the event
@@ -229,15 +231,18 @@ def before_breadcrumb_hook(
 
     Args:
         crumb: Breadcrumb dictionary
-        hint: Additional information about the breadcrumb
+        _hint: Additional information about the breadcrumb (unused)
 
     Returns:
         Modified breadcrumb dictionary, or None to drop the breadcrumb
     """
     # Example: Don't include query parameters in HTTP breadcrumbs
-    if crumb.get("category") == "httplib":
-        if "data" in crumb and "query" in crumb["data"]:
-            crumb["data"]["query"] = "[FILTERED]"
+    if (
+        crumb.get("category") == "httplib"
+        and "data" in crumb
+        and "query" in crumb["data"]
+    ):
+        crumb["data"]["query"] = "[FILTERED]"
 
     return crumb
 
@@ -268,7 +273,7 @@ def capture_exception(
         ...     )
     """
     try:
-        import sentry_sdk
+        import sentry_sdk  # noqa: PLC0415  # Optional dependency
     except ImportError:
         logger.warning("Sentry SDK not installed")
         return
@@ -313,7 +318,7 @@ def capture_message(
         ... )
     """
     try:
-        import sentry_sdk
+        import sentry_sdk  # noqa: PLC0415  # Optional dependency
     except ImportError:
         logger.warning("Sentry SDK not installed")
         return
@@ -356,7 +361,7 @@ def set_user_context(
         ... )
     """
     try:
-        import sentry_sdk
+        import sentry_sdk  # noqa: PLC0415  # Optional dependency
     except ImportError:
         return
 
@@ -396,7 +401,7 @@ def add_breadcrumb(
         ... )
     """
     try:
-        import sentry_sdk
+        import sentry_sdk  # noqa: PLC0415  # Optional dependency
     except ImportError:
         return
 
