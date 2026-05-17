@@ -62,13 +62,20 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+          if [ -n "$INPUT_VERSION" ]; then
+            # Validate version string to allow only semver-like characters
+            if ! [[ "$INPUT_VERSION" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+              echo "::error::Invalid version input: must match ^[A-Za-z0-9._+-]+$"
+              exit 1
+            fi
+            VERSION="$INPUT_VERSION"
           else
             VERSION=$(grep -Po '(?<=^version = ")[^"]*' pyproject.toml)
           fi
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build package
         run: uv build
@@ -98,7 +105,7 @@ jobs:
   slsa:
     name: SLSA Level 3
     needs: [build]
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-slsa.yml@main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-slsa.yml@c50e799abfcd10e904749319f1b322f7eac7a813  # main
     with:
       base64-subjects: ${{ needs.build.outputs.hashes }}
       upload-assets: true
