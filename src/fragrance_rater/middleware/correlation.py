@@ -49,12 +49,14 @@ import uuid
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
+import sentry_sdk
 from starlette.middleware.base import BaseHTTPMiddleware
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from fastapi import Request
+    from sentry_sdk.types import Event, Hint
     from starlette.responses import Response
     from structlog.types import EventDict, WrappedLogger
 
@@ -151,8 +153,8 @@ def correlation_context_processor(
         )
 
     Args:
-        logger: The wrapped logger instance.
-        method_name: The name of the log method called.
+        _logger: The wrapped logger instance (unused, required by structlog).
+        _method_name: The name of the log method called (unused, required by structlog).
         event_dict: The event dictionary to process.
 
     Returns:
@@ -268,10 +270,17 @@ def configure_sentry_correlation() -> None:
         >>> sentry_sdk.init(dsn="...")
         >>> configure_sentry_correlation()
     """
-    import sentry_sdk
 
-    def before_send(event, hint):
-        """Add correlation IDs to Sentry events."""
+    def before_send(event: Event, _hint: Hint) -> Event | None:
+        """Add correlation IDs to Sentry events.
+
+        Args:
+            event: Sentry event being prepared for transmission.
+            _hint: Additional event metadata (unused, required by Sentry API).
+
+        Returns:
+            The event with correlation tags merged in.
+        """
         correlation_id = _correlation_id_ctx.get()
         request_id = _request_id_ctx.get()
         trace_id = _trace_id_ctx.get()
