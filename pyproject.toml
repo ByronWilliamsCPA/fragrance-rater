@@ -109,7 +109,6 @@ dev = [
     "interrogate>=1.7.0",
     "jupyter>=1.0.0",
     "ipykernel>=6.25.0",
-    "safety>=3.7.0",
     "nox>=2024.10.16",  # Fixed: was 2025 (typo)
     "nox-uv>=0.6.3",    # Fixed: max available version is 0.6.3, not 1.0.0
     "mutmut>=3.3.1",
@@ -157,7 +156,6 @@ caching = [
 supply-chain = [
     "cyclonedx-bom>=4.6.0",          # SBOM generation (CycloneDX format)
     "pip-audit>=2.7.0",              # Python vulnerability scanning
-    "safety>=3.7.0",                 # Additional vulnerability scanning
     "pip-licenses>=4.0.0",           # License compliance checking
     "keyrings.google-artifactregistry-auth>=1.1.0",  # GCP Artifact Registry auth
 ]
