@@ -159,7 +159,7 @@ Example customization:
 ```yaml
 jobs:
   ci:
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-ci.yml@main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-ci.yml@eb529609e38f05eb713419e4ee9cfff9cc95decc  # main
     with:
       python-versions: '["3.10", "3.11", "3.12"]'  # Test multiple versions
       coverage-threshold: 85                        # Higher threshold
