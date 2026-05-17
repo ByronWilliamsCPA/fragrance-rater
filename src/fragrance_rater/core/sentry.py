@@ -27,15 +27,19 @@ import logging
 import os
 import subprocess
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import sentry_sdk
+import structlog
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    from sentry_sdk.types import Breadcrumb, BreadcrumbHint, Event, Hint
+
+logger = structlog.get_logger(__name__)
 
 
 def init_sentry(
@@ -168,9 +172,7 @@ def _get_release_version() -> str:
     return "fragrance_rater@0.1.0"
 
 
-def before_send_hook(
-    event: dict[str, Any], _hint: dict[str, Any]
-) -> dict[str, Any] | None:
+def before_send_hook(event: Event, _hint: Hint) -> Event | None:
     """Filter and modify events before sending to Sentry.
 
     This hook allows you to:
@@ -209,8 +211,8 @@ def before_send_hook(
 
 
 def before_breadcrumb_hook(
-    crumb: dict[str, Any], _hint: dict[str, Any]
-) -> dict[str, Any] | None:
+    crumb: Breadcrumb, _hint: BreadcrumbHint
+) -> Breadcrumb | None:
     """Filter and modify breadcrumbs before adding to events.
 
     Breadcrumbs are actions/events leading up to an error.
