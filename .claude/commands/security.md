@@ -45,9 +45,6 @@ uv run semgrep scan --config auto src/
 ```bash
 # Check for vulnerable dependencies
 uv run pip-audit
-
-# Safety check
-uv run safety check
 ```
 
 ### Secrets Detection
