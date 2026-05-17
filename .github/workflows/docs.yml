@@ -37,3 +37,5 @@ jobs:
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main'
         }}
+      # fragrance-rater has a hatchling build backend; allow uv to build the editable install
+      no-build: false

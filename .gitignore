@@ -288,3 +288,9 @@ tmp_cleanup/.tmp-*
 
 # Qlty local cache
 .qlty/
+
+# Git worktrees (local-only; never committed)
+.worktrees/
+
+# Compliance reports (generated; never committed)
+docs/compliance-reports/

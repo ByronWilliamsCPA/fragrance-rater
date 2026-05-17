@@ -49,12 +49,13 @@ import uuid
 from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
+import sentry_sdk
 from starlette.middleware.base import BaseHTTPMiddleware
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from fastapi import Request
+    from sentry_sdk.types import Event, Hint
+    from starlette.middleware.base import RequestResponseEndpoint
     from starlette.responses import Response
     from structlog.types import EventDict, WrappedLogger
 
@@ -151,8 +152,8 @@ def correlation_context_processor(
         )
 
     Args:
-        logger: The wrapped logger instance.
-        method_name: The name of the log method called.
+        _logger: The wrapped logger instance (unused, required by structlog).
+        _method_name: The name of the log method called (unused, required by structlog).
         event_dict: The event dictionary to process.
 
     Returns:
@@ -201,7 +202,7 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         """Process request with correlation ID handling.
 
@@ -268,31 +269,37 @@ def configure_sentry_correlation() -> None:
         >>> sentry_sdk.init(dsn="...")
         >>> configure_sentry_correlation()
     """
-    import sentry_sdk
 
-    def before_send(event, hint):
-        """Add correlation IDs to Sentry events."""
+    def before_send(event: Event, _hint: Hint) -> Event | None:
+        """Add correlation IDs to Sentry events.
+
+        Args:
+            event: Sentry event being prepared for transmission.
+            _hint: Additional event metadata (unused, required by Sentry API).
+
+        Returns:
+            The event with correlation tags merged in.
+        """
         correlation_id = _correlation_id_ctx.get()
         request_id = _request_id_ctx.get()
         trace_id = _trace_id_ctx.get()
 
         if correlation_id or request_id or trace_id:
-            event.setdefault("tags", {})
+            tags = event.setdefault("tags", {})
             if correlation_id:
-                event["tags"]["correlation_id"] = correlation_id
+                tags["correlation_id"] = correlation_id
             if request_id:
-                event["tags"]["request_id"] = request_id
+                tags["request_id"] = request_id
             if trace_id:
-                event["tags"]["trace_id"] = trace_id
+                tags["trace_id"] = trace_id
 
         return event
 
-    # Get current options and add before_send
+    # Register the before_send hook on the active Sentry client so the
+    # correlation tags are attached to every outgoing event.
     current_client = sentry_sdk.get_client()
-    if current_client:
-        # Note: This is a simplified approach. For production, consider
-        # using Sentry's built-in transaction tracing instead.
-        pass
+    if current_client.is_active():
+        current_client.options["before_send"] = before_send
 
 
 # Export public API

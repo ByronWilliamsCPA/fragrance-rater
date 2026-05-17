@@ -38,3 +38,5 @@ jobs:
       run-integration-tests: true
       run-security-tests: true
       fail-on-llm-tags: false
+      # fragrance-rater has a hatchling build backend; allow uv to build the editable install
+      no-build: false

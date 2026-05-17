@@ -41,8 +41,10 @@ class ReadinessCheck(BaseModel):
 
     name: str = Field(..., description="Dependency name")
     status: bool = Field(..., description="Check passed")
-    latency_ms: float | None = Field(None, description="Check latency in milliseconds")
-    error: str | None = Field(None, description="Error message if failed")
+    latency_ms: float | None = Field(
+        default=None, description="Check latency in milliseconds"
+    )
+    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class ReadinessStatus(HealthStatus):
@@ -67,6 +69,9 @@ async def liveness() -> HealthStatus:
     If this fails, Kubernetes will restart the pod.
 
     This should be a simple, fast check that doesn't depend on external services.
+
+    Returns:
+        HealthStatus with current uptime.
     """
     return HealthStatus(
         status="ok",
@@ -83,8 +88,17 @@ async def check_database() -> ReadinessCheck:
     start = time.time()
     try:
         # Import here to avoid circular dependencies
-        from fragrance_rater.core.database import get_session
-
+        from fragrance_rater.core.database import (  # pyright: ignore[reportMissingImports]
+            get_session,
+        )
+    except ImportError:
+        return ReadinessCheck(
+            name="database",
+            status=False,
+            latency_ms=None,
+            error="database module not yet implemented",
+        )
+    try:
         async with get_session() as session:
             # Simple query to check connectivity
             await session.execute("SELECT 1")
@@ -185,6 +199,13 @@ async def readiness() -> ReadinessStatus:
 
     Returns HTTP 503 if any critical dependency is unavailable.
     If this fails, Kubernetes will stop sending traffic to this pod.
+
+    Returns:
+        ReadinessStatus with per-dependency check results when all checks pass.
+
+    Raises:
+        HTTPException: 503 Service Unavailable when any critical dependency
+            check fails.
     """
     checks: dict[str, ReadinessCheck] = {}
 
@@ -233,6 +254,9 @@ async def startup() -> HealthStatus:
     This prevents the application from being killed during slow initialization.
 
     Returns HTTP 200 once the application has fully started.
+
+    Returns:
+        HealthStatus marked as "started" with current uptime.
     """
     # Add any startup checks here (e.g., database migrations completed)
     # For most applications, being alive means startup is complete
@@ -256,6 +280,9 @@ async def health() -> HealthStatus:
 
     Alias for /health/live for compatibility with load balancers
     that expect a /health endpoint.
+
+    Returns:
+        HealthStatus, delegating to the liveness probe.
     """
     return await liveness()
 

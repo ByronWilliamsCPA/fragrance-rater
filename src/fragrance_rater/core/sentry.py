@@ -25,9 +25,21 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any
+import subprocess
+from importlib.metadata import PackageNotFoundError, version
+from typing import TYPE_CHECKING, Any
 
-logger = logging.getLogger(__name__)
+import sentry_sdk
+import structlog
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+
+if TYPE_CHECKING:
+    from sentry_sdk.types import Breadcrumb, BreadcrumbHint, Event, Hint
+
+logger = structlog.get_logger(__name__)
 
 
 def init_sentry(
@@ -62,22 +74,6 @@ def init_sentry(
         ...     traces_sample_rate=0.2,  # Sample 20% of requests
         ... )
     """
-    try:
-        import sentry_sdk  # noqa: PLC0415  # Import only when Sentry is configured
-        from sentry_sdk.integrations.fastapi import FastApiIntegration  # noqa: PLC0415
-        from sentry_sdk.integrations.logging import LoggingIntegration  # noqa: PLC0415
-        from sentry_sdk.integrations.sqlalchemy import (
-            SqlalchemyIntegration,
-        )
-        from sentry_sdk.integrations.starlette import (
-            StarletteIntegration,
-        )
-    except ImportError:
-        logger.warning(
-            "Sentry SDK not installed. Install with: uv add sentry-sdk[fastapi]"
-        )
-        return
-
     # Get configuration from environment or arguments
     dsn = dsn or os.getenv("SENTRY_DSN")
     if not dsn:
@@ -151,8 +147,6 @@ def _get_release_version() -> str:
     """
     # Try to get git SHA
     try:
-        import subprocess  # noqa: PLC0415  # Import only when needed (optional dependency)
-
         sha = (
             subprocess.check_output(
                 ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607  # Git is a trusted executable
@@ -161,28 +155,24 @@ def _get_release_version() -> str:
             .decode()
             .strip()
         )
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        logger.debug("Could not determine git SHA for Sentry release: %s", exc)
+    else:
         return f"fragrance_rater@{sha}"
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        pass
 
     # Fallback to package version
     try:
-        from importlib.metadata import (
-            version,  # Import only when needed
-        )
-
         pkg_version = version("fragrance-rater")
+    except PackageNotFoundError as exc:
+        logger.debug("Could not determine package version for Sentry release: %s", exc)
+    else:
         return f"fragrance_rater@{pkg_version}"
-    except Exception:  # noqa: BLE001  # Intentionally broad - fallback to static version
-        pass
 
     # Ultimate fallback
     return "fragrance_rater@0.1.0"
 
 
-def before_send_hook(
-    event: dict[str, Any], _hint: dict[str, Any]
-) -> dict[str, Any] | None:
+def before_send_hook(event: Event, _hint: Hint) -> Event | None:
     """Filter and modify events before sending to Sentry.
 
     This hook allows you to:
@@ -193,7 +183,7 @@ def before_send_hook(
 
     Args:
         event: Sentry event dictionary
-        hint: Additional information about the event
+        _hint: Additional information about the event (unused, kept for API parity)
 
     Returns:
         Modified event dictionary, or None to drop the event
@@ -221,23 +211,26 @@ def before_send_hook(
 
 
 def before_breadcrumb_hook(
-    crumb: dict[str, Any], _hint: dict[str, Any]
-) -> dict[str, Any] | None:
+    crumb: Breadcrumb, _hint: BreadcrumbHint
+) -> Breadcrumb | None:
     """Filter and modify breadcrumbs before adding to events.
 
     Breadcrumbs are actions/events leading up to an error.
 
     Args:
         crumb: Breadcrumb dictionary
-        hint: Additional information about the breadcrumb
+        _hint: Additional information about the breadcrumb (unused, kept for API parity)
 
     Returns:
         Modified breadcrumb dictionary, or None to drop the breadcrumb
     """
     # Example: Don't include query parameters in HTTP breadcrumbs
-    if crumb.get("category") == "httplib":
-        if "data" in crumb and "query" in crumb["data"]:
-            crumb["data"]["query"] = "[FILTERED]"
+    if (
+        crumb.get("category") == "httplib"
+        and "data" in crumb
+        and "query" in crumb["data"]
+    ):
+        crumb["data"]["query"] = "[FILTERED]"
 
     return crumb
 
@@ -267,12 +260,6 @@ def capture_exception(
         ...         extra={"file_size": 1024, "row_count": 100},
         ...     )
     """
-    try:
-        import sentry_sdk
-    except ImportError:
-        logger.warning("Sentry SDK not installed")
-        return
-
     with sentry_sdk.push_scope() as scope:
         scope.level = level
 
@@ -312,12 +299,6 @@ def capture_message(
         ...     extra={"steps_completed": 5},
         ... )
     """
-    try:
-        import sentry_sdk
-    except ImportError:
-        logger.warning("Sentry SDK not installed")
-        return
-
     with sentry_sdk.push_scope() as scope:
         scope.level = level
 
@@ -355,11 +336,6 @@ def set_user_context(
         ...     subscription="premium",
         ... )
     """
-    try:
-        import sentry_sdk
-    except ImportError:
-        return
-
     user_data = {}
     if user_id:
         user_data["id"] = user_id
@@ -395,11 +371,6 @@ def add_breadcrumb(
         ...     data={"format": "csv", "row_count": 1000},
         ... )
     """
-    try:
-        import sentry_sdk
-    except ImportError:
-        return
-
     sentry_sdk.add_breadcrumb(
         message=message,
         category=category,

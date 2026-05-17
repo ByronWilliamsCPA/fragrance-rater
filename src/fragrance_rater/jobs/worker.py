@@ -30,17 +30,18 @@ Setup:
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+import structlog
 from arq import cron
 from arq.connections import RedisSettings
+from arq.typing import WorkerCoroutine
 
 if TYPE_CHECKING:
     from arq.connections import ArqRedis
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # =============================================================================
@@ -68,7 +69,7 @@ async def example_background_task(
 
     # Access Redis for storing results
     redis: ArqRedis = ctx["redis"]
-    await redis.set(f"task_result:{user_id}", "completed", expire=3600)
+    await redis.set(f"task_result:{user_id}", "completed", ex=3600)
 
     logger.info("background_task_completed", user_id=user_id)
 
@@ -83,7 +84,7 @@ async def send_email_task(
     _ctx: dict[str, Any],
     recipient: str,
     subject: str,
-    body: str,
+    _body: str,
 ) -> dict:
     """Send email asynchronously.
 
@@ -91,7 +92,7 @@ async def send_email_task(
         _ctx: ARQ context (unused in this example)
         recipient: Email recipient
         subject: Email subject
-        body: Email body
+        _body: Email body (unused placeholder; wire into email provider)
 
     Returns:
         Send status
@@ -122,6 +123,10 @@ async def process_file_upload(
 
     Returns:
         Processing result
+
+    Raises:
+        Exception: Re-raised after logging if processing fails; ARQ retries
+            failed jobs based on WorkerSettings.
     """
     logger.info("processing_file", file_id=file_id, path=file_path)
 
@@ -180,8 +185,6 @@ async def startup(_ctx: dict[str, Any]) -> None:
     logger.info("arq_worker_starting")
 
     # Placeholder for initialization logic
-    # Example: _ctx['db'] = await create_db_connection()
-    # Example: _ctx['config'] = load_config()
 
 
 async def shutdown(_ctx: dict[str, Any]) -> None:
@@ -211,15 +214,17 @@ class WorkerSettings:
     """
 
     # Task functions to register
-    functions = [
+    functions: ClassVar[list[Any]] = [
         example_background_task,
         send_email_task,
         process_file_upload,
     ]
 
     # Scheduled tasks (cron)
-    cron_jobs = [
-        cron(cleanup_old_data, hour=2, minute=0),  # Run daily at 2 AM
+    cron_jobs: ClassVar[list[Any]] = [
+        cron(
+            cast(WorkerCoroutine, cleanup_old_data), hour=2, minute=0
+        ),  # Run daily at 2 AM
     ]
 
     # Redis connection
@@ -266,6 +271,10 @@ async def enqueue_task(
     Returns:
         Job ID
 
+    Raises:
+        RuntimeError: If ARQ returns no job handle (a job with the same
+            ID is already queued, or the broker rejected the enqueue).
+
     Example:
         >>> from arq import create_pool
         >>> redis = await create_pool(RedisSettings())
@@ -274,6 +283,9 @@ async def enqueue_task(
         ... )
     """
     job = await redis.enqueue_job(task_name, *args, **kwargs)
+    if job is None:
+        msg = f"Failed to enqueue task: {task_name}"
+        raise RuntimeError(msg)
     logger.info("task_enqueued", task=task_name, job_id=job.job_id)
     return job.job_id
 

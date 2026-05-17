@@ -41,5 +41,5 @@ jobs:
       run-codeql: true
       run-dependency-review: true
       run-bandit: true
-      run-safety: true
+      run-safety: false  # safety removed from dependencies; pip-audit + OSV cover dependency CVEs
       run-osv: true

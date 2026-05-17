@@ -29,21 +29,29 @@ from __future__ import annotations
 import functools
 import hashlib
 import json
-import logging
+import os
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import structlog
 from redis.asyncio import Redis, from_url
 from redis.exceptions import RedisError
 
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 T = TypeVar("T")  # Covariant type variable for cached function return types
 
-# Global Redis connection pool
-_redis_pool: Redis | None = None
+
+class _PoolState:
+    """Module-level singleton holder for the Redis connection pool.
+
+    Wrapping the pool in a class avoids the ``global`` statement while
+    preserving singleton semantics across the module.
+    """
+
+    pool: Redis | None = None
 
 
 # =============================================================================
@@ -62,15 +70,10 @@ async def get_redis() -> Redis:
         >>> await redis.set("key", "value", ex=60)
         >>> value = await redis.get("key")
     """
-    global _redis_pool
-
-    if _redis_pool is None:
-        # Get Redis URL from environment
-        import os
-
+    if _PoolState.pool is None:
         redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-        _redis_pool = from_url(
+        _PoolState.pool = from_url(
             redis_url,
             encoding="utf-8",
             decode_responses=True,
@@ -83,7 +86,7 @@ async def get_redis() -> Redis:
 
         logger.info("redis_connection_initialized", url=redis_url)
 
-    return _redis_pool
+    return _PoolState.pool
 
 
 async def close_redis() -> None:
@@ -91,11 +94,9 @@ async def close_redis() -> None:
 
     Call this on application shutdown.
     """
-    global _redis_pool
-
-    if _redis_pool is not None:
-        await _redis_pool.close()
-        _redis_pool = None
+    if _PoolState.pool is not None:
+        await _PoolState.pool.close()
+        _PoolState.pool = None
         logger.info("redis_connection_closed")
 
 
@@ -166,13 +167,12 @@ def cached(
                     ttl,
                     json.dumps(result, default=str),
                 )
-
-                return result
-
             except RedisError as e:
                 # If Redis is unavailable, gracefully degrade (call function directly)
                 logger.warning("cache_error", error=str(e), key=cache_key)
                 return await func(*args, **kwargs)
+            else:
+                return result
 
         return wrapper
 
@@ -188,6 +188,10 @@ def cache_invalidate(
 
     Args:
         key_pattern: Redis key pattern (supports * wildcard)
+
+    Returns:
+        Decorator that invalidates matching cache keys after the wrapped
+        async function completes.
 
     Example:
         >>> @cache_invalidate("user:*")
@@ -261,11 +265,11 @@ async def set_cached(key: str, value: Any, ttl: int = 3600) -> bool:
     try:
         redis = await get_redis()
         await redis.setex(key, ttl, json.dumps(value, default=str))
-        return True
-
     except RedisError as e:
         logger.warning("cache_set_failed", key=key, error=str(e))
         return False
+    else:
+        return True
 
 
 async def delete_cached(key: str) -> bool:
@@ -280,11 +284,11 @@ async def delete_cached(key: str) -> bool:
     try:
         redis = await get_redis()
         deleted = await redis.delete(key)
-        return deleted > 0
-
     except RedisError as e:
         logger.warning("cache_delete_failed", key=key, error=str(e))
         return False
+    else:
+        return deleted > 0
 
 
 async def invalidate_pattern(pattern: str) -> int:
@@ -307,21 +311,19 @@ async def invalidate_pattern(pattern: str) -> int:
         redis = await get_redis()
 
         # Find all matching keys
-        keys = []
-        async for key in redis.scan_iter(match=pattern, count=100):
-            keys.append(key)
+        keys = [key async for key in redis.scan_iter(match=pattern, count=100)]
 
         # Delete in batches
         if keys:
             deleted = await redis.delete(*keys)
             logger.info("cache_invalidated", pattern=pattern, count=deleted)
-            return deleted
-
-        return 0
-
+        else:
+            deleted = 0
     except RedisError as e:
         logger.exception("cache_invalidation_failed", pattern=pattern, error=str(e))
         return 0
+    else:
+        return deleted
 
 
 # =============================================================================
@@ -368,11 +370,11 @@ async def warm_cache(
         await redis.setex(key, ttl, json.dumps(value, default=str))
 
         logger.info("cache_warmed", key=key, ttl=ttl)
-        return True
-
     except RedisError as e:
         logger.exception("cache_warming_failed", key=key, error=str(e))
         return False
+    else:
+        return True
 
 
 # =============================================================================
