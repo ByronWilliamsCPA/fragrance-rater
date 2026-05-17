@@ -32,6 +32,9 @@ jobs:
     uses: ByronWilliamsCPA/.github/.github/workflows/python-docs.yml@main
     with:
       python-version: '3.12'
+      # See ci.yml: reusable workflow defaults no-build: true; override to
+      # allow editable+. install of fragrance-rater to build for docs.
+      no-build: false
       deploy-to-pages: >-
         ${{
           github.event_name == 'push' &&
