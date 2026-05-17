@@ -65,8 +65,10 @@ repos:
         description: Detect secrets in your data before committing
         entry: >-
           bash -c
-          'command -v trufflehog >/dev/null 2>&1 ||
-          (echo "ERROR: trufflehog not installed. Install with: brew install trufflehog OR pip install trufflehog3" >&2 && exit 1) &&
+          'if ! command -v trufflehog >/dev/null 2>&1; then
+            echo "ERROR: trufflehog (Go) not installed. This hook requires the trufflesecurity binary; trufflehog3 has an incompatible CLI and is not a drop-in. Install with: brew install trufflehog (macOS); curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin (Linux/WSL); or see https://github.com/trufflesecurity/trufflehog#installation" >&2;
+            exit 1;
+          fi;
           trufflehog git file://. --since-commit HEAD --results=verified,unknown --fail'
         language: system
         pass_filenames: false
@@ -167,15 +169,36 @@ repos:
   # ============================================================================
   # Content Quality: Forbid Em-Dash
   # ============================================================================
-  # Em-dashes (U+2014) are banned in all project output per global writing standards.
-  # See ~/.claude/CLAUDE.md "Writing style". tools/ excluded for pre-existing violation
-  # in tools/validate_front_matter.py (tracked: remove em-dash from that file).
+  # Em-dashes (U+2014) are banned in all project output per global writing
+  # standards. See ~/.claude/CLAUDE.md "Writing style". Implemented in pure
+  # Python via `language: python` for portability across GNU/BSD systems
+  # (the previous `grep -P` entry required GNU grep PCRE support).
   - repo: local
     hooks:
       - id: no-em-dash
         name: Forbid em-dash characters
-        entry: 'sh -c ''if grep --color=always -nP "\x{2014}" "$@"; then echo "ERROR: em-dash (U+2014) found. Use comma, semicolon, colon, or restructure." >&2; exit 1; fi'' --'
-        language: system
+        language: python
+        entry: python
+        args:
+          - -c
+          - |
+            import sys
+            offenders = []
+            for path in sys.argv[1:]:
+                try:
+                    with open(path, encoding="utf-8", errors="ignore") as fh:
+                        for lineno, line in enumerate(fh, 1):
+                            if chr(0x2014) in line:
+                                offenders.append(f"{path}:{lineno}")
+                except OSError:
+                    continue
+            if offenders:
+                sys.stderr.write(
+                    "ERROR: em-dash (U+2014) found at:\n  "
+                    + "\n  ".join(offenders)
+                    + "\nUse comma, semicolon, colon, or restructure.\n"
+                )
+                sys.exit(1)
         types: [text]
         exclude: ^(\.standards/.*|LICENSES/.*|.*\.svg|.*\.lock)$
 
