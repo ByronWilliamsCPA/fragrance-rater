@@ -7,11 +7,11 @@ site_description: Personal fragrance evaluation and recommendation system for fa
 site_author: Byron Williams
 site_url: https://fragrance-rater.readthedocs.io
 repo_url: https://github.com/ByronWilliamsCPA/fragrance-rater
-repo_name: ByronWilliamsCPA/fragrance_rater
+repo_name: ByronWilliamsCPA/fragrance-rater
 edit_uri: edit/main/docs/
 
 # Copyright
-copyright: Copyright &copy; 2025 Byron Williams
+copyright: Copyright &copy; 2025-2026 Byron Williams
 
 # Theme Configuration
 theme:
