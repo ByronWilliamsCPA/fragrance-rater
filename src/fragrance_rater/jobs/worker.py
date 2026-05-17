@@ -36,10 +36,10 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import structlog
 from arq import cron
 from arq.connections import RedisSettings
+from arq.typing import WorkerCoroutine
 
 if TYPE_CHECKING:
     from arq.connections import ArqRedis
-    from arq.typing import WorkerCoroutine
 
 logger = structlog.get_logger(__name__)
 
@@ -223,7 +223,7 @@ class WorkerSettings:
     # Scheduled tasks (cron)
     cron_jobs: ClassVar[list[Any]] = [
         cron(
-            cast("WorkerCoroutine", cleanup_old_data), hour=2, minute=0
+            cast(WorkerCoroutine, cleanup_old_data), hour=2, minute=0
         ),  # Run daily at 2 AM
     ]
 
