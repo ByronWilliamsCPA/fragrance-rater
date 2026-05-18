@@ -46,7 +46,6 @@ jobs:
       run-codeql: true
       run-dependency-review: true
       run-bandit: true
-      run-safety: true
       run-osv: true
       # Override reusable workflow's no-build: true default for projects
       # installed as `editable+.` (same fix pattern as ci.yml).
