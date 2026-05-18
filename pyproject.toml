@@ -662,6 +662,18 @@ ignore_names = [
     "__*__",  # Magic methods
 ]
 
+# pip-audit Configuration
+# Document any ignored vulnerability in docs/known-vulnerabilities.md per
+# the project policy in ~/.claude/CLAUDE.md (60-day reassessment window).
+[tool.pip-audit]
+ignore-vuln = [
+    # py 1.11.0 ReDoS in svnwc parser. Transitive via interrogate 1.7.0; no
+    # upstream fix released as of 2026-05-17. The vulnerable code path
+    # (svnwc XML parsing) is not exercised by interrogate's docstring-coverage
+    # scan. Reassess by 2026-07-16.
+    "PYSEC-2022-42969",
+]
+
 # UV Configuration
 [tool.uv]
 # Note: UV now recommends using [dependency-groups] instead of dev-dependencies

@@ -5,7 +5,7 @@ status: published
 owner: core-maintainer
 purpose: "Development roadmap for Fragrance Rater."
 tags:
-  - project
+  - project_management
   - roadmap
 ---
 

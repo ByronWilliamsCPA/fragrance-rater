@@ -5,7 +5,7 @@ status: published
 owner: core-maintainer
 purpose: "Changelog for Fragrance Rater."
 tags:
-  - project
+  - project_management
   - changelog
 ---
 

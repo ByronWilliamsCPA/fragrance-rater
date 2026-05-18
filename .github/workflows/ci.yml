@@ -38,3 +38,35 @@ jobs:
       run-integration-tests: true
       run-security-tests: true
       fail-on-llm-tags: false
+      # The reusable workflow defaults `no-build: true`, which fails with
+      # "Distribution can't be installed because it is marked as --no-build
+      # but has no binary distribution" for projects installed as
+      # `editable+.`. Override to false so uv can build the package.
+      no-build: false
+
+  # Top-level gate that emits the bare "CI Gate" check name the org
+  # ruleset requires. The reusable workflow's internal "CI Gate" job
+  # surfaces as "CI Pipeline / CI Gate" because of the caller-job
+  # prefix; this aggregate job re-publishes the same pass/fail signal
+  # under the canonical name the ruleset matches on.
+  ci-gate:
+    name: CI Gate
+    needs: ci
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9ca718d3bf646d6534007c269a635b3e54cadf99  # v2.19.2
+        with:
+          egress-policy: audit
+      - name: Aggregate CI result
+        env:
+          CI_RESULT: ${{ needs.ci.result }}
+        run: |
+          if [ "$CI_RESULT" != "success" ]; then
+            echo "::error::CI reusable workflow did not succeed: $CI_RESULT"
+            exit 1
+          fi
+          echo "CI Gate: all upstream checks succeeded."
