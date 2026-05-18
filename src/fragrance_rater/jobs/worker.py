@@ -30,17 +30,18 @@ Setup:
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from arq import cron
 from arq.connections import RedisSettings
 
+from fragrance_rater.utils.logging import get_logger
+
 if TYPE_CHECKING:
     from arq.connections import ArqRedis
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =============================================================================

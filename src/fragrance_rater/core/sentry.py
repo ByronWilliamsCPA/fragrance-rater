@@ -27,7 +27,9 @@ import logging
 import os
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from fragrance_rater.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def init_sentry(
