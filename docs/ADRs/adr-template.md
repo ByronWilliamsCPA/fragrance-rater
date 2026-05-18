@@ -251,8 +251,8 @@ How will we validate that this decision achieved its goals?
 
 ### Related ADRs
 
-- [ADR-001: Previous Decision](0001-previous-decision.md) - Related context
-- [ADR-005: Future Decision](0005-future-decision.md) - Builds on this ADR
+- `ADR-001: Previous Decision` (file: `0001-previous-decision.md`) - Related context (replace with real link when authoring)
+- `ADR-005: Future Decision` (file: `0005-future-decision.md`) - Builds on this ADR (replace with real link when authoring)
 
 ### External References
 
@@ -262,9 +262,9 @@ How will we validate that this decision achieved its goals?
 
 ### Implementation References
 
-- [Implementation File](../../src/component.py)
-- [Test Coverage](../../tests/test_component.py)
-- [Configuration](../../config.yaml)
+- Implementation File: `src/component.py` (replace with real path when authoring)
+- Test Coverage: `tests/test_component.py` (replace with real path when authoring)
+- Configuration: `config.yaml` (replace with real path when authoring)
 
 ## Questions & Discussion
 

@@ -69,7 +69,7 @@ async def example_background_task(
 
     # Access Redis for storing results
     redis: ArqRedis = ctx["redis"]
-    await redis.set(f"task_result:{user_id}", "completed", expire=3600)
+    await redis.set(f"task_result:{user_id}", "completed", ex=3600)
 
     logger.info("background_task_completed", user_id=user_id)
 
@@ -223,8 +223,11 @@ class WorkerSettings:
     ]
 
     # Scheduled tasks (cron)
+    # arq's cron typedef expects WorkerCoroutine returning None, but
+    # cleanup_old_data returns int (the deleted count for observability);
+    # arq tolerates non-None returns at runtime.
     cron_jobs: ClassVar[list[Any]] = [
-        cron(cleanup_old_data, hour=2, minute=0),  # Run daily at 2 AM
+        cron(cleanup_old_data, hour=2, minute=0),  # pyright: ignore[reportArgumentType]
     ]
 
     # Redis connection
@@ -271,6 +274,10 @@ async def enqueue_task(
     Returns:
         Job ID
 
+    Raises:
+        RuntimeError: When arq's enqueue_job returns None, signalling that
+            the redis pool is unavailable or the task name is not registered.
+
     Example:
         >>> from arq import create_pool
         >>> redis = await create_pool(RedisSettings())
@@ -279,6 +286,9 @@ async def enqueue_task(
         ... )
     """
     job = await redis.enqueue_job(task_name, *args, **kwargs)
+    if job is None:
+        msg = f"Failed to enqueue task {task_name!r}: arq returned no job (redis pool unavailable?)"
+        raise RuntimeError(msg)
     logger.info("task_enqueued", task=task_name, job_id=job.job_id)
     return job.job_id
 

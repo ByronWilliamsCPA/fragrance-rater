@@ -133,8 +133,8 @@ def init_sentry(
         attach_stacktrace=True,  # Include stack traces in messages
         send_default_pii=False,  # Don't send PII by default (GDPR compliance)
         # Custom options
-        before_send=before_send_hook,
-        before_breadcrumb=before_breadcrumb_hook,
+        before_send=before_send_hook,  # pyright: ignore[reportArgumentType]  # sentry_sdk EventProcessor types are stricter than dict[str, Any]
+        before_breadcrumb=before_breadcrumb_hook,  # pyright: ignore[reportArgumentType]
     )
 
     logger.info(
@@ -163,7 +163,9 @@ def _get_release_version() -> str:
             .decode()
             .strip()
         )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError):  # pyright: ignore[reportPossiblyUnboundVariable]
+        # subprocess is stdlib and import cannot fail; pyright's narrowing
+        # treats the in-try import as conditionally bound, hence the ignore.
         pass
     else:
         return f"fragrance_rater@{sha}"

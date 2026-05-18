@@ -52,7 +52,7 @@ from typing import TYPE_CHECKING, Any
 from starlette.middleware.base import BaseHTTPMiddleware
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Awaitable, Callable
 
     from fastapi import Request
     from starlette.responses import Response
@@ -201,7 +201,7 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
+        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
     ) -> Response:
         """Process request with correlation ID handling.
 
@@ -270,7 +270,7 @@ def configure_sentry_correlation() -> None:
     """
     import sentry_sdk  # noqa: PLC0415  # Optional dependency
 
-    def before_send(
+    def before_send(  # pyright: ignore[reportUnusedFunction]  # Scaffold helper documenting wiring pattern; not yet attached to sentry_sdk
         event: dict[str, Any], _hint: dict[str, Any]
     ) -> dict[str, Any] | None:
         """Add correlation IDs to Sentry events.

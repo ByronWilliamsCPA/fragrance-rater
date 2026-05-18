@@ -85,8 +85,12 @@ async def check_database() -> ReadinessCheck:
     """
     start = time.time()
     try:
-        # Import here to avoid circular dependencies
-        from fragrance_rater.core.database import get_session
+        # Import here to avoid circular dependencies. The module is expected
+        # to exist once a real database layer ships; this scaffold tolerates
+        # its absence via the surrounding except clause.
+        from fragrance_rater.core.database import (  # pyright: ignore[reportMissingImports]
+            get_session,
+        )
 
         async with get_session() as session:
             # Simple query to check connectivity
