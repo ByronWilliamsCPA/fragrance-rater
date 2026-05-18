@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial project setup and structure
 
 ### Fixed
+
 - CI: override `no-build: false` for callers of the reusable `python-ci.yml`
   and `python-docs.yml` workflows so editable package install succeeds (`ci.yml`,
   `pr-validation.yml`, `docs.yml`).
@@ -27,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `before_send` Sentry callback in `middleware/correlation.py`.
 
 ### Documentation
+
 - `docs/PROJECT_SETUP.md`: mark `sonarcloud.yml` workflow as removed; SonarCloud
   analysis now runs via project-level Automatic Analysis only.
 

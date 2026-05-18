@@ -3,7 +3,9 @@ title: "Known Vulnerabilities"
 schema_type: common
 status: published
 owner: core-maintainer
-purpose: "Track dependency vulnerabilities that cannot currently be resolved, paired with documented justification and a 60-day reassessment window."
+purpose: >
+  Track dependency vulnerabilities that cannot currently be resolved,
+  paired with documented justification and a 60-day reassessment window.
 tags:
   - security
   - compliance
@@ -22,7 +24,8 @@ tags:
 ### PYSEC-2022-42969
 
 - **Package**: `py` 1.11.0
-- **CVE / advisory**: [PYSEC-2022-42969](https://github.com/pytest-dev/py/issues/287) — ReDoS (Regular Expression Denial of Service) in the SVN-WC parser
+- **CVE / advisory**: [PYSEC-2022-42969](https://github.com/pytest-dev/py/issues/287).
+  ReDoS (Regular Expression Denial of Service) in the SVN-WC parser
 - **Source**: Transitive dependency of `interrogate` 1.7.0 (docstring coverage tool, dev-only)
 - **Fix status**: No upstream fix. The `py` package is archived; the
   `interrogate` maintainers have not yet replaced or vendored the dependency
@@ -36,4 +39,4 @@ tags:
 
 | Date | Vulnerability | Action |
 | --- | --- | --- |
-| 2026-05-17 | PYSEC-2022-42969 | Initial documentation; ignore added to `[tool.pip-audit]` in `pyproject.toml` |
+| 2026-05-17 | PYSEC-2022-42969 | Initial doc; ignore added in `pyproject.toml` |

@@ -28,10 +28,14 @@ permissions:
   security-events: write
   pull-requests: write
 
-# Uses org-level reusable workflow
+# Uses org-level reusable workflow.
+# Caller job is named "Security Analysis" so the reusable workflow's
+# final "Security Gate Validation" job surfaces as the canonical
+# "Security Analysis / Security Gate Validation" check the org ruleset
+# requires.
 jobs:
   security:
-    name: Security Scan
+    name: Security Analysis
     uses: ByronWilliamsCPA/.github/.github/workflows/python-security-analysis.yml@main
     with:
       source-directory: 'src'

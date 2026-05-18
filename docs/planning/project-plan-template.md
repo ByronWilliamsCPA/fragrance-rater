@@ -487,10 +487,14 @@ git checkout -b feat/phase-1-core
 
 ## Related Documentation
 
-- **[CONTRIBUTING.md](https://github.com/ByronWilliamsCPA/fragrance-rater/blob/main/CONTRIBUTING.md)**: How to contribute to the project
-- **[ADRs/README.md](../ADRs/README.md)**: Architecture Decision Records
-- **[README.md](https://github.com/ByronWilliamsCPA/fragrance-rater/blob/main/README.md)**: Project overview
-- **[Code of Conduct](https://github.com/ByronWilliamsCPA/.github/blob/main/CODE_OF_CONDUCT.md)**: Community guidelines (org-level)
+- [CONTRIBUTING.md][contributing] - How to contribute to the project
+- [ADRs/README.md](../ADRs/README.md) - Architecture Decision Records
+- [README.md][readme] - Project overview
+- [Code of Conduct][code-of-conduct] - Community guidelines (org-level)
+
+[contributing]: https://github.com/ByronWilliamsCPA/fragrance-rater/blob/main/CONTRIBUTING.md
+[readme]: https://github.com/ByronWilliamsCPA/fragrance-rater/blob/main/README.md
+[code-of-conduct]: https://github.com/ByronWilliamsCPA/.github/blob/main/CODE_OF_CONDUCT.md
 
 ---
 

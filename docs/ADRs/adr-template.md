@@ -251,8 +251,10 @@ How will we validate that this decision achieved its goals?
 
 ### Related ADRs
 
-- `ADR-001: Previous Decision` (file: `0001-previous-decision.md`) - Related context (replace with real link when authoring)
-- `ADR-005: Future Decision` (file: `0005-future-decision.md`) - Builds on this ADR (replace with real link when authoring)
+- `ADR-001: Previous Decision` (file: `0001-previous-decision.md`):
+  Related context (replace with real link when authoring)
+- `ADR-005: Future Decision` (file: `0005-future-decision.md`):
+  Builds on this ADR (replace with real link when authoring)
 
 ### External References
 
