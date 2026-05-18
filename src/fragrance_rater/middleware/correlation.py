@@ -47,7 +47,7 @@ from __future__ import annotations
 
 import uuid
 from contextvars import ContextVar
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -151,8 +151,8 @@ def correlation_context_processor(
         )
 
     Args:
-        logger: The wrapped logger instance.
-        method_name: The name of the log method called.
+        _logger: The wrapped logger instance (unused).
+        _method_name: The name of the log method called (unused).
         event_dict: The event dictionary to process.
 
     Returns:
@@ -268,10 +268,21 @@ def configure_sentry_correlation() -> None:
         >>> sentry_sdk.init(dsn="...")
         >>> configure_sentry_correlation()
     """
-    import sentry_sdk
+    import sentry_sdk  # noqa: PLC0415  # Optional dependency
 
-    def before_send(event, hint):
-        """Add correlation IDs to Sentry events."""
+    def before_send(
+        event: dict[str, Any], _hint: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Add correlation IDs to Sentry events.
+
+        Args:
+            event: Sentry event dictionary to enrich with correlation tags.
+            _hint: Sentry-supplied event hint metadata (unused).
+
+        Returns:
+            The same event dictionary, augmented with correlation tags
+            when any are present in the current request context.
+        """
         correlation_id = _correlation_id_ctx.get()
         request_id = _request_id_ctx.get()
         trace_id = _trace_id_ctx.get()

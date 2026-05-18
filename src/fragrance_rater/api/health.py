@@ -67,6 +67,9 @@ async def liveness() -> HealthStatus:
     If this fails, Kubernetes will restart the pod.
 
     This should be a simple, fast check that doesn't depend on external services.
+
+    Returns:
+        HealthStatus with overall status "ok" and current uptime in seconds.
     """
     return HealthStatus(
         status="ok",
@@ -94,6 +97,7 @@ async def check_database() -> ReadinessCheck:
             name="database",
             status=True,
             latency_ms=round(latency_ms, 2),
+            error=None,
         )
     except Exception as e:
         latency_ms = (time.time() - start) * 1000
@@ -123,6 +127,7 @@ async def check_cache() -> ReadinessCheck:
             name="cache",
             status=True,
             latency_ms=round(latency_ms, 2),
+            error=None,
         )
     except Exception as e:
         latency_ms = (time.time() - start) * 1000
@@ -154,6 +159,7 @@ async def check_external_service() -> ReadinessCheck:
             name="external_api",
             status=True,
             latency_ms=round(latency_ms, 2),
+            error=None,
         )
     except Exception as e:
         latency_ms = (time.time() - start) * 1000
@@ -185,6 +191,12 @@ async def readiness() -> ReadinessStatus:
 
     Returns HTTP 503 if any critical dependency is unavailable.
     If this fails, Kubernetes will stop sending traffic to this pod.
+
+    Returns:
+        ReadinessStatus with per-dependency check results and overall uptime.
+
+    Raises:
+        HTTPException: 503 when any critical dependency reports unhealthy.
     """
     checks: dict[str, ReadinessCheck] = {}
 
@@ -233,6 +245,9 @@ async def startup() -> HealthStatus:
     This prevents the application from being killed during slow initialization.
 
     Returns HTTP 200 once the application has fully started.
+
+    Returns:
+        HealthStatus with status "started" once initialization is complete.
     """
     # Add any startup checks here (e.g., database migrations completed)
     # For most applications, being alive means startup is complete
@@ -256,6 +271,9 @@ async def health() -> HealthStatus:
 
     Alias for /health/live for compatibility with load balancers
     that expect a /health endpoint.
+
+    Returns:
+        HealthStatus snapshot identical to the liveness probe response.
     """
     return await liveness()
 

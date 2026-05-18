@@ -37,6 +37,9 @@ jobs:
       python-version: '3.12'
       coverage-threshold: 80
       enable-dead-code-check: true
+      # See ci.yml: reusable workflow defaults no-build: true; override to
+      # allow editable+. install of fragrance-rater to build.
+      no-build: false
   # ==========================================================================
   # Additional Checks (Template-Specific)
   # ==========================================================================

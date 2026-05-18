@@ -38,3 +38,8 @@ jobs:
       run-integration-tests: true
       run-security-tests: true
       fail-on-llm-tags: false
+      # The reusable workflow defaults `no-build: true`, which fails with
+      # "Distribution can't be installed because it is marked as --no-build
+      # but has no binary distribution" for projects installed as
+      # `editable+.`. Override to false so uv can build the package.
+      no-build: false
