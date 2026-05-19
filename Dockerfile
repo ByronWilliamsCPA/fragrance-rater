@@ -10,7 +10,9 @@ FROM python:3.12-slim AS builder
 WORKDIR /app
 
 # Install system dependencies for building Python packages
-# hadolint ignore=DL3008 -- distro packages tracked via base image updates, not pinned
+# DL3008 (pin apt versions) suppressed: distro packages track base-image
+# security updates, not pyproject-style version locks.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -48,7 +50,9 @@ LABEL org.opencontainers.image.source="https://github.com/ByronWilliamsCPA/fragr
 LABEL org.opencontainers.image.licenses="MIT"
 
 # Install runtime dependencies only
-# hadolint ignore=DL3008 -- distro packages tracked via base image updates, not pinned
+# DL3008 (pin apt versions) suppressed: distro packages track base-image
+# security updates, not pyproject-style version locks.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \

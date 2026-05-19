@@ -83,9 +83,7 @@ class RatingResponse(BaseModel):
     score: int = Field(
         ..., ge=1, le=10, description="Rating from 1 (poor) to 10 (excellent)."
     )
-    reasoning: str = Field(
-        ..., description="LLM-authored explanation of the score."
-    )
+    reasoning: str = Field(..., description="LLM-authored explanation of the score.")
     model: str = Field(
         ..., description="LLM model identifier (e.g. 'anthropic/claude-3.5-sonnet')."
     )
@@ -94,9 +92,7 @@ class RatingResponse(BaseModel):
         description="Accord notes used in the rating.",
     )
     latency_warning: str = Field(
-        default=(
-            "LLM responses vary in latency; expect 1-10 seconds per call."
-        ),
+        default=("LLM responses vary in latency; expect 1-10 seconds per call."),
         description="Operational note about response time variability.",
     )
 
@@ -128,11 +124,22 @@ def create_rating(
     The endpoint calls OpenRouter using the ``anthropic/claude-3.5-sonnet``
     model by default (see ADR-003). When the service is started
     with ``TEST_MODE=true``, a deterministic fixture is returned
-    instead of issuing a network call — CI relies on this seam.
+    instead of issuing a network call; CI relies on this seam.
 
     Response time may vary by several seconds because the LLM
     backend is the dominant cost; clients should not block hot
     paths on this call.
+
+    Args:
+        payload: Validated rating request body.
+        client: LLM rating client injected via FastAPI dependency.
+
+    Returns:
+        The LLM-authored rating, model identifier, and latency note.
+
+    Raises:
+        HTTPException: 503 when the upstream LLM client is unavailable
+            or returns a runtime error.
     """
     try:
         result = client.rate(
