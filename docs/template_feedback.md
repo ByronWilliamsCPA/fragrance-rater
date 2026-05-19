@@ -59,6 +59,22 @@ When working on this project, if you discover any issue that originates from the
 - `{{cookiecutter.project_slug}}/.claude/settings.json` (template)
 - Any compliance/remediation script that emits or rewrites this file (likely in the `claude-docs-auditor` remediation path for CLAUDE-005)
 
+### `coverage.json` not in `.gitignore`
+
+- **Priority**: Low
+- **Category**: Configuration
+- **Discovered**: 2026-05-19
+
+**Issue**: The template's `.gitignore` covers `.coverage`, `.coverage.*`, and `coverage.xml`, but omits `coverage.json`. `coverage.py` writes `coverage.json` when invoked with `--format=json` (used by Codecov's JSON reporter, several IDE integrations, and the `test-coverage` skill), leaving an untracked artifact in the working tree after every coverage run.
+
+**Context**: Discovered during a "final check" repo audit. `coverage.json` was the only untracked file in an otherwise-clean working tree on `main` and had been produced silently by a prior coverage run.
+
+**Suggested Fix**: Add `coverage.json` to the "Unit test / coverage reports" block in `.gitignore` alongside `coverage.xml`.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.gitignore`
+
 ---
 
 ## Submitting Feedback
