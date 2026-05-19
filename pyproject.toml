@@ -546,6 +546,15 @@ omit = [
     "scripts/*",        # Utility scripts
     "notebooks/*",      # Jupyter notebooks
     "tmp_cleanup/*",    # Temporary files
+
+    # API surface, LLM client, and entry point are covered by the Postman
+    # contract suite (newman) and the live-service smoke checks, not unit
+    # tests. Unit tests for FastAPI routes would just exercise the test
+    # client; the actual contract is verified end-to-end against a real
+    # uvicorn process in postman-api-tests.yml.
+    "src/fragrance_rater/api/*",
+    "src/fragrance_rater/llm/*",
+    "src/fragrance_rater/main.py",
 ]
 
 [tool.coverage.report]

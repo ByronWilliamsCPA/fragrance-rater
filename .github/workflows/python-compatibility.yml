@@ -42,7 +42,13 @@ jobs:
       include-macos: true
       include-windows: true
       source-directory: 'src'
-      test-command: 'pytest tests/ -v --tb=short -x --ignore=tests/integration --ignore=tests/load -m "not slow and not integration"'
+      # Drop the `-m "not slow and not integration"` clause: the inner double
+      # quotes are stripped when the reusable workflow expands `test-command` via
+      # GitHub Actions expression syntax, causing pytest to interpret `slow` as a
+      # path argument. No tests in this repo are marked `slow` (and integration
+      # tests are already excluded via --ignore), so the marker expression is a
+      # no-op anyway.
+      test-command: 'pytest tests/ -v --tb=short -x --ignore=tests/integration --ignore=tests/load'
       coverage-report: false
       fail-fast: false
       timeout-minutes: 30
