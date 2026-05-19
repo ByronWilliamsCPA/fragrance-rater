@@ -10,6 +10,9 @@ FROM python:3.12-slim AS builder
 WORKDIR /app
 
 # Install system dependencies for building Python packages
+# DL3008 (pin apt versions) suppressed: distro packages track base-image
+# security updates, not pyproject-style version locks.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -24,13 +27,13 @@ COPY pyproject.toml uv.lock ./
 
 # Install dependencies to a virtual environment
 # This creates .venv/ which we'll copy to the final stage
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project --extra api
 
 # Copy application code
 COPY . .
 
 # Install the project itself
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --extra api
 
 # =============================================================================
 # Stage 2: Runtime - Minimal production image
@@ -47,6 +50,9 @@ LABEL org.opencontainers.image.source="https://github.com/ByronWilliamsCPA/fragr
 LABEL org.opencontainers.image.licenses="MIT"
 
 # Install runtime dependencies only
+# DL3008 (pin apt versions) suppressed: distro packages track base-image
+# security updates, not pyproject-style version locks.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \

@@ -45,6 +45,9 @@ jobs:
       python-version: '3.12'
       source-directory: 'src'
       test-directory: 'tests'
+      # The reusable workflow defaults `no-build: true`, which fails with
+      # an editable-install error for this project (same fix as ci.yml).
+      no-build: false
       mutation-threshold: ${{ github.event.inputs.mutation_threshold && fromJSON(github.event.inputs.mutation_threshold) || 80 }}
       fail-under-threshold: ${{ github.event_name != 'schedule' }}
       post-pr-comment: true

@@ -155,8 +155,8 @@ secrets*.json
 # Project-Specific
 # =============================================================================
 # Add project-specific files to ignore
-README.md
-LICENSE
+# README.md, LICENSE: required by pyproject.toml (`readme = "README.md"`)
+# and `uv sync` reads them, so they MUST stay in the build context.
 CHANGELOG.md
 CONTRIBUTING.md
 CODE_OF_CONDUCT.md
