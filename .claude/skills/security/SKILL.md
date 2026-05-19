@@ -34,7 +34,6 @@ uv run bandit -r src/ -c pyproject.toml
 
 # Check dependencies for vulnerabilities
 uv run pip-audit
-uv run safety check
 
 # Run Semgrep security rules
 uv run semgrep scan --config auto src/

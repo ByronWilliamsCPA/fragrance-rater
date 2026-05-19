@@ -43,6 +43,24 @@ This feedback will be shared with the template team to improve the cookiecutter 
 - **Containerization**: Docker
 ---
 
+## Model Selection
+
+Use the right model for the task to balance quality and cost:
+
+| Task type | Model | When |
+| --- | --- | --- |
+| Complex reasoning, planning, architecture | Opus 4.7 | Multi-step decisions, ADRs, deep code review |
+| Standard development work | Sonnet 4.6 (default) | Most coding, editing, PR descriptions |
+| Read-only exploration | Haiku 4.5 | File scanning, structure mapping, quick lookups |
+
+In subagent configuration, set `model: haiku` for the built-in `Explore` subagent
+(read-only codebase discovery). The built-in `Plan` subagent inherits the caller's
+model automatically; do not set it explicitly. Agents that write code or produce
+deliverables default to `sonnet` unless the task requires deep reasoning, in
+which case specify `model: opus` in the agent prompt.
+
+---
+
 <!--
 ================================================================================
 BASELINE DEVELOPMENT STANDARDS
@@ -148,7 +166,7 @@ Claude MUST adopt a security-first approach in all development:
 
 When working on this project, always suggest appropriate security measures:
 
-- **Dependencies**: Suggest vulnerability scanning (`safety check`, `pip-audit`)
+- **Dependencies**: Suggest vulnerability scanning (`pip-audit`)
 - **APIs**: Suggest authentication, rate limiting, input validation
 - **Data**: Suggest encryption at rest and in transit, access controls
 - **Containers**: Suggest image vulnerability scanning (Trivy)
@@ -331,7 +349,7 @@ END BASELINE DEVELOPMENT STANDARDS
 
 - Test coverage: Minimum 80%
 - All linters must pass: `uv run ruff check .`, `uv run basedpyright src/`
-- Security scans: `uv run bandit -r src`, `uv run safety check`
+- Security scans: `uv run bandit -r src`, `uv run pip-audit`
 
 ---
 

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-config.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git checkout*)",
+      "Bash(git worktree*)",
+      "Bash(uv run pytest*)",
+      "Bash(uv run ruff*)",
+      "Bash(uv run basedpyright*)",
+      "Bash(uv run pre-commit*)",
+      "Bash(uv run mkdocs*)",
+      "Bash(uv run bandit*)",
+      "Bash(uv run pip-audit*)",
+      "Bash(uv run interrogate*)",
+      "Bash(uv run nox*)",
+      "Bash(uv tool run*)",
+      "Bash(uv sync*)",
+      "Bash(uv add*)",
+      "Bash(uv lock*)",
+      "Bash(pre-commit run*)",
+      "Bash(pre-commit install*)",
+      "Bash(pytest*)",
+      "Bash(ls*)",
+      "Bash(find*)",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep"
+    ],
+    "deny": []
+  }
+}

@@ -5,6 +5,7 @@ description: "Brief one-sentence description of what decision this ADR documents
 tags:
 - architecture
 - decisions
+- template
 status: draft
 owner: core-maintainer
 authors:
@@ -14,7 +15,7 @@ purpose: "Document the decision to [choose X approach] for [problem area], with 
   for alternatives considered."
 ---
 
-> **Status**: `proposed` → Change to `published` once approved, or `deprecated`/`superseded` if no longer valid
+> **Status**: `draft` → Change to `published` once approved, or `deprecated`/`superseded` if no longer valid
 >
 > For help with this template, see [ADRs/README.md](README.md)
 

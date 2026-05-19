@@ -8,10 +8,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
 - Initial project setup and structure
+- `AGENTS.md` cataloguing the Claude Code subagents configured for the project.
+- `GEMINI.md` providing Gemini-session orientation pointing at `CLAUDE.md`.
+- `SECURITY.md` documenting the vulnerability reporting policy, response SLAs,
+  and CVE/advisory workflow.
+- `.claude/settings.json` declaring the project's Claude Code permission
+  allowlist (narrowed to specific `uv run` subcommands rather than a wildcard).
+- Pre-commit hook `no-em-dash` enforcing the project's writing-style rule that
+  bans U+2014 from all committed text files.
+- `Model Selection` section in `CLAUDE.md` describing when to use Opus, Sonnet,
+  and Haiku for subagents.
+- Tag allowlist expanded with `project`, `feedback`, and `template`; the
+  `template` tag is now applied to `docs/ADRs/adr-template.md`.
+
+### Changed
+
+- Pinned five third-party pre-commit hook revisions to upstream commit SHAs
+  (`pre-commit-hooks`, `bandit`, `conventional-pre-commit`, `validate-pyproject`,
+  `check-jsonschema`, `interrogate`) with `# frozen: vX.Y.Z` comments to satisfy
+  OpenSSF Scorecard Pinned-Dependencies.
+- TruffleHog pre-commit hook now fails loudly with install instructions when
+  the binary is missing, replacing the prior silent-skip behavior.
+- `mkdocs.yml` `repo_name` corrected from `fragrance_rater` to `fragrance-rater`
+  so the Material theme "Edit this page" link resolves correctly. Copyright
+  notice extended to 2025-2026.
+
+### Removed
+
+- `safety` dependency removed from `pyproject.toml` (`dev` and `supply-chain`
+  extras), `CLAUDE.md`, `CONTRIBUTING.md`, `.claude/commands/security.md`,
+  `.claude/skills/security/SKILL.md`. `pip-audit` continues to provide
+  equivalent vulnerability scanning coverage.
 
 ### Fixed
 
+- ADR template: aligned the body `Status:` blockquote with the front matter
+  (`draft` instead of `proposed`) so authors using the template see consistent
+  guidance.
+- `tools/validate_front_matter.py`: replaced an em-dash in the redundant-H1
+  error message with a semicolon to satisfy the new `no-em-dash` hook.
 - CI: override `no-build: false` for callers of the reusable `python-ci.yml`
   and `python-docs.yml` workflows so editable package install succeeds (`ci.yml`,
   `pr-validation.yml`, `docs.yml`).
