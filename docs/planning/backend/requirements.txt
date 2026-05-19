@@ -16,7 +16,8 @@ httpx==0.26.0
 
 # Web scraping
 beautifulsoup4==4.12.3
-lxml==5.1.0
+# lxml: bumped from 5.1.0 to silence iterparse/ETCompatXMLParser XXE CVE
+lxml==6.1.0
 
 # Data processing
 pandas==2.2.0
@@ -25,11 +26,15 @@ pandas==2.2.0
 asyncpg==0.29.0
 
 # CORS
-python-multipart==0.0.9
+# python-multipart: bumped from 0.0.9 to silence DoS / arbitrary-write CVE chain
+# (covers patched versions 0.0.18, 0.0.22, 0.0.26, 0.0.27)
+python-multipart==0.0.27
 
 # Testing
-pytest==8.0.0
+# pytest: bumped from 8.0.0 to silence tmpdir handling CVE (fixed in 9.0.3)
+pytest==9.0.3
 pytest-asyncio==0.23.4
 
 # Utilities
-python-dotenv==1.0.1
+# python-dotenv: bumped from 1.0.1 to silence set_key symlink-following CVE
+python-dotenv==1.2.2
