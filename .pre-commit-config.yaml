@@ -190,7 +190,10 @@ repos:
                         for lineno, line in enumerate(fh, 1):
                             if chr(0x2014) in line:
                                 offenders.append(f"{path}:{lineno}")
-                except OSError:
+                except OSError as exc:
+                    sys.stderr.write(
+                        f"WARNING: no-em-dash hook could not read {path}: {exc}\n"
+                    )
                     continue
             if offenders:
                 sys.stderr.write(
