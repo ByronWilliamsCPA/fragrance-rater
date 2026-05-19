@@ -5,6 +5,7 @@ description: "Brief one-sentence description of what decision this ADR documents
 tags:
 - architecture
 - decisions
+- template
 status: draft
 owner: core-maintainer
 authors:
