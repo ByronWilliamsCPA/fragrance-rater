@@ -398,7 +398,7 @@ Your project includes several GitHub Actions workflows:
 | Publish to PyPI | `publish-pypi.yml` | Package publishing to PyPI |
 | Documentation | `docs.yml` | Build and deploy MkDocs |
 | REUSE Compliance | `reuse.yml` | License compliance checking |
-| SonarCloud | `sonarcloud.yml` | Code quality analysis |
+| SonarCloud | _(removed; runs via project-level Automatic Analysis)_ | Code quality analysis |
 
 ### Required GitHub Secrets
 

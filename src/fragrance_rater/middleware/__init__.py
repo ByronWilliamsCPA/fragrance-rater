@@ -1,7 +1,9 @@
-"""Security middleware for API applications.
+"""Middleware for API applications.
 
-This package provides production-ready security middleware implementing
-OWASP best practices for web applications.
+This package exposes the request-correlation middleware. The OWASP-aligned
+`SecurityHeadersMiddleware`, `RateLimitMiddleware`, `SSRFPreventionMiddleware`,
+and the `add_security_middleware` helper were removed during the scaffold-
+cleanup sweep; reintroduce them when an API layer actually needs them.
 """
 
 from __future__ import annotations
@@ -20,12 +22,6 @@ from fragrance_rater.middleware.correlation import (
     get_trace_id,
     set_correlation_id,
 )
-from fragrance_rater.middleware.security import (
-    RateLimitMiddleware,
-    SecurityHeadersMiddleware,
-    SSRFPreventionMiddleware,
-    add_security_middleware,
-)
 
 __all__ = [
     "CORRELATION_ID_HEADER",
@@ -33,10 +29,6 @@ __all__ = [
     "SPAN_ID_HEADER",
     "TRACE_ID_HEADER",
     "CorrelationMiddleware",
-    "RateLimitMiddleware",
-    "SSRFPreventionMiddleware",
-    "SecurityHeadersMiddleware",
-    "add_security_middleware",
     "correlation_context_processor",
     "generate_correlation_id",
     "get_correlation_id",

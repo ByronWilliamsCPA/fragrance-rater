@@ -5,7 +5,7 @@ status: published
 owner: core-maintainer
 purpose: "License information for Fragrance Rater."
 tags:
-  - project
+  - project_management
   - license
 ---
 
