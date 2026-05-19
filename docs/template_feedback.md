@@ -42,7 +42,22 @@ When working on this project, if you discover any issue that originates from the
 
 <!-- Add your feedback below this line -->
 
-_No feedback items yet. Add issues as they are discovered._
+### Incorrect `$schema` URL in `.claude/settings.json`
+
+- **Priority**: Medium
+- **Category**: Configuration
+- **Discovered**: 2026-05-19
+
+**Issue**: The generated `.claude/settings.json` uses `"$schema": "https://json.schemastore.org/claude-code-config.json"`, but the Claude Code VS Code extension expects `https://json.schemastore.org/claude-code-settings.json`. The wrong URL causes the extension to report "Settings file failed to parse" and silently disables permission rules and other settings from the file.
+
+**Context**: This regression has now been observed twice in this project. It was reintroduced by the repo-compliance standards-alignment sweep on 2026-05-16 (CLAUDE-005 / commit `a02d3e8`), implying the cookiecutter template or the compliance standards manifest still emits the incorrect URL.
+
+**Suggested Fix**: Update the template's `.claude/settings.json` (and any standards-manifest remediation logic that writes this file) to use `claude-code-settings.json` rather than `claude-code-config.json`.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.claude/settings.json` (template)
+- Any compliance/remediation script that emits or rewrites this file (likely in the `claude-docs-auditor` remediation path for CLAUDE-005)
 
 ---
 
