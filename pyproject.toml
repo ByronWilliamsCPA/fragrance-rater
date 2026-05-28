@@ -71,6 +71,12 @@ dependencies = [
     #
     # UV handles these automatically based on the Python version being used.
     # See: https://docs.astral.sh/uv/concepts/dependencies/#dependency-specifiers
+
+    # Security floor pins: transitive deps pinned to CVE-free minimums.
+    # These are indirect dependencies; explicit floors prevent resolvers from
+    # selecting vulnerable versions when a direct dependency allows an older range.
+    "idna>=3.17",      # CVE-2026-45409 fixed in 3.15; pin 3.17 (current release)
+    "urllib3>=2.7.0",  # PYSEC-2026-141/142 fixed in 2.7.0
 ]
 
 # Optional dependency groups
