@@ -1,5 +1,9 @@
 # Mutation Testing for Fragrance Rater
-# Validates test effectiveness by introducing code mutations.
+# Validates test effectiveness by introducing code mutations and checking the
+# test suite catches them. Runs on a weekly cron (report-only) plus manual
+# workflow_dispatch. Not run on PRs: the 60-minute typical timeout outweighs
+# the per-PR signal; weekly drift detection covers regression-spotting.
+# Enforced by manifest check CI-053.
 #
 # This is a thin caller to the org-level reusable workflow.
 #
@@ -7,10 +11,10 @@
 name: Mutation Testing
 
 on:
-  # Weekly schedule - Sundays at 2 AM UTC
+  # Weekly schedule - Sundays at 02:00 UTC (report-only)
   schedule:
     - cron: '0 2 * * 0'
-  # Manual trigger with configurable threshold
+  # Manual trigger with configurable threshold and opt-in failure
   workflow_dispatch:
     inputs:
       mutation_threshold:
@@ -18,28 +22,23 @@ on:
         required: false
         default: '80'
         type: string
-  # Run on PRs that modify source code
-  pull_request:
-    branches: [main, master, develop]
-    paths:
-      - 'src/**/*.py'
-      - 'tests/**/*.py'
-      - 'pyproject.toml'
+      fail_under_threshold:
+        description: 'Fail the run if score is below threshold (default: false)'
+        required: false
+        default: 'false'
+        type: string
 
-# Cancel in-progress runs for same PR/branch
+# Cancel in-progress runs for the same branch
 concurrency:
-  group: mutation-${{ github.event.pull_request.number || github.ref }}
+  group: mutation-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   mutation:
     name: Mutation Testing
-    # Skip on forks (no PR comment permissions)
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     uses: ByronWilliamsCPA/.github/.github/workflows/python-mutation.yml@1b2d33c47cc11a96b9757b49f41873c54e75f57c  # main
     with:
       python-version: '3.12'
@@ -49,7 +48,7 @@ jobs:
       # an editable-install error for this project (same fix as ci.yml).
       no-build: false
       mutation-threshold: ${{ github.event.inputs.mutation_threshold && fromJSON(github.event.inputs.mutation_threshold) || 80 }}
-      fail-under-threshold: ${{ github.event_name != 'schedule' }}
-      post-pr-comment: true
+      fail-under-threshold: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.fail_under_threshold == 'true' }}
+      post-pr-comment: false
       timeout-minutes: 60
     secrets: inherit
