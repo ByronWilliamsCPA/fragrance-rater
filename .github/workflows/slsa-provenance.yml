@@ -14,16 +14,19 @@
 name: SLSA Provenance
 
 on:
-  # Trigger after successful release
-  workflow_run:
-    workflows: ["Semantic Release"]
-    types: [completed]
-    branches: [main, master]
+  # Trigger when a GitHub Release is published. The Release and its
+  # .whl/.tar.gz assets are created atomically by the Semantic Release
+  # workflow before this event fires, so github.event.release.tag_name
+  # deterministically identifies the exact artifacts to attest. This avoids
+  # the "latest release" race a workflow_run trigger would introduce when
+  # multiple releases land close together or an old run is re-run.
+  release:
+    types: [published]
   # Manual trigger for re-generating provenance
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (tag without leading v) to generate provenance for (e.g., 0.1.0)'
+        description: 'Release version or tag, with or without leading v (e.g., 0.1.0 or v0.1.0)'
         required: true
         type: string
 
@@ -39,7 +42,7 @@ jobs:
   prepare:
     name: Prepare Subjects
     runs-on: ubuntu-latest
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'release' }}
     permissions:
       contents: read
     outputs:
@@ -55,6 +58,7 @@ jobs:
         id: tag
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
@@ -76,9 +80,17 @@ jobs:
               exit 1
             fi
           else
-            TAG=$(gh release view --json tagName --jq '.tagName')
+            # release: published event. Use the tag from the event payload,
+            # which deterministically identifies the just-published release
+            # rather than whichever release happens to be newest at run time.
+            TAG="${RELEASE_TAG:-}"
             if [ -z "$TAG" ]; then
-              echo "::error::Could not determine latest release tag"
+              echo "::error::release event did not provide a tag name"
+              exit 1
+            fi
+            # Validate against the same charset as the manual input path.
+            if ! [[ "$TAG" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+              echo "::error::Invalid release tag: must match ^[A-Za-z0-9._+-]+$"
               exit 1
             fi
           fi
@@ -107,7 +119,17 @@ jobs:
         working-directory: dist
         run: |
           set -euo pipefail
-          HASHES=$(sha256sum ./*.whl ./*.tar.gz | base64 -w0)
+          # nullglob so an absent artifact type expands to nothing rather than
+          # passing a literal unmatched glob to sha256sum (which would fail
+          # under `set -e`). Bare filenames (no ./ prefix) keep the SLSA
+          # subject names aligned with the published artifact names.
+          shopt -s nullglob
+          files=(*.whl *.tar.gz)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No .whl or .tar.gz artifacts found in dist/"
+            exit 1
+          fi
+          HASHES=$(sha256sum "${files[@]}" | base64 -w0)
           echo "hashes=$HASHES" >> "$GITHUB_OUTPUT"
 
   # ==========================================================================
