@@ -26,10 +26,10 @@
     {
       "description": "Group Python dependencies by type",
       "matchManagers": [
-        "poetry"
+        "pep621"
       ],
       "matchDepTypes": [
-        "dependencies"
+        "project.dependencies"
       ],
       "groupName": "Python dependencies",
       "automerge": false,
@@ -40,10 +40,11 @@
     {
       "description": "Group Python dev dependencies",
       "matchManagers": [
-        "poetry"
+        "pep621"
       ],
       "matchDepTypes": [
-        "devDependencies"
+        "dependency-groups",
+        "tool.uv.dev-dependencies"
       ],
       "groupName": "Python dev dependencies",
       "automerge": false,
@@ -146,16 +147,22 @@
         "python-version",
         "breaking-change"
       ]
+    },
+    {
+      "description": "Track org workflow floating v1 tag for SHA pin updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchPackagePatterns": [
+        "ByronWilliamsCPA/.github",
+        "williaby/.github"
+      ],
+      "versioning": "semver",
+      "followTag": "v1"
     }
   ],
   "python": {
     "enabled": true
-  },
-  "poetry": {
-    "enabled": true,
-    "fileMatch": [
-      "(^|/)pyproject\\.toml$"
-    ]
   },
   "lockFileMaintenance": {
     "enabled": true,
@@ -191,9 +198,6 @@
   },
   "osvVulnerabilityAlerts": true,
   "transitiveRemediation": true,
-  "postUpdateOptions": [
-    "poetryMassage"
-  ],
   "customManagers": [
     {
       "customType": "regex",
@@ -206,7 +210,7 @@
     }
   ],
   "enabledManagers": [
-    "poetry",
+    "pep621",
     "github-actions"
   ]
 }

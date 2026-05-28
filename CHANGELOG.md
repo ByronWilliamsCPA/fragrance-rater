@@ -52,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: override `no-build: false` for callers of the reusable `python-ci.yml`
   and `python-docs.yml` workflows so editable package install succeeds (`ci.yml`,
   `pr-validation.yml`, `docs.yml`).
+- CI: extend the same `no-build: false` override to `sbom.yml` (caller of
+  `python-sbom.yml`) so editable package install succeeds during SBOM generation;
+  resolves three consecutive "Generate SBOMs" failures (closes #36).
 - CI: remove `.github/workflows/sonarcloud.yml`; the dual CI scanner + project-level
   Automatic Analysis combination caused every run to error. Automatic Analysis
   continues unchanged at the SonarCloud project level (covers bugs,
@@ -63,6 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `# noqa: PLC0415`, add `ClassVar` annotations to `WorkerSettings` lists,
   rename unused `body` parameter to `_body`, and add types to the
   `before_send` Sentry callback in `middleware/correlation.py`.
+- Renovate: switched `enabledManagers` and `packageRules.matchManagers` from
+  `poetry` to `pep621` so Renovate correctly discovers Python dependencies
+  declared under `[project.dependencies]` in `pyproject.toml`; updated
+  `matchDepTypes` to `project.dependencies` and `dependency-groups` /
+  `tool.uv.dev-dependencies` to match pep621 manager depType names; removed
+  the now-unused `poetry` manager config block and `poetryMassage` post-update
+  option.
 
 ### Documentation
 
