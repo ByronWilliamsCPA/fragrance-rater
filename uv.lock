@@ -8,6 +8,12 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[manifest]
+constraints = [
+    { name = "idna", specifier = ">=3.15" },
+    { name = "urllib3", specifier = ">=2.7.0" },
+]
+
 [[package]]
 name = "alembic"
 version = "1.18.4"
@@ -941,13 +947,11 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
-    { name = "idna" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "python-dotenv" },
     { name = "rich" },
     { name = "structlog" },
-    { name = "urllib3" },
 ]
 
 [package.optional-dependencies]
@@ -1023,7 +1027,6 @@ requires-dist = [
     { name = "google-auth", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "griffe-pydantic", marker = "extra == 'dev'", specifier = ">=1.1.0" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.82.0" },
-    { name = "idna", specifier = ">=3.17" },
     { name = "interrogate", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.25.0" },
     { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.0.0" },
@@ -1061,7 +1064,6 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], marker = "extra == 'api'", specifier = ">=2.0.0" },
     { name = "starlette", marker = "extra == 'api'", specifier = ">=0.49.1" },
     { name = "structlog", specifier = ">=23.1.0" },
-    { name = "urllib3", specifier = ">=2.7.0" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.23.0" },
     { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.11" },
 ]
