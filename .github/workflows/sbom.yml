@@ -44,6 +44,11 @@ jobs:
       severity-threshold: 'CRITICAL,HIGH'
       artifact-retention-days: 90
       fail-on-forbidden-licenses: false
+      # The reusable workflow defaults `no-build: true`, which fails with
+      # "Distribution can't be installed because it is marked as --no-build
+      # but has no binary distribution" for projects installed as
+      # `editable+.`. Override to false so uv can build the package.
+      no-build: false
     secrets:
       INFISICAL_CLIENT_ID: ${{ secrets.INFISICAL_CLIENT_ID }}
       INFISICAL_CLIENT_SECRET: ${{ secrets.INFISICAL_CLIENT_SECRET }}

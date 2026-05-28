@@ -52,6 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: override `no-build: false` for callers of the reusable `python-ci.yml`
   and `python-docs.yml` workflows so editable package install succeeds (`ci.yml`,
   `pr-validation.yml`, `docs.yml`).
+- CI: extend the same `no-build: false` override to `sbom.yml` (caller of
+  `python-sbom.yml`) so editable package install succeeds during SBOM generation;
+  resolves three consecutive "Generate SBOMs" failures (closes #36).
 - CI: remove `.github/workflows/sonarcloud.yml`; the dual CI scanner + project-level
   Automatic Analysis combination caused every run to error. Automatic Analysis
   continues unchanged at the SonarCloud project level (covers bugs,
