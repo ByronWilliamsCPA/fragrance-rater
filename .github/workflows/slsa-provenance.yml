@@ -30,6 +30,14 @@ on:
         required: true
         type: string
 
+# Serialize runs that target the same tag (e.g. a release event plus a manual
+# retry) so they cannot contend while uploading provenance assets. Never cancel
+# an in-flight attestation: a half-uploaded provenance file is worse than a
+# slightly delayed one.
+concurrency:
+  group: slsa-provenance-${{ github.event.release.tag_name || github.event.inputs.version || github.ref }}
+  cancel-in-progress: false
+
 permissions: {}
 
 jobs:

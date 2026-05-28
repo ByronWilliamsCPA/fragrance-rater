@@ -81,11 +81,11 @@ cosign verify-blob \
 
 ```bash
 # Download provenance file
-wget https://github.com/ByronWilliamsCPA/fragrance_rater/releases/download/v1.0.0/attestation.intoto.jsonl
+wget https://github.com/ByronWilliamsCPA/fragrance_rater/releases/download/v1.0.0/multiple.intoto.jsonl
 
 # Verify with slsa-verifier
 slsa-verifier verify-artifact package.whl \
-  --provenance-path attestation.intoto.jsonl \
+  --provenance-path multiple.intoto.jsonl \
   --source-uri github.com/ByronWilliamsCPA/fragrance_rater
 ```
 
