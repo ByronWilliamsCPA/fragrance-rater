@@ -66,6 +66,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `# noqa: PLC0415`, add `ClassVar` annotations to `WorkerSettings` lists,
   rename unused `body` parameter to `_body`, and add types to the
   `before_send` Sentry callback in `middleware/correlation.py`.
+- Renovate: switched `enabledManagers` and `packageRules.matchManagers` from
+  `poetry` to `pep621` so Renovate correctly discovers Python dependencies
+  declared under `[project.dependencies]` in `pyproject.toml`; updated
+  `matchDepTypes` to `project.dependencies` and `dependency-groups` /
+  `tool.uv.dev-dependencies` to match pep621 manager depType names; removed
+  the now-unused `poetry` manager config block and `poetryMassage` post-update
+  option.
 
 ### Documentation
 
