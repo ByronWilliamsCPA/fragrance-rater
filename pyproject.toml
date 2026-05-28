@@ -686,6 +686,14 @@ ignore-vuln = [
 # Note: UV now recommends using [dependency-groups] instead of dev-dependencies
 # We use [project.optional-dependencies] for dev dependencies (PEP 621 standard)
 
+# Security floor pins: transitive deps pinned to CVE-free minimums.
+# These are indirect dependencies; explicit floors prevent resolvers from
+# selecting vulnerable versions when a direct dependency allows an older range.
+constraint-dependencies = [
+    "idna>=3.15",      # CVE-2026-45409 fixed in 3.15
+    "urllib3>=2.7.0",  # PYSEC-2026-141/142 fixed in 2.7.0
+]
+
 # =============================================================================
 # SUPPLY CHAIN SECURITY - Package Index Configuration
 # =============================================================================
