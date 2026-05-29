@@ -3,9 +3,11 @@
 # shared PyPI publishing workflow with OIDC trusted publishing.
 name: Publish to PyPI
 
+# Private repo: PyPI publishing is manual-only. The `release: published`
+# auto-trigger is intentionally omitted so that GitHub Releases created by
+# release.yml do not publish to PyPI. Run this workflow via workflow_dispatch
+# to publish deliberately.
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       test-pypi:
