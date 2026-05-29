@@ -1,17 +1,17 @@
 ---
-# Release Workflow
-# Handles automated releases with semantic versioning or
-# manual tag-based releases.
+# Release Workflow - Calls Org-Level Reusable Workflow
+# Handles automated releases with semantic versioning.
 #
 # Features:
 #   - Pre-release testing
-#   - Semantic versioning (if enabled) or manual tag-based releases
-#   - PyPI publishing with OIDC trusted publishing
+#   - Semantic versioning with conventional commits
 #   - GitHub Release creation
 name: Semantic Release
 
 "on":
-  push:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
     branches:
       - main
       - master
@@ -30,27 +30,36 @@ name: Semantic Release
 
 # Prevent concurrent releases
 concurrency:
-  group: "release-${{ github.ref }}"
+  group: "release-${{ github.event.workflow_run.head_branch || github.ref_name }}"
   cancel-in-progress: false
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  id-token: write
-  attestations: write
+  contents: read
 
-# Uses org-level reusable workflow
 jobs:
   release:
     name: Release Pipeline
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     uses: ByronWilliamsCPA/.github/.github/workflows/python-release.yml@e070932adbacf11d72cf6fab5962c9398621104c  # main
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      attestations: write
     with:
       python-version: '3.12'
       coverage-threshold: 80
       source-directory: 'src'
       semantic-release: true
       force-release: "${{ github.event.inputs.force_release || '' }}"
-      publish-to-pypi: true
+      publish-to-pypi: false
       pypi-package-name: 'fragrance-rater'
-      run-tests: true
+      # workflow_run fires only after CI passed, so tests are already
+      # validated; a manual workflow_dispatch has no such upstream gate, so
+      # run tests in the release pipeline to avoid releasing unvalidated code.
+      run-tests: ${{ github.event_name == 'workflow_dispatch' }}
+      skip-tests-reason: 'Tests already validated by upstream CI before workflow_run fires'
+    secrets: inherit
