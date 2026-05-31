@@ -21,10 +21,10 @@ class Fragrance(BaseModel):
     """A fragrance catalog entry.
 
     Attributes:
-        id: Stable integer identifier.
-        name: Fragrance name.
-        brand: Fragrance house / brand.
-        notes: Accord / top / heart / base notes.
+        id (int): Stable integer identifier.
+        name (str): Fragrance name.
+        brand (str): Fragrance house / brand.
+        notes (list[str]): Accord / top / heart / base notes.
     """
 
     id: int = Field(..., ge=1, description="Stable integer identifier.")
@@ -79,7 +79,7 @@ def list_fragrances() -> FragranceListResponse:
     by the data pipeline (ADR-002).
 
     Returns:
-        The full catalog with its item count.
+        FragranceListResponse: The full catalog with its item count.
     """
     return FragranceListResponse(items=_SAMPLE_CATALOG, total=len(_SAMPLE_CATALOG))
 
@@ -103,10 +103,10 @@ def get_fragrance(fragrance_id: int) -> Fragrance:
     for a fragrance.
 
     Args:
-        fragrance_id: Integer primary key of the catalog entry.
+        fragrance_id (int): Integer primary key of the catalog entry.
 
     Returns:
-        The matching fragrance record.
+        Fragrance: The matching fragrance record.
 
     Raises:
         HTTPException: 404 when no entry has the requested id.
