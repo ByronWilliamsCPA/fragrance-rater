@@ -28,10 +28,10 @@ class LLMRatingResult:
     """Structured result returned by :class:`LLMRatingClient`.
 
     Attributes:
-        score: Integer rating from 1 (poor) to 10 (excellent).
-        reasoning: Human-readable explanation of the score.
-        model: Identifier of the LLM model that produced the rating.
-        notes: Optional list of perfumer-style tasting notes.
+        score (int): Integer rating from 1 (poor) to 10 (excellent).
+        reasoning (str): Human-readable explanation of the score.
+        model (str): Identifier of the LLM model that produced the rating.
+        notes (list[str]): Optional list of perfumer-style tasting notes.
     """
 
     score: int
@@ -63,14 +63,17 @@ class LLMRatingClient:
         """Score a fragrance using the configured LLM.
 
         Args:
-            name: Fragrance name.
-            brand: Fragrance house / brand, if known.
-            description: Free-text description of the scent.
-            notes: Optional list of top/heart/base notes.
+            name (str): Fragrance name.
+            brand (str | None): Fragrance house / brand, if known.
+            description (str): Free-text description of the scent.
+            notes (list[str] | None): Optional list of top/heart/base notes.
 
         Returns:
-            An :class:`LLMRatingResult` with the score, reasoning,
-            model name, and an echoed list of notes.
+            LLMRatingResult: Score, reasoning, model name, and echoed notes.
+
+        Raises:
+            RuntimeError: When TEST_MODE is disabled and no OpenRouter
+                integration is configured.
         """
         if _is_test_mode():
             return _fixture_response(name=name, brand=brand, notes=notes)
