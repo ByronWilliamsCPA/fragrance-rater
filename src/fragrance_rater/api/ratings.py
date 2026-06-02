@@ -26,10 +26,10 @@ class RatingRequest(BaseModel):
     """Request body for ``POST /ratings``.
 
     Attributes:
-        name: Fragrance name (required).
-        brand: Fragrance house or brand. Improves rating accuracy.
-        description: Free-text description of the scent profile.
-        notes: Optional list of accord/top/heart/base notes.
+        name (str): Fragrance name (required).
+        brand (str | None): Fragrance house or brand. Improves rating accuracy.
+        description (str): Free-text description of the scent profile.
+        notes (list[FragranceNote] | None): Optional list of accord/top/heart/base notes.
     """
 
     name: str = Field(
@@ -73,11 +73,11 @@ class RatingResponse(BaseModel):
     """Response body returned by ``POST /ratings``.
 
     Attributes:
-        score: Integer rating, 1 (poor) to 10 (excellent).
-        reasoning: Human-readable explanation written by the LLM.
-        model: Identifier of the LLM that produced the rating.
-        notes: Echo of accord notes used by the model.
-        latency_warning: Reminder that LLM latency is variable.
+        score (int): Integer rating, 1 (poor) to 10 (excellent).
+        reasoning (str): Human-readable explanation written by the LLM.
+        model (str): Identifier of the LLM that produced the rating.
+        notes (list[str]): Echo of accord notes used by the model.
+        latency_warning (str): Reminder that LLM latency is variable.
     """
 
     score: int = Field(
@@ -131,11 +131,11 @@ def create_rating(
     paths on this call.
 
     Args:
-        payload: Validated rating request body.
-        client: LLM rating client injected via FastAPI dependency.
+        payload (RatingRequest): Validated rating request body.
+        client (LLMRatingClient): LLM rating client injected via FastAPI dependency.
 
     Returns:
-        The LLM-authored rating, model identifier, and latency note.
+        RatingResponse: The LLM-authored rating, model identifier, and latency note.
 
     Raises:
         HTTPException: 503 when the upstream LLM client is unavailable

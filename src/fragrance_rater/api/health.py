@@ -69,7 +69,7 @@ async def liveness() -> HealthStatus:
     This should be a simple, fast check that doesn't depend on external services.
 
     Returns:
-        HealthStatus with overall status "ok" and current uptime in seconds.
+        HealthStatus: Status "ok" and current uptime in seconds.
     """
     return HealthStatus(
         status="ok",
@@ -81,7 +81,7 @@ async def check_database() -> ReadinessCheck:
     """Check database connectivity.
 
     Returns:
-        ReadinessCheck with database status and latency
+        ReadinessCheck: Database status and latency.
     """
     start = time.time()
     try:
@@ -117,7 +117,7 @@ async def check_cache() -> ReadinessCheck:
     """Check Redis/cache connectivity.
 
     Returns:
-        ReadinessCheck with cache status and latency
+        ReadinessCheck: Cache status and latency.
     """
     start = time.time()
     try:
@@ -147,7 +147,7 @@ async def check_external_service() -> ReadinessCheck:
     """Check external API/service connectivity.
 
     Returns:
-        ReadinessCheck with external service status
+        ReadinessCheck: External service status.
     """
     start = time.time()
     try:
@@ -197,7 +197,7 @@ async def readiness() -> ReadinessStatus:
     If this fails, Kubernetes will stop sending traffic to this pod.
 
     Returns:
-        ReadinessStatus with per-dependency check results and overall uptime.
+        ReadinessStatus: Per-dependency check results and overall uptime.
 
     Raises:
         HTTPException: 503 when any critical dependency reports unhealthy.
@@ -251,7 +251,7 @@ async def startup() -> HealthStatus:
     Returns HTTP 200 once the application has fully started.
 
     Returns:
-        HealthStatus with status "started" once initialization is complete.
+        HealthStatus: Status "started" once initialization is complete.
     """
     # Add any startup checks here (e.g., database migrations completed)
     # For most applications, being alive means startup is complete
@@ -277,7 +277,7 @@ async def health() -> HealthStatus:
     that expect a /health endpoint.
 
     Returns:
-        HealthStatus snapshot identical to the liveness probe response.
+        HealthStatus: Snapshot identical to the liveness probe response.
     """
     return await liveness()
 
