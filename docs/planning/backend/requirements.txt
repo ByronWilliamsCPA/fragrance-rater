@@ -4,7 +4,7 @@ uvicorn[standard]==0.27.1
 
 # Database
 sqlalchemy==2.0.25
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.12
 alembic==1.13.1
 
 # Validation & serialization
