@@ -211,6 +211,8 @@
   ],
   "enabledManagers": [
     "pep621",
-    "github-actions"
+    "github-actions",
+    "npm",
+    "pip_requirements"
   ]
 }
