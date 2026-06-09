@@ -42,7 +42,7 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-release.yml@40ff5b5615e786ee0867e1b9e8f21a4735036e63  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-release.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
     permissions:
       contents: write
       issues: write
