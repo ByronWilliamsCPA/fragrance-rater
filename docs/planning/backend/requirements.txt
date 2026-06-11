@@ -28,7 +28,7 @@ asyncpg==0.29.0
 # CORS
 # python-multipart: bumped from 0.0.9 to silence DoS / arbitrary-write CVE chain
 # (covers patched versions 0.0.18, 0.0.22, 0.0.26, 0.0.27)
-python-multipart==0.0.27
+python-multipart==0.0.32
 
 # Testing
 # pytest: bumped from 8.0.0 to silence tmpdir handling CVE (fixed in 9.0.3)
