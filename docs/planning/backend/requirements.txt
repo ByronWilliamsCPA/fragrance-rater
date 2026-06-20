@@ -9,7 +9,7 @@ alembic==1.13.1
 
 # Validation & serialization
 pydantic==2.6.1
-pydantic-settings==2.1.0
+pydantic-settings==2.14.2
 
 # HTTP client for API calls
 httpx==0.26.0
