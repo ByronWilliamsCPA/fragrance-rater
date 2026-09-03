@@ -30,10 +30,13 @@ permissions:
   actions: read
 
 # Uses org-level reusable workflow.
-# Caller job is named "Security Analysis" so the reusable workflow's
-# final "Security Gate Validation" job surfaces as the canonical
-# "Security Analysis / Security Gate Validation" check the org ruleset
-# requires.
+# Note: a reusable-workflow-caller job (one with `uses:`) always surfaces its
+# inner jobs as "<caller job name> / <inner job name>", never the bare inner
+# name. This caller therefore emits "Security Analysis / Security Gate
+# Validation", not the bare "Security Gate Validation" the org's
+# default-branch-baseline ruleset requires. See the security-gate-validation
+# job below, which is a normal job (no `uses:`) added specifically to emit
+# the bare context.
 jobs:
   security:
     name: Security Analysis
@@ -50,3 +53,35 @@ jobs:
       # Override reusable workflow's no-build: true default for projects
       # installed as `editable+.` (same fix pattern as ci.yml).
       no-build: false
+
+  # #CRITICAL: this job is the only source of the bare "Security Gate
+  # Validation" required check; do not rename it or drop the needs: gate.
+  # #ASSUME: the reusable workflow's own inner security-gate job (which this
+  # depends on transitively via the "security" caller job's aggregate result)
+  # continues to fail the "security" job on a real HIGH/CRITICAL finding.
+  # #VERIFY: after a security finding lands, confirm this job goes red, not
+  # just the "Security Analysis / Security Gate Validation" check.
+  security-gate-validation:
+    name: Security Gate Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [security]
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Check security analysis result
+        env:
+          SECURITY_RESULT: ${{ needs.security.result }}
+        run: |
+          if [ "$SECURITY_RESULT" = "success" ] || [ "$SECURITY_RESULT" = "skipped" ]; then
+            echo "Security Gate Validation passed (Security Analysis: $SECURITY_RESULT)"
+          else
+            echo "::error::Security Gate Validation failed: Security Analysis result is $SECURITY_RESULT"
+            exit 1
+          fi
