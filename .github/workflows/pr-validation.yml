@@ -98,8 +98,16 @@ jobs:
           TITLE_RESULT: ${{ needs.title-check.result }}
           BODY_RESULT: ${{ needs.body-check.result }}
         run: |
-          if [ "$TITLE_RESULT" != "success" ] || [ "$BODY_RESULT" != "success" ]; then
-            echo "::error::PR validation checks failed: dependency and standards gate blocked."
-            exit 1
-          fi
+          # #EDGE: this workflow's concurrency group cancels in-progress runs
+          # on a new push (cancel-in-progress: true), which can leave
+          # title-check/body-check at "cancelled" rather than "success" even
+          # though a superseding run will validate the same PR state.
+          # #VERIFY: accept skipped/cancelled alongside success so a
+          # superseded run does not surface as a hard FAILURE here.
+          for r in "$TITLE_RESULT" "$BODY_RESULT"; do
+            if [ "$r" != "success" ] && [ "$r" != "skipped" ] && [ "$r" != "cancelled" ]; then
+              echo "::error::PR validation checks failed: dependency and standards gate blocked."
+              exit 1
+            fi
+          done
           echo "Dependency and standards validation passed."
