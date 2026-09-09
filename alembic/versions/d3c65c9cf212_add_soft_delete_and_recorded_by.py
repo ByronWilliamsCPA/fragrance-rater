@@ -51,7 +51,9 @@ def upgrade() -> None:
     op.create_index(
         "ix_evaluations_deleted_at", "evaluations", ["deleted_at"], unique=False
     )
-    op.create_index("ix_reviewers_deleted_at", "reviewers", ["deleted_at"], unique=False)
+    op.create_index(
+        "ix_reviewers_deleted_at", "reviewers", ["deleted_at"], unique=False
+    )
 
 
 def downgrade() -> None:

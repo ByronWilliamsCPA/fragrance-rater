@@ -101,7 +101,7 @@ git checkout -b docs/documentation-update
 Before committing, ensure all quality checks pass:
 
 ```bash
-# Run all quality checks with Qlty (RECOMMENDED - fast and comprehensive)
+# Run all quality checks with Qlty (RECOMMENDED - fast and thorough)
 qlty check
 
 # Or run checks on only changed files (fastest)
@@ -134,7 +134,7 @@ All contributions MUST meet these requirements:
 ### Linting
 
 - **Tool**: Ruff with project configuration
-- **Rules**: Comprehensive rule set (see `pyproject.toml`)
+- **Rules**: Full rule set (see `pyproject.toml`)
 - **Auto-fix**: `uv run ruff check --fix src tests`
 - **Verification**: `uv run ruff check src tests`
 
@@ -337,7 +337,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/) specifica
 # Feature addition
 feat(core): add data processing function
 
-Implements new data processing capabilities with comprehensive
+Implements new data processing capabilities with thorough
 validation and error handling.
 
 Refs: #42

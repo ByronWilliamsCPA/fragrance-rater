@@ -6,18 +6,27 @@ by the OpenRouter LLM (``anthropic/claude-3.5-sonnet`` by default,
 per ADR-003). Latency is dominated by the upstream LLM and can
 exceed several seconds; callers should treat the endpoint as
 slow and avoid issuing it inside hot request paths.
+
+This is the only mutating, LLM-backed (billed) endpoint in the service, so
+it requires the shared household ``X-API-Key`` header (see
+``fragrance_rater.middleware.auth.require_api_key``) and is rate limited
+(see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``) to bound
+OpenRouter spend from a single caller.
 """
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from fragrance_rater.llm import LLMRatingClient, get_llm_client
+from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_key
+from fragrance_rater.utils.logging import get_logger
 
 router = APIRouter(prefix="/ratings", tags=["ratings"])
+logger = get_logger(__name__)
 
 FragranceNote = Annotated[str, Field(min_length=1, max_length=64)]
 
@@ -102,17 +111,36 @@ class RatingResponse(BaseModel):
     response_model=RatingResponse,
     status_code=status.HTTP_200_OK,
     summary="Rate a fragrance with an LLM",
+    dependencies=[Depends(require_api_key)],
     responses={
         200: {"description": "Rating produced successfully."},
+        401: {
+            "description": (
+                "Missing or invalid X-API-Key header. Required on this "
+                "endpoint (see fragrance_rater.middleware.auth)."
+            )
+        },
         422: {"description": "Request body failed validation."},
-        503: {"description": "LLM upstream is unavailable."},
+        429: {"description": "Rate limit exceeded; retry after a short delay."},
+        503: {
+            "description": (
+                "LLM upstream is unavailable, or no household API key is "
+                "configured for this deployment (FRAGRANCE_RATER_API_KEY unset)."
+            )
+        },
     },
 )
+@limiter.limit(RATINGS_RATE_LIMIT)  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
 def create_rating(
+    request: Request,
     payload: RatingRequest,
     client: LLMRatingClient = Depends(get_llm_client),  # pyright: ignore[reportCallInDefaultInitializer]
 ) -> RatingResponse:
     """Produce an LLM-powered rating for a fragrance.
+
+    Requires the shared household ``X-API-Key`` header (see
+    ``fragrance_rater.middleware.auth.require_api_key``) and is rate
+    limited (see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``).
 
     Accepted fields: ``name`` (required), ``brand``, ``description``
     (required), and an optional list of accord ``notes``.
@@ -130,7 +158,17 @@ def create_rating(
     backend is the dominant cost; clients should not block hot
     paths on this call.
 
+    Two failure modes never reach this function body and so are not in its
+    own ``Raises`` section: the ``require_api_key`` dependency rejects with
+    401 (missing/invalid ``X-API-Key``) or 503 (no key configured) before
+    this function runs, and the ``@limiter.limit`` decorator rejects with
+    429 (rate limit exceeded) the same way. See
+    ``fragrance_rater.middleware.auth.require_api_key`` and
+    ``fragrance_rater.middleware.rate_limit`` for those conditions.
+
     Args:
+        request (Request): Incoming request, required by the
+            ``@limiter.limit`` decorator to key rate limiting on the caller.
         payload (RatingRequest): Validated rating request body.
         client (LLMRatingClient): LLM rating client injected via FastAPI dependency.
 
@@ -138,8 +176,11 @@ def create_rating(
         RatingResponse: The LLM-authored rating, model identifier, and latency note.
 
     Raises:
-        HTTPException: 503 when the upstream LLM client is unavailable
-            or returns a runtime error.
+        HTTPException: 503 when the upstream LLM client raises a
+            ``RuntimeError`` (upstream unavailable or misconfigured). This is
+            distinct from the 401/503/429 cases described above, which are
+            raised by the dependency and rate-limit decorator before this
+            function body runs.
     """
     try:
         result = client.rate(
@@ -150,7 +191,9 @@ def create_rating(
         )
     except RuntimeError as exc:
         # Upstream LLM unavailable or unconfigured. Translate to the
-        # documented 503 contract instead of leaking a 500.
+        # documented 503 contract instead of leaking a 500, but log first
+        # so operators can distinguish upstream outages from misconfiguration.
+        logger.exception("rating request failed", reason=str(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM upstream is unavailable",

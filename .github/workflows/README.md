@@ -50,7 +50,7 @@ This project uses **org-level reusable workflows** for consistency and maintaina
 ### CI Pipeline (`ci.yml`)
 **Calls**: `ByronWilliamsCPA/.github/.github/workflows/python-ci.yml@main`
 
-Comprehensive CI with:
+Full CI with:
 - Multi-version Python testing (3.12)
 - UV dependency management
 - Ruff linting and formatting
@@ -65,7 +65,7 @@ Comprehensive CI with:
 ### Security Analysis (`security-analysis.yml`)
 **Calls**: `ByronWilliamsCPA/.github/.github/workflows/python-security-analysis.yml@main`
 
-Comprehensive security scanning with:
+Full security scanning with:
 - CodeQL advanced analysis
 - Bandit static security analysis
 - Safety dependency CVE scanning
@@ -107,7 +107,7 @@ Package publishing with:
 Release automation with:
 - SLSA provenance generation
 - Signed artifacts
-- Comprehensive changelog
+- Detailed changelog
 - Asset upload
 
 **Triggers**: Version tags (v*.*.*), manual dispatch

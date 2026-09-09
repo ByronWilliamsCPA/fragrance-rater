@@ -49,7 +49,8 @@ Use the right model for the task to balance quality and cost:
 
 | Task type | Model | When |
 | --- | --- | --- |
-| Complex reasoning, planning, architecture | Opus 4.7 | Multi-step decisions, ADRs, deep code review |
+| Frontier reasoning, hardest problems | Fable 5 | Long-horizon autonomous runs, large migrations, problems where Opus stalls; costs 2x Opus ($10/$50 per MTok) |
+| Complex reasoning, planning, architecture | Opus 4.8 | Multi-step decisions, ADRs, deep code review |
 | Standard development work | Sonnet 4.6 (default) | Most coding, editing, PR descriptions |
 | Read-only exploration | Haiku 4.5 | File scanning, structure mapping, quick lookups |
 
@@ -251,7 +252,7 @@ Ruff configuration includes PyStrict-aligned rules for ultra-strict code quality
 
 ### File-Type Standards
 
-- **Python**: 88-char line length, comprehensive rule compliance
+- **Python**: 88-char line length, full rule compliance
 - **Markdown**: 120-char line length, consistent formatting
 - **YAML**: 2-space indentation, 120-char line length
 - **Validation**: Pre-commit hooks enforce all standards

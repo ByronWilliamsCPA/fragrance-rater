@@ -35,7 +35,7 @@ Phase 4: Polish         ░░░░░░░░░░░░░░░░░░�
 
 ### Objective
 
-Establish development environment and core infrastructure per [ADR-001](./adr/adr-001-initial-architecture.md).
+Establish development environment and core infrastructure per [ADR-001](adr/adr-001-initial-architecture.md).
 
 ### Deliverables
 
@@ -118,7 +118,7 @@ Implement core user workflows: evaluate fragrances and view recommendations.
 - [ ] Evaluation CRUD API endpoints
 - [ ] Reviewer management (pre-seeded family profiles)
 - [ ] Fragrance CRUD API endpoints
-- [ ] Recommendation engine (scoring algorithm per [ADR-004](./adr/adr-004-recommendation-algorithm.md))
+- [ ] Recommendation engine (scoring algorithm per [ADR-004](adr/adr-004-recommendation-algorithm.md))
 - [ ] User preference profile display
 - [ ] Basic React UI for evaluation entry
 
@@ -208,7 +208,7 @@ Implement core user workflows: evaluate fragrances and view recommendations.
 
 ### Objective
 
-Add LLM-powered explanations and background data enrichment per [ADR-002](./adr/adr-002-data-source-strategy.md) and [ADR-003](./adr/adr-003-llm-integration.md).
+Add LLM-powered explanations and background data enrichment per [ADR-002](adr/adr-002-data-source-strategy.md) and [ADR-003](adr/adr-003-llm-integration.md).
 
 ### Deliverables
 
@@ -371,6 +371,6 @@ Per CLAUDE.md branch requirements:
 
 ## Related Documents
 
-- [Project Vision](./project-vision.md)
-- [Technical Spec](./tech-spec.md)
-- [Architecture Decisions](./adr/)
+- [Project Vision](project-vision.md)
+- [Technical Spec](tech-spec.md)
+- [Architecture Decisions](adr/README.md)

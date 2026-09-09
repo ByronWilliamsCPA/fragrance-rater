@@ -6,7 +6,7 @@ allowed-tools: Read, Write, Edit, Grep, Glob, Bash(git:*), TodoWrite
 
 # Synthesize Planning Documents Workflow
 
-Transform the four generated planning documents into a comprehensive, actionable project plan with semantic release-aligned phase branches.
+Transform the four generated planning documents into a complete, actionable project plan with semantic release-aligned phase branches.
 
 ## Prerequisites
 
@@ -115,7 +115,7 @@ Create `docs/planning/PROJECT-PLAN.md` with synthesized content:
 ---
 schema_type: planning
 title: "{project_name} - Project Plan"
-description: "Comprehensive project plan synthesized from planning documents"
+description: "Complete project plan synthesized from planning documents"
 status: active
 generated: "{date}"
 source_documents:

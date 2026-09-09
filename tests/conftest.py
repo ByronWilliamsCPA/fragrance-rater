@@ -181,6 +181,27 @@ def setup_logging() -> None:
     setup_logging(level="DEBUG", json_logs=False, include_timestamp=False)
 
 
+@pytest.fixture(autouse=True)
+def _reset_slowapi_limiter() -> Generator[None, None, None]:
+    """Reset the slowapi limiter's in-memory counters around every test.
+
+    RATE_LIMIT_ENABLED=false above only disables the OWASP
+    ``RateLimitMiddleware`` layer. The ``slowapi`` limiter registered in
+    ``fragrance_rater.main`` is always on and applies a per-route, per-client
+    default of 60/minute, so a suite that hits one endpoint many times from
+    the single synthetic test client would otherwise accumulate towards a 429
+    across tests. Resetting per test keeps each test's request budget its own.
+
+    Yields:
+        None: Control to the test with a clean limiter.
+    """
+    from fragrance_rater.middleware import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
 # ============================================================================
 # Database Fixtures
 # ============================================================================

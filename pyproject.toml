@@ -75,6 +75,7 @@ dependencies = [
     "httpx>=0.28.1",
     "beautifulsoup4>=4.14.3",
     "lxml>=6.0.2",
+    "slowapi>=0.1.10",
 ]
 
 # Optional dependency groups
@@ -101,7 +102,7 @@ dev = [
     "pre-commit>=3.3.0",
     # Documentation
     "mkdocs>=1.6.0",
-    "mkdocs-material>=9.5.0",
+    "mkdocs-material>=9.5.0,<10",
     "mkdocstrings[python]>=0.26.0",
     "griffe-pydantic>=1.1.0",
     "mkdocs-gen-files>=0.5.0",
@@ -166,6 +167,11 @@ supply-chain = [
 ]
 
 
+[project.urls]
+Repository = "https://github.com/ByronWilliamsCPA/fragrance-rater"
+Documentation = "https://github.com/ByronWilliamsCPA/fragrance-rater#readme"
+Issues = "https://github.com/ByronWilliamsCPA/fragrance-rater/issues"
+
 [project.scripts]
 fragrance-rater = "fragrance_rater.cli:cli"
 
@@ -188,6 +194,12 @@ exclude = [
     "__pycache__",
     "dist",
     "build",
+    # Frozen Phase-0 planning scaffold, superseded by src/fragrance_rater/.
+    # SECURITY-FINDINGS.md documents its vulnerabilities by exact line
+    # number; reformatting or fixing lint here would shift those line
+    # numbers and invalidate that public disclosure document. Not shipped
+    # code, not covered by the API/operations remediation domains.
+    "docs/planning/backend",
 ]
 
 [tool.ruff.format]
@@ -411,6 +423,13 @@ runtime-evaluated-base-classes = [
     "C901",   # Complexity allowed in utility scripts
     "ANN", "D", "TRY", "PLR",
     "INP",    # Not packages
+]
+
+# Ratings endpoint - slowapi rate-limit decorator requires a `request`
+# parameter on the endpoint signature even though the handler body doesn't
+# reference it directly (slowapi reads it from the call frame).
+"src/*/api/ratings.py" = [
+    "ARG001",  # request required by @limiter.limit (slowapi) interface
 ]
 
 # API health checks - Example code with template patterns

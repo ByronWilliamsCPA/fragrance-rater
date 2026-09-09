@@ -46,7 +46,7 @@ Pydantic Settings for type-safe configuration from environment variables.
 
 ### 4. CLI Design
 
-Click framework for robust command-line interface with subcommands.
+Click framework for a well-tested command-line interface with subcommands.
 ## Dependencies
 
 See `pyproject.toml` for the complete dependency list.

@@ -14,6 +14,13 @@ In CI the app is started with ``TEST_MODE=true`` so that the
 LLM rating endpoint returns a deterministic fixture instead of
 issuing a real OpenRouter call. See
 ``.github/workflows/postman-api-tests.yml``.
+
+Auth and rate limiting: ``POST /ratings`` (the only mutating, LLM-backed
+endpoint) requires a shared household ``X-API-Key`` header (see
+``fragrance_rater.middleware.auth``) and is rate limited (see
+``fragrance_rater.middleware.rate_limit``) to bound OpenRouter spend. Set
+``FRAGRANCE_RATER_API_KEY`` before deploying outside a fully trusted,
+single-household network.
 """
 
 from __future__ import annotations
@@ -23,6 +30,8 @@ from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from fragrance_rater.api import (
     catalog_stub_router,
@@ -35,7 +44,12 @@ from fragrance_rater.api import (
     reviewers_router,
 )
 from fragrance_rater.core.config import settings
-from fragrance_rater.middleware import CorrelationMiddleware, add_security_middleware
+from fragrance_rater.middleware import (
+    CorrelationMiddleware,
+    add_security_middleware,
+    limiter,
+    rate_limit_exceeded_handler,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -70,7 +84,9 @@ app = FastAPI(
         "rating endpoint calls OpenRouter (default model: "
         "`anthropic/claude-3.5-sonnet`); set `TEST_MODE=true` to use the "
         "bundled fixture response instead, which is what the Newman "
-        "contract tests rely on."
+        "contract tests rely on. `POST /ratings` requires a shared "
+        "household `X-API-Key` header and is rate limited; read-only "
+        "endpoints do not require it."
     ),
     version=settings.version,
     contact={
@@ -83,6 +99,17 @@ app = FastAPI(
     redoc_url="/redoc",
     lifespan=lifespan,
 )
+
+# Rate limiting (slowapi): in-memory, per-client-IP fixed window. See
+# fragrance_rater.middleware.rate_limit for the rationale and the
+# single-instance/single-worker assumption this relies on. Registered before
+# the other middleware so SlowAPIMiddleware sits innermost and its 429s still
+# pass out through the correlation, security-header, and CORS layers below.
+# This is a second rate-limiting layer alongside add_security_middleware's
+# RateLimitMiddleware (below); the two are deliberately both kept for now.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 # Add correlation ID middleware (should be added first)
 app.add_middleware(CorrelationMiddleware)

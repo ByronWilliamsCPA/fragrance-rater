@@ -1,6 +1,6 @@
 # Test Engineer Agent
 
-Comprehensive testing specialist for test strategy, generation, and quality assurance with 80%+ coverage.
+Testing specialist for test strategy, generation, and quality assurance with 80%+ coverage.
 
 ## Purpose
 

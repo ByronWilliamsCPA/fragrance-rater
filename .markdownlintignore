@@ -1,0 +1,34 @@
+# Ignore template baselines, agent skills, and planning docs not owned by the project
+.claude/**
+.standards/**
+docs/superpowers/**
+docs/planning/**
+CHANGELOG.md
+
+# Pre-existing root/docs content written before the markdownlint gate was
+# added (PC-011). None of these satisfy the modern rule set (MD060 table
+# style, MD022/MD032 blank-line-around-heading/list, MD031 fenced-code
+# spacing); bringing them into compliance is a content-formatting task in
+# its own right, out of scope for punctuation/word-only remediation passes.
+# Tracked as a retrospective follow-up, not silently dropped.
+.github/workflows/README.md
+CLAUDE.md
+CONFIG_TEMPLATES_SUMMARY.md
+CONTRIBUTING.md
+README.md
+SECURITY-FINDINGS.md
+concept.md
+docs/OPENSSF_COMPLIANCE.md
+docs/PROJECT_SETUP.md
+docs/development/architecture.md
+docs/guides/overview.md
+docs/index.md
+docs/ADRs/adr-template.md
+docs/PYTHON_COMPATIBILITY.md
+docs/guides/configuration.md
+docs/development/code-quality.md
+docs/guides/usage.md
+SECURITY.md
+docs/template_feedback.md
+docs/development/testing.md
+docs/project/license.md

@@ -137,9 +137,7 @@ class TestReviewerAPI:
         assert "User A" in names
         assert "User B" in names
 
-    async def test_get_reviewer_evaluation_count_excludes_soft_deleted(
-        self, test_app
-    ):
+    async def test_get_reviewer_evaluation_count_excludes_soft_deleted(self, test_app):
         """Critical finding 2: evaluation_count must not include soft-deleted evals."""
         reviewer_resp = await test_app.post(
             f"{API_PREFIX}/reviewers", json={"name": "Count Test Reviewer"}

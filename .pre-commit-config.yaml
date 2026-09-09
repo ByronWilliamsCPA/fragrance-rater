@@ -19,7 +19,7 @@ repos:
   # Fast File Checks (Lightweight, run on every commit)
   # ============================================================================
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: "c4a0b883114b00d8d76b479c820ce7950211c99b"  # frozen: v4.5.0  # pragma: allowlist secret
+    rev: "3e8a8703264a2f4a69428a0aa4dcb512790b2c8c"  # v6.0.0  # pragma: allowlist secret
     hooks:
       - id: trailing-whitespace
         stages: [pre-commit]
@@ -50,6 +50,28 @@ repos:
         stages: [pre-commit]
       - id: check-shebang-scripts-are-executable
         stages: [pre-commit]
+
+  # ============================================================================
+  # Code Formatting and Linting
+  # ============================================================================
+  # Ruff: Fast Python linter + formatter (replaces black, isort, flake8, etc.)
+  # Configuration in pyproject.toml [tool.ruff]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: "321478e58f4938179c6b86e4ddfa923d1547a49b"  # v0.16.6  # pragma: allowlist secret
+    hooks:
+      - id: ruff
+        name: Ruff lint
+        stages: [pre-commit]
+      - id: ruff-format
+        name: Ruff format
+        stages: [pre-commit]
+        # v0.16.6 expanded the upstream default types_or to include
+        # "markdown", so ruff-format now reformats fenced ```python blocks
+        # inside every .md file touched by a commit. That is an unreviewed
+        # scope expansion for a hook whose job is Python source formatting;
+        # pin the historic scope until markdown-snippet formatting is
+        # adopted deliberately (its own commit, reviewed diff).
+        types_or: [python, pyi, jupyter]
 
   # ============================================================================
   # Secret Detection - TruffleHog
@@ -85,7 +107,7 @@ repos:
   # Runs on changed files during pre-commit, full scan on pre-push
   # Configuration in pyproject.toml [tool.bandit]
   - repo: https://github.com/PyCQA/bandit
-    rev: "36fd65054fc8864b4037d0918904f9331512feb5"  # frozen: 1.7.10  # pragma: allowlist secret
+    rev: "92ae8b82fb422a639f0ed8d99e96cea769594e08"  # 1.9.4  # pragma: allowlist secret
     hooks:
       - id: bandit
         name: Bandit Security Scan (changed files)
@@ -105,21 +127,36 @@ repos:
         always_run: true
 
   # ============================================================================
+  # Type Checking - BasedPyright
+  # ============================================================================
+  # BasedPyright for strict Python type checking
+  # Configuration in pyproject.toml [tool.basedpyright]
+  # Note: Must be a local system hook (not remote repo) because the remote
+  # repo does not ship .pre-commit-hooks.yaml
+  - repo: local
+    hooks:
+      - id: basedpyright
+        name: BasedPyright type checker
+        entry: uv run --no-sync basedpyright src/
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+  # ============================================================================
   # Conventional Commits Enforcement
   # ============================================================================
   # Enforces conventional commit message format for semantic versioning
-  - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: "406f0d1a4ffcd9eb0be9f0f6b824df619b38f41e"  # frozen: v3.4.0  # pragma: allowlist secret
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: "3d7386012109c403d56375314125c20e102e75c0"  # v4.18.0  # pragma: allowlist secret
     hooks:
-      - id: conventional-pre-commit
+      - id: commitizen
         stages: [commit-msg]
-        args: [feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert]
 
   # ============================================================================
   # pyproject.toml Validation
   # ============================================================================
   - repo: https://github.com/abravalheri/validate-pyproject
-    rev: "435e09f5ed9fe57f3444ebfa54c663d0ac8033fe"  # frozen: v0.20.2  # pragma: allowlist secret
+    rev: "17e12779811926f000bdfa1795f9e3735dd71ac3"  # 0.26  # pragma: allowlist secret
     hooks:
       - id: validate-pyproject
         stages: [pre-commit]
@@ -128,9 +165,20 @@ repos:
   # GitHub Workflow Validation
   # ============================================================================
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: "4e7291655d44e99511858efd33bea0bdbb58d835"  # frozen: 0.29.4  # pragma: allowlist secret
+    rev: "c4654a7e007c9619a5eb63c39a456572a0fa1851"  # 0.38.0  # pragma: allowlist secret
     hooks:
       - id: check-github-workflows
+        stages: [pre-commit]
+
+  # ============================================================================
+  # YAML Linting
+  # ============================================================================
+  # Yamllint validates YAML syntax and style
+  # Configuration in .yamllint
+  - repo: https://github.com/adrienverge/yamllint
+    rev: "cba56bcde1fdd01c1deb3f945e69764c291a6530"  # v1.38.0  # pragma: allowlist secret
+    hooks:
+      - id: yamllint
         stages: [pre-commit]
 
   # ============================================================================
@@ -153,7 +201,7 @@ repos:
       - id: qlty-check
         name: Qlty Code Quality Check (changed files)
         entry: >-
-          bash -c "command -v qlty >/dev/null 2>&1 && qlty check --filter=diff || echo 'Qlty not installed - skipping (install: curl https://qlty.sh | bash)'"
+          bash -c "command -v qlty >/dev/null 2>&1 && qlty check --filter=diff || (echo 'ERROR: qlty not installed. Install via https://qlty.sh: curl https://qlty.sh | bash' >&2 && exit 1)"
         language: system
         types: [file]
         pass_filenames: false
@@ -163,7 +211,7 @@ repos:
       - id: qlty-full
         name: Qlty Full Quality Check (all files)
         entry: >-
-          bash -c "command -v qlty >/dev/null 2>&1 && qlty check src/ || echo 'Qlty not installed - skipping'"
+          bash -c "command -v qlty >/dev/null 2>&1 && qlty check src/ || (echo 'ERROR: qlty not installed. Install via https://qlty.sh: curl https://qlty.sh | bash' >&2 && exit 1)"
         language: system
         pass_filenames: false
         stages: [pre-push]
@@ -233,7 +281,7 @@ repos:
   # Interrogate ensures all Python code has proper docstrings
   # Target: 85% coverage
   - repo: https://github.com/econchick/interrogate
-    rev: "4894019dc8876092bc9b6d56878798c550fad998"  # frozen: 1.7.0  # pragma: allowlist secret
+    rev: "a6268877efd41a21197445cc04cbf28f9c6facba"  # 1.7.0  # pragma: allowlist secret
     hooks:
       - id: interrogate
         args: ['-v', '-c', 'pyproject.toml', 'src/']
@@ -247,13 +295,25 @@ repos:
   # Pydoclint validates that docstring arguments match function signatures
   # Configuration in pyproject.toml [tool.pydoclint]
   - repo: https://github.com/jsh9/pydoclint
-    rev: 88d83c94156c5e51a09938e77019f2c58e92ab58  # 0.8.4  # pragma: allowlist secret
+    rev: cf8f4d0b81f933ebc5414acadcf7acdab705baa1  # 0.9.1  # pragma: allowlist secret
     hooks:
       - id: pydoclint
         args: ["--config=pyproject.toml"]
         types: [python]
         stages: [pre-commit]
         exclude: ^(tests|scripts|benchmarks|tools|docs)/
+
+  # ============================================================================
+  # Markdown Linting
+  # ============================================================================
+  # Markdownlint enforces markdown syntax and style consistency
+  # Configuration in .markdownlint.json
+  # Baseline compatibility: .markdownlintignore excludes legacy/template docs
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: "5b5dddc4fb0f83c3ea1fc5616fa63e115dce83e0"  # v0.49.1  # pragma: allowlist secret
+    hooks:
+      - id: markdownlint
+        stages: [pre-commit]
 
 # Exclude patterns
 exclude: |

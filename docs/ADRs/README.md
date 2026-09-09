@@ -87,7 +87,7 @@ ADR files are named with sequential numbers:
 
 - `0001-adr-title-kebab-case.md`
 - `0002-another-adr-title.md`
-- `0031-comprehensive-benchmarking-framework.md`
+- `0031-extensive-benchmarking-framework.md`
 
 Use the next available number and follow kebab-case for the title.
 

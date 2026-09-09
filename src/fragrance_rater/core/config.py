@@ -37,6 +37,15 @@ class Settings(BaseSettings):
             logging level for the application. Case-insensitive.
         json_logs (bool): Flag to enable or disable JSON formatted logs.
         include_timestamp (bool): Flag to include timestamps in logs.
+        api_key (str | None): Shared household API key required on the billed,
+            LLM-backed ``POST /ratings`` endpoint (sent by callers as the
+            ``X-API-Key`` header). Set via ``FRAGRANCE_RATER_API_KEY``; the
+            explicit alias keeps that documented name even though this class
+            otherwise reads unprefixed env vars. This is a lightweight,
+            single-secret scheme appropriate for a personal/family-use
+            deployment, not a multi-tenant auth system. When unset, the
+            endpoint rejects all requests with 503 rather than silently
+            allowing writes; see ``fragrance_rater.middleware.auth``.
         database_url (str): PostgreSQL connection string.
         database_echo (bool): Echo SQL queries to logs.
         api_v1_prefix (str): API version 1 prefix.
@@ -76,6 +85,23 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     json_logs: bool = False
     include_timestamp: bool = True
+
+    # Shared household API key for POST /ratings (see middleware/auth.py).
+    # #CRITICAL: security: this class reads unprefixed env vars, so without an
+    # explicit alias this field would silently read a bare ``API_KEY`` and the
+    # documented ``FRAGRANCE_RATER_API_KEY`` (.env.example, CI workflow,
+    # middleware/auth.py error text) would be ignored, leaving the endpoint
+    # failing closed with 503 in every deployment.
+    # #VERIFY: alias below matches the name used in .env.example and
+    # .github/workflows/postman-api-tests.yml; tests/unit/test_core covers it.
+    api_key: str | None = Field(
+        default=None,
+        validation_alias="FRAGRANCE_RATER_API_KEY",
+        description=(
+            "Shared household API key required as the X-API-Key header on "
+            "POST /ratings. Unset means the endpoint fails closed with 503."
+        ),
+    )
 
     @field_validator("log_level", mode="before")
     @classmethod

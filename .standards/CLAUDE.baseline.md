@@ -9,6 +9,25 @@
 
 ---
 
+## Model Selection
+
+Use the right model for the task to balance quality and cost:
+
+| Task type | Model | When |
+| --- | --- | --- |
+| Frontier reasoning, hardest problems | Fable 5 | Long-horizon autonomous runs, large migrations, problems where Opus stalls; costs 2x Opus ($10/$50 per MTok) |
+| Complex reasoning, planning, architecture | Opus 4.8 | Multi-step decisions, ADRs, deep code review |
+| Standard development work | Sonnet 4.6 (default) | Most coding, editing, PR descriptions |
+| Read-only exploration | Haiku 4.5 | File scanning, structure mapping, quick lookups |
+
+In subagent configuration, set `model: haiku` for the built-in `Explore` subagent
+(read-only codebase discovery). The built-in `Plan` subagent inherits the caller's
+model automatically; do not set it explicitly. Agents that write code or produce
+deliverables default to `sonnet` unless the task requires deep reasoning, in
+which case specify `model: opus` in the agent prompt.
+
+---
+
 ## Core Development Standards
 
 ### Essential Requirements
@@ -182,7 +201,7 @@ BasedPyright replaces MyPy as the standard type checker (3-5x faster, stricter a
 
 ### File-Type Standards
 
-- **Python**: 88-char line length, comprehensive rule compliance
+- **Python**: 88-char line length, full rule compliance
 - **Markdown**: 120-char line length, consistent formatting
 - **YAML**: 2-space indentation, 120-char line length
 - **Validation**: Pre-commit hooks enforce all standards

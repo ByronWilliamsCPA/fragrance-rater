@@ -212,6 +212,8 @@
     "pep621",
     "github-actions",
     "npm",
-    "pip_requirements"
+    "pip_requirements",
+    "dockerfile",
+    "docker-compose"
   ]
 }
