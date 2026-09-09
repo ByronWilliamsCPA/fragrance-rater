@@ -17,7 +17,7 @@ class TestGetRedis:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_creates_connection_pool(self) -> None:
@@ -38,7 +38,7 @@ class TestGetRedis:
     async def test_reuses_existing_pool(self) -> None:
         """Should reuse existing connection pool on subsequent calls."""
         mock_redis = MagicMock()
-        cache._redis_pool = mock_redis
+        cache._state.client = mock_redis
 
         result = await cache.get_redis()
 
@@ -63,28 +63,28 @@ class TestCloseRedis:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_closes_connection_pool(self) -> None:
         """Should close the connection pool and reset global."""
         mock_redis = AsyncMock()
-        cache._redis_pool = mock_redis
+        cache._state.client = mock_redis
 
         await cache.close_redis()
 
         mock_redis.close.assert_called_once()
-        assert cache._redis_pool is None
+        assert cache._state.client is None
 
     @pytest.mark.asyncio
     async def test_handles_no_pool(self) -> None:
         """Should handle case when pool is None."""
-        cache._redis_pool = None
+        cache._state.client = None
 
         # Should not raise
         await cache.close_redis()
 
-        assert cache._redis_pool is None
+        assert cache._state.client is None
 
 
 class TestCachedDecorator:
@@ -93,7 +93,7 @@ class TestCachedDecorator:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_cache_miss_calls_function(self) -> None:
@@ -199,7 +199,7 @@ class TestCacheInvalidateDecorator:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_invalidates_pattern_after_function(self) -> None:
@@ -246,7 +246,7 @@ class TestGetCached:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_returns_cached_value(self) -> None:
@@ -293,7 +293,7 @@ class TestSetCached:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_sets_value_with_ttl(self) -> None:
@@ -333,7 +333,7 @@ class TestDeleteCached:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_deletes_key(self) -> None:
@@ -381,7 +381,7 @@ class TestInvalidatePattern:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_deletes_matching_keys(self) -> None:
@@ -456,7 +456,7 @@ class TestWarmCache:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_warms_cache_when_empty(self) -> None:
@@ -529,7 +529,7 @@ class TestGetCacheStats:
     @pytest.fixture(autouse=True)
     def reset_pool(self) -> None:
         """Reset the global Redis pool before each test."""
-        cache._redis_pool = None
+        cache._state.client = None
 
     @pytest.mark.asyncio
     async def test_returns_stats(self) -> None:

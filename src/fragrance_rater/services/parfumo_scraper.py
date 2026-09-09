@@ -12,12 +12,14 @@ from __future__ import annotations
 import logging
 import re
 import time
+import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import quote_plus
 
 import httpx
 from bs4 import BeautifulSoup
+from sqlalchemy import select
 
 from fragrance_rater.models.fragrance import (
     Fragrance,
@@ -72,6 +74,15 @@ class ParfumoScraper:
     - Detailed accords
 
     Rate limiting is enforced to be respectful of their servers.
+
+    Args:
+        session (AsyncSession): Async database session for imports.
+
+    Attributes:
+        BASE_URL: Parfumo site root.
+        SEARCH_URL: Perfume search endpoint.
+        REQUEST_DELAY: Minimum seconds between requests.
+        HEADERS (ClassVar[dict[str, str]]): Browser-like request headers.
     """
 
     BASE_URL = "https://www.parfumo.com"
@@ -82,7 +93,7 @@ class ParfumoScraper:
 
     # User agent to identify as a browser
     # Keep headers minimal to avoid Cloudflare issues
-    HEADERS = {
+    HEADERS: ClassVar[dict[str, str]] = {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
             "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -95,11 +106,6 @@ class ParfumoScraper:
     }
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize the scraper.
-
-        Args:
-            session: Async database session for imports.
-        """
         self.db = session
         self._last_request_time: float = 0
         self._client: httpx.Client | None = None
@@ -125,10 +131,10 @@ class ParfumoScraper:
         """Make HTTP request and return parsed HTML.
 
         Args:
-            url: URL to fetch.
+            url (str): URL to fetch.
 
         Returns:
-            Parsed BeautifulSoup object or None on failure.
+            BeautifulSoup | None: Parsed BeautifulSoup object or None on failure.
         """
         self._wait_for_rate_limit()
 
@@ -140,20 +146,20 @@ class ParfumoScraper:
                 return None
 
             return BeautifulSoup(response.text, "lxml")
-        except httpx.HTTPError as e:
+        except httpx.HTTPError:
             # Log error but don't crash
-            logger.error("HTTP request failed for %s: %s", url, e)
+            logger.exception("HTTP request failed for %s", url)
             return None
 
     def search(self, query: str, limit: int = 10) -> list[SearchResult]:
         """Search Parfumo for fragrances.
 
         Args:
-            query: Search query (name, brand, or both).
-            limit: Maximum results to return.
+            query (str): Search query (name, brand, or both).
+            limit (int): Maximum results to return.
 
         Returns:
-            List of search results.
+            list[SearchResult]: List of search results.
         """
         search_url = f"{self.SEARCH_URL}?keywords={quote_plus(query)}"
         soup = self._make_request(search_url)
@@ -167,8 +173,8 @@ class ParfumoScraper:
         # Look for links to perfume pages
         for item in soup.select("a[href*='/Perfumes/']")[:limit]:
             try:
-                href = item.get("href", "")
-                if not href:
+                href = item.get("href")
+                if not isinstance(href, str) or not href:
                     continue
 
                 # Normalize URL
@@ -188,16 +194,15 @@ class ParfumoScraper:
                 # Clean up brand name (URL encoded)
                 brand = brand.replace("-", " ").replace("_", " ").title()
 
-                if name and href:
-                    # Avoid duplicates
-                    if not any(r.url == href for r in results):
-                        results.append(
-                            SearchResult(
-                                name=name,
-                                brand=brand,
-                                url=href,
-                            )
+                # Avoid duplicates
+                if name and not any(r.url == href for r in results):
+                    results.append(
+                        SearchResult(
+                            name=name,
+                            brand=brand,
+                            url=href,
                         )
+                    )
 
             except (AttributeError, IndexError):
                 continue
@@ -208,10 +213,10 @@ class ParfumoScraper:
         """Scrape detailed info from a perfume page.
 
         Args:
-            url: Full URL to the perfume page.
+            url (str): Full URL to the perfume page.
 
         Returns:
-            ScrapedFragrance with extracted data, or None on failure.
+            ScrapedFragrance | None: ScrapedFragrance with extracted data, or None on failure.
         """
         soup = self._make_request(url)
 
@@ -225,129 +230,182 @@ class ParfumoScraper:
         )
 
         try:
-            # Extract name from h1.p_name_h1 (Parfumo specific)
-            name_elem = soup.select_one("h1.p_name_h1")
-            if name_elem:
-                # Get text before the brand span
-                # NavigableString has name=None, Tag has name='span' etc
-                for child in name_elem.children:
-                    # Check if it's a Tag (not NavigableString) by checking if name is not None
-                    if getattr(child, "name", None) is not None:
-                        break  # Stop at first actual tag
-                    text = str(child).strip()
-                    if text:
-                        data.name = text
-                        break
-
-            # Fallback: try generic selectors
-            if not data.name:
-                name_elem = soup.select_one("h1, .perfume-title, [itemprop='name']")
-                if name_elem:
-                    data.name = name_elem.get_text(strip=True)
-
-            # Extract brand from span.p_brand_name (Parfumo specific)
-            brand_elem = soup.select_one("span.p_brand_name")
-            if brand_elem:
-                # Remove year if present (e.g., "Polysnifferous2024" -> "Polysnifferous")
-                brand_text = brand_elem.get_text(strip=True)
-                # Remove trailing year
-                import re as regex
-
-                data.brand = regex.sub(r"\d{4}$", "", brand_text).strip()
-
-            # Fallback brand extraction
-            if not data.brand:
-                brand_elem = soup.select_one(
-                    "a[href*='/Brands/'], .brand-name, [itemprop='brand']"
-                )
-                if brand_elem:
-                    data.brand = brand_elem.get_text(strip=True)
-
-            # Extract from URL if not found
-            if not data.brand:
-                path_parts = url.split("/")
-                if len(path_parts) >= 4:
-                    data.brand = (
-                        path_parts[-2].replace("-", " ").replace("_", " ").title()
-                    )
-
-            # Extract notes by pyramid position
-            # Parfumo uses a fragrance pyramid visualization
+            data.name = self._extract_name(soup)
+            data.brand = self._extract_brand(soup, url)
             self._extract_notes(soup, data)
-
-            # Extract accords
             self._extract_accords(soup, data)
-
-            # Extract rating - Parfumo specific
-            # Format: "Scent8.35 Ratings" in .barfiller_element.rating-details
-            rating_elem = soup.select_one(".barfiller_element.rating-details")
-            if rating_elem:
-                rating_text = rating_elem.get_text(strip=True)
-                # Extract rating value (e.g., "8.3" from "Scent8.35 Ratings")
-                match = re.search(r"(\d+\.?\d*)", rating_text)
-                if match:
-                    data.rating = float(match.group(1))
-
-                # Extract rating count (e.g., "5" from "5 Ratings")
-                count_match = re.search(r"(\d+)\s*Rating", rating_text)
-                if count_match:
-                    data.rating_count = int(count_match.group(1))
-
-            # Fallback rating extraction
-            if not data.rating:
-                rating_elem = soup.select_one(
-                    ".rating-value, [itemprop='ratingValue'], .score"
-                )
-                if rating_elem:
-                    rating_text = rating_elem.get_text(strip=True)
-                    match = re.search(r"(\d+\.?\d*)", rating_text)
-                    if match:
-                        rating = float(match.group(1))
-                        if rating > 10:
-                            rating = rating / 10
-                        data.rating = rating
-
-            # Gender
-            gender_text = soup.get_text().lower()
-            if "for women and men" in gender_text or "unisex" in gender_text:
-                data.gender = "unisex"
-            elif "for women" in gender_text:
-                data.gender = "feminine"
-            elif "for men" in gender_text:
-                data.gender = "masculine"
-
-            # Year
-            year_elem = soup.find(string=re.compile(r"\b(19|20)\d{2}\b"))
-            if year_elem:
-                year_match = re.search(r"\b(19|20)(\d{2})\b", str(year_elem))
-                if year_match:
-                    data.year = int(year_match.group())
-
-            # Perfumer
-            perfumer_elem = soup.select_one(
-                "a[href*='/Perfumers/'], .perfumer, [itemprop='creator']"
-            )
-            if perfumer_elem:
-                data.perfumer = perfumer_elem.get_text(strip=True)
-
-            # Image
-            img_elem = soup.select_one(
-                "img[itemprop='image'], .perfume-image img, .bottle-image"
-            )
-            if img_elem:
-                data.image_url = img_elem.get("src") or img_elem.get("data-src")
-
-        except Exception as e:
-            logger.error("Scraping error for %s: %s", url, e)
+            self._extract_rating(soup, data)
+            data.gender = self._extract_gender(soup)
+            data.year = self._extract_year(soup)
+            data.perfumer = self._extract_perfumer(soup)
+            data.image_url = self._extract_image_url(soup)
+        except Exception:
+            # Page layout changes must degrade to "no data", not crash an import
+            logger.exception("Scraping error for %s", url)
 
         return data if data.name else None
+
+    def _extract_name(self, soup: BeautifulSoup) -> str:
+        """Extract the perfume name.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+
+        Returns:
+            str: Perfume name, or an empty string if none was found.
+        """
+        # Parfumo specific: the name is the text before the brand span in
+        # h1.p_name_h1. NavigableString has name=None, Tag has name='span' etc.
+        name_elem = soup.select_one("h1.p_name_h1")
+        if name_elem:
+            for child in name_elem.children:
+                if getattr(child, "name", None) is not None:
+                    break  # Stop at first actual tag
+                text = str(child).strip()
+                if text:
+                    return text
+
+        # Fallback: try generic selectors
+        name_elem = soup.select_one("h1, .perfume-title, [itemprop='name']")
+        return name_elem.get_text(strip=True) if name_elem else ""
+
+    def _extract_brand(self, soup: BeautifulSoup, url: str) -> str:
+        """Extract the brand name.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+            url (str): Page URL, used as a last-resort source for the brand.
+
+        Returns:
+            str: Brand name, or an empty string if none was found.
+        """
+        # Parfumo specific: span.p_brand_name, sometimes with a trailing year
+        # (e.g., "Polysnifferous2024" -> "Polysnifferous")
+        brand_elem = soup.select_one("span.p_brand_name")
+        if brand_elem:
+            brand = re.sub(r"\d{4}$", "", brand_elem.get_text(strip=True)).strip()
+            if brand:
+                return brand
+
+        # Fallback brand extraction
+        brand_elem = soup.select_one(
+            "a[href*='/Brands/'], .brand-name, [itemprop='brand']"
+        )
+        if brand_elem:
+            brand = brand_elem.get_text(strip=True)
+            if brand:
+                return brand
+
+        # Extract from URL if not found: /Perfumes/brand/perfume-name
+        path_parts = url.split("/")
+        if len(path_parts) >= 4:
+            return path_parts[-2].replace("-", " ").replace("_", " ").title()
+        return ""
+
+    def _extract_rating(self, soup: BeautifulSoup, data: ScrapedFragrance) -> None:
+        """Extract the community rating and vote count.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+            data (ScrapedFragrance): ScrapedFragrance to populate.
+        """
+        # Parfumo specific, e.g. "Scent8.35 Ratings" in .barfiller_element
+        rating_elem = soup.select_one(".barfiller_element.rating-details")
+        if rating_elem:
+            rating_text = rating_elem.get_text(strip=True)
+            match = re.search(r"(\d+\.?\d*)", rating_text)
+            if match:
+                data.rating = float(match.group(1))
+
+            count_match = re.search(r"(\d+)\s*Rating", rating_text)
+            if count_match:
+                data.rating_count = int(count_match.group(1))
+
+        if data.rating:
+            return
+
+        # Fallback rating extraction
+        rating_elem = soup.select_one(".rating-value, [itemprop='ratingValue'], .score")
+        if rating_elem:
+            match = re.search(r"(\d+\.?\d*)", rating_elem.get_text(strip=True))
+            if match:
+                rating = float(match.group(1))
+                data.rating = rating / 10 if rating > 10 else rating
+
+    def _extract_gender(self, soup: BeautifulSoup) -> str | None:
+        """Infer the target gender from the page text.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+
+        Returns:
+            str | None: "unisex", "feminine" or "masculine", or None if unknown.
+        """
+        gender_text = soup.get_text().lower()
+        if "for women and men" in gender_text or "unisex" in gender_text:
+            return "unisex"
+        if "for women" in gender_text:
+            return "feminine"
+        if "for men" in gender_text:
+            return "masculine"
+        return None
+
+    def _extract_year(self, soup: BeautifulSoup) -> int | None:
+        """Extract the launch year.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+
+        Returns:
+            int | None: Four-digit year, or None if none was found.
+        """
+        year_elem = soup.find(string=re.compile(r"\b(19|20)\d{2}\b"))
+        if year_elem:
+            year_match = re.search(r"\b(19|20)(\d{2})\b", str(year_elem))
+            if year_match:
+                return int(year_match.group())
+        return None
+
+    def _extract_perfumer(self, soup: BeautifulSoup) -> str | None:
+        """Extract the perfumer attribution.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+
+        Returns:
+            str | None: Perfumer name, or None if none was found.
+        """
+        perfumer_elem = soup.select_one(
+            "a[href*='/Perfumers/'], .perfumer, [itemprop='creator']"
+        )
+        return perfumer_elem.get_text(strip=True) if perfumer_elem else None
+
+    def _extract_image_url(self, soup: BeautifulSoup) -> str | None:
+        """Extract the bottle image URL.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+
+        Returns:
+            str | None: Image URL from src or data-src, or None if none was found.
+        """
+        img_elem = soup.select_one(
+            "img[itemprop='image'], .perfume-image img, .bottle-image"
+        )
+        if img_elem is None:
+            return None
+        for attr in ("src", "data-src"):
+            value = img_elem.get(attr)
+            if isinstance(value, str) and value:
+                return value
+        return None
 
     def _extract_notes(self, soup: BeautifulSoup, data: ScrapedFragrance) -> None:
         """Extract notes from the fragrance pyramid.
 
         Args:
-            soup: Parsed HTML.
-            data: ScrapedFragrance to populate.
+            soup (BeautifulSoup): Parsed HTML.
+            data (ScrapedFragrance): ScrapedFragrance to populate.
         """
         # Parfumo-specific: Look for pyramid blocks with nb_t, nb_m, nb_b classes
         # .pyramid_block.nb_t = Top Notes
@@ -424,8 +482,8 @@ class ParfumoScraper:
         """Extract accords/scent profile.
 
         Args:
-            soup: Parsed HTML.
-            data: ScrapedFragrance to populate.
+            soup (BeautifulSoup): Parsed HTML.
+            data (ScrapedFragrance): ScrapedFragrance to populate.
         """
         # Parfumo shows accords with visual bars indicating strength
         accord_elements = soup.select(".accord, .scent-profile .bar, [class*='accord']")
@@ -443,18 +501,23 @@ class ParfumoScraper:
                     continue
 
                 # Try to get strength from width style or data attribute
-                style = elem.get("style", "")
-                width_match = re.search(r"width:\s*(\d+)", style)
+                style = elem.get("style")
+                width_match = (
+                    re.search(r"width:\s*(\d+)", style)
+                    if isinstance(style, str)
+                    else None
+                )
 
                 if width_match:
                     weight = float(width_match.group(1)) / 100
                 else:
-                    # Check for data-value or similar
+                    # Check for data-value or similar, defaulting to 0.5
                     data_val = elem.get("data-value") or elem.get("data-width")
-                    if data_val:
-                        weight = float(data_val) / 100
-                    else:
-                        weight = 0.5  # Default weight
+                    weight = (
+                        float(data_val) / 100
+                        if isinstance(data_val, str) and data_val
+                        else 0.5
+                    )
 
                 # Clamp to 0-1
                 weight = max(0.0, min(1.0, weight))
@@ -473,14 +536,12 @@ class ParfumoScraper:
         """Search Parfumo and import the best match.
 
         Args:
-            name: Fragrance name to search for.
-            brand: Optional brand to filter results.
+            name (str): Fragrance name to search for.
+            brand (str | None): Optional brand to filter results.
 
         Returns:
-            Fragrance ID if imported/found, None otherwise.
+            str | None: Fragrance ID if imported/found, None otherwise.
         """
-        from sqlalchemy import select
-
         query = f"{name} {brand}" if brand else name
         results = self.search(query, limit=5)
 
@@ -532,13 +593,11 @@ class ParfumoScraper:
         """Import a fragrance directly from its Parfumo URL.
 
         Args:
-            url: Full Parfumo URL (e.g., https://www.parfumo.com/Perfumes/brand/name)
+            url (str): Full Parfumo URL (e.g., https://www.parfumo.com/Perfumes/brand/name)
 
         Returns:
-            Fragrance ID if imported, None on failure.
+            str | None: Fragrance ID if imported, None on failure.
         """
-        from sqlalchemy import select
-
         scraped = self.scrape_perfume_page(url)
 
         if not scraped or not scraped.name or not scraped.brand:
@@ -567,15 +626,13 @@ class ParfumoScraper:
         """Create a new fragrance from scraped data.
 
         Args:
-            scraped: Scraped fragrance data.
-            name: Fragrance name.
-            brand: Brand name.
+            scraped (ScrapedFragrance): Scraped fragrance data.
+            name (str): Fragrance name.
+            brand (str): Brand name.
 
         Returns:
-            New fragrance ID.
+            str: New fragrance ID.
         """
-        import uuid
-
         # Map gender
         gender_map = {
             "feminine": "feminine",
@@ -622,8 +679,8 @@ class ParfumoScraper:
         """Update existing fragrance with scraped data.
 
         Args:
-            fragrance: Existing fragrance to update.
-            scraped: Scraped data.
+            fragrance (Fragrance): Existing fragrance to update.
+            scraped (ScrapedFragrance): Scraped data.
         """
         # Update basic fields if not set
         if not fragrance.launch_year and scraped.year:
@@ -641,13 +698,9 @@ class ParfumoScraper:
         """Add notes to fragrance.
 
         Args:
-            fragrance_id: Fragrance ID.
-            scraped: Scraped data with notes.
+            fragrance_id (str): Fragrance ID.
+            scraped (ScrapedFragrance): Scraped data with notes.
         """
-        import uuid
-
-        from sqlalchemy import select
-
         note_types = [
             ("top", scraped.top_notes),
             ("heart", scraped.heart_notes),
@@ -682,10 +735,10 @@ class ParfumoScraper:
         """Infer fragrance family from accords and notes.
 
         Args:
-            scraped: Scraped fragrance data.
+            scraped (ScrapedFragrance): Scraped fragrance data.
 
         Returns:
-            Best guess at fragrance family.
+            str: Best guess at fragrance family.
         """
         # Common family keywords
         families = {
@@ -721,10 +774,10 @@ class ParfumoScraper:
         """Categorize a note.
 
         Args:
-            note_name: Name of the note.
+            note_name (str): Name of the note.
 
         Returns:
-            Category string.
+            str: Category string.
         """
         note_lower = note_name.lower()
 
@@ -774,9 +827,9 @@ def get_parfumo_scraper(session: AsyncSession) -> ParfumoScraper:
     """Factory function to get a ParfumoScraper instance.
 
     Args:
-        session: Async database session.
+        session (AsyncSession): Async database session.
 
     Returns:
-        ParfumoScraper instance.
+        ParfumoScraper: ParfumoScraper instance.
     """
     return ParfumoScraper(session)

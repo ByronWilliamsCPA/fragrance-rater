@@ -13,6 +13,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+from fragrance_rater.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -23,17 +24,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Import models to ensure they're registered with SQLAlchemy metadata
-from fragrance_rater.core.database import Base
-from fragrance_rater.models import (  # noqa: F401
-    Evaluation,
-    Fragrance,
-    FragranceAccord,
-    FragranceNote,
-    Note,
-    Reviewer,
-)
-
+# Importing fragrance_rater.models registers every ORM table on Base.metadata
 target_metadata = Base.metadata
 
 
@@ -44,11 +35,10 @@ def get_url() -> str:
         str: Database connection URL.
     """
     # For alembic, we need a sync URL (postgresql:// instead of postgresql+asyncpg://)
-    url = os.environ.get(
+    return os.environ.get(
         "DATABASE_URL",
         "postgresql+asyncpg://fragrance_rater:password@localhost:5432/fragrance_rater",
     )
-    return url
 
 
 def run_migrations_offline() -> None:
@@ -78,7 +68,7 @@ def do_run_migrations(connection: Connection) -> None:
     """Execute migrations with the given connection.
 
     Args:
-        connection: Database connection to use for migrations.
+        connection (Connection): Database connection to use for migrations.
     """
     context.configure(connection=connection, target_metadata=target_metadata)
 
