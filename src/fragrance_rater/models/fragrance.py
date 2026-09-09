@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Float, ForeignKey, Index, String, UniqueConstraint, func
+from sqlalchemy import Float, ForeignKey, Index, String, UniqueConstraint, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -60,8 +60,23 @@ class Fragrance(Base):
     # legitimate EDT/EDP pair sharing a name and brand will collide.
     # #VERIFY: if that turns out to happen in practice, widen the constraint
     # to include `concentration` in a follow-up migration.
+    #
+    # `uq_fragrance_name_brand` is a partial unique index scoped to
+    # `deleted_at IS NULL` rather than a plain UniqueConstraint: see the
+    # resolved RAD note on `deleted_at` below for why (soft-deleted rows
+    # must not permanently block recreating the same (name, brand) pair).
+    # `sqlite_where` mirrors `postgresql_where` so the SQLite test database
+    # (built from this metadata via `Base.metadata.create_all`, not this
+    # migration) enforces the same scoped uniqueness as production.
     __table_args__ = (
-        UniqueConstraint("name", "brand", name="uq_fragrance_name_brand"),
+        Index(
+            "uq_fragrance_name_brand",
+            "name",
+            "brand",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
         Index("ix_fragrance_search", "name", "brand"),
     )
 
@@ -99,13 +114,13 @@ class Fragrance(Base):
     # must filter WHERE deleted_at IS NULL; see fragrance_service.py,
     # recommendation_service.py, api/recommendations.py, and
     # parfumo_scraper.py's dedup lookups.
-    # #EDGE: data-integrity: uq_fragrance_name_brand (Major finding 8) is
-    # not partial/scoped to deleted_at IS NULL, so re-creating or
-    # re-scraping a fragrance with the same (name, brand) as a
-    # soft-deleted row still raises the existing UNIQUE violation.
-    # #VERIFY: not addressed in this pass (would require a partial unique
-    # index); flagged in the remediation report rather than silently
-    # decided.
+    # Resolved: uq_fragrance_name_brand (Major finding 8) was originally a
+    # plain UniqueConstraint, so soft-deleting a fragrance and later
+    # re-creating or re-scraping the same (name, brand) still raised a
+    # UNIQUE violation against the deleted row forever. It is now a partial
+    # unique index scoped to `deleted_at IS NULL` (see __table_args__
+    # above and migration 22eed1bf0509), so uniqueness is enforced among
+    # live rows only.
     deleted_at: Mapped[datetime | None] = mapped_column(
         nullable=True, default=None, index=True
     )

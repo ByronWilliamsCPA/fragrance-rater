@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import String, func
+from sqlalchemy import Index, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -33,22 +33,41 @@ class Reviewer(Base):
     """
 
     __tablename__ = "reviewers"
+    # `uq_reviewer_name` is a partial unique index scoped to
+    # `deleted_at IS NULL` rather than a plain UniqueConstraint (or the
+    # `unique=True` column flag this replaced): see the resolved RAD note
+    # on `deleted_at` below for why. `sqlite_where` mirrors
+    # `postgresql_where` so the SQLite test database (built from this
+    # metadata via `Base.metadata.create_all`, not the Alembic migration)
+    # enforces the same scoped uniqueness as production.
+    __table_args__ = (
+        Index(
+            "uq_reviewer_name",
+            "name",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid4())
     )
-    name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), index=True)
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(), server_default=func.now()
     )
     # Critical finding 2: soft-delete, mirroring Fragrance.deleted_at. Every
     # read query against this table must filter WHERE deleted_at IS NULL;
     # see reviewer_service.py.
-    # #EDGE: data-integrity: `name` above keeps a bare UNIQUE constraint
-    # (not scoped to deleted_at IS NULL), so re-seeding or re-creating a
-    # reviewer with the same name as a soft-deleted one still raises the
-    # existing UNIQUE violation. Not addressed in this pass; flagged in the
-    # remediation report rather than silently decided.
+    # Resolved: `name` above previously kept a bare UNIQUE constraint (via
+    # unique=True, index=True), so re-seeding or re-creating a reviewer
+    # with the same name as a soft-deleted one still raised a UNIQUE
+    # violation against the deleted row forever. It is now a plain
+    # (non-unique) index, with uniqueness enforced separately by the
+    # partial `uq_reviewer_name` index above scoped to
+    # `deleted_at IS NULL` (see migration 22eed1bf0509), so uniqueness is
+    # enforced among live rows only.
     deleted_at: Mapped[datetime | None] = mapped_column(
         nullable=True, default=None, index=True
     )

@@ -453,3 +453,102 @@ class TestFragranceSoftDelete:
 
         results = await service.search(FragranceSearchParams(q="Hidden Fragrance"))
         assert results == []
+
+
+@pytest.mark.asyncio
+class TestFragranceDedupPartialUniqueIndex:
+    """`uq_fragrance_name_brand` is a partial unique index scoped to live rows.
+
+    Regression coverage for the soft-delete/dedup interaction: a plain
+    UniqueConstraint on (name, brand) would let a soft-deleted row block
+    recreating/re-scraping the same fragrance forever. See the resolved
+    RAD note on `Fragrance.deleted_at`.
+    """
+
+    async def test_recreate_after_soft_delete_succeeds(self, async_session):
+        """Recreating the same (name, brand) after a soft delete must succeed."""
+        from sqlalchemy import select
+
+        original = Fragrance(
+            id="dedup-frag-orig",
+            name="Reused Name",
+            brand="Reused Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(original)
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        assert await service.delete("dedup-frag-orig") is True
+        await async_session.commit()
+
+        recreated = Fragrance(
+            id="dedup-frag-new",
+            name="Reused Name",
+            brand="Reused Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(recreated)
+        await async_session.commit()  # Must not raise IntegrityError.
+
+        rows = (
+            (
+                await async_session.execute(
+                    select(Fragrance).where(
+                        Fragrance.name == "Reused Name",
+                        Fragrance.brand == "Reused Brand",
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2
+        live = [r for r in rows if r.deleted_at is None]
+        deleted = [r for r in rows if r.deleted_at is not None]
+        assert len(live) == 1
+        assert len(deleted) == 1
+        assert live[0].id == "dedup-frag-new"
+        assert deleted[0].id == "dedup-frag-orig"
+
+    async def test_two_live_fragrances_still_reject_duplicate_name_brand(
+        self, async_session
+    ):
+        """Two LIVE fragrances sharing (name, brand) must still be rejected."""
+        from sqlalchemy.exc import IntegrityError
+
+        first = Fragrance(
+            id="dup-frag-1",
+            name="Duplicate Name",
+            brand="Duplicate Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(first)
+        await async_session.commit()
+
+        second = Fragrance(
+            id="dup-frag-2",
+            name="Duplicate Name",
+            brand="Duplicate Brand",
+            concentration="EDT",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(second)
+        with pytest.raises(IntegrityError):
+            await async_session.commit()
+        await async_session.rollback()

@@ -239,3 +239,61 @@ class TestReviewerSoftDeleteAndEvaluationCount:
 
         service = ReviewerService(async_session)
         assert await service.count_evaluations(reviewer.id) == 0
+
+
+@pytest.mark.asyncio
+class TestReviewerDedupPartialUniqueIndex:
+    """`uq_reviewer_name` is a partial unique index scoped to live rows.
+
+    Regression coverage for the soft-delete/dedup interaction: a plain
+    unique constraint on `name` would let a soft-deleted reviewer block
+    recreating/re-seeding a reviewer with the same name forever. See the
+    resolved RAD note on `Reviewer.deleted_at`.
+    """
+
+    async def test_recreate_after_soft_delete_succeeds(self, async_session):
+        """Recreating a reviewer with the same name after a soft delete succeeds."""
+        from sqlalchemy import select
+
+        original = Reviewer(id="dedup-rev-orig", name="Reused Reviewer Name")
+        async_session.add(original)
+        await async_session.commit()
+
+        service = ReviewerService(async_session)
+        assert await service.delete("dedup-rev-orig") is True
+        await async_session.commit()
+
+        recreated = Reviewer(id="dedup-rev-new", name="Reused Reviewer Name")
+        async_session.add(recreated)
+        await async_session.commit()  # Must not raise IntegrityError.
+
+        rows = (
+            (
+                await async_session.execute(
+                    select(Reviewer).where(Reviewer.name == "Reused Reviewer Name")
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2
+        live = [r for r in rows if r.deleted_at is None]
+        deleted = [r for r in rows if r.deleted_at is not None]
+        assert len(live) == 1
+        assert len(deleted) == 1
+        assert live[0].id == "dedup-rev-new"
+        assert deleted[0].id == "dedup-rev-orig"
+
+    async def test_two_live_reviewers_still_reject_duplicate_name(self, async_session):
+        """Two LIVE reviewers sharing a name must still be rejected."""
+        from sqlalchemy.exc import IntegrityError
+
+        first = Reviewer(id="dup-rev-1", name="Duplicate Reviewer Name")
+        async_session.add(first)
+        await async_session.commit()
+
+        second = Reviewer(id="dup-rev-2", name="Duplicate Reviewer Name")
+        async_session.add(second)
+        with pytest.raises(IntegrityError):
+            await async_session.commit()
+        await async_session.rollback()
