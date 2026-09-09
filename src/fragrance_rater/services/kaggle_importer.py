@@ -26,6 +26,8 @@ if TYPE_CHECKING:
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from fragrance_rater.core.vocabulary import GenderTarget
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +49,7 @@ class ParsedFragrance:
     brand: str
     concentration: str
     launch_year: int | None
-    gender_target: str
+    gender_target: GenderTarget
     primary_family: str
     subfamily: str
     top_notes: list[str]

@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from fragrance_rater.core.vocabulary import GenderTarget
+
 
 @dataclass
 class ScrapedFragrance:
@@ -732,11 +734,20 @@ class ParfumoScraper:
         Returns:
             str: New fragrance ID.
         """
-        # Map gender
-        gender_map = {
-            "feminine": "feminine",
-            "masculine": "masculine",
-            "unisex": "unisex",
+        # #CRITICAL: data-integrity: gender_target must use the same
+        # capitalized vocabulary (Masculine/Feminine/Unisex) as the Kaggle
+        # importer and the API's gender_target filter schema (see
+        # core/vocabulary.py, Major finding 5). _extract_gender() returns
+        # lowercase values scraped from page text; map them to the
+        # canonical form here rather than storing the lowercase form
+        # directly, or gender_target filtering silently excludes every
+        # fragrance imported through this scraper.
+        # #VERIFY: covered by a scraper test asserting the stored value is
+        # always a member of GENDER_TARGETS.
+        gender_map: dict[str, GenderTarget] = {
+            "feminine": "Feminine",
+            "masculine": "Masculine",
+            "unisex": "Unisex",
         }
 
         fragrance = Fragrance(
@@ -744,9 +755,14 @@ class ParfumoScraper:
             name=name,
             brand=brand,
             concentration=scraped.concentration or "EDP",
-            gender_target=gender_map.get(scraped.gender or "", "unisex"),
+            gender_target=gender_map.get(scraped.gender or "", "Unisex"),
             launch_year=scraped.year,
             primary_family=self._infer_family(scraped),
+            # Left empty rather than duplicating primary_family: an empty
+            # subfamily is treated as "unknown" by
+            # RecommendationService.build_preference_profile (Major
+            # finding 6), which is the correct semantics here since this
+            # scraper does not currently extract a real subfamily.
             subfamily="",
             data_source="parfumo",
             parfumo_url=scraped.url,

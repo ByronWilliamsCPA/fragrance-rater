@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from fragrance_rater.core.vocabulary import GenderTarget
+
 
 class NoteCreate(BaseModel):
     """Schema for creating a new note."""
@@ -67,7 +69,7 @@ class FragranceCreate(BaseModel):
     brand: str = Field(..., min_length=1, max_length=255)
     concentration: str = Field(..., min_length=1, max_length=50)
     launch_year: int | None = Field(None, ge=1800, le=2100)
-    gender_target: Literal["Masculine", "Feminine", "Unisex"] = "Unisex"
+    gender_target: GenderTarget = "Unisex"
     primary_family: str = Field(..., min_length=1, max_length=50)
     subfamily: str = Field(..., min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
@@ -82,7 +84,7 @@ class FragranceUpdate(BaseModel):
     brand: str | None = Field(None, min_length=1, max_length=255)
     concentration: str | None = Field(None, min_length=1, max_length=50)
     launch_year: int | None = Field(None, ge=1800, le=2100)
-    gender_target: Literal["Masculine", "Feminine", "Unisex"] | None = None
+    gender_target: GenderTarget | None = None
     primary_family: str | None = Field(None, min_length=1, max_length=50)
     subfamily: str | None = Field(None, min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
@@ -116,6 +118,6 @@ class FragranceSearchParams(BaseModel):
     q: str | None = Field(None, description="Search query for name or brand")
     brand: str | None = Field(None, description="Filter by brand")
     primary_family: str | None = Field(None, description="Filter by fragrance family")
-    gender_target: Literal["Masculine", "Feminine", "Unisex"] | None = None
+    gender_target: GenderTarget | None = None
     limit: int = Field(20, ge=1, le=100)
     offset: int = Field(0, ge=0)

@@ -6,7 +6,10 @@ Tests the Parfumo.com web scraping functionality with mocked HTTP responses.
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlalchemy import select
 
+from fragrance_rater.core.vocabulary import GENDER_TARGETS
+from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.services.parfumo_scraper import (
     ParfumoScraper,
     ScrapedFragrance,
@@ -560,3 +563,55 @@ class TestParfumoScraperBackoff:
 
         assert result is None
         assert client.get.call_count == ParfumoScraper.MAX_RETRIES + 1
+
+
+@pytest.mark.asyncio
+class TestParfumoScraperGenderVocabulary:
+    """Major finding 5: scraper output must match the API's gender enum.
+
+    The Kaggle importer and the API's gender_target schemas both use the
+    capitalized "Masculine"/"Feminine"/"Unisex" vocabulary
+    (core.vocabulary.GENDER_TARGETS). _extract_gender() scrapes lowercase
+    values from page text; _create_fragrance() must map them to the
+    canonical form rather than storing the lowercase scrape output
+    directly, or gender_target filtering silently excludes every
+    fragrance imported through this scraper.
+    """
+
+    @pytest.mark.parametrize(
+        ("scraped_gender", "expected"),
+        [
+            ("masculine", "Masculine"),
+            ("feminine", "Feminine"),
+            ("unisex", "Unisex"),
+            (None, "Unisex"),  # unknown/unscraped gender defaults to Unisex
+            ("nonsense-value", "Unisex"),  # unrecognized value also defaults
+        ],
+    )
+    async def test_stored_gender_target_matches_api_vocabulary(
+        self, async_session, scraped_gender, expected
+    ):
+        scraper = ParfumoScraper.__new__(ParfumoScraper)
+        scraper.db = async_session
+
+        scraped = ScrapedFragrance(
+            url="https://parfumo.com/Perfumes/test/test",
+            name="Vocabulary Test",
+            brand="Vocabulary Brand",
+            gender=scraped_gender,
+        )
+
+        fragrance_id = await scraper._create_fragrance(
+            scraped, scraped.name, scraped.brand
+        )
+
+        assert fragrance_id is not None
+        # Fetch what was actually persisted rather than trusting the
+        # in-memory object, so the assertion covers the DB round trip too.
+        result = await async_session.execute(
+            select(Fragrance).where(Fragrance.id == fragrance_id)
+        )
+        fragrance = result.scalar_one()
+
+        assert fragrance.gender_target == expected
+        assert fragrance.gender_target in GENDER_TARGETS
