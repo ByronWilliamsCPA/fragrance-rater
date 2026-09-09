@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 
 from fragrance_rater.core.vocabulary import GENDER_TARGETS
-from fragrance_rater.models.fragrance import Fragrance
+from fragrance_rater.models.fragrance import Fragrance, FragranceNote
 from fragrance_rater.services.parfumo_scraper import (
     ParfumoScraper,
     ScrapedFragrance,
@@ -615,3 +615,63 @@ class TestParfumoScraperGenderVocabulary:
 
         assert fragrance.gender_target == expected
         assert fragrance.gender_target in GENDER_TARGETS
+
+
+@pytest.mark.asyncio
+class TestParfumoScraperNoteSavepointIsolation:
+    """Regression tests for Critical finding 3, scraper side.
+
+    Mirrors the Kaggle importer regression tests: a note legitimately
+    appearing in two pyramid positions must not crash the scrape, and a
+    genuine same-position duplicate must be skipped by the per-row
+    SAVEPOINT rather than poisoning the whole session.
+    """
+
+    async def test_note_in_two_positions_is_not_a_conflict(self, async_session):
+        scraper = ParfumoScraper.__new__(ParfumoScraper)
+        scraper.db = async_session
+
+        scraped = ScrapedFragrance(
+            url="https://parfumo.com/Perfumes/test/two-position-musk",
+            name="Two Position Musk",
+            brand="Test Brand",
+            heart_notes=["Musk"],
+            base_notes=["Musk"],
+        )
+
+        fragrance_id = await scraper._create_fragrance(
+            scraped, scraped.name, scraped.brand
+        )
+
+        result = await async_session.execute(
+            select(FragranceNote).where(FragranceNote.fragrance_id == fragrance_id)
+        )
+        fragrance_notes = result.scalars().all()
+        positions = sorted(fn.position for fn in fragrance_notes)
+        assert positions == ["base", "heart"]
+        assert len({fn.id for fn in fragrance_notes}) == 2
+
+    async def test_true_duplicate_position_is_skipped_not_fatal(self, async_session):
+        scraper = ParfumoScraper.__new__(ParfumoScraper)
+        scraper.db = async_session
+
+        scraped = ScrapedFragrance(
+            url="https://parfumo.com/Perfumes/test/duplicate-top",
+            name="Duplicate Top Note Scrape",
+            brand="Test Brand",
+            top_notes=["Bergamot", "Bergamot"],
+        )
+
+        fragrance_id = await scraper._create_fragrance(
+            scraped, scraped.name, scraped.brand
+        )
+
+        result = await async_session.execute(
+            select(FragranceNote).where(FragranceNote.fragrance_id == fragrance_id)
+        )
+        fragrance_notes = result.scalars().all()
+        # The duplicate insert was caught and skipped by the per-row
+        # SAVEPOINT; the scrape still completes (fragrance_id is not None)
+        # rather than crashing on the second insert.
+        assert len(fragrance_notes) == 1
+        assert fragrance_notes[0].position == "top"

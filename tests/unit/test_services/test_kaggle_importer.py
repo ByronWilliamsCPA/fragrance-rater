@@ -5,16 +5,22 @@ from __future__ import annotations
 import csv
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import select
 
+from fragrance_rater.models.fragrance import Fragrance, FragranceNote
 from fragrance_rater.services.kaggle_importer import (
     ImportResult,
     KaggleImporter,
     ParsedFragrance,
 )
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
 def _write_csv(tmp_path: Path, rows: list[list[str]]) -> Path:
@@ -458,3 +464,111 @@ class TestKaggleImporterPreview:
             assert len(rows) == 2
         finally:
             Path(temp_path).unlink()
+
+
+class TestKaggleImporterSavepointIsolation:
+    """Regression tests for Critical finding 3.
+
+    Uses a real (in-memory SQLite) session rather than a mock, since the
+    behavior under test is the actual UNIQUE(fragrance_id, note_id,
+    position) constraint and the SAVEPOINT that isolates a conflicting
+    row from the rest of the import.
+    """
+
+    @pytest.mark.asyncio
+    async def test_note_in_two_positions_is_not_a_conflict(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        """A note legitimately appearing in two pyramid positions (e.g.
+        musk in both heart and base) must not crash the import, and both
+        position rows must be saved: this is the exact scenario that
+        crashed under the old (fragrance_id, note_id) composite PK.
+        """
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "heart", "base"],
+                ["Two Position Musk", "Test Brand", "Musk", "Musk"],
+            ],
+        )
+
+        importer = KaggleImporter(async_session)
+        result = await importer.import_csv(csv_path)
+
+        assert result.errors == []
+        assert result.imported == 1
+
+        frag_stmt = select(Fragrance).where(Fragrance.name == "Two Position Musk")
+        fragrance = (await async_session.execute(frag_stmt)).scalar_one()
+
+        fn_stmt = select(FragranceNote).where(
+            FragranceNote.fragrance_id == fragrance.id
+        )
+        fragrance_notes = (await async_session.execute(fn_stmt)).scalars().all()
+        positions = sorted(fn.position for fn in fragrance_notes)
+        assert positions == ["base", "heart"]
+        # Each row has its own surrogate id (Critical finding 3's fix), not
+        # a shared composite key.
+        assert len({fn.id for fn in fragrance_notes}) == 2
+
+    @pytest.mark.asyncio
+    async def test_true_duplicate_position_is_skipped_not_fatal(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        """A genuine duplicate - the same note listed twice in the same
+        position - hits the UNIQUE(fragrance_id, note_id, position)
+        constraint. The per-row SAVEPOINT must absorb that IntegrityError
+        so the row is skipped rather than poisoning the whole import
+        session (PendingRollbackError).
+        """
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "top"],
+                ["Duplicate Top Note", "Test Brand", "Bergamot, Bergamot"],
+            ],
+        )
+
+        importer = KaggleImporter(async_session)
+        result = await importer.import_csv(csv_path)
+
+        assert result.errors == []
+        assert result.imported == 1
+
+        frag_stmt = select(Fragrance).where(Fragrance.name == "Duplicate Top Note")
+        fragrance = (await async_session.execute(frag_stmt)).scalar_one()
+
+        fn_stmt = select(FragranceNote).where(
+            FragranceNote.fragrance_id == fragrance.id
+        )
+        fragrance_notes = (await async_session.execute(fn_stmt)).scalars().all()
+        # Only one row survives; the duplicate insert was caught and
+        # skipped by the per-row SAVEPOINT, not left to abort the import.
+        assert len(fragrance_notes) == 1
+        assert fragrance_notes[0].position == "top"
+
+    @pytest.mark.asyncio
+    async def test_conflicting_row_does_not_poison_later_rows(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        """A conflicting row in one fragrance must not abort a later,
+        unrelated fragrance in the same import batch.
+        """
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "top"],
+                ["Duplicate Top Note Two", "Test Brand", "Bergamot, Bergamot"],
+                ["Clean Fragrance", "Test Brand", "Lemon"],
+            ],
+        )
+
+        importer = KaggleImporter(async_session)
+        result = await importer.import_csv(csv_path)
+
+        assert result.errors == []
+        assert result.imported == 2
+
+        frag_stmt = select(Fragrance).where(Fragrance.name == "Clean Fragrance")
+        fragrance = (await async_session.execute(frag_stmt)).scalar_one_or_none()
+        assert fragrance is not None

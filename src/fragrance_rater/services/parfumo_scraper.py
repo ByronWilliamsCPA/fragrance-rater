@@ -20,6 +20,7 @@ from urllib.parse import quote_plus, urlsplit
 import httpx
 from bs4 import BeautifulSoup
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.models.fragrance import (
     Fragrance,
@@ -838,13 +839,50 @@ class ParfumoScraper:
                     self.db.add(note)
                     await self.db.flush()
 
-                # Create fragrance-note relationship
-                fn = FragranceNote(
-                    fragrance_id=fragrance_id,
-                    note_id=note.id,
-                    position=note_type,
+                await self._add_fragrance_note(
+                    fragrance_id, note.id, note_type, note_name
                 )
-                self.db.add(fn)
+
+    # #CRITICAL: concurrency: a duplicate (fragrance_id, note_id, position)
+    # triple - e.g. the same note listed twice in the same pyramid section
+    # on the scraped page - raises IntegrityError against the
+    # UNIQUE(fragrance_id, note_id, position) constraint. Without per-row
+    # isolation that error poisons the whole session (PendingRollbackError)
+    # and would abort the rest of this fragrance's notes and accords, not
+    # just the offending note.
+    # #VERIFY: session.begin_nested() opens a SAVEPOINT scoped to just this
+    # insert; only that SAVEPOINT rolls back on conflict, so the outer
+    # session stays usable for the remaining notes and the accords added
+    # right after _add_notes returns. Covered by a regression test
+    # importing a note that legitimately appears in two different
+    # positions (allowed) and by a same-position duplicate (skipped, not
+    # fatal).
+    async def _add_fragrance_note(
+        self, fragrance_id: str, note_id: str, position: str, note_name: str
+    ) -> None:
+        """Insert one fragrance-note row, isolated in its own SAVEPOINT.
+
+        Args:
+            fragrance_id (str): Owning fragrance ID.
+            note_id (str): Referenced note ID.
+            position (str): Pyramid position (top, heart, base).
+            note_name (str): Note name, for the warning log on conflict.
+        """
+        try:
+            async with self.db.begin_nested():
+                self.db.add(
+                    FragranceNote(
+                        fragrance_id=fragrance_id, note_id=note_id, position=position
+                    )
+                )
+                await self.db.flush()
+        except IntegrityError:
+            logger.warning(
+                "Skipping duplicate fragrance note: fragrance_id=%s note=%r position=%s",
+                fragrance_id,
+                note_name,
+                position,
+            )
 
     def _infer_family(self, scraped: ScrapedFragrance) -> str:
         """Infer fragrance family from accords and notes.

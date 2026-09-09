@@ -126,6 +126,7 @@ class FragranceNote(Base):
     """Junction table linking fragrances to notes with position.
 
     Attributes:
+        id (Mapped[str]): Surrogate primary key (UUID).
         fragrance_id (Mapped[str]): Foreign key to fragrance.
         note_id (Mapped[str]): Foreign key to note.
         position (Mapped[str]): Note position (top, heart, base).
@@ -134,12 +135,32 @@ class FragranceNote(Base):
     """
 
     __tablename__ = "fragrance_notes"
+    # Critical finding 3: the old composite primary key was
+    # (fragrance_id, note_id), which excluded `position` and so collided
+    # whenever the same note legitimately appeared in two pyramid
+    # positions for one fragrance (e.g. musk in both heart and base),
+    # crashing the import. The ratified fix is a real surrogate `id`
+    # primary key (matching the UUID-string style used by every other
+    # table here), not simply widening the composite PK to include
+    # `position`, plus this UNIQUE constraint so a genuine duplicate (the
+    # same note in the same position twice) is still rejected.
+    __table_args__ = (
+        UniqueConstraint(
+            "fragrance_id",
+            "note_id",
+            "position",
+            name="uq_fragrance_note_position",
+        ),
+    )
 
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
     fragrance_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("fragrances.id", ondelete="CASCADE"), primary_key=True
+        String(36), ForeignKey("fragrances.id", ondelete="CASCADE"), index=True
     )
     note_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("notes.id", ondelete="CASCADE"), primary_key=True
+        String(36), ForeignKey("notes.id", ondelete="CASCADE"), index=True
     )
     position: Mapped[str] = mapped_column(String(10))  # top, heart, base
 

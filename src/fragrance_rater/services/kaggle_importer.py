@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, ClassVar
 from uuid import uuid4
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.models.fragrance import (
     Fragrance,
@@ -345,27 +346,22 @@ class KaggleImporter:
         )
         self.session.add(fragrance)
 
-        # Add notes
-        for note_name in parsed.top_notes:
-            note = await self._get_or_create_note(note_name, "Top")
-            fn = FragranceNote(
-                fragrance_id=fragrance.id, note_id=note.id, position="top"
-            )
-            self.session.add(fn)
-
-        for note_name in parsed.heart_notes:
-            note = await self._get_or_create_note(note_name, "Heart")
-            fn = FragranceNote(
-                fragrance_id=fragrance.id, note_id=note.id, position="heart"
-            )
-            self.session.add(fn)
-
-        for note_name in parsed.base_notes:
-            note = await self._get_or_create_note(note_name, "Base")
-            fn = FragranceNote(
-                fragrance_id=fragrance.id, note_id=note.id, position="base"
-            )
-            self.session.add(fn)
+        # Add notes. A note legitimately appearing in more than one pyramid
+        # position (e.g. musk in both heart and base) is valid data, not a
+        # conflict (Critical finding 3); only an exact duplicate
+        # (fragrance_id, note_id, position) triple is rejected, and that
+        # rejection is isolated per-row below so it cannot abort the rest
+        # of this fragrance's notes or the rest of the import.
+        for position, category, note_names in (
+            ("top", "Top", parsed.top_notes),
+            ("heart", "Heart", parsed.heart_notes),
+            ("base", "Base", parsed.base_notes),
+        ):
+            for note_name in note_names:
+                note = await self._get_or_create_note(note_name, category)
+                await self._add_fragrance_note(
+                    fragrance.id, note.id, position, note_name
+                )
 
         # Add accords
         for accord_type, intensity in parsed.accords.items():
@@ -375,6 +371,46 @@ class KaggleImporter:
             self.session.add(accord)
 
         return fragrance
+
+    # #CRITICAL: concurrency: a duplicate (fragrance_id, note_id, position)
+    # triple - e.g. malformed source data listing the same note twice in
+    # the same position - raises IntegrityError against the
+    # UNIQUE(fragrance_id, note_id, position) constraint. Without per-row
+    # isolation that error poisons the whole session (PendingRollbackError)
+    # and aborts every row still to come in this import, not just the
+    # offending one.
+    # #VERIFY: session.begin_nested() opens a SAVEPOINT scoped to just this
+    # insert; only that SAVEPOINT rolls back on conflict, so the outer
+    # session (and the rest of this fragrance's notes) stays usable.
+    # Covered by a regression test importing a note that legitimately
+    # appears in two different positions (allowed) and by a same-position
+    # duplicate (skipped, not fatal).
+    async def _add_fragrance_note(
+        self, fragrance_id: str, note_id: str, position: str, note_name: str
+    ) -> None:
+        """Insert one fragrance-note row, isolated in its own SAVEPOINT.
+
+        Args:
+            fragrance_id (str): Owning fragrance ID.
+            note_id (str): Referenced note ID.
+            position (str): Pyramid position (top, heart, base).
+            note_name (str): Note name, for the warning log on conflict.
+        """
+        try:
+            async with self.session.begin_nested():
+                self.session.add(
+                    FragranceNote(
+                        fragrance_id=fragrance_id, note_id=note_id, position=position
+                    )
+                )
+                await self.session.flush()
+        except IntegrityError:
+            logger.warning(
+                "Skipping duplicate fragrance note: fragrance_id=%s note=%r position=%s",
+                fragrance_id,
+                note_name,
+                position,
+            )
 
     async def _get_or_create_note(self, name: str, category: str) -> Note:
         """Get an existing note or create a new one.
