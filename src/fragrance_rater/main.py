@@ -25,6 +25,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from fragrance_rater.api import (
+    catalog_stub_router,
     evaluations_router,
     fragrances_router,
     health_router,
@@ -110,6 +111,9 @@ app.add_middleware(
 # Include routers
 app.include_router(health_router)
 app.include_router(ratings_router)
+# Root-mounted sample catalog retained for the Postman contract suite; the
+# database-backed catalog is the /api/v1/fragrances router below
+app.include_router(catalog_stub_router)
 
 # API v1 routers
 app.include_router(fragrances_router, prefix=settings.api_v1_prefix)
