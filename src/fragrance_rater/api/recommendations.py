@@ -174,9 +174,7 @@ async def get_profile_summary(
     )
 
 
-@router.get(
-    "/{reviewer_id}/{fragrance_id}/explain", response_model=ExplanationResponse
-)
+@router.get("/{reviewer_id}/{fragrance_id}/explain", response_model=ExplanationResponse)
 async def get_recommendation_explanation(
     reviewer_id: str,
     fragrance_id: str,

@@ -183,7 +183,9 @@ class TestEvaluationService:
     async def test_get_by_reviewer_and_fragrance_not_found(self, async_session):
         """Test getting non-existent reviewer-fragrance evaluation."""
         service = EvaluationService(async_session)
-        found = await service.get_by_reviewer_and_fragrance("nonexistent", "nonexistent")
+        found = await service.get_by_reviewer_and_fragrance(
+            "nonexistent", "nonexistent"
+        )
 
         assert found is None
 

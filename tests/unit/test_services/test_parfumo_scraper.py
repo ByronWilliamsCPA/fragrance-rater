@@ -13,7 +13,6 @@ from fragrance_rater.services.parfumo_scraper import (
     SearchResult,
 )
 
-
 # Sample HTML for testing
 SAMPLE_PERFUME_PAGE = """
 <!DOCTYPE html>
@@ -126,7 +125,9 @@ class TestParfumoScraperParsing:
             client.get.return_value = mock_response
             mock_client.return_value = client
 
-            result = scraper.scrape_perfume_page("https://parfumo.com/Perfumes/test/test")
+            result = scraper.scrape_perfume_page(
+                "https://parfumo.com/Perfumes/test/test"
+            )
 
         assert result is not None
         assert result.name == "Test Fragrance"
@@ -147,7 +148,9 @@ class TestParfumoScraperParsing:
             client.get.return_value = mock_response
             mock_client.return_value = client
 
-            result = scraper.scrape_perfume_page("https://parfumo.com/Perfumes/test/test")
+            result = scraper.scrape_perfume_page(
+                "https://parfumo.com/Perfumes/test/test"
+            )
 
         assert result is not None
         # Brand should have year removed
@@ -170,7 +173,9 @@ class TestParfumoScraperParsing:
             client.get.return_value = mock_response
             mock_client.return_value = client
 
-            result = scraper.scrape_perfume_page("https://parfumo.com/Perfumes/test/test")
+            result = scraper.scrape_perfume_page(
+                "https://parfumo.com/Perfumes/test/test"
+            )
 
         assert result is not None
         assert "Bergamot" in result.top_notes
@@ -196,7 +201,9 @@ class TestParfumoScraperParsing:
             client.get.return_value = mock_response
             mock_client.return_value = client
 
-            result = scraper.scrape_perfume_page("https://parfumo.com/Perfumes/test/test")
+            result = scraper.scrape_perfume_page(
+                "https://parfumo.com/Perfumes/test/test"
+            )
 
         assert result is not None
         assert result.rating == pytest.approx(8.55)
@@ -217,7 +224,9 @@ class TestParfumoScraperParsing:
             client.get.return_value = mock_response
             mock_client.return_value = client
 
-            result = scraper.scrape_perfume_page("https://parfumo.com/Perfumes/test/test")
+            result = scraper.scrape_perfume_page(
+                "https://parfumo.com/Perfumes/test/test"
+            )
 
         assert result is not None
         assert result.gender == "unisex"
@@ -237,7 +246,9 @@ class TestParfumoScraperParsing:
             client.get.return_value = mock_response
             mock_client.return_value = client
 
-            result = scraper.scrape_perfume_page("https://parfumo.com/Perfumes/test/nonexistent")
+            result = scraper.scrape_perfume_page(
+                "https://parfumo.com/Perfumes/test/nonexistent"
+            )
 
         assert result is None
 

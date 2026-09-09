@@ -102,6 +102,7 @@ class TestCachedDecorator:
         mock_redis.get.return_value = None  # Cache miss
 
         with patch.object(cache, "get_redis", return_value=mock_redis):
+
             @cache.cached(ttl=300)
             async def my_func(x: int) -> dict[str, int]:
                 return {"value": x * 2}
@@ -121,6 +122,7 @@ class TestCachedDecorator:
         call_count = 0
 
         with patch.object(cache, "get_redis", return_value=mock_redis):
+
             @cache.cached(ttl=300)
             async def my_func(x: int) -> dict[str, int]:
                 nonlocal call_count
@@ -140,6 +142,7 @@ class TestCachedDecorator:
         mock_redis.get.return_value = None
 
         with patch.object(cache, "get_redis", return_value=mock_redis):
+
             @cache.cached(ttl=300, key_prefix="myprefix")
             async def my_func() -> str:
                 return "result"
@@ -159,6 +162,7 @@ class TestCachedDecorator:
             return f"custom:{x}"
 
         with patch.object(cache, "get_redis", return_value=mock_redis):
+
             @cache.cached(ttl=300, key_builder=custom_key)
             async def my_func(x: int) -> int:
                 return x * 2
@@ -179,6 +183,7 @@ class TestCachedDecorator:
             patch.object(cache, "get_redis", return_value=mock_redis),
             patch.object(cache, "logger"),  # Mock structlog logger
         ):
+
             @cache.cached(ttl=300)
             async def my_func(x: int) -> int:
                 return x * 2
@@ -200,7 +205,9 @@ class TestCacheInvalidateDecorator:
     async def test_invalidates_pattern_after_function(self) -> None:
         """Should invalidate cache pattern after function executes."""
         with (
-            patch.object(cache, "invalidate_pattern", new_callable=AsyncMock) as mock_invalidate,
+            patch.object(
+                cache, "invalidate_pattern", new_callable=AsyncMock
+            ) as mock_invalidate,
             patch.object(cache, "logger"),
         ):
             mock_invalidate.return_value = 2
@@ -223,6 +230,7 @@ class TestCacheInvalidateDecorator:
             patch.object(cache, "invalidate_pattern", side_effect=RedisError("Failed")),
             patch.object(cache, "logger"),
         ):
+
             @cache.cache_invalidate("user:*")
             async def update_user() -> str:
                 return "done"
@@ -405,7 +413,7 @@ class TestInvalidatePattern:
         # Create proper async iterator that yields nothing
         async def mock_scan_iter(*args: Any, **kwargs: Any) -> Any:
             return
-            yield  # Makes this an async generator  # noqa: B901
+            yield  # Makes this an async generator
 
         mock_redis.scan_iter = mock_scan_iter
         mock_redis.delete = AsyncMock()
@@ -429,7 +437,7 @@ class TestInvalidatePattern:
         # Create async generator that raises an error
         async def mock_scan_iter_error(*args: Any, **kwargs: Any) -> Any:
             raise RedisError("Failed")
-            yield  # Makes this an async generator  # noqa: B901
+            yield  # Makes this an async generator
 
         mock_redis.scan_iter = mock_scan_iter_error
 
@@ -569,7 +577,7 @@ class AsyncIteratorMock:
         self.items = items
         self.index = 0
 
-    def __aiter__(self) -> "AsyncIteratorMock":
+    def __aiter__(self) -> AsyncIteratorMock:
         return self
 
     async def __anext__(self) -> Any:

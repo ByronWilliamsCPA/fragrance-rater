@@ -179,7 +179,8 @@ class LLMService:
                 disliked_notes=", ".join(n for n, _ in profile.top_disliked_notes)
                 or "None",
                 preferred_families=", ".join(
-                    f for f, _ in sorted(
+                    f
+                    for f, _ in sorted(
                         profile.family_affinities.items(),
                         key=lambda x: x[1],
                         reverse=True,

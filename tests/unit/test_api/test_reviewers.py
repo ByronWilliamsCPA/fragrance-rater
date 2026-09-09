@@ -105,7 +105,9 @@ class TestReviewerAPI:
             f"{API_PREFIX}/reviewers",
             json={"name": "Delete Test User"},
         )
-        assert create_response.status_code == 201, f"Create failed: {create_response.json()}"
+        assert create_response.status_code == 201, (
+            f"Create failed: {create_response.json()}"
+        )
         reviewer_id = create_response.json()["id"]
 
         # Delete the reviewer

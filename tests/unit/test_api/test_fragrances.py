@@ -54,8 +54,16 @@ class TestFragranceAPI:
                 "primary_family": "fresh",
                 "subfamily": "citrus",
                 "notes": [
-                    {"note_name": "Bergamot", "note_category": "citrus", "position": "top"},
-                    {"note_name": "Rose", "note_category": "floral", "position": "heart"},
+                    {
+                        "note_name": "Bergamot",
+                        "note_category": "citrus",
+                        "position": "top",
+                    },
+                    {
+                        "note_name": "Rose",
+                        "note_category": "floral",
+                        "position": "heart",
+                    },
                     {"note_name": "Musk", "note_category": "musk", "position": "base"},
                 ],
             },
