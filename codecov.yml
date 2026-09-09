@@ -23,8 +23,8 @@ coverage:
 
     patch:
       default:
-        # New code should meet 80% target
-        target: 80%
+        # AI-generated diff coverage gate per CLAUDE.md ("90% patch")
+        target: 90%
         threshold: 5%
         if_ci_failed: error
 
