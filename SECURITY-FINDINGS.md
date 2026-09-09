@@ -5,6 +5,17 @@
 **Scope**: OWASP LLM Top 10 (LLM01, LLM02, LLM06) + standard web app checks (auth, GitHub Actions hardening)
 **Repository state at review**: Runtime source under `src/` is an early-stage scaffold (project skeleton from `cookiecutter-python-template`) with no business logic or user endpoints beyond `/health`. A separate **planning prototype** under `docs/planning/backend/` does contain a working OpenRouter LLM client and FastAPI recommendation endpoints; that prototype is reviewed below as well, with the caveat that it is documentation/scaffold material, not production code.
 
+> **Update (2026-09-09)**: `docs/planning/backend/` was deleted (superseded by the real
+> implementation now under `src/fragrance_rater/`). Every `docs/planning/backend/...`
+> path and line number referenced below points to code that no longer exists in the
+> tree; the prototype findings (P1-P14 in §1.2, §2.2, §3.2, §4.2) are kept as a
+> historical record of that review, not as pointers to current code. The real
+> LLM-integration surface now lives in `src/fragrance_rater/services/llm_service.py`
+> and `src/fragrance_rater/api/ratings.py`; each P1-P14 finding needs re-verification
+> against that code (some are already addressed there, e.g. schema-validated LLM
+> output and a shared-secret + rate limit on the billed endpoint), not assumed fixed
+> or assumed still open.
+
 ### Scope clarification (updated in response to PR #19 review feedback)
 
 The original sweep only covered the runtime tree (`src/`, `frontend/`) and missed the planning prototype at `docs/planning/backend/app/`. That prototype contains real LLM-integration code (`openrouter_client.py`, `recommendation_service.py`, `api/recommendations.py`) which **does** construct prompts from user-controlled input and **does** invoke a model. Findings against the prototype are documented in §1.2, §2.2, §3.2, and §4.2 below. The prototype is intentionally not modified in this PR; fixes belong with whichever PR migrates that code into `src/` (roadmap Phase 3).
