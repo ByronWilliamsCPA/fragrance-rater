@@ -3,11 +3,14 @@
 Tests the weighted affinity scoring algorithm per ADR-004.
 """
 
+import math
+
 import pytest
 
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
     Fragrance,
+    FragranceAccord,
     FragranceNote,
     Note,
 )
@@ -148,6 +151,160 @@ class TestInsufficientDataError:
         with pytest.raises(InsufficientDataError) as exc_info:
             raise InsufficientDataError("Need more evaluations")
         assert "Need more evaluations" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+class TestCalculateMatchScore:
+    """Direct unit tests for calculate_match_score with known inputs/outputs
+    per the ADR-004 weighted affinity formula (Major finding 10).
+
+    calculate_match_score does not touch the database, so these build the
+    fragrance/note/accord object graph purely in memory (no session
+    add/commit) and only use `async_session` to satisfy the service
+    constructor's signature.
+    """
+
+    def _fragrance(
+        self,
+        *,
+        primary_family: str = "woody",
+        subfamily: str = "aromatic",
+        notes: list[tuple[str, str]] | None = None,
+        accords: list[tuple[str, float]] | None = None,
+    ) -> Fragrance:
+        fragrance = Fragrance(
+            id="score-frag",
+            name="Score Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family=primary_family,
+            subfamily=subfamily,
+            data_source="manual",
+        )
+        fragrance.notes = [
+            FragranceNote(
+                note=Note(id=note_id, name=note_name, category="misc"),
+                position="top",
+            )
+            for note_id, note_name in (notes or [])
+        ]
+        fragrance.accords = [
+            FragranceAccord(accord_type=accord_type, intensity=intensity)
+            for accord_type, intensity in (accords or [])
+        ]
+        return fragrance
+
+    async def test_empty_profile_and_fragrance_scores_neutral(self, async_session):
+        """No notes, no accords, no family match: raw_score is 0.0, which
+        sigmoid-normalizes to exactly 0.5 (50%), and the result is not vetoed.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(reviewer_id="empty-profile")
+        fragrance = self._fragrance(
+            primary_family="unmatched-family", subfamily="unmatched-sub"
+        )
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        assert result.vetoed is False
+        assert result.components["raw"] == 0.0
+        assert result.score == pytest.approx(0.5)
+        assert result.score_percent == 50
+
+    async def test_family_only_match_uses_family_component_weight(self, async_session):
+        """A family-only affinity match is weighted at COMPONENT_WEIGHTS['family']
+        (0.20) with no contribution from notes/accords/subfamily.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="family-profile",
+            family_affinities={"woody": 5.0},
+        )
+        fragrance = self._fragrance(primary_family="woody", subfamily="unmatched-sub")
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        expected_raw = COMPONENT_WEIGHTS["family"] * 5.0
+        expected_normalized = 1 / (1 + math.exp(-expected_raw))
+
+        assert result.vetoed is False
+        assert result.components["family"] == 5.0
+        assert result.components["subfamily"] == 0.0
+        assert result.components["raw"] == pytest.approx(expected_raw)
+        assert result.score == pytest.approx(expected_normalized)
+        assert result.score_percent == int(expected_normalized * 100)
+
+    async def test_notes_and_accords_weighted_and_summed(self, async_session):
+        """Note and accord affinities are averaged across the fragrance's
+        notes/accords, each weighted by their COMPONENT_WEIGHTS entry, and
+        combined with family/subfamily into the sigmoid-normalized score.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="full-profile",
+            note_affinities={"n1": 4.0, "n2": 0.0},
+            accord_affinities={"citrus": 2.0},
+        )
+        fragrance = self._fragrance(
+            primary_family="unmatched-family",
+            subfamily="unmatched-sub",
+            notes=[("n1", "Bergamot"), ("n2", "Musk")],
+            accords=[("citrus", 1.0)],
+        )
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        expected_note_score = (4.0 + 0.0) / 2  # 2.0
+        expected_accord_score = (2.0 * 1.0) / 1  # 2.0
+        expected_raw = (
+            COMPONENT_WEIGHTS["notes"] * expected_note_score
+            + COMPONENT_WEIGHTS["accords"] * expected_accord_score
+        )
+        expected_normalized = 1 / (1 + math.exp(-expected_raw))
+
+        assert result.components["notes"] == pytest.approx(expected_note_score)
+        assert result.components["accords"] == pytest.approx(expected_accord_score)
+        assert result.components["raw"] == pytest.approx(expected_raw)
+        assert result.score == pytest.approx(expected_normalized)
+        assert result.score_percent == int(expected_normalized * 100)
+
+    async def test_veto_triggers_below_threshold_note_affinity(self, async_session):
+        """A note affinity strictly below VETO_THRESHOLD short-circuits scoring
+        to the fixed vetoed result, regardless of other components.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="veto-profile",
+            note_affinities={"n-veto": VETO_THRESHOLD - 0.5},
+            family_affinities={"woody": 10.0},  # would otherwise score very high
+        )
+        fragrance = self._fragrance(
+            primary_family="woody",
+            notes=[("n-veto", "Patchouli")],
+        )
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        assert result.vetoed is True
+        assert result.veto_note == "Patchouli"
+        assert result.score == 0.1
+        assert result.score_percent == 10
+
+    async def test_veto_threshold_boundary_is_not_vetoed(self, async_session):
+        """A note affinity exactly at VETO_THRESHOLD does not trigger the veto
+        (the check is strictly `< VETO_THRESHOLD`, not `<=`).
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="boundary-profile",
+            note_affinities={"n-boundary": VETO_THRESHOLD},
+        )
+        fragrance = self._fragrance(notes=[("n-boundary", "Oud")])
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        assert result.vetoed is False
 
 
 @pytest.mark.asyncio

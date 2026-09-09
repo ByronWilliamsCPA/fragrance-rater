@@ -3,14 +3,16 @@
 Tests the OpenRouter LLM integration for recommendation explanations.
 """
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from fragrance_rater.services.llm_service import (
     FragranceDetails,
     LLMResponse,
     LLMService,
+    LLMServiceError,
     get_llm_service,
 )
 from fragrance_rater.services.recommendation_service import (
@@ -426,3 +428,109 @@ class TestGetLLMService:
         service1 = get_llm_service()
         service2 = get_llm_service()
         assert service1 is service2
+
+
+def _mock_async_client(response=None, side_effect=None):
+    """Build a mock for `httpx.AsyncClient` usable as an async context manager.
+
+    Args:
+        response (httpx.Response | None): Response for `client.post()` to return.
+        side_effect (Exception | None): Exception for `client.post()` to raise.
+
+    Returns:
+        MagicMock: A callable standing in for the `httpx.AsyncClient` class.
+    """
+    client = MagicMock()
+    if side_effect is not None:
+        client.post = AsyncMock(side_effect=side_effect)
+    else:
+        client.post = AsyncMock(return_value=response)
+
+    context_manager = MagicMock()
+    context_manager.__aenter__ = AsyncMock(return_value=client)
+    context_manager.__aexit__ = AsyncMock(return_value=False)
+
+    return MagicMock(return_value=context_manager)
+
+
+@pytest.mark.asyncio
+class TestCallOpenrouter:
+    """Direct unit tests for LLMService._call_openrouter (Major finding 10).
+
+    These mock the outbound `httpx.AsyncClient` call so no real network
+    request to OpenRouter is ever made.
+    """
+
+    def _make_service(self) -> LLMService:
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://test.api"
+            mock_settings.openrouter_model = "test-model"
+            return LLMService()
+
+    async def test_success_returns_stripped_content(self):
+        """A 200 response with a valid completion body returns stripped text."""
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(
+            200,
+            request=request,
+            json={"choices": [{"message": {"content": "  Great choice!  "}}]},
+        )
+
+        with patch(
+            "fragrance_rater.services.llm_service.httpx.AsyncClient",
+            _mock_async_client(response=response),
+        ):
+            result = await service._call_openrouter("some prompt")
+
+        assert result == "Great choice!"
+
+    async def test_http_status_error_raises_llm_service_error(self):
+        """A non-2xx response is translated to LLMServiceError with the status."""
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(500, request=request, json={"error": "boom"})
+
+        with (
+            patch(
+                "fragrance_rater.services.llm_service.httpx.AsyncClient",
+                _mock_async_client(response=response),
+            ),
+            pytest.raises(LLMServiceError, match="OpenRouter API error: 500"),
+        ):
+            await service._call_openrouter("some prompt")
+
+    async def test_request_error_raises_llm_service_error(self):
+        """A network-level failure is translated to LLMServiceError."""
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+
+        with (
+            patch(
+                "fragrance_rater.services.llm_service.httpx.AsyncClient",
+                _mock_async_client(
+                    side_effect=httpx.RequestError(
+                        "Connection refused", request=request
+                    )
+                ),
+            ),
+            pytest.raises(LLMServiceError, match="OpenRouter request failed"),
+        ):
+            await service._call_openrouter("some prompt")
+
+    async def test_malformed_response_raises_llm_service_error(self):
+        """A 200 response missing the expected `choices` shape is a clean error."""
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(200, request=request, json={"unexpected": "shape"})
+
+        with (
+            patch(
+                "fragrance_rater.services.llm_service.httpx.AsyncClient",
+                _mock_async_client(response=response),
+            ),
+            pytest.raises(LLMServiceError, match="Invalid OpenRouter response"),
+        ):
+            await service._call_openrouter("some prompt")

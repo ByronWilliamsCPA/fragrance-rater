@@ -4,19 +4,11 @@ import pytest
 
 API_PREFIX = "/api/v1"
 
-# Mark for tests with database isolation issues when run in batch
-# These tests pass individually but fail with stale data when run together
-xfail_db_isolation = pytest.mark.xfail(
-    reason="Database isolation issue when tests run in batch - passes individually",
-    strict=False,
-)
-
 
 @pytest.mark.asyncio
 class TestReviewerAPI:
     """Tests for reviewer API endpoints."""
 
-    @xfail_db_isolation
     async def test_list_reviewers_empty(self, test_app):
         """Test listing reviewers when empty."""
         response = await test_app.get(f"{API_PREFIX}/reviewers")
@@ -97,7 +89,6 @@ class TestReviewerAPI:
         assert response2.status_code == 200
         assert len(response1.json()) == len(response2.json())
 
-    @xfail_db_isolation
     async def test_delete_reviewer(self, test_app):
         """Test deleting a reviewer."""
         # Create reviewer first
@@ -123,7 +114,6 @@ class TestReviewerAPI:
         response = await test_app.delete(f"{API_PREFIX}/reviewers/nonexistent-id")
         assert response.status_code == 404
 
-    @xfail_db_isolation
     async def test_list_reviewers_with_data(self, test_app):
         """Test listing reviewers returns created reviewers."""
         # Create some reviewers

@@ -4,13 +4,6 @@ import pytest
 
 API_PREFIX = "/api/v1"
 
-# Mark for tests with database isolation issues when run in batch
-# These tests pass individually but fail with stale data when run together
-xfail_db_isolation = pytest.mark.xfail(
-    reason="Database isolation issue when tests run in batch - passes individually",
-    strict=False,
-)
-
 
 @pytest.mark.asyncio
 class TestFragranceAPI:
@@ -156,7 +149,6 @@ class TestFragranceAPI:
         assert len(data) == 1
         assert data[0]["name"] == "Aventus"
 
-    @xfail_db_isolation
     async def test_search_fragrances_by_brand(self, test_app):
         """Test filtering fragrances by brand."""
         # Create fragrances with same brand
@@ -260,7 +252,6 @@ class TestFragranceAPI:
         )
         assert response.status_code == 404
 
-    @xfail_db_isolation
     async def test_delete_fragrance(self, test_app):
         """Test deleting a fragrance."""
         # Create fragrance first
@@ -285,7 +276,6 @@ class TestFragranceAPI:
         get_response = await test_app.get(f"{API_PREFIX}/fragrances/{fragrance_id}")
         assert get_response.status_code == 404
 
-    @xfail_db_isolation
     async def test_delete_fragrance_not_found(self, test_app):
         """Test deleting a non-existent fragrance returns 404."""
         response = await test_app.delete(f"{API_PREFIX}/fragrances/nonexistent-id")
