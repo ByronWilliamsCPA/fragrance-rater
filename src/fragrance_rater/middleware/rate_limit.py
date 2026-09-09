@@ -1,32 +1,42 @@
 """Rate limiting for the Fragrance Rater API.
 
 Uses ``slowapi`` (backed by the ``limits`` package) with its default
-in-memory storage backend. This is a single-instance, single-household
-deployment (see ``project-vision.md``); an in-memory fixed-window limiter is
-proportionate here. Do not swap in a Redis-backed or distributed limiter
-without a real multi-instance deployment need.
+in-memory storage backend. An in-memory fixed-window limiter is proportionate
+for a single-instance, single-household deployment (see
+``project-vision.md``), but the counters are process-local: they are not
+shared across replicas.
 
 The limiter keys on client IP by default (``get_remote_address``), which is
 adequate behind a home router / reverse proxy where all household callers
 share a small, stable set of source addresses.
 
-#EDGE: concurrency: the in-memory limiter resets on process restart and does
-not share state across multiple uvicorn workers. #VERIFY: if this service is
-ever run with more than one worker process, switch ``Limiter`` to a shared
-backend (e.g. ``storage_uri="redis://..."``) or pin ``--workers 1``.
+#CRITICAL: resource-consumption: docker-compose.prod.yml's ``app`` service
+defaults ``deploy.replicas`` to 1 specifically because of this. Each replica
+keeps its own independent counter, so running N replicas silently multiplies
+the effective rate limit on the billed, LLM-backed ``POST /ratings`` endpoint
+by N, defeating the abuse/cost protection ``RATINGS_RATE_LIMIT`` exists for.
+#VERIFY: before setting ``REPLICAS`` above 1 (or running more than one
+uvicorn worker), switch ``Limiter`` to a shared backend (e.g.
+``storage_uri="redis://..."``); do not rely on process count staying at 1
+without also enforcing it in deployment config.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from fastapi import status
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.responses import JSONResponse
 
 if TYPE_CHECKING:
     from starlette.requests import Request
     from starlette.responses import Response
+
+_PROBLEM_TYPE = "https://api.fragrance-rater.internal/errors/rate-limit-exceeded"
+"""Problem type URI for 429 responses, matching the auth.py RFC 7807 shape."""
 
 # #CRITICAL: resource-consumption: POST /ratings calls a billed OpenRouter
 # model per request (ADR-003). Without a limit, a single caller could drive
@@ -55,6 +65,14 @@ def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
     ``isinstance`` check below is a real runtime guarantee, not just a type
     checker workaround.
 
+    slowapi's own handler returns a plain ``{"error": ...}`` body as
+    ``application/json``, not the RFC 7807 problem-details shape the rest of
+    this API's error responses use (see
+    ``fragrance_rater.middleware.auth._problem_detail``). This wrapper
+    delegates to slowapi for the response (so its rate-limit headers, such as
+    ``Retry-After``, are still computed correctly) and then re-shapes the
+    body and content type to match.
+
     Args:
         request (Request): The request that triggered the rate limit.
         exc (Exception): The raised exception; always a ``RateLimitExceeded``
@@ -62,7 +80,8 @@ def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
             registered for.
 
     Returns:
-        Response: The RFC 7807-shaped 429 response built by slowapi.
+        Response: An RFC 7807 problem-details 429 response
+            (``application/problem+json``).
 
     Raises:
         TypeError: If invoked for an exception type other than
@@ -72,7 +91,26 @@ def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
     if not isinstance(exc, RateLimitExceeded):
         msg = f"rate_limit_exceeded_handler received unexpected exception type: {type(exc)!r}"
         raise TypeError(msg)
-    return _rate_limit_exceeded_handler(request, exc)
+
+    slowapi_response = _rate_limit_exceeded_handler(request, exc)
+    # Carry over slowapi's rate-limit headers (Retry-After, X-RateLimit-*),
+    # but drop content-length/content-type so Response recomputes them for
+    # the new problem-details body instead of keeping slowapi's stale values.
+    headers = dict(slowapi_response.headers)
+    headers.pop("content-length", None)
+    headers.pop("content-type", None)
+
+    return JSONResponse(
+        {
+            "type": _PROBLEM_TYPE,
+            "title": "Rate Limit Exceeded",
+            "status": status.HTTP_429_TOO_MANY_REQUESTS,
+            "detail": f"Rate limit exceeded: {exc.detail}",
+        },
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        headers=headers,
+        media_type="application/problem+json",
+    )
 
 
 __all__ = [

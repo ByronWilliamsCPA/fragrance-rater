@@ -105,17 +105,28 @@ def test_ratings_accepts_correct_api_key(
 def test_ratings_rate_limited_after_threshold(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """More than 10 requests/minute from one caller -> 429 on the 11th+."""
+    """More than 10 requests/minute from one caller -> 429 on the 11th+.
+
+    The 429 must be RFC 7807 problem-details (application/problem+json), not
+    slowapi's default {"error": ...} shape, matching the rest of this API's
+    error responses (see rate_limit.rate_limit_exceeded_handler).
+    """
     monkeypatch.setattr(settings, "api_key", "household-secret")
     headers = {"X-API-Key": "household-secret"}
 
-    statuses = [
-        client.post("/ratings", json=RATING_PAYLOAD, headers=headers).status_code
-        for _ in range(11)
+    responses = [
+        client.post("/ratings", json=RATING_PAYLOAD, headers=headers) for _ in range(11)
     ]
+    statuses = [response.status_code for response in responses]
 
     assert statuses[:10] == [200] * 10
     assert statuses[10] == 429
+
+    limited_response = responses[10]
+    assert limited_response.headers["content-type"] == "application/problem+json"
+    body = limited_response.json()
+    assert body["status"] == 429
+    assert body["title"] == "Rate Limit Exceeded"
 
 
 def test_fragrances_list_does_not_require_api_key(
