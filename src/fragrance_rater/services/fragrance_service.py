@@ -8,6 +8,7 @@ from uuid import uuid4
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.core.exceptions import DatabaseError
 from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
@@ -98,6 +99,9 @@ class FragranceService:
 
         Returns:
             Fragrance: Created fragrance.
+
+        Raises:
+            DatabaseError: If the flushed fragrance cannot be read back.
         """
         fragrance = Fragrance(
             id=str(uuid4()),
@@ -135,7 +139,11 @@ class FragranceService:
             self.session.add(accord)
 
         await self.session.flush()
-        return await self.get_by_id(fragrance.id)  # type: ignore[return-value]
+        created = await self.get_by_id(fragrance.id)
+        if created is None:
+            msg = f"Fragrance {fragrance.id} was not readable after flush"
+            raise DatabaseError(msg, operation="create", table="fragrances")
+        return created
 
     async def update(
         self, fragrance_id: str, data: FragranceUpdate

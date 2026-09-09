@@ -171,11 +171,11 @@ async def get_profile_summary(
 
     return ProfileSummaryResponse(
         reviewer_id=reviewer_id,
-        evaluation_count=summary["evaluation_count"],  # type: ignore[arg-type]
-        top_liked_notes=summary["top_liked_notes"],  # type: ignore[arg-type]
-        top_disliked_notes=summary["top_disliked_notes"],  # type: ignore[arg-type]
-        top_accords=summary["top_accords"],  # type: ignore[arg-type]
-        top_families=summary["top_families"],  # type: ignore[arg-type]
+        evaluation_count=summary["evaluation_count"],
+        top_liked_notes=summary["top_liked_notes"],
+        top_disliked_notes=summary["top_disliked_notes"],
+        top_accords=summary["top_accords"],
+        top_families=summary["top_families"],
         llm_summary=llm_summary,
     )
 

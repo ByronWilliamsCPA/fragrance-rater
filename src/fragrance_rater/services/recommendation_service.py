@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -79,6 +79,24 @@ class Recommendation:
     vetoed: bool = False
     veto_reason: str | None = None
     components: dict[str, float] = field(default_factory=dict)
+
+
+class ReviewerProfileSummary(TypedDict):
+    """Reviewer preference summary prepared for display.
+
+    Attributes:
+        evaluation_count (int): Number of evaluations behind the profile.
+        top_liked_notes (list[tuple[str, float]]): Highest-affinity notes.
+        top_disliked_notes (list[tuple[str, float]]): Lowest-affinity notes.
+        top_accords (list[tuple[str, float]]): Highest-affinity accords.
+        top_families (list[tuple[str, float]]): Highest-affinity families.
+    """
+
+    evaluation_count: int
+    top_liked_notes: list[tuple[str, float]]
+    top_disliked_notes: list[tuple[str, float]]
+    top_accords: list[tuple[str, float]]
+    top_families: list[tuple[str, float]]
 
 
 class InsufficientDataError(Exception):
@@ -316,26 +334,26 @@ class RecommendationService:
 
     async def get_reviewer_profile_summary(
         self, reviewer_id: str
-    ) -> dict[str, list[tuple[str, float]] | int]:
+    ) -> ReviewerProfileSummary:
         """Get a summary of reviewer preferences for display.
 
         Args:
             reviewer_id (str): UUID of the reviewer.
 
         Returns:
-            dict[str, list[tuple[str, float]] | int]: Dictionary with liked notes,
-                disliked notes, and evaluation count.
+            ReviewerProfileSummary: Liked and disliked notes, top accords and
+                families, and the evaluation count.
         """
         profile = await self.build_preference_profile(reviewer_id)
 
-        return {
-            "evaluation_count": profile.evaluation_count,
-            "top_liked_notes": profile.top_liked_notes,
-            "top_disliked_notes": profile.top_disliked_notes,
-            "top_accords": sorted(
+        return ReviewerProfileSummary(
+            evaluation_count=profile.evaluation_count,
+            top_liked_notes=profile.top_liked_notes,
+            top_disliked_notes=profile.top_disliked_notes,
+            top_accords=sorted(
                 profile.accord_affinities.items(), key=lambda x: x[1], reverse=True
             )[:5],
-            "top_families": sorted(
+            top_families=sorted(
                 profile.family_affinities.items(), key=lambda x: x[1], reverse=True
             )[:5],
-        }
+        )
