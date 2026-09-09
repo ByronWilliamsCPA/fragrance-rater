@@ -89,14 +89,12 @@ class RecommendationService:
     """Service for generating personalized fragrance recommendations.
 
     Implements the weighted affinity scoring algorithm from ADR-004.
+
+    Args:
+        session (AsyncSession): Async database session.
     """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize the service with a database session.
-
-        Args:
-            session: Async database session.
-        """
         self.session = session
 
     async def build_preference_profile(self, reviewer_id: str) -> UserProfile:
@@ -110,10 +108,10 @@ class RecommendationService:
         - 1 star = -2.0
 
         Args:
-            reviewer_id: UUID of the reviewer.
+            reviewer_id (str): UUID of the reviewer.
 
         Returns:
-            UserProfile with computed affinities.
+            UserProfile: UserProfile with computed affinities.
         """
         # Fetch all evaluations with fragrance details
         stmt = (
@@ -182,11 +180,11 @@ class RecommendationService:
         Uses weighted component scoring with veto mechanism for strong dislikes.
 
         Args:
-            profile: User preference profile.
-            fragrance: Fragrance to score.
+            profile (UserProfile): User preference profile.
+            fragrance (Fragrance): Fragrance to score.
 
         Returns:
-            MatchResult with normalized score and components.
+            MatchResult: MatchResult with normalized score and components.
         """
         # Build note ID to name mapping for veto reporting
         note_names: dict[str, str] = {}
@@ -255,12 +253,12 @@ class RecommendationService:
         """Generate personalized fragrance recommendations.
 
         Args:
-            reviewer_id: UUID of the reviewer.
-            limit: Maximum recommendations to return.
-            exclude_rated: Whether to exclude already-rated fragrances.
+            reviewer_id (str): UUID of the reviewer.
+            limit (int): Maximum recommendations to return.
+            exclude_rated (bool): Whether to exclude already-rated fragrances.
 
         Returns:
-            List of recommendations sorted by match score.
+            list[Recommendation]: List of recommendations sorted by match score.
 
         Raises:
             InsufficientDataError: If user has fewer than MIN_EVALUATIONS.
@@ -322,10 +320,11 @@ class RecommendationService:
         """Get a summary of reviewer preferences for display.
 
         Args:
-            reviewer_id: UUID of the reviewer.
+            reviewer_id (str): UUID of the reviewer.
 
         Returns:
-            Dictionary with liked notes, disliked notes, and evaluation count.
+            dict[str, list[tuple[str, float]] | int]: Dictionary with liked notes,
+                disliked notes, and evaluation count.
         """
         profile = await self.build_preference_profile(reviewer_id)
 

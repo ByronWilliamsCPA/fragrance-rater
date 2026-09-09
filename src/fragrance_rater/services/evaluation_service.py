@@ -17,24 +17,23 @@ if TYPE_CHECKING:
 
 
 class EvaluationService:
-    """Service for evaluation CRUD operations."""
+    """Service for evaluation CRUD operations.
+
+    Args:
+        session (AsyncSession): Async database session.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize the service with a database session.
-
-        Args:
-            session: Async database session.
-        """
         self.session = session
 
     async def get_by_id(self, evaluation_id: str) -> Evaluation | None:
         """Get an evaluation by ID.
 
         Args:
-            evaluation_id: UUID of the evaluation.
+            evaluation_id (str): UUID of the evaluation.
 
         Returns:
-            Evaluation if found, None otherwise.
+            Evaluation | None: Evaluation if found, None otherwise.
         """
         stmt = (
             select(Evaluation)
@@ -51,10 +50,10 @@ class EvaluationService:
         """Get all evaluations for a reviewer.
 
         Args:
-            reviewer_id: UUID of the reviewer.
+            reviewer_id (str): UUID of the reviewer.
 
         Returns:
-            List of evaluations.
+            list[Evaluation]: List of evaluations.
         """
         stmt = (
             select(Evaluation)
@@ -69,10 +68,10 @@ class EvaluationService:
         """Get all evaluations for a fragrance.
 
         Args:
-            fragrance_id: UUID of the fragrance.
+            fragrance_id (str): UUID of the fragrance.
 
         Returns:
-            List of evaluations.
+            list[Evaluation]: List of evaluations.
         """
         stmt = (
             select(Evaluation)
@@ -89,11 +88,11 @@ class EvaluationService:
         """Get an evaluation for a specific reviewer and fragrance.
 
         Args:
-            reviewer_id: UUID of the reviewer.
-            fragrance_id: UUID of the fragrance.
+            reviewer_id (str): UUID of the reviewer.
+            fragrance_id (str): UUID of the fragrance.
 
         Returns:
-            Evaluation if found, None otherwise.
+            Evaluation | None: Evaluation if found, None otherwise.
         """
         stmt = select(Evaluation).where(
             Evaluation.reviewer_id == reviewer_id,
@@ -106,10 +105,10 @@ class EvaluationService:
         """Create a new evaluation.
 
         Args:
-            data: Evaluation creation data.
+            data (EvaluationCreate): Evaluation creation data.
 
         Returns:
-            Created evaluation.
+            Evaluation: Created evaluation.
         """
         evaluation = Evaluation(
             id=str(uuid4()),
@@ -130,11 +129,11 @@ class EvaluationService:
         """Update an existing evaluation.
 
         Args:
-            evaluation_id: UUID of the evaluation.
-            data: Update data.
+            evaluation_id (str): UUID of the evaluation.
+            data (EvaluationUpdate): Update data.
 
         Returns:
-            Updated evaluation if found, None otherwise.
+            Evaluation | None: Updated evaluation if found, None otherwise.
         """
         evaluation = await self.get_by_id(evaluation_id)
         if not evaluation:
@@ -151,10 +150,10 @@ class EvaluationService:
         """Delete an evaluation by ID.
 
         Args:
-            evaluation_id: UUID of the evaluation.
+            evaluation_id (str): UUID of the evaluation.
 
         Returns:
-            True if deleted, False if not found.
+            bool: True if deleted, False if not found.
         """
         evaluation = await self.get_by_id(evaluation_id)
         if not evaluation:

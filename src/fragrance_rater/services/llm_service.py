@@ -115,7 +115,6 @@ class LLMService:
     """
 
     def __init__(self) -> None:
-        """Initialize the LLM service."""
         self.api_key = settings.openrouter_api_key
         self.base_url = settings.openrouter_base_url
         self.model = settings.openrouter_model
@@ -126,7 +125,7 @@ class LLMService:
         """Check if LLM service is available.
 
         Returns:
-            True if LLM is enabled and configured.
+            bool: True if LLM is enabled and configured.
         """
         return self.enabled
 
@@ -139,12 +138,12 @@ class LLMService:
         """Generate an explanation for why a fragrance matches a user's preferences.
 
         Args:
-            recommendation: The recommendation with match score.
-            profile: User's preference profile.
-            fragrance_details: Details about the fragrance.
+            recommendation (Recommendation): The recommendation with match score.
+            profile (UserProfile): User's preference profile.
+            fragrance_details (FragranceDetails): Details about the fragrance.
 
         Returns:
-            LLMResponse with the generated explanation.
+            LLMResponse: LLMResponse with the generated explanation.
         """
         if not self.enabled:
             return self._fallback_recommendation_explanation(
@@ -217,11 +216,11 @@ class LLMService:
         """Generate a natural language summary of a user's preferences.
 
         Args:
-            profile: User's preference profile.
-            reviewer_name: Name of the reviewer.
+            profile (UserProfile): User's preference profile.
+            reviewer_name (str): Name of the reviewer.
 
         Returns:
-            LLMResponse with the generated summary.
+            LLMResponse: LLMResponse with the generated summary.
         """
         if not self.enabled:
             return self._fallback_profile_summary(profile, reviewer_name)
@@ -269,10 +268,10 @@ class LLMService:
         """Call OpenRouter API with the given prompt.
 
         Args:
-            prompt: The prompt to send.
+            prompt (str): The prompt to send.
 
         Returns:
-            Generated text response.
+            str: Generated text response.
 
         Raises:
             LLMServiceError: If API call fails.
@@ -315,11 +314,11 @@ class LLMService:
         """Generate a cache key from arguments.
 
         Args:
-            prefix: Cache key prefix.
-            *args: Values to include in key.
+            prefix (str): Cache key prefix.
+            *args (str): Values to include in key.
 
         Returns:
-            Hashed cache key.
+            str: Hashed cache key.
         """
         key_str = f"{prefix}:{':'.join(args)}"
         return hashlib.md5(key_str.encode(), usedforsecurity=False).hexdigest()
@@ -333,12 +332,12 @@ class LLMService:
         """Generate a simple fallback explanation without LLM.
 
         Args:
-            recommendation: The recommendation.
-            profile: User's preference profile.
-            fragrance_details: Details about the fragrance.
+            recommendation (Recommendation): The recommendation.
+            profile (UserProfile): User's preference profile.
+            fragrance_details (FragranceDetails): Details about the fragrance.
 
         Returns:
-            LLMResponse with rule-based explanation.
+            LLMResponse: LLMResponse with rule-based explanation.
         """
         if recommendation.vetoed:
             text = (
@@ -380,11 +379,11 @@ class LLMService:
         """Generate a simple fallback profile summary without LLM.
 
         Args:
-            profile: User's preference profile.
-            reviewer_name: Name of the reviewer.
+            profile (UserProfile): User's preference profile.
+            reviewer_name (str): Name of the reviewer.
 
         Returns:
-            LLMResponse with rule-based summary.
+            LLMResponse: LLMResponse with rule-based summary.
         """
         liked = [n for n, _ in profile.top_liked_notes[:3]]
         disliked = [n for n, _ in profile.top_disliked_notes[:3]]
@@ -409,7 +408,7 @@ class LLMService:
         """Invalidate cache entries for a specific reviewer.
 
         Args:
-            reviewer_id: UUID of the reviewer.
+            reviewer_id (str): UUID of the reviewer.
         """
         keys_to_remove = [k for k in self._cache if reviewer_id in k]
         for key in keys_to_remove:
@@ -422,6 +421,6 @@ def get_llm_service() -> LLMService:
     """Get the global LLM service instance.
 
     Returns:
-        Singleton LLMService instance.
+        LLMService: Singleton LLMService instance.
     """
     return LLMService()

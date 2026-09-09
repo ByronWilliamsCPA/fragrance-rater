@@ -20,24 +20,23 @@ DEFAULT_REVIEWERS = ["Byron", "Veronica", "Bayden", "Ariannah"]
 
 
 class ReviewerService:
-    """Service for reviewer CRUD operations."""
+    """Service for reviewer CRUD operations.
+
+    Args:
+        session (AsyncSession): Async database session.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize the service with a database session.
-
-        Args:
-            session: Async database session.
-        """
         self.session = session
 
     async def get_by_id(self, reviewer_id: str) -> Reviewer | None:
         """Get a reviewer by ID.
 
         Args:
-            reviewer_id: UUID of the reviewer.
+            reviewer_id (str): UUID of the reviewer.
 
         Returns:
-            Reviewer if found, None otherwise.
+            Reviewer | None: Reviewer if found, None otherwise.
         """
         stmt = (
             select(Reviewer)
@@ -51,10 +50,10 @@ class ReviewerService:
         """Get a reviewer by name.
 
         Args:
-            name: Reviewer name.
+            name (str): Reviewer name.
 
         Returns:
-            Reviewer if found, None otherwise.
+            Reviewer | None: Reviewer if found, None otherwise.
         """
         stmt = select(Reviewer).where(Reviewer.name == name)
         result = await self.session.execute(stmt)
@@ -64,7 +63,7 @@ class ReviewerService:
         """List all reviewers with evaluation counts.
 
         Returns:
-            List of tuples (Reviewer, evaluation_count).
+            list[tuple[Reviewer, int]]: List of tuples (Reviewer, evaluation_count).
         """
         stmt = (
             select(Reviewer, func.count(Evaluation.id).label("eval_count"))
@@ -79,10 +78,10 @@ class ReviewerService:
         """Create a new reviewer.
 
         Args:
-            name: Reviewer name.
+            name (str): Reviewer name.
 
         Returns:
-            Created reviewer.
+            Reviewer: Created reviewer.
         """
         reviewer = Reviewer(id=str(uuid4()), name=name)
         self.session.add(reviewer)
@@ -93,7 +92,7 @@ class ReviewerService:
         """Create default family reviewers if they don't exist.
 
         Returns:
-            List of created or existing reviewers.
+            list[Reviewer]: List of created or existing reviewers.
         """
         reviewers: list[Reviewer] = []
         for name in DEFAULT_REVIEWERS:
@@ -109,10 +108,10 @@ class ReviewerService:
         """Delete a reviewer by ID.
 
         Args:
-            reviewer_id: UUID of the reviewer.
+            reviewer_id (str): UUID of the reviewer.
 
         Returns:
-            True if deleted, False if not found.
+            bool: True if deleted, False if not found.
         """
         reviewer = await self.get_by_id(reviewer_id)
         if not reviewer:

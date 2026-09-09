@@ -26,24 +26,23 @@ if TYPE_CHECKING:
 
 
 class FragranceService:
-    """Service for fragrance CRUD operations."""
+    """Service for fragrance CRUD operations.
+
+    Args:
+        session (AsyncSession): Async database session.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
-        """Initialize the service with a database session.
-
-        Args:
-            session: Async database session.
-        """
         self.session = session
 
     async def get_by_id(self, fragrance_id: str) -> Fragrance | None:
         """Get a fragrance by ID with all relationships loaded.
 
         Args:
-            fragrance_id: UUID of the fragrance.
+            fragrance_id (str): UUID of the fragrance.
 
         Returns:
-            Fragrance if found, None otherwise.
+            Fragrance | None: Fragrance if found, None otherwise.
         """
         stmt = (
             select(Fragrance)
@@ -58,10 +57,10 @@ class FragranceService:
         """Search fragrances with filters.
 
         Args:
-            params: Search parameters.
+            params (FragranceSearchParams): Search parameters.
 
         Returns:
-            List of matching fragrances.
+            list[Fragrance]: List of matching fragrances.
         """
         stmt = select(Fragrance).options(
             selectinload(Fragrance.notes).selectinload(FragranceNote.note),
@@ -95,10 +94,10 @@ class FragranceService:
         """Create a new fragrance with notes and accords.
 
         Args:
-            data: Fragrance creation data.
+            data (FragranceCreate): Fragrance creation data.
 
         Returns:
-            Created fragrance.
+            Fragrance: Created fragrance.
         """
         fragrance = Fragrance(
             id=str(uuid4()),
@@ -144,11 +143,11 @@ class FragranceService:
         """Update an existing fragrance.
 
         Args:
-            fragrance_id: UUID of the fragrance.
-            data: Update data.
+            fragrance_id (str): UUID of the fragrance.
+            data (FragranceUpdate): Update data.
 
         Returns:
-            Updated fragrance if found, None otherwise.
+            Fragrance | None: Updated fragrance if found, None otherwise.
         """
         fragrance = await self.get_by_id(fragrance_id)
         if not fragrance:
@@ -165,10 +164,10 @@ class FragranceService:
         """Delete a fragrance by ID.
 
         Args:
-            fragrance_id: UUID of the fragrance.
+            fragrance_id (str): UUID of the fragrance.
 
         Returns:
-            True if deleted, False if not found.
+            bool: True if deleted, False if not found.
         """
         fragrance = await self.get_by_id(fragrance_id)
         if not fragrance:
@@ -182,11 +181,11 @@ class FragranceService:
         """Get an existing note or create a new one.
 
         Args:
-            name: Note name.
-            category: Note category.
+            name (str): Note name.
+            category (str): Note category.
 
         Returns:
-            Note instance.
+            Note: Note instance.
         """
         stmt = select(Note).where(Note.name == name)
         result = await self.session.execute(stmt)
