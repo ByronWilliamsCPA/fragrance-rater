@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   extras), `CLAUDE.md`, `CONTRIBUTING.md`, `.claude/commands/security.md`,
   `.claude/skills/security/SKILL.md`. `pip-audit` continues to provide
   equivalent vulnerability scanning coverage.
+- `.github/workflows/codeql.yml` and `.github/workflows/dependency-review.yml`.
+  GitHub now bills Advanced Security (Code Security), so CodeQL code scanning
+  and the `dependency-review` action no longer function. SonarCloud (SAST),
+  Ruff, Bandit, and `pip-audit` continue to run and are unaffected.
 
 ### Fixed
 
