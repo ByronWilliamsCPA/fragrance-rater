@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Integer, String, Text, func
+from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -39,6 +39,18 @@ class Evaluation(Base):
     """
 
     __tablename__ = "evaluations"
+    # Major finding 8, product decision (not silently assumed, see report):
+    # the legacy scaffold this branch replaced allowed repeat evaluations of
+    # the same fragrance by the same reviewer over time; that was never an
+    # explicit product decision for this app. Defaulting to a hard UNIQUE
+    # here matches what the existing (racy) application-level check in
+    # api/evaluations.py already assumes: one evaluation per reviewer per
+    # fragrance, ever. Revisit if "re-rate over time" turns out to be wanted.
+    __table_args__ = (
+        UniqueConstraint(
+            "reviewer_id", "fragrance_id", name="uq_evaluation_reviewer_fragrance"
+        ),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid4())

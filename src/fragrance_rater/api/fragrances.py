@@ -3,6 +3,7 @@
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.database import get_db
@@ -137,8 +138,31 @@ async def create_fragrance(
     data: FragranceCreate,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
 ) -> FragranceResponse:
-    """Create a new fragrance with notes and accords."""
-    fragrance = await service.create(data)
+    """Create a new fragrance with notes and accords.
+
+    Rejects a (name, brand) pair that already exists (Major finding 8's
+    `uq_fragrance_name_brand` constraint) with a 409 rather than letting the
+    resulting IntegrityError surface as an unhandled 500.
+    """
+    # #ASSUME: data-integrity: this has no pre-check, only a catch of the
+    # IntegrityError the new UNIQUE(name, brand) constraint raises, since a
+    # pre-check here would carry the same check-then-insert race the
+    # evaluations endpoint has to guard against separately.
+    # #VERIFY: the caught path rolls back before returning, so the session
+    # is left usable for the next request on this connection.
+    try:
+        fragrance = await service.create(data)
+    except IntegrityError:
+        await service.session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "FRAGRANCE_EXISTS",
+                "message": (
+                    f"A fragrance named {data.name!r} by {data.brand!r} already exists"
+                ),
+            },
+        ) from None
     return await get_fragrance(fragrance.id, service)
 
 

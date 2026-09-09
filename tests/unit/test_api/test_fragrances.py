@@ -280,3 +280,25 @@ class TestFragranceAPI:
         """Test deleting a non-existent fragrance returns 404."""
         response = await test_app.delete(f"{API_PREFIX}/fragrances/nonexistent-id")
         assert response.status_code == 404
+
+    async def test_create_duplicate_name_brand_returns_409(self, test_app):
+        """Major finding 8: a second (name, brand) pair is rejected, not a 500."""
+        payload = {
+            "name": "Duplicate Scent",
+            "brand": "Duplicate Brand",
+            "concentration": "EDP",
+            "gender_target": "Unisex",
+            "primary_family": "woody",
+            "subfamily": "aromatic",
+        }
+        first = await test_app.post(f"{API_PREFIX}/fragrances", json=payload)
+        assert first.status_code == 201
+
+        second = await test_app.post(f"{API_PREFIX}/fragrances", json=payload)
+        assert second.status_code == 409
+        assert second.json()["detail"]["error"] == "FRAGRANCE_EXISTS"
+
+        # The session must still be usable after the rollback.
+        listing = await test_app.get(f"{API_PREFIX}/fragrances?q=Duplicate Scent")
+        assert listing.status_code == 200
+        assert len(listing.json()) == 1

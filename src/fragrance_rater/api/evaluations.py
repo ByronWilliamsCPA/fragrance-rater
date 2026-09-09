@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.database import get_db
@@ -151,7 +152,30 @@ async def create_evaluation(
             },
         )
 
-    evaluation = await service.create(data)
+    # #CRITICAL: concurrency: the existence check above is a
+    # check-then-insert, not atomic; two concurrent requests for the same
+    # reviewer/fragrance pair can both pass it and race for the insert
+    # (Major finding 8 adds a UNIQUE(reviewer_id, fragrance_id) constraint
+    # as the actual data-integrity backstop).
+    # #VERIFY: the loser of that race hits IntegrityError here rather than
+    # surfacing as an unhandled 500; it is rolled back and translated into
+    # the same 409 CONFLICT the pre-check above returns for the common case.
+    try:
+        evaluation = await service.create(data)
+    except IntegrityError:
+        await service.session.rollback()
+        existing = await service.get_by_reviewer_and_fragrance(
+            data.reviewer_id, data.fragrance_id
+        )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "EVALUATION_EXISTS",
+                "message": "Evaluation already exists for this reviewer and fragrance",
+                "existing_id": existing.id if existing else None,
+            },
+        ) from None
+
     return EvaluationResponse(
         id=evaluation.id,
         fragrance_id=evaluation.fragrance_id,

@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Float, ForeignKey, String, func
+from sqlalchemy import Float, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -50,6 +50,18 @@ class Fragrance(Base):
     """
 
     __tablename__ = "fragrances"
+    # Major finding 8: no UNIQUE constraint on (name, brand) let the same
+    # catalog entry be imported twice with no detection. `uq_fragrance_name_brand`
+    # is the reference implementation preserved from prior review; the search
+    # index name (`ix_fragrance_search`) is likewise the agreed naming.
+    # #EDGE: data-integrity: this does not include `concentration`, so a
+    # legitimate EDT/EDP pair sharing a name and brand will collide.
+    # #VERIFY: if that turns out to happen in practice, widen the constraint
+    # to include `concentration` in a follow-up migration.
+    __table_args__ = (
+        UniqueConstraint("name", "brand", name="uq_fragrance_name_brand"),
+        Index("ix_fragrance_search", "name", "brand"),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid4())
