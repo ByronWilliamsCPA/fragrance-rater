@@ -23,8 +23,10 @@ from pydantic import BaseModel, Field
 
 from fragrance_rater.llm import LLMRatingClient, get_llm_client
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_key
+from fragrance_rater.utils.logging import get_logger
 
 router = APIRouter(prefix="/ratings", tags=["ratings"])
+logger = get_logger(__name__)
 
 FragranceNote = Annotated[str, Field(min_length=1, max_length=64)]
 
@@ -174,8 +176,11 @@ def create_rating(
         RatingResponse: The LLM-authored rating, model identifier, and latency note.
 
     Raises:
-        HTTPException: 503 when the upstream LLM client is unavailable,
-            returns a runtime error, or no API key is configured.
+        HTTPException: 503 when the upstream LLM client raises a
+            ``RuntimeError`` (upstream unavailable or misconfigured). This is
+            distinct from the 401/503/429 cases described above, which are
+            raised by the dependency and rate-limit decorator before this
+            function body runs.
     """
     try:
         result = client.rate(
@@ -186,7 +191,9 @@ def create_rating(
         )
     except RuntimeError as exc:
         # Upstream LLM unavailable or unconfigured. Translate to the
-        # documented 503 contract instead of leaking a 500.
+        # documented 503 contract instead of leaking a 500, but log first
+        # so operators can distinguish upstream outages from misconfiguration.
+        logger.exception("rating request failed", reason=str(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="LLM upstream is unavailable",
