@@ -17,7 +17,7 @@ httpx==0.26.0
 # Web scraping
 beautifulsoup4==4.12.3
 # lxml: bumped from 5.1.0 to silence iterparse/ETCompatXMLParser XXE CVE
-lxml==6.1.0
+lxml==6.1.1
 
 # Data processing
 pandas==2.2.0
