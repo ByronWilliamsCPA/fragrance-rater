@@ -164,9 +164,14 @@ class RecommendationService:
             for accord in fragrance.accords:
                 accord_affinities[accord.accord_type] += weight * accord.intensity
 
-            # Accumulate family affinities
+            # Accumulate family affinities. An empty/null subfamily means
+            # "unknown" (e.g. scraped data that never got a subfamily
+            # assigned) rather than a real taxonomy bucket, so it must not
+            # pollute the affinity dict with a "" key that every
+            # unknown-subfamily fragrance would then match against.
             family_affinities[fragrance.primary_family] += weight
-            family_affinities[fragrance.subfamily] += weight * 0.5
+            if fragrance.subfamily:
+                family_affinities[fragrance.subfamily] += weight * 0.5
 
         # Calculate top liked/disliked notes for profile display
         sorted_notes = sorted(

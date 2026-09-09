@@ -208,6 +208,43 @@ class TestRecommendationServiceIntegration:
         assert profile.evaluation_count == 1
         assert profile.note_affinities.get("note-001", 0) == 2.0  # 5-star = +2.0
 
+    async def test_build_preference_profile_empty_subfamily_not_bucketed(
+        self, async_session
+    ):
+        """An empty-string subfamily must not pollute family_affinities with
+        a "" bucket that every other unknown-subfamily fragrance would then
+        match against (Major finding 6).
+        """
+        reviewer = Reviewer(id="reviewer-nosub", name="No Subfamily User")
+        async_session.add(reviewer)
+
+        fragrance = Fragrance(
+            id="frag-nosub",
+            name="No Subfamily Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family="woody",
+            subfamily="",
+            data_source="scraped",
+        )
+        async_session.add(fragrance)
+
+        eval1 = Evaluation(
+            id="eval-nosub",
+            fragrance_id="frag-nosub",
+            reviewer_id="reviewer-nosub",
+            rating=5,
+        )
+        async_session.add(eval1)
+        await async_session.commit()
+
+        service = RecommendationService(async_session)
+        profile = await service.build_preference_profile("reviewer-nosub")
+
+        assert "" not in profile.family_affinities
+        assert profile.family_affinities.get("woody", 0) == 2.0
+
     async def test_get_recommendations_insufficient_data(self, async_session):
         """Test that insufficient evaluations raises error."""
         # Create reviewer with only 2 evaluations (need 3)
