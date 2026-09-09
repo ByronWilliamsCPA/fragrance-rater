@@ -12,6 +12,8 @@ from fragrance_rater.schemas.evaluation import (
     EvaluationUpdate,
 )
 from fragrance_rater.services.evaluation_service import EvaluationService
+from fragrance_rater.services.fragrance_service import FragranceService
+from fragrance_rater.services.reviewer_service import ReviewerService
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
 
@@ -21,6 +23,20 @@ async def get_evaluation_service(
 ) -> EvaluationService:
     """Dependency to get EvaluationService instance."""
     return EvaluationService(session)
+
+
+async def get_fragrance_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FragranceService:
+    """Dependency to get FragranceService instance (for FK validation)."""
+    return FragranceService(session)
+
+
+async def get_reviewer_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ReviewerService:
+    """Dependency to get ReviewerService instance (for FK validation)."""
+    return ReviewerService(session)
 
 
 @router.get("", response_model=list[EvaluationResponse])
@@ -87,11 +103,40 @@ async def get_evaluation(
 async def create_evaluation(
     data: EvaluationCreate,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
+    fragrance_service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    reviewer_service: Annotated[ReviewerService, Depends(get_reviewer_service)],
 ) -> EvaluationResponse:
     """Create a new evaluation.
 
-    A reviewer can only have one evaluation per fragrance.
+    A reviewer can only have one evaluation per fragrance. Both the
+    fragrance and the reviewer must already exist.
     """
+    # #CRITICAL: data-integrity: on SQLite (used in tests) foreign keys are
+    # off by default, so an insert against a nonexistent fragrance_id or
+    # reviewer_id would silently succeed there while raising an unhandled
+    # IntegrityError (500) on Postgres in production (Major finding 9).
+    # #VERIFY: explicit existence checks make this endpoint's 404 behavior
+    # identical across both backends instead of depending on FK enforcement.
+    fragrance = await fragrance_service.get_by_id(data.fragrance_id)
+    if not fragrance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "FRAGRANCE_NOT_FOUND",
+                "message": f"Fragrance {data.fragrance_id} not found",
+            },
+        )
+
+    reviewer = await reviewer_service.get_by_id(data.reviewer_id)
+    if not reviewer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "REVIEWER_NOT_FOUND",
+                "message": f"Reviewer {data.reviewer_id} not found",
+            },
+        )
+
     # Check if evaluation already exists
     existing = await service.get_by_reviewer_and_fragrance(
         data.reviewer_id, data.fragrance_id
