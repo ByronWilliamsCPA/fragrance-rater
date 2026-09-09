@@ -1,7 +1,5 @@
 """Evaluation API endpoints."""
 
-from __future__ import annotations
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -28,8 +26,12 @@ async def get_evaluation_service(
 @router.get("", response_model=list[EvaluationResponse])
 async def list_evaluations(
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
-    reviewer_id: str | None = Query(None, description="Filter by reviewer ID"),
-    fragrance_id: str | None = Query(None, description="Filter by fragrance ID"),
+    reviewer_id: Annotated[
+        str | None, Query(description="Filter by reviewer ID")
+    ] = None,
+    fragrance_id: Annotated[
+        str | None, Query(description="Filter by fragrance ID")
+    ] = None,
 ) -> list[EvaluationResponse]:
     """List evaluations with optional filters."""
     if reviewer_id:

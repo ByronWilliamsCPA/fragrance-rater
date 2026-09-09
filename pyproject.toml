@@ -87,6 +87,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-xdist>=3.3.0",
     "hypothesis>=6.82.0",
+    "aiosqlite>=0.22.1",  # Async SQLite driver for the test database
 
     # Code Quality (always included)
     "ruff>=0.9.0",
@@ -310,9 +311,28 @@ convention = "google"
 [tool.ruff.lint.isort]
 known-first-party = ["fragrance_rater"]
 
+[tool.ruff.lint.flake8-type-checking]
+# SQLAlchemy and pydantic resolve annotations at runtime, so imports that only
+# appear in their model annotations must stay outside TYPE_CHECKING blocks.
+runtime-evaluated-base-classes = [
+    "sqlalchemy.orm.DeclarativeBase",
+    "fragrance_rater.core.database.Base",
+    "pydantic.BaseModel",
+    "pydantic_settings.BaseSettings",
+]
+
 [tool.ruff.lint.per-file-ignores]
 # Module init files
 "__init__.py" = ["F401", "D104"]
+
+# Alembic migration environment: alembic/ is a script directory loaded by the
+# alembic CLI, not an importable package, so it intentionally has no __init__.py
+"alembic/**/*.py" = ["INP001"]
+
+# ORM models: relationship targets are resolved lazily by SQLAlchemy's registry
+# using the class name, so the circular model imports really are type-only even
+# though runtime-evaluated-base-classes treats Base annotations as runtime
+"src/fragrance_rater/models/*.py" = ["TC004"]
 
 # Test files (relaxed rules for test code)
 "tests/**/*.py" = [
@@ -801,8 +821,3 @@ token = { env = "GH_TOKEN" }
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
-
-[dependency-groups]
-dev = [
-    "aiosqlite>=0.22.1",
-]

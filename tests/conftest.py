@@ -211,7 +211,7 @@ async def async_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
         yield session
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def sync_engine():
     """Create sync SQLite engine for testing."""
     engine = create_engine(
@@ -225,7 +225,7 @@ def sync_engine():
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def sync_session(sync_engine) -> Generator[Session, None, None]:
     """Create sync session for testing."""
     session_maker = sessionmaker(bind=sync_engine, expire_on_commit=False)
@@ -323,8 +323,6 @@ def mock_openrouter_response() -> dict[str, Any]:
 @pytest_asyncio.fixture
 async def test_app(tmp_path):
     """Create a FastAPI test app with database override using a temp file."""
-    import os
-
     from httpx import ASGITransport, AsyncClient
 
     from fragrance_rater.core.database import get_db
@@ -364,7 +362,5 @@ async def test_app(tmp_path):
 
     app.dependency_overrides.clear()
 
-    # Cleanup
+    # Cleanup: the SQLite file lives under pytest's tmp_path and is removed with it
     await engine.dispose()
-    if os.path.exists(db_path):
-        os.remove(db_path)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from click.testing import CliRunner
@@ -166,9 +167,7 @@ class TestImportKaggleCommand:
                 assert result.exit_code == 0
                 assert "Imported:   1" in result.output
         finally:
-            import os
-
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     @patch("fragrance_rater.cli.async_session_maker")
     def test_kaggle_dry_run(self, mock_session_maker: MagicMock) -> None:
@@ -205,9 +204,7 @@ class TestImportKaggleCommand:
                 assert result.exit_code == 0
                 assert "[DRY RUN]" in result.output
         finally:
-            import os
-
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
 
 class TestSeedReviewersCommand:

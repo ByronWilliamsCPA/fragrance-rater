@@ -1,7 +1,5 @@
 """Recommendation API endpoints."""
 
-from __future__ import annotations
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -36,9 +34,11 @@ class RecommendationResponse(BaseModel):
     match_score: float = Field(..., description="Match score from 0.0 to 1.0")
     match_percent: int = Field(..., description="Match score as percentage 0-100")
     vetoed: bool = Field(
-        False, description="Whether fragrance contains a disliked note"
+        default=False, description="Whether fragrance contains a disliked note"
     )
-    veto_reason: str | None = Field(None, description="Reason for veto if applicable")
+    veto_reason: str | None = Field(
+        default=None, description="Reason for veto if applicable"
+    )
 
 
 class RecommendationListResponse(BaseModel):
@@ -67,7 +67,7 @@ class ProfileSummaryResponse(BaseModel):
         default_factory=list, description="Top 5 preferred fragrance families"
     )
     llm_summary: str | None = Field(
-        None, description="LLM-generated natural language summary"
+        default=None, description="LLM-generated natural language summary"
     )
 
 
@@ -78,7 +78,7 @@ class ExplanationResponse(BaseModel):
     fragrance_name: str
     explanation: str
     model: str = Field(..., description="Model used to generate explanation")
-    cached: bool = Field(False, description="Whether response was cached")
+    cached: bool = Field(default=False, description="Whether response was cached")
 
 
 async def get_recommendation_service(
@@ -92,8 +92,12 @@ async def get_recommendation_service(
 async def get_recommendations(
     reviewer_id: str,
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
-    limit: int = Query(10, ge=1, le=50, description="Maximum recommendations"),
-    exclude_rated: bool = Query(True, description="Exclude already-rated fragrances"),
+    limit: Annotated[
+        int, Query(ge=1, le=50, description="Maximum recommendations")
+    ] = 10,
+    exclude_rated: Annotated[
+        bool, Query(description="Exclude already-rated fragrances")
+    ] = True,
 ) -> RecommendationListResponse:
     """Get personalized fragrance recommendations for a reviewer.
 
@@ -139,7 +143,9 @@ async def get_profile_summary(
     session: Annotated[AsyncSession, Depends(get_db)],
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
     llm_service: Annotated[LLMService, Depends(get_llm_service)],
-    include_llm: bool = Query(True, description="Include LLM-generated summary"),
+    include_llm: Annotated[
+        bool, Query(description="Include LLM-generated summary")
+    ] = True,
 ) -> ProfileSummaryResponse:
     """Get a summary of a reviewer's preference profile.
 

@@ -24,15 +24,18 @@ class Evaluation(Base):
     """A reviewer's rating and notes for a fragrance.
 
     Attributes:
-        id: Unique identifier (UUID).
-        fragrance_id: Foreign key to the fragrance.
-        reviewer_id: Foreign key to the reviewer.
-        rating: Overall rating (1-5 scale).
-        notes: Free-form observations about the fragrance.
-        longevity_rating: Optional longevity score (1-5).
-        sillage_rating: Optional sillage/projection score (1-5).
-        evaluated_at: When the evaluation was made.
-        created_at: Record creation timestamp.
+        id (Mapped[str]): Unique identifier (UUID).
+        fragrance_id (Mapped[str]): Foreign key to the fragrance.
+        reviewer_id (Mapped[str]): Foreign key to the reviewer.
+        rating (Mapped[int]): Overall rating (1-5 scale).
+        notes (Mapped[str | None]): Free-form observations about the fragrance.
+        longevity_rating (Mapped[int | None]): Optional longevity score (1-5).
+        sillage_rating (Mapped[int | None]): Optional sillage/projection score
+            (1-5).
+        evaluated_at (Mapped[datetime]): When the evaluation was made.
+        created_at (Mapped[datetime]): Record creation timestamp.
+        fragrance (Mapped[Fragrance]): Evaluated fragrance.
+        reviewer (Mapped[Reviewer]): Reviewer who made the evaluation.
     """
 
     __tablename__ = "evaluations"

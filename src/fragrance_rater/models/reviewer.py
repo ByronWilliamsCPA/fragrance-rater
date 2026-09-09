@@ -23,9 +23,11 @@ class Reviewer(Base):
     """Family member profile for fragrance evaluations.
 
     Attributes:
-        id: Unique identifier (UUID).
-        name: Reviewer's name (unique).
-        created_at: Profile creation timestamp.
+        id (Mapped[str]): Unique identifier (UUID).
+        name (Mapped[str]): Reviewer's name (unique).
+        created_at (Mapped[datetime]): Profile creation timestamp.
+        evaluations (Mapped[list[Evaluation]]): Evaluations authored by this
+            reviewer.
     """
 
     __tablename__ = "reviewers"

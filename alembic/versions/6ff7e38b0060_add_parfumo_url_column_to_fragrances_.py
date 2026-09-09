@@ -1,4 +1,4 @@
-"""Add parfumo_url column to fragrances table
+"""Add parfumo_url column to fragrances table.
 
 Revision ID: 6ff7e38b0060
 Revises: 001

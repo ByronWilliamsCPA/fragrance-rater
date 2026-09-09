@@ -1,7 +1,5 @@
 """Fragrance API endpoints."""
 
-from __future__ import annotations
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -9,10 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.fragrance import (
+    FragranceAccordResponse,
     FragranceCreate,
+    FragranceNoteResponse,
     FragranceResponse,
     FragranceSearchParams,
     FragranceUpdate,
+    NoteResponse,
 )
 from fragrance_rater.services.fragrance_service import FragranceService
 
@@ -29,12 +30,18 @@ async def get_fragrance_service(
 @router.get("", response_model=list[FragranceResponse])
 async def list_fragrances(
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
-    q: str | None = Query(None, description="Search query for name or brand"),
-    brand: str | None = Query(None, description="Filter by brand"),
-    primary_family: str | None = Query(None, description="Filter by fragrance family"),
-    gender_target: str | None = Query(None, description="Filter by gender target"),
-    limit: int = Query(20, ge=1, le=100),
-    offset: int = Query(0, ge=0),
+    q: Annotated[
+        str | None, Query(description="Search query for name or brand")
+    ] = None,
+    brand: Annotated[str | None, Query(description="Filter by brand")] = None,
+    primary_family: Annotated[
+        str | None, Query(description="Filter by fragrance family")
+    ] = None,
+    gender_target: Annotated[
+        str | None, Query(description="Filter by gender target")
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[FragranceResponse]:
     """List and search fragrances.
 
@@ -84,12 +91,6 @@ async def get_fragrance(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "FRAGRANCE_NOT_FOUND", "message": "Fragrance not found"},
         )
-
-    from fragrance_rater.schemas.fragrance import (
-        FragranceAccordResponse,
-        FragranceNoteResponse,
-        NoteResponse,
-    )
 
     return FragranceResponse(
         id=fragrance.id,

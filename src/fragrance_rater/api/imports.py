@@ -1,7 +1,6 @@
 """Import API endpoints for Kaggle data."""
 
-from __future__ import annotations
-
+import asyncio
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -66,5 +65,5 @@ async def import_kaggle_csv(
         )
 
     finally:
-        # Clean up temp file
-        tmp_path.unlink(missing_ok=True)
+        # Clean up temp file without blocking the event loop
+        await asyncio.to_thread(tmp_path.unlink, missing_ok=True)

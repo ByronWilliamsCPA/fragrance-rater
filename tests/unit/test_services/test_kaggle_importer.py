@@ -17,6 +17,14 @@ from fragrance_rater.services.kaggle_importer import (
 )
 
 
+def _write_csv(tmp_path: Path, rows: list[list[str]]) -> Path:
+    """Write rows to a CSV file under tmp_path and return its path."""
+    csv_path = tmp_path / "fragrances.csv"
+    with csv_path.open("w", newline="") as f:
+        csv.writer(f).writerows(rows)
+    return csv_path
+
+
 class TestImportResult:
     """Tests for ImportResult dataclass."""
 
@@ -336,87 +344,75 @@ class TestKaggleImporterCSVImport:
         assert "not found" in result.errors[0].lower()
 
     @pytest.mark.asyncio
-    async def test_import_empty_file(self, session: AsyncMock) -> None:
+    async def test_import_empty_file(self, session: AsyncMock, tmp_path: Path) -> None:
         """Should handle empty CSV file."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            f.write("")
-            temp_path = f.name
+        csv_path = _write_csv(tmp_path, [])
 
-        try:
-            importer = KaggleImporter(session)
-            result = await importer.import_csv(temp_path)
+        importer = KaggleImporter(session)
+        result = await importer.import_csv(csv_path)
 
-            assert len(result.errors) == 1
-            assert (
-                "empty" in result.errors[0].lower()
-                or "headers" in result.errors[0].lower()
-            )
-        finally:
-            Path(temp_path).unlink()
+        assert len(result.errors) == 1
+        assert (
+            "empty" in result.errors[0].lower() or "headers" in result.errors[0].lower()
+        )
 
     @pytest.mark.asyncio
-    async def test_import_missing_required_columns(self, session: AsyncMock) -> None:
+    async def test_import_missing_required_columns(
+        self, session: AsyncMock, tmp_path: Path
+    ) -> None:
         """Should return error when missing name/brand columns."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            writer = csv.writer(f)
-            writer.writerow(["color", "size"])
-            writer.writerow(["red", "large"])
-            temp_path = f.name
+        csv_path = _write_csv(tmp_path, [["color", "size"], ["red", "large"]])
 
-        try:
-            importer = KaggleImporter(session)
-            result = await importer.import_csv(temp_path)
+        importer = KaggleImporter(session)
+        result = await importer.import_csv(csv_path)
 
-            assert len(result.errors) == 1
-            assert (
-                "name" in result.errors[0].lower()
-                or "brand" in result.errors[0].lower()
-            )
-        finally:
-            Path(temp_path).unlink()
+        assert len(result.errors) == 1
+        assert "name" in result.errors[0].lower() or "brand" in result.errors[0].lower()
 
     @pytest.mark.asyncio
-    async def test_import_valid_csv_dry_run(self, session: AsyncMock) -> None:
+    async def test_import_valid_csv_dry_run(
+        self, session: AsyncMock, tmp_path: Path
+    ) -> None:
         """Should process CSV in dry run mode without saving."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            writer = csv.writer(f)
-            writer.writerow(["name", "brand", "year", "gender"])
-            writer.writerow(["Aventus", "Creed", "2010", "male"])
-            writer.writerow(["Sauvage", "Dior", "2015", "male"])
-            temp_path = f.name
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "year", "gender"],
+                ["Aventus", "Creed", "2010", "male"],
+                ["Sauvage", "Dior", "2015", "male"],
+            ],
+        )
 
-        try:
-            importer = KaggleImporter(session)
-            result = await importer.import_csv(temp_path, dry_run=True)
+        importer = KaggleImporter(session)
+        result = await importer.import_csv(csv_path, dry_run=True)
 
-            assert result.total_rows == 2
-            assert result.imported == 2
-            assert result.skipped == 0
-            assert result.errors == []
-            session.flush.assert_not_called()
-        finally:
-            Path(temp_path).unlink()
+        assert result.total_rows == 2
+        assert result.imported == 2
+        assert result.skipped == 0
+        assert result.errors == []
+        session.flush.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_import_skips_invalid_rows(self, session: AsyncMock) -> None:
+    async def test_import_skips_invalid_rows(
+        self, session: AsyncMock, tmp_path: Path
+    ) -> None:
         """Should skip rows with missing required fields."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
-            writer = csv.writer(f)
-            writer.writerow(["name", "brand"])
-            writer.writerow(["Aventus", "Creed"])  # Valid
-            writer.writerow(["", "Dior"])  # Missing name
-            writer.writerow(["Sauvage", ""])  # Missing brand
-            temp_path = f.name
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand"],
+                ["Aventus", "Creed"],  # Valid
+                ["", "Dior"],  # Missing name
+                ["Sauvage", ""],  # Missing brand
+            ],
+        )
 
-        try:
-            importer = KaggleImporter(session)
-            result = await importer.import_csv(temp_path, dry_run=True)
+        importer = KaggleImporter(session)
+        result = await importer.import_csv(csv_path, dry_run=True)
 
-            assert result.total_rows == 3
-            assert result.imported == 1
-            assert result.skipped == 2
-        finally:
-            Path(temp_path).unlink()
+        assert result.total_rows == 3
+        assert result.imported == 1
+        assert result.skipped == 2
 
 
 class TestKaggleImporterPreview:

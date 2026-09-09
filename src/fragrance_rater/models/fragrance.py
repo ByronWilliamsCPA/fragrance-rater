@@ -26,19 +26,27 @@ class Fragrance(Base):
     """Fragrance entity with classification data.
 
     Attributes:
-        id: Unique identifier (UUID).
-        name: Fragrance name.
-        brand: Brand/house name.
-        concentration: EDT, EDP, Parfum, etc.
-        launch_year: Year of release.
-        gender_target: Masculine, Feminine, or Unisex.
-        primary_family: Michael Edwards Wheel family (Fresh, Floral, Amber, Woody).
-        subfamily: More specific classification.
-        intensity: Fresh, Crisp, Classical, or Rich.
-        data_source: Origin of data (manual, kaggle, fragella).
-        external_id: ID from external data source.
-        created_at: Creation timestamp.
-        updated_at: Last update timestamp.
+        id (Mapped[str]): Unique identifier (UUID).
+        name (Mapped[str]): Fragrance name.
+        brand (Mapped[str]): Brand/house name.
+        concentration (Mapped[str]): EDT, EDP, Parfum, etc.
+        launch_year (Mapped[int | None]): Year of release.
+        gender_target (Mapped[str]): Masculine, Feminine, or Unisex.
+        primary_family (Mapped[str]): Michael Edwards Wheel family (Fresh, Floral,
+            Amber, Woody).
+        subfamily (Mapped[str]): More specific classification.
+        intensity (Mapped[str | None]): Fresh, Crisp, Classical, or Rich.
+        data_source (Mapped[str]): Origin of data (manual, kaggle, parfumo).
+        external_id (Mapped[str | None]): ID from external data source.
+        parfumo_url (Mapped[str | None]): Source page on Parfumo, when scraped.
+        created_at (Mapped[datetime]): Creation timestamp.
+        updated_at (Mapped[datetime]): Last update timestamp.
+        notes (Mapped[list[FragranceNote]]): Note associations with pyramid
+            position.
+        accords (Mapped[list[FragranceAccord]]): Accord associations with
+            intensity.
+        evaluations (Mapped[list[Evaluation]]): Reviewer evaluations of this
+            fragrance.
     """
 
     __tablename__ = "fragrances"
@@ -86,10 +94,10 @@ class Note(Base):
     """Individual scent component.
 
     Attributes:
-        id: Unique identifier (UUID).
-        name: Note name (unique).
-        category: Primary category (Citrus, Floral, Wood, etc.).
-        subcategory: More specific classification.
+        id (Mapped[str]): Unique identifier (UUID).
+        name (Mapped[str]): Note name (unique).
+        category (Mapped[str]): Primary category (Citrus, Floral, Wood, etc.).
+        subcategory (Mapped[str | None]): More specific classification.
     """
 
     __tablename__ = "notes"
@@ -106,9 +114,11 @@ class FragranceNote(Base):
     """Junction table linking fragrances to notes with position.
 
     Attributes:
-        fragrance_id: Foreign key to fragrance.
-        note_id: Foreign key to note.
-        position: Note position (top, heart, base).
+        fragrance_id (Mapped[str]): Foreign key to fragrance.
+        note_id (Mapped[str]): Foreign key to note.
+        position (Mapped[str]): Note position (top, heart, base).
+        fragrance (Mapped[Fragrance]): Owning fragrance.
+        note (Mapped[Note]): Referenced note.
     """
 
     __tablename__ = "fragrance_notes"
@@ -129,9 +139,10 @@ class FragranceAccord(Base):
     """Accord type with intensity for a fragrance.
 
     Attributes:
-        fragrance_id: Foreign key to fragrance.
-        accord_type: Type of accord (e.g., citrus, woody, sweet).
-        intensity: Intensity weight from 0.0 to 1.0.
+        fragrance_id (Mapped[str]): Foreign key to fragrance.
+        accord_type (Mapped[str]): Type of accord (e.g., citrus, woody, sweet).
+        intensity (Mapped[float]): Intensity weight from 0.0 to 1.0.
+        fragrance (Mapped[Fragrance]): Owning fragrance.
     """
 
     __tablename__ = "fragrance_accords"

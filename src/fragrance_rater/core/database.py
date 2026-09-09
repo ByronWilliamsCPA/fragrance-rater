@@ -43,6 +43,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
     Yields:
         AsyncSession: Database session for executing queries.
 
+    Raises:
+        SQLAlchemyError: Re-raised after the session has been rolled back.
+
     Example:
         async with get_session() as session:
             result = await session.execute(select(Fragrance))
@@ -61,6 +64,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
     Yields:
         AsyncSession: Database session for the request lifecycle.
+
+    Raises:
+        SQLAlchemyError: Re-raised after the session has been rolled back.
     """
     async with async_session_maker() as session:
         try:

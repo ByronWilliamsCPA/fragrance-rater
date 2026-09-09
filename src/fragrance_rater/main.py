@@ -18,8 +18,8 @@ issuing a real OpenRouter call. See
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +36,9 @@ from fragrance_rater.api import (
 from fragrance_rater.core.config import settings
 from fragrance_rater.middleware import CorrelationMiddleware, add_security_middleware
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
@@ -50,15 +53,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     Yields:
         None: Control to the application.
     """
-    # Startup
-    # Import models to ensure they're registered with SQLAlchemy
-    from fragrance_rater import models as _models  # noqa: PLC0415
-
-    del _models  # Silence pyright unused import warning
-
+    # Startup: nothing to initialise yet. The ORM models are already registered
+    # on Base.metadata because the API routers imported above import them.
     yield
-    # Shutdown
-    # Add any cleanup code here (e.g., close connections)
+    # Shutdown: nothing to clean up yet (e.g., close connections)
 
 
 app = FastAPI(

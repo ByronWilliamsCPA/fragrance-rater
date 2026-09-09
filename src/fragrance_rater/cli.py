@@ -9,7 +9,6 @@ import sys
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypeVar
 
 import click
 from structlog.stdlib import BoundLogger
@@ -23,8 +22,6 @@ from fragrance_rater.utils.logging import get_logger
 
 logger: BoundLogger = get_logger(__name__)
 
-T = TypeVar("T")
-
 
 @dataclass
 class CLIContext:
@@ -37,11 +34,11 @@ class CLIContext:
     debug: bool = False
 
 
-def run_async(coro: Coroutine[Any, Any, T]) -> T:
+def run_async[T](coro: Coroutine[object, object, T]) -> T:
     """Run an async coroutine to completion in a fresh event loop.
 
     Args:
-        coro (Coroutine[Any, Any, T]): The coroutine to execute.
+        coro (Coroutine[object, object, T]): The coroutine to execute.
 
     Returns:
         T: The coroutine's return value.
