@@ -1,6 +1,6 @@
 """Fragrance API endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,6 +30,7 @@ async def get_fragrance_service(
 @router.get("", response_model=list[FragranceResponse])
 async def list_fragrances(
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    *,
     q: Annotated[
         str | None, Query(description="Search query for name or brand")
     ] = None,
@@ -38,20 +39,23 @@ async def list_fragrances(
         str | None, Query(description="Filter by fragrance family")
     ] = None,
     gender_target: Annotated[
-        str | None, Query(description="Filter by gender target")
+        Literal["Masculine", "Feminine", "Unisex"] | None,
+        Query(description="Filter by gender target"),
     ] = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[FragranceResponse]:
     """List and search fragrances.
 
-    Supports filtering by name/brand search, brand, family, and gender.
+    Supports filtering by name/brand search, brand, family, and gender. An
+    unknown ``gender_target`` value is rejected with 422 before the search
+    parameters are built.
     """
     params = FragranceSearchParams(
         q=q,
         brand=brand,
         primary_family=primary_family,
-        gender_target=gender_target,  # type: ignore[arg-type]
+        gender_target=gender_target,
         limit=limit,
         offset=offset,
     )

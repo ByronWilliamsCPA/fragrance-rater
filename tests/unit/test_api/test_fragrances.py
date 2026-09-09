@@ -215,6 +215,13 @@ class TestFragranceAPI:
         data = response.json()
         assert len(data) == 3
 
+    async def test_search_fragrances_rejects_unknown_gender_target(self, test_app):
+        """An unknown gender_target is a 422 validation error, not a 500."""
+        response = await test_app.get(f"{API_PREFIX}/fragrances?gender_target=bogus")
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert detail[0]["loc"] == ["query", "gender_target"]
+
     async def test_update_fragrance(self, test_app):
         """Test updating a fragrance."""
         # Create fragrance first
