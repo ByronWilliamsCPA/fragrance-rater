@@ -4,6 +4,16 @@
 
 config_version = "0"
 
+# ============================================================================
+# Plugin Configuration - Enabled Quality Tools
+# ============================================================================
+# Qlty unified quality analysis for Python projects.
+# These plugins integrate with existing pyproject.toml configurations.
+# Install: curl https://qlty.sh | bash && qlty plugins install
+# Documentation: https://docs.qlty.sh/analysis/coverage-linters
+[plugins]
+enabled = ["ruff", "pyright", "bandit"]
+
 # File patterns to completely exclude from all analysis
 exclude_patterns = [
     "*.log",
