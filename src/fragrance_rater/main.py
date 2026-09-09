@@ -88,8 +88,13 @@ app = FastAPI(
 # Add correlation ID middleware (should be added first)
 app.add_middleware(CorrelationMiddleware)
 
-# Add security middleware
-add_security_middleware(app)
+# Add security middleware (rate limiting is configurable so that test suites
+# sharing one app instance can disable the per-client counter)
+add_security_middleware(
+    app,
+    enable_rate_limiting=settings.rate_limit_enabled,
+    rate_limit_rpm=settings.rate_limit_rpm,
+)
 
 # Configure CORS for frontend
 app.add_middleware(

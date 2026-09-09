@@ -28,6 +28,8 @@ class Settings(BaseSettings):
         database_url (str): PostgreSQL connection string.
         database_echo (bool): Echo SQL queries to logs.
         api_v1_prefix (str): API version 1 prefix.
+        rate_limit_enabled (bool): Enable the in-memory rate limiting middleware.
+        rate_limit_rpm (int): Allowed requests per minute per client.
         openrouter_api_key (str): OpenRouter API key for LLM integration.
         openrouter_model (str): Default model to use for LLM calls.
         openrouter_base_url (str): OpenRouter API base URL.
@@ -62,6 +64,15 @@ class Settings(BaseSettings):
 
     # API
     api_v1_prefix: str = "/api/v1"
+    rate_limit_enabled: bool = Field(
+        default=True,
+        description="Enable per-client in-memory rate limiting middleware",
+    )
+    rate_limit_rpm: int = Field(
+        default=60,
+        ge=1,
+        description="Rate limit in requests per minute per client",
+    )
 
     # LLM / OpenRouter
     openrouter_api_key: str = Field(

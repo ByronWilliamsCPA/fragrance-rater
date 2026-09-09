@@ -8,6 +8,13 @@ This module provides:
 - Database fixtures for integration tests
 """
 
+import os
+
+# The FastAPI app is a module-level singleton, so its in-memory rate limiter
+# would count every request across the whole test session and start returning
+# 429 after the burst allowance. Disable it before Settings() is instantiated.
+os.environ["RATE_LIMIT_ENABLED"] = "false"
+
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Any
