@@ -676,9 +676,11 @@ class ParfumoScraper:
             return None
 
         # Check if fragrance already exists
+        # Critical finding 2: soft-delete filter.
         stmt = select(Fragrance).where(
             Fragrance.name == final_name,
             Fragrance.brand == final_brand,
+            Fragrance.deleted_at.is_(None),
         )
         result = await self.db.execute(stmt)
         existing = result.scalar_one_or_none()
@@ -706,9 +708,11 @@ class ParfumoScraper:
             return None
 
         # Check if exists
+        # Critical finding 2: soft-delete filter.
         stmt = select(Fragrance).where(
             Fragrance.name == scraped.name,
             Fragrance.brand == scraped.brand,
+            Fragrance.deleted_at.is_(None),
         )
         result = await self.db.execute(stmt)
         existing = result.scalar_one_or_none()

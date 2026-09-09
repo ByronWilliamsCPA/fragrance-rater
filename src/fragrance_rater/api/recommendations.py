@@ -205,9 +205,10 @@ async def get_recommendation_explanation(
         )
 
     # Get fragrance with notes
+    # Critical finding 2: soft-delete filter.
     stmt = (
         select(Fragrance)
-        .where(Fragrance.id == fragrance_id)
+        .where(Fragrance.id == fragrance_id, Fragrance.deleted_at.is_(None))
         .options(
             selectinload(Fragrance.notes).selectinload(FragranceNote.note),
             selectinload(Fragrance.accords),

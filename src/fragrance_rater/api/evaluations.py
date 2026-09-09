@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.evaluation import (
     EvaluationCreate,
@@ -15,8 +16,11 @@ from fragrance_rater.schemas.evaluation import (
 from fragrance_rater.services.evaluation_service import EvaluationService
 from fragrance_rater.services.fragrance_service import FragranceService
 from fragrance_rater.services.reviewer_service import ReviewerService
+from fragrance_rater.utils.logging import get_logger, log_audit_event
 
 router = APIRouter(prefix="/evaluations", tags=["evaluations"])
+
+logger = get_logger(__name__)
 
 
 async def get_evaluation_service(
@@ -70,6 +74,7 @@ async def list_evaluations(
             sillage_rating=e.sillage_rating,
             evaluated_at=e.evaluated_at,
             created_at=e.created_at,
+            recorded_by=e.recorded_by,
         )
         for e in evaluations
     ]
@@ -97,6 +102,7 @@ async def get_evaluation(
         sillage_rating=evaluation.sillage_rating,
         evaluated_at=evaluation.evaluated_at,
         created_at=evaluation.created_at,
+        recorded_by=evaluation.recorded_by,
     )
 
 
@@ -106,11 +112,19 @@ async def create_evaluation(
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
     fragrance_service: Annotated[FragranceService, Depends(get_fragrance_service)],
     reviewer_service: Annotated[ReviewerService, Depends(get_reviewer_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> EvaluationResponse:
     """Create a new evaluation.
 
     A reviewer can only have one evaluation per fragrance. Both the
     fragrance and the reviewer must already exist.
+
+    Critical finding 2: `recorded_by` is populated from the Authentik
+    forward-auth identity of whoever is logged in when this request is
+    made, independent of `reviewer_id` (whose palate the rating reflects).
+    One logged-in person can record ratings for several different
+    reviewers across separate requests (a group-smelling session); this
+    endpoint places no constraint tying the two together.
     """
     # #CRITICAL: data-integrity: on SQLite (used in tests) foreign keys are
     # off by default, so an insert against a nonexistent fragrance_id or
@@ -161,7 +175,7 @@ async def create_evaluation(
     # surfacing as an unhandled 500; it is rolled back and translated into
     # the same 409 CONFLICT the pre-check above returns for the common case.
     try:
-        evaluation = await service.create(data)
+        evaluation = await service.create(data, recorded_by=identity.username)
     except IntegrityError:
         await service.session.rollback()
         existing = await service.get_by_reviewer_and_fragrance(
@@ -176,6 +190,16 @@ async def create_evaluation(
             },
         ) from None
 
+    log_audit_event(
+        logger,
+        action="create",
+        actor=identity.username,
+        target_type="evaluation",
+        target_id=evaluation.id,
+        reviewer_id=evaluation.reviewer_id,
+        fragrance_id=evaluation.fragrance_id,
+    )
+
     return EvaluationResponse(
         id=evaluation.id,
         fragrance_id=evaluation.fragrance_id,
@@ -186,6 +210,7 @@ async def create_evaluation(
         sillage_rating=evaluation.sillage_rating,
         evaluated_at=evaluation.evaluated_at,
         created_at=evaluation.created_at,
+        recorded_by=evaluation.recorded_by,
     )
 
 
@@ -194,6 +219,7 @@ async def update_evaluation(
     evaluation_id: str,
     data: EvaluationUpdate,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> EvaluationResponse:
     """Update an existing evaluation."""
     evaluation = await service.update(evaluation_id, data)
@@ -202,6 +228,13 @@ async def update_evaluation(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "EVALUATION_NOT_FOUND", "message": "Evaluation not found"},
         )
+    log_audit_event(
+        logger,
+        action="update",
+        actor=identity.username,
+        target_type="evaluation",
+        target_id=evaluation.id,
+    )
     return EvaluationResponse(
         id=evaluation.id,
         fragrance_id=evaluation.fragrance_id,
@@ -212,6 +245,7 @@ async def update_evaluation(
         sillage_rating=evaluation.sillage_rating,
         evaluated_at=evaluation.evaluated_at,
         created_at=evaluation.created_at,
+        recorded_by=evaluation.recorded_by,
     )
 
 
@@ -219,11 +253,19 @@ async def update_evaluation(
 async def delete_evaluation(
     evaluation_id: str,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> None:
-    """Delete an evaluation by ID."""
+    """Soft-delete an evaluation by ID."""
     deleted = await service.delete(evaluation_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "EVALUATION_NOT_FOUND", "message": "Evaluation not found"},
         )
+    log_audit_event(
+        logger,
+        action="soft_delete",
+        actor=identity.username,
+        target_type="evaluation",
+        target_id=evaluation_id,
+    )

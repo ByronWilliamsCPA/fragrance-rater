@@ -41,6 +41,8 @@ class Fragrance(Base):
         parfumo_url (Mapped[str | None]): Source page on Parfumo, when scraped.
         created_at (Mapped[datetime]): Creation timestamp.
         updated_at (Mapped[datetime]): Last update timestamp.
+        deleted_at (Mapped[datetime | None]): Soft-delete timestamp; NULL
+            means active. Set by DELETE routes instead of removing the row.
         notes (Mapped[list[FragranceNote]]): Note associations with pyramid
             position.
         accords (Mapped[list[FragranceAccord]]): Accord associations with
@@ -88,6 +90,24 @@ class Fragrance(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         default=func.now(), server_default=func.now(), onupdate=func.now()
+    )
+
+    # Critical finding 2: soft-delete. DELETE routes set this timestamp
+    # instead of issuing a real DELETE, so a deleted fragrance never
+    # triggers the cascade="all, delete-orphan" below on its evaluations
+    # (no row is actually removed). Every read query against this table
+    # must filter WHERE deleted_at IS NULL; see fragrance_service.py,
+    # recommendation_service.py, api/recommendations.py, and
+    # parfumo_scraper.py's dedup lookups.
+    # #EDGE: data-integrity: uq_fragrance_name_brand (Major finding 8) is
+    # not partial/scoped to deleted_at IS NULL, so re-creating or
+    # re-scraping a fragrance with the same (name, brand) as a
+    # soft-deleted row still raises the existing UNIQUE violation.
+    # #VERIFY: not addressed in this pass (would require a partial unique
+    # index); flagged in the remediation report rather than silently
+    # decided.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None, index=True
     )
 
     # Relationships

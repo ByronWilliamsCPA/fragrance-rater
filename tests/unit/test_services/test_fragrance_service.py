@@ -392,3 +392,64 @@ class TestFragranceService:
         results = await service.search(params)
 
         assert results == []
+
+
+@pytest.mark.asyncio
+class TestFragranceSoftDelete:
+    """Critical finding 2: delete() soft-deletes, never issues a real DELETE."""
+
+    async def test_delete_sets_deleted_at_without_removing_row(self, async_session):
+        """The row must survive delete(), only deleted_at is set."""
+        from sqlalchemy import select
+
+        fragrance = Fragrance(
+            id="soft-delete-frag-001",
+            name="Soft Delete Me",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(fragrance)
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        result = await service.delete("soft-delete-frag-001")
+        await async_session.commit()
+
+        assert result is True
+
+        # The row is still physically present in the table.
+        raw = await async_session.execute(
+            select(Fragrance).where(Fragrance.id == "soft-delete-frag-001")
+        )
+        row = raw.scalar_one_or_none()
+        assert row is not None
+        assert row.deleted_at is not None
+
+        # But excluded from get_by_id/search.
+        assert await service.get_by_id("soft-delete-frag-001") is None
+
+    async def test_search_excludes_soft_deleted_fragrances(self, async_session):
+        """search() must never return a soft-deleted fragrance."""
+        fragrance = Fragrance(
+            id="soft-delete-frag-002",
+            name="Hidden Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(fragrance)
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        await service.delete("soft-delete-frag-002")
+        await async_session.commit()
+
+        results = await service.search(FragranceSearchParams(q="Hidden Fragrance"))
+        assert results == []

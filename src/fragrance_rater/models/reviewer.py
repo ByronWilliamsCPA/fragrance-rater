@@ -26,6 +26,8 @@ class Reviewer(Base):
         id (Mapped[str]): Unique identifier (UUID).
         name (Mapped[str]): Reviewer's name (unique).
         created_at (Mapped[datetime]): Profile creation timestamp.
+        deleted_at (Mapped[datetime | None]): Soft-delete timestamp; NULL
+            means active. Set by DELETE routes instead of removing the row.
         evaluations (Mapped[list[Evaluation]]): Evaluations authored by this
             reviewer.
     """
@@ -38,6 +40,17 @@ class Reviewer(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(), server_default=func.now()
+    )
+    # Critical finding 2: soft-delete, mirroring Fragrance.deleted_at. Every
+    # read query against this table must filter WHERE deleted_at IS NULL;
+    # see reviewer_service.py.
+    # #EDGE: data-integrity: `name` above keeps a bare UNIQUE constraint
+    # (not scoped to deleted_at IS NULL), so re-seeding or re-creating a
+    # reviewer with the same name as a soft-deleted one still raises the
+    # existing UNIQUE violation. Not addressed in this pass; flagged in the
+    # remediation report rather than silently decided.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None, index=True
     )
 
     evaluations: Mapped[list[Evaluation]] = relationship(

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.fragrance import (
     FragranceAccordResponse,
@@ -17,8 +18,11 @@ from fragrance_rater.schemas.fragrance import (
     NoteResponse,
 )
 from fragrance_rater.services.fragrance_service import FragranceService
+from fragrance_rater.utils.logging import get_logger, log_audit_event
 
 router = APIRouter(prefix="/fragrances", tags=["fragrances"])
+
+logger = get_logger(__name__)
 
 
 async def get_fragrance_service(
@@ -137,6 +141,7 @@ async def get_fragrance(
 async def create_fragrance(
     data: FragranceCreate,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> FragranceResponse:
     """Create a new fragrance with notes and accords.
 
@@ -163,6 +168,13 @@ async def create_fragrance(
                 ),
             },
         ) from None
+    log_audit_event(
+        logger,
+        action="create",
+        actor=identity.username,
+        target_type="fragrance",
+        target_id=fragrance.id,
+    )
     return await get_fragrance(fragrance.id, service)
 
 
@@ -171,6 +183,7 @@ async def update_fragrance(
     fragrance_id: str,
     data: FragranceUpdate,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> FragranceResponse:
     """Update an existing fragrance."""
     fragrance = await service.update(fragrance_id, data)
@@ -179,6 +192,13 @@ async def update_fragrance(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "FRAGRANCE_NOT_FOUND", "message": "Fragrance not found"},
         )
+    log_audit_event(
+        logger,
+        action="update",
+        actor=identity.username,
+        target_type="fragrance",
+        target_id=fragrance_id,
+    )
     return await get_fragrance(fragrance_id, service)
 
 
@@ -186,11 +206,19 @@ async def update_fragrance(
 async def delete_fragrance(
     fragrance_id: str,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> None:
-    """Delete a fragrance by ID."""
+    """Soft-delete a fragrance by ID."""
     deleted = await service.delete(fragrance_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "FRAGRANCE_NOT_FOUND", "message": "Fragrance not found"},
         )
+    log_audit_event(
+        logger,
+        action="soft_delete",
+        actor=identity.username,
+        target_type="fragrance",
+        target_id=fragrance_id,
+    )

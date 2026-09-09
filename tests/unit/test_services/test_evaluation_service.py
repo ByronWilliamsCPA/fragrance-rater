@@ -338,3 +338,118 @@ class TestEvaluationServiceCacheInvalidation:
         service = EvaluationService(async_session)
 
         assert service._llm_service is get_llm_service()
+
+
+@pytest.mark.asyncio
+class TestEvaluationSoftDeleteAndRecordedBy:
+    """Critical finding 2: soft-delete and recorded_by independence."""
+
+    async def test_delete_sets_deleted_at_without_removing_row(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """A fragrance's evaluations must survive a soft-delete of the eval."""
+        from sqlalchemy import select
+
+        fragrance, reviewer = setup_fragrance_and_reviewer
+        evaluation = Evaluation(
+            id="soft-delete-eval-001",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=3,
+        )
+        async_session.add(evaluation)
+        await async_session.commit()
+
+        service = EvaluationService(async_session)
+        result = await service.delete("soft-delete-eval-001")
+        await async_session.commit()
+
+        assert result is True
+
+        raw = await async_session.execute(
+            select(Evaluation).where(Evaluation.id == "soft-delete-eval-001")
+        )
+        row = raw.scalar_one_or_none()
+        assert row is not None
+        assert row.deleted_at is not None
+        assert await service.get_by_id("soft-delete-eval-001") is None
+
+    async def test_evaluations_survive_fragrance_soft_delete(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """Soft-deleting the fragrance must not cascade-delete its evaluations."""
+        from sqlalchemy import select
+
+        from fragrance_rater.services.fragrance_service import FragranceService
+
+        fragrance, reviewer = setup_fragrance_and_reviewer
+        evaluation = Evaluation(
+            id="frag-cascade-eval-001",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=5,
+        )
+        async_session.add(evaluation)
+        await async_session.commit()
+
+        fragrance_service = FragranceService(async_session)
+        await fragrance_service.delete(fragrance.id)
+        await async_session.commit()
+
+        # The evaluation row is still physically present and unaffected.
+        raw = await async_session.execute(
+            select(Evaluation).where(Evaluation.id == "frag-cascade-eval-001")
+        )
+        row = raw.scalar_one_or_none()
+        assert row is not None
+        assert row.deleted_at is None
+
+    async def test_recorded_by_independent_of_reviewer_id(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """One logged-in actor can record ratings for several reviewers.
+
+        `recorded_by` (who was logged in) and `reviewer_id` (whose palate
+        the rating reflects) must vary independently; recording for one
+        reviewer must not constrain or alter another reviewer's data.
+        """
+        fragrance, reviewer = setup_fragrance_and_reviewer
+        other_reviewer = Reviewer(id="eval-reviewer-002", name="Other Reviewer")
+        async_session.add(other_reviewer)
+        await async_session.commit()
+
+        service = EvaluationService(async_session)
+
+        eval_1 = await service.create(
+            EvaluationCreate(
+                fragrance_id=fragrance.id, reviewer_id=reviewer.id, rating=4
+            ),
+            recorded_by="byron",
+        )
+        eval_2 = await service.create(
+            EvaluationCreate(
+                fragrance_id=fragrance.id, reviewer_id=other_reviewer.id, rating=2
+            ),
+            recorded_by="byron",
+        )
+
+        assert eval_1.reviewer_id == reviewer.id
+        assert eval_2.reviewer_id == other_reviewer.id
+        assert eval_1.recorded_by == "byron"
+        assert eval_2.recorded_by == "byron"
+        assert eval_1.reviewer_id != eval_2.reviewer_id
+
+    async def test_recorded_by_defaults_to_none(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """Omitting recorded_by (no Authentik identity) leaves it None."""
+        fragrance, reviewer = setup_fragrance_and_reviewer
+        service = EvaluationService(async_session)
+
+        evaluation = await service.create(
+            EvaluationCreate(
+                fragrance_id=fragrance.id, reviewer_id=reviewer.id, rating=3
+            )
+        )
+
+        assert evaluation.recorded_by is None

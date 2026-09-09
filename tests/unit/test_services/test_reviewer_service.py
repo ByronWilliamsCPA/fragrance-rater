@@ -148,3 +148,94 @@ class TestReviewerService:
         result = await service.delete("nonexistent")
 
         assert result is False
+
+
+@pytest.mark.asyncio
+class TestReviewerSoftDeleteAndEvaluationCount:
+    """Critical finding 2: soft-delete and the deleted_at-aware count."""
+
+    async def test_delete_sets_deleted_at_without_removing_row(self, async_session):
+        """The row must survive delete(), only deleted_at is set."""
+        from sqlalchemy import select
+
+        reviewer = Reviewer(id="soft-delete-rev-001", name="Soft Delete Reviewer")
+        async_session.add(reviewer)
+        await async_session.commit()
+
+        service = ReviewerService(async_session)
+        result = await service.delete("soft-delete-rev-001")
+        await async_session.commit()
+
+        assert result is True
+
+        raw = await async_session.execute(
+            select(Reviewer).where(Reviewer.id == "soft-delete-rev-001")
+        )
+        row = raw.scalar_one_or_none()
+        assert row is not None
+        assert row.deleted_at is not None
+        assert await service.get_by_id("soft-delete-rev-001") is None
+
+    async def test_list_all_excludes_soft_deleted_reviewers(self, async_session):
+        """list_all() must never return a soft-deleted reviewer."""
+        reviewer = Reviewer(id="soft-delete-rev-002", name="Hidden Reviewer")
+        async_session.add(reviewer)
+        await async_session.commit()
+
+        service = ReviewerService(async_session)
+        await service.delete("soft-delete-rev-002")
+        await async_session.commit()
+
+        results = await service.list_all()
+        assert all(r.id != "soft-delete-rev-002" for r, _count in results)
+
+    async def test_count_evaluations_excludes_soft_deleted_evaluations(
+        self, async_session
+    ):
+        """count_evaluations() must not count a soft-deleted evaluation."""
+        from fragrance_rater.models.evaluation import Evaluation
+        from fragrance_rater.models.fragrance import Fragrance
+
+        reviewer = Reviewer(id="count-eval-rev-001", name="Count Reviewer")
+        fragrance = Fragrance(
+            id="count-eval-frag-001",
+            name="Count Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(reviewer)
+        async_session.add(fragrance)
+        await async_session.commit()
+
+        active_eval = Evaluation(
+            id="count-eval-active",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=4,
+        )
+        async_session.add(active_eval)
+        await async_session.commit()
+
+        service = ReviewerService(async_session)
+        assert await service.count_evaluations(reviewer.id) == 1
+
+        from fragrance_rater.services.evaluation_service import EvaluationService
+
+        eval_service = EvaluationService(async_session)
+        await eval_service.delete("count-eval-active")
+        await async_session.commit()
+
+        assert await service.count_evaluations(reviewer.id) == 0
+
+    async def test_count_evaluations_for_reviewer_with_none(self, async_session):
+        """A reviewer with no evaluations counts as zero."""
+        reviewer = Reviewer(id="count-eval-rev-002", name="No Evals Reviewer")
+        async_session.add(reviewer)
+        await async_session.commit()
+
+        service = ReviewerService(async_session)
+        assert await service.count_evaluations(reviewer.id) == 0

@@ -15,6 +15,13 @@ import os
 # 429 after the burst allowance. Disable it before Settings() is instantiated.
 os.environ["RATE_LIMIT_ENABLED"] = "false"
 
+# Critical finding 2: mutating routes now depend on a verified Authentik
+# forward-auth identity header by default. The test suite doesn't run behind
+# Traefik, so disable the requirement the same way RATE_LIMIT_ENABLED is
+# disabled above; dedicated tests re-enable it via monkeypatch to cover the
+# missing-header-rejected case explicitly.
+os.environ["AUTHENTIK_REQUIRED"] = "false"
+
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Any

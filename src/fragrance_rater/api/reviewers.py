@@ -5,11 +5,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.reviewer import ReviewerCreate, ReviewerResponse
 from fragrance_rater.services.reviewer_service import ReviewerService
+from fragrance_rater.utils.logging import get_logger, log_audit_event
 
 router = APIRouter(prefix="/reviewers", tags=["reviewers"])
+
+logger = get_logger(__name__)
 
 
 async def get_reviewer_service(
@@ -48,11 +52,12 @@ async def get_reviewer(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "REVIEWER_NOT_FOUND", "message": "Reviewer not found"},
         )
+    evaluation_count = await service.count_evaluations(reviewer_id)
     return ReviewerResponse(
         id=reviewer.id,
         name=reviewer.name,
         created_at=reviewer.created_at,
-        evaluation_count=len(reviewer.evaluations),
+        evaluation_count=evaluation_count,
     )
 
 
@@ -60,6 +65,7 @@ async def get_reviewer(
 async def create_reviewer(
     data: ReviewerCreate,
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> ReviewerResponse:
     """Create a new reviewer."""
     # Check if name already exists
@@ -74,6 +80,13 @@ async def create_reviewer(
         )
 
     reviewer = await service.create(data.name)
+    log_audit_event(
+        logger,
+        action="create",
+        actor=identity.username,
+        target_type="reviewer",
+        target_id=reviewer.id,
+    )
     return ReviewerResponse(
         id=reviewer.id,
         name=reviewer.name,
@@ -85,6 +98,7 @@ async def create_reviewer(
 @router.post("/seed", response_model=list[ReviewerResponse])
 async def seed_reviewers(
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> list[ReviewerResponse]:
     """Create default family reviewer profiles.
 
@@ -92,6 +106,13 @@ async def seed_reviewers(
     Idempotent - existing reviewers are returned as-is.
     """
     reviewers = await service.seed_default_reviewers()
+    log_audit_event(
+        logger,
+        action="seed",
+        actor=identity.username,
+        target_type="reviewer",
+        target_id=",".join(r.id for r in reviewers),
+    )
     return [
         ReviewerResponse(
             id=reviewer.id,
@@ -107,11 +128,19 @@ async def seed_reviewers(
 async def delete_reviewer(
     reviewer_id: str,
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> None:
-    """Delete a reviewer by ID."""
+    """Soft-delete a reviewer by ID."""
     deleted = await service.delete(reviewer_id)
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "REVIEWER_NOT_FOUND", "message": "Reviewer not found"},
         )
+    log_audit_event(
+        logger,
+        action="soft_delete",
+        actor=identity.username,
+        target_type="reviewer",
+        target_id=reviewer_id,
+    )

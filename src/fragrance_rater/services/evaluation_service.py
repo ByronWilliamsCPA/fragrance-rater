@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -53,7 +54,7 @@ class EvaluationService:
         """
         stmt = (
             select(Evaluation)
-            .where(Evaluation.id == evaluation_id)
+            .where(Evaluation.id == evaluation_id, Evaluation.deleted_at.is_(None))
             .options(
                 selectinload(Evaluation.fragrance),
                 selectinload(Evaluation.reviewer),
@@ -73,7 +74,9 @@ class EvaluationService:
         """
         stmt = (
             select(Evaluation)
-            .where(Evaluation.reviewer_id == reviewer_id)
+            .where(
+                Evaluation.reviewer_id == reviewer_id, Evaluation.deleted_at.is_(None)
+            )
             .options(selectinload(Evaluation.fragrance))
             .order_by(Evaluation.evaluated_at.desc())
         )
@@ -91,7 +94,9 @@ class EvaluationService:
         """
         stmt = (
             select(Evaluation)
-            .where(Evaluation.fragrance_id == fragrance_id)
+            .where(
+                Evaluation.fragrance_id == fragrance_id, Evaluation.deleted_at.is_(None)
+            )
             .options(selectinload(Evaluation.reviewer))
             .order_by(Evaluation.evaluated_at.desc())
         )
@@ -113,15 +118,22 @@ class EvaluationService:
         stmt = select(Evaluation).where(
             Evaluation.reviewer_id == reviewer_id,
             Evaluation.fragrance_id == fragrance_id,
+            Evaluation.deleted_at.is_(None),
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def create(self, data: EvaluationCreate) -> Evaluation:
+    async def create(
+        self, data: EvaluationCreate, recorded_by: str | None = None
+    ) -> Evaluation:
         """Create a new evaluation.
 
         Args:
             data (EvaluationCreate): Evaluation creation data.
+            recorded_by (str | None): Authentik username of whoever was
+                logged in when this evaluation was submitted (Critical
+                finding 2). Independent of `data.reviewer_id`; None when no
+                Authentik identity is available.
 
         Returns:
             Evaluation: Created evaluation.
@@ -134,6 +146,7 @@ class EvaluationService:
             notes=data.notes,
             longevity_rating=data.longevity_rating,
             sillage_rating=data.sillage_rating,
+            recorded_by=recorded_by,
         )
         self.session.add(evaluation)
         await self.session.flush()
@@ -165,20 +178,24 @@ class EvaluationService:
         return evaluation
 
     async def delete(self, evaluation_id: str) -> bool:
-        """Delete an evaluation by ID.
+        """Soft-delete an evaluation by ID.
+
+        Critical finding 2: this sets `deleted_at` instead of issuing a real
+        DELETE.
 
         Args:
             evaluation_id (str): UUID of the evaluation.
 
         Returns:
-            bool: True if deleted, False if not found.
+            bool: True if soft-deleted, False if not found (or already
+                soft-deleted, since get_by_id excludes it).
         """
         evaluation = await self.get_by_id(evaluation_id)
         if not evaluation:
             return False
 
         reviewer_id = evaluation.reviewer_id
-        await self.session.delete(evaluation)
+        evaluation.deleted_at = datetime.now(UTC)
         await self.session.flush()
         self._llm_service.invalidate_reviewer_cache(reviewer_id)
         return True

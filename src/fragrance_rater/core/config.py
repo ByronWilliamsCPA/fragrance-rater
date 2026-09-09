@@ -46,6 +46,9 @@ class Settings(BaseSettings):
         openrouter_model (str): Default model to use for LLM calls.
         openrouter_base_url (str): OpenRouter API base URL.
         llm_enabled (bool): Enable/disable LLM features.
+        authentik_required (bool): Require a verified Authentik forward-auth
+            identity header on mutating requests. Defaults to True outside
+            tests; tests and local dev disable it via AUTHENTIK_REQUIRED=false.
     """
 
     model_config = SettingsConfigDict(
@@ -133,6 +136,22 @@ class Settings(BaseSettings):
     llm_enabled: bool = Field(
         default=True,
         description="Enable/disable LLM features",
+    )
+
+    # Authentik forward-auth (Critical finding 2)
+    # #CRITICAL: security: this app is deployed behind Authentik/Traefik
+    # forward-auth; when True, mutating requests that lack a verified
+    # X-Authentik-Username header (meaning the request bypassed the proxy)
+    # are rejected rather than silently treated as anonymous.
+    # #VERIFY: default True in production; tests and local dev set
+    # AUTHENTIK_REQUIRED=false the same way other test-only toggles already
+    # work in this file (see RATE_LIMIT_ENABLED in tests/conftest.py).
+    authentik_required: bool = Field(
+        default=True,
+        description=(
+            "Require a verified Authentik forward-auth identity header on "
+            "mutating fragrances/evaluations/reviewers requests."
+        ),
     )
 
 

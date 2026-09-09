@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -47,7 +48,7 @@ class FragranceService:
         """
         stmt = (
             select(Fragrance)
-            .where(Fragrance.id == fragrance_id)
+            .where(Fragrance.id == fragrance_id, Fragrance.deleted_at.is_(None))
             .options(selectinload(Fragrance.notes).selectinload(FragranceNote.note))
             .options(selectinload(Fragrance.accords))
         )
@@ -63,9 +64,15 @@ class FragranceService:
         Returns:
             list[Fragrance]: List of matching fragrances.
         """
-        stmt = select(Fragrance).options(
-            selectinload(Fragrance.notes).selectinload(FragranceNote.note),
-            selectinload(Fragrance.accords),
+        # Critical finding 2: soft-delete filter. Every read query against
+        # fragrances/evaluations/reviewers must exclude deleted_at IS NOT NULL.
+        stmt = (
+            select(Fragrance)
+            .where(Fragrance.deleted_at.is_(None))
+            .options(
+                selectinload(Fragrance.notes).selectinload(FragranceNote.note),
+                selectinload(Fragrance.accords),
+            )
         )
 
         if params.q:
@@ -169,19 +176,24 @@ class FragranceService:
         return fragrance
 
     async def delete(self, fragrance_id: str) -> bool:
-        """Delete a fragrance by ID.
+        """Soft-delete a fragrance by ID.
+
+        Critical finding 2: this sets `deleted_at` instead of issuing a real
+        DELETE, so it never triggers cascade="all, delete-orphan" on the
+        fragrance's notes/accords/evaluations; no row is actually removed.
 
         Args:
             fragrance_id (str): UUID of the fragrance.
 
         Returns:
-            bool: True if deleted, False if not found.
+            bool: True if soft-deleted, False if not found (or already
+                soft-deleted, since get_by_id excludes it).
         """
         fragrance = await self.get_by_id(fragrance_id)
         if not fragrance:
             return False
 
-        await self.session.delete(fragrance)
+        fragrance.deleted_at = datetime.now(UTC)
         await self.session.flush()
         return True
 

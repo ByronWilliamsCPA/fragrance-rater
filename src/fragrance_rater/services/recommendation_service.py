@@ -132,9 +132,12 @@ class RecommendationService:
             UserProfile: UserProfile with computed affinities.
         """
         # Fetch all evaluations with fragrance details
+        # Critical finding 2: soft-delete filter on the evaluation aggregation.
         stmt = (
             select(Evaluation)
-            .where(Evaluation.reviewer_id == reviewer_id)
+            .where(
+                Evaluation.reviewer_id == reviewer_id, Evaluation.deleted_at.is_(None)
+            )
             .options(
                 selectinload(Evaluation.fragrance)
                 .selectinload(Fragrance.notes)
@@ -294,15 +297,22 @@ class RecommendationService:
             raise InsufficientDataError(msg)
 
         # Get candidate fragrances
-        stmt = select(Fragrance).options(
-            selectinload(Fragrance.notes).selectinload(FragranceNote.note),
-            selectinload(Fragrance.accords),
+        # Critical finding 2: soft-delete filter on the recommendation
+        # engine's catalog scan.
+        stmt = (
+            select(Fragrance)
+            .where(Fragrance.deleted_at.is_(None))
+            .options(
+                selectinload(Fragrance.notes).selectinload(FragranceNote.note),
+                selectinload(Fragrance.accords),
+            )
         )
 
         # Exclude already-rated fragrances if requested
         if exclude_rated:
             rated_stmt = select(Evaluation.fragrance_id).where(
-                Evaluation.reviewer_id == reviewer_id
+                Evaluation.reviewer_id == reviewer_id,
+                Evaluation.deleted_at.is_(None),
             )
             rated_result = await self.session.execute(rated_stmt)
             rated_ids = {row[0] for row in rated_result.all()}

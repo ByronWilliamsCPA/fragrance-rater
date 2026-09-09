@@ -39,5 +39,9 @@ class EvaluationResponse(BaseModel):
     sillage_rating: int | None
     evaluated_at: datetime
     created_at: datetime
+    # Critical finding 2: Authentik username of whoever was logged in when
+    # this evaluation was submitted. Independent of reviewer_id; None when
+    # no Authentik identity was available (e.g. local dev, seeded data).
+    recorded_by: str | None = None
 
     model_config = {"from_attributes": True}

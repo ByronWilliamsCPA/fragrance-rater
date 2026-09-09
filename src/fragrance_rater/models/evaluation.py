@@ -34,6 +34,15 @@ class Evaluation(Base):
             (1-5).
         evaluated_at (Mapped[datetime]): When the evaluation was made.
         created_at (Mapped[datetime]): Record creation timestamp.
+        deleted_at (Mapped[datetime | None]): Soft-delete timestamp; NULL
+            means active. Set by DELETE routes instead of removing the row.
+        recorded_by (Mapped[str | None]): Authentik username of whoever was
+            logged in when this evaluation was submitted. Independent of
+            and NOT a replacement for `reviewer_id`: `reviewer_id` is whose
+            palate the rating reflects, `recorded_by` is who was at the
+            keyboard. One logged-in person often records ratings for
+            several reviewers in a single group-smelling session, so these
+            two fields are never constrained against each other.
         fragrance (Mapped[Fragrance]): Evaluated fragrance.
         reviewer (Mapped[Reviewer]): Reviewer who made the evaluation.
     """
@@ -73,6 +82,23 @@ class Evaluation(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         default=func.now(), server_default=func.now()
+    )
+
+    # Critical finding 2: soft-delete, mirroring Fragrance.deleted_at. Every
+    # read query against this table must filter WHERE deleted_at IS NULL;
+    # see evaluation_service.py and recommendation_service.py.
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        nullable=True, default=None, index=True
+    )
+    # Critical finding 2: audit trail for who was logged in at write time,
+    # populated from the Authentik forward-auth identity dependency
+    # (core/auth.py). Nullable because Authentik isn't wired in local
+    # dev/tests/seeded data. Deliberately NOT a foreign key to any identity
+    # table and deliberately NOT used to constrain reviewer_id selection;
+    # the user explicitly corrected an earlier design idea that would have
+    # mapped Authentik identity 1:1 onto reviewer_id.
+    recorded_by: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None
     )
 
     fragrance: Mapped[Fragrance] = relationship(back_populates="evaluations")
