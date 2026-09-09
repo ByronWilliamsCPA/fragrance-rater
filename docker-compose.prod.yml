@@ -37,7 +37,7 @@ services:
         failure_action: rollback
         order: start-first
 
-frontend:
+  frontend:
     # Production frontend (nginx serving built assets)
     build:
       context: ./frontend
@@ -63,10 +63,17 @@ frontend:
         delay: 5s
         max_attempts: 3
 
-db:
+  db:
     # Production database settings
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in production}
+
+    # Do not expose the database to the network in production. The base
+    # compose file publishes ${DB_PORT}:5432 on all interfaces for local
+    # development; bind it to loopback here so production only reaches
+    # Postgres over the internal compose network.
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
 
     # Increased connection pool
     command: >
