@@ -1,6 +1,6 @@
 # Project Planning Document Guide
 
-Comprehensive guidance for creating and maintaining project planning documents.
+Detailed guidance for creating and maintaining project planning documents.
 
 ## Table of Contents
 

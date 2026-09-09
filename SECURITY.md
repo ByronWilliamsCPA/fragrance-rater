@@ -28,6 +28,21 @@ A useful report contains, at minimum:
 - Suggested fix or mitigation, if known.
 - Your contact details and whether you want public credit in the advisory.
 
+## Security Surface
+
+The following components are in scope for vulnerability reports:
+
+- **FastAPI backend**: the API layer under `src/fragrance_rater/api/`, including
+  request handling, authentication, and middleware (`src/fragrance_rater/middleware/`).
+- **LLM/OpenRouter integration**: the recommendation-explanation client and any
+  code path that builds prompts from user input or handles the OpenRouter
+  API key.
+- **CI/CD workflows**: the GitHub Actions workflows in `.github/workflows/`,
+  including build, test, and publish pipelines, and their token permissions.
+
+Out of scope: third-party dependencies (report upstream), and issues that
+require physical or already-privileged access to the maintainer's machine.
+
 ## Supported Versions
 
 fragrance-rater follows a continuous deployment model on `main`. Release tags

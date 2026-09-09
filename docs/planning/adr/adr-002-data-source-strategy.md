@@ -14,7 +14,7 @@ Use a tiered data acquisition strategy: Kaggle bulk seed → manual fallback →
 The application needs fragrance metadata (notes, accords, family classification) to build preference profiles. External data sources have limitations:
 
 - **Fragella API**: High-quality structured data but only 20 requests/month free tier
-- **Fragrantica**: Comprehensive but requires web scraping (ToS concerns, fragile)
+- **Fragrantica**: Extensive data but requires web scraping (ToS concerns, fragile)
 - **Kaggle datasets**: Free bulk data but may be stale or incomplete
 
 ### Constraints

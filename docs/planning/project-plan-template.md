@@ -1,7 +1,7 @@
 ---
 schema_type: planning
 title: "Fragrance Rater - Project Plan"
-description: "Comprehensive project plan for Fragrance Rater with detailed implementation roadmap, architecture overview, and phased development strategy"
+description: "Complete project plan for Fragrance Rater with detailed implementation roadmap, architecture overview, and phased development strategy"
 tags:
   - planning
   - roadmap
@@ -205,7 +205,7 @@ git checkout -b feat/phase-1-core
 **Objectives**:
 - Implement core functionality
 - Create API/CLI interface
-- Build comprehensive test suite
+- Build full test suite
 
 **Key Deliverables**:
 - [ ] Core module implementation

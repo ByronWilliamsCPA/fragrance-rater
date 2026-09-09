@@ -50,7 +50,7 @@ need triage. Also used during the OpenSSF release gate check.
 
 **File**: `.claude/agents/test-engineer.md`
 
-**Purpose**: Comprehensive testing specialist for test strategy, generation, and
+**Purpose**: Testing specialist for test strategy, generation, and
 quality assurance targeting the project's 80% coverage threshold.
 
 **When to invoke**: When writing tests for a new feature or bug fix, when coverage

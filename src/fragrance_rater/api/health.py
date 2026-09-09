@@ -20,10 +20,21 @@ import time
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
+from fragrance_rater.utils.logging import get_logger
+
 router = APIRouter(prefix="/health", tags=["health"])
+
+logger = get_logger(__name__)
 
 # Track application start time for uptime calculation
 _START_TIME = time.time()
+
+# Readiness probes are unauthenticated, so the response body must never
+# carry raw exception text. Driver-level connection errors routinely embed
+# the DSN, host, port, and user, which would leak infrastructure detail (and
+# potentially a credential) to any caller. The full exception is logged
+# server-side instead; the caller only learns which dependency is down.
+_GENERIC_CHECK_ERROR = "dependency check failed; see server logs for detail"
 
 
 class HealthStatus(BaseModel):
@@ -103,13 +114,14 @@ async def check_database() -> ReadinessCheck:
             latency_ms=round(latency_ms, 2),
             error=None,
         )
-    except Exception as e:
+    except Exception:
         latency_ms = (time.time() - start) * 1000
+        logger.exception("readiness check failed", dependency="database")
         return ReadinessCheck(
             name="database",
             status=False,
             latency_ms=round(latency_ms, 2),
-            error=str(e),
+            error=_GENERIC_CHECK_ERROR,
         )
 
 
@@ -133,13 +145,14 @@ async def check_cache() -> ReadinessCheck:
             latency_ms=round(latency_ms, 2),
             error=None,
         )
-    except Exception as e:
+    except Exception:
         latency_ms = (time.time() - start) * 1000
+        logger.exception("readiness check failed", dependency="cache")
         return ReadinessCheck(
             name="cache",
             status=False,
             latency_ms=round(latency_ms, 2),
-            error=str(e),
+            error=_GENERIC_CHECK_ERROR,
         )
 
 
@@ -165,13 +178,14 @@ async def check_external_service() -> ReadinessCheck:
             latency_ms=round(latency_ms, 2),
             error=None,
         )
-    except Exception as e:
+    except Exception:
         latency_ms = (time.time() - start) * 1000
+        logger.exception("readiness check failed", dependency="external_api")
         return ReadinessCheck(
             name="external_api",
             status=False,
             latency_ms=round(latency_ms, 2),
-            error=str(e),
+            error=_GENERIC_CHECK_ERROR,
         )
 
 

@@ -16,9 +16,16 @@ services:
       JSON_LOGS: "true"
       LOG_LEVEL: ${LOG_LEVEL:-WARNING}
 
-    # Production replicas (for load balancing)
+    # Production replicas (for load balancing).
+    # Defaults to 1: rate_limit.py's Limiter uses slowapi's default in-memory
+    # storage, which is process-local. Scaling app beyond 1 replica splits
+    # that counter per-instance, silently multiplying the effective rate
+    # limit on the billed, LLM-backed POST /ratings endpoint (see
+    # src/fragrance_rater/middleware/rate_limit.py). Set REPLICAS>1 only
+    # after wiring the limiter to a shared backend (e.g.
+    # storage_uri="redis://...").
     deploy:
-      replicas: ${REPLICAS:-2}
+      replicas: ${REPLICAS:-1}
       resources:
         limits:
           cpus: '1.0'
@@ -37,7 +44,7 @@ services:
         failure_action: rollback
         order: start-first
 
-frontend:
+  frontend:
     # Production frontend (nginx serving built assets)
     build:
       context: ./frontend
@@ -63,10 +70,17 @@ frontend:
         delay: 5s
         max_attempts: 3
 
-db:
+  db:
     # Production database settings
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in production}
+
+    # Do not expose the database to the network in production. The base
+    # compose file publishes ${DB_PORT}:5432 on all interfaces for local
+    # development; bind it to loopback here so production only reaches
+    # Postgres over the internal compose network.
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
 
     # Increased connection pool
     command: >
@@ -101,7 +115,8 @@ db:
 # 2. Start services:
 #    docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
-# 3. Scale application:
+# 3. Scale application (only after configuring a shared rate-limiter
+#    backend; see the `deploy.replicas` comment on the `app` service above):
 #    docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale app=3
 #
 # 4. Monitor:

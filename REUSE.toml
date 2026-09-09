@@ -46,6 +46,7 @@ path = [
     ".github/**",
     ".gitignore",
     ".gitattributes",
+    ".markdownlintignore",
     ".pre-commit-config.yaml",
     ".readthedocs.yaml",
     "mkdocs.yml",

@@ -40,10 +40,21 @@ jobs:
       # TEST_MODE=true makes fragrance_rater.llm.client.LLMRatingClient
       # return a deterministic fixture instead of calling OpenRouter.
       # The Newman collection only asserts on response *structure*, so
-      # the fixture is a safe stand-in and no API key is required here.
+      # the fixture is a safe stand-in and no OpenRouter key is required.
       TEST_MODE: "true"
+      # FRAGRANCE_RATER_API_KEY: household API key required on POST /ratings
+      # (see fragrance_rater.middleware.auth). This is a CI-only fixture
+      # value, not a real secret; the Newman --env-var apiKey below must
+      # match it so the "happy path" and "validation error" requests pass
+      # the auth check and the "missing API key" request still gets 401.
+      FRAGRANCE_RATER_API_KEY: "ci-fixture-key-not-a-secret"
 
     steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
@@ -94,7 +105,7 @@ jobs:
         run: |
           newman run docs/api/postman-collection.json \
             --env-var baseUrl=http://127.0.0.1:8000 \
-            --env-var apiKey="" \
+            --env-var apiKey="ci-fixture-key-not-a-secret" \
             --reporters cli,junit \
             --reporter-junit-export newman-report.xml
 

@@ -24,7 +24,7 @@ A Docker Compose stack (React + FastAPI + PostgreSQL) for personal fragrance tra
 
 ### Data Layer
 
-- **Database**: PostgreSQL 16 - See [ADR-001](./adr/adr-001-initial-architecture.md)
+- **Database**: PostgreSQL 16 - See [ADR-001](adr/adr-001-initial-architecture.md)
 - **ORM**: SQLAlchemy 2.0 with async support
 - **Migrations**: Alembic
 
@@ -38,7 +38,7 @@ A Docker Compose stack (React + FastAPI + PostgreSQL) for personal fragrance tra
 
 ### Pattern
 
-Monolithic Docker Compose stack - See [ADR-001](./adr/adr-001-initial-architecture.md)
+Monolithic Docker Compose stack - See [ADR-001](adr/adr-001-initial-architecture.md)
 
 ### Component Diagram
 
@@ -343,6 +343,6 @@ npm run test:coverage
 
 ## Related Documents
 
-- [Project Vision](./project-vision.md)
-- [Architecture Decisions](./adr/)
-- [Development Roadmap](./roadmap.md)
+- [Project Vision](project-vision.md)
+- [Architecture Decisions](adr/README.md)
+- [Development Roadmap](roadmap.md)

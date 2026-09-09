@@ -14,7 +14,10 @@ services:
       args:
         BUILD_ENV: ${ENVIRONMENT:-development}
     image: fragrance_rater:${VERSION:-latest}
-    container_name: fragrance_rater-app
+    # No container_name: docker-compose.prod.yml scales this service via
+    # deploy.replicas (default 2), and Compose requires a per-replica
+    # generated name when replicas > 1. A static container_name here would
+    # make production scaling fail to start at all.
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
@@ -23,8 +26,11 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       JSON_LOGS: ${JSON_LOGS:-false}
 
-      # Database configuration
-      DATABASE_URL: ${DATABASE_URL:-postgresql://fragrance_rater:password@db:5432/fragrance_rater}
+      # Database configuration.
+      # No credential default: DB_PASSWORD must come from .env (see
+      # .env.example) or the environment, so no weak literal password can
+      # be inherited silently by any environment, including production.
+      DATABASE_URL: ${DATABASE_URL:-postgresql://fragrance_rater:${DB_PASSWORD:?DB_PASSWORD must be set (copy .env.example to .env)}@db:5432/fragrance_rater}
       # Redis cache (if applicable)
       # REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 
@@ -69,7 +75,9 @@ services:
       dockerfile: Dockerfile
       target: development
     image: fragrance_rater-frontend:${VERSION:-latest}
-    container_name: fragrance_rater-frontend
+    # No container_name: see the app service above; docker-compose.prod.yml
+    # also sets deploy.replicas on this service (default 1, but the base
+    # file must still not preclude scaling it).
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
@@ -95,7 +103,7 @@ services:
     environment:
       POSTGRES_DB: fragrance_rater
       POSTGRES_USER: fragrance_rater
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set (copy .env.example to .env)}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
 
     volumes:
@@ -104,8 +112,16 @@ services:
       # Init scripts (optional)
       # - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
+    # Bound to loopback by default: Compose merges list-valued fields like
+    # `ports` by the composite key {ip, target, published, protocol}, so an
+    # override in docker-compose.prod.yml only replaces this entry if its
+    # ip matches. Publishing unbound here would let the prod override's own
+    # 127.0.0.1 binding merge alongside this one instead of replacing it,
+    # leaving the database reachable on all interfaces despite the prod
+    # config. Run with DB_PORT unset (or override to 0.0.0.0 explicitly)
+    # only on a host you trust the local network of.
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fragrance_rater"]
@@ -148,9 +164,9 @@ services:
 # Volumes (Persistent Storage)
 # =============================================================================
 volumes:
-postgres-data:
+  postgres-data:
     driver: local
-# redis-data:
+  # redis-data:
   #   driver: local
 
 # =============================================================================
