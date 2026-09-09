@@ -65,6 +65,13 @@ repos:
       - id: ruff-format
         name: Ruff format
         stages: [pre-commit]
+        # v0.16.6 expanded the upstream default types_or to include
+        # "markdown", so ruff-format now reformats fenced ```python blocks
+        # inside every .md file touched by a commit. That is an unreviewed
+        # scope expansion for a hook whose job is Python source formatting;
+        # pin the historic scope until markdown-snippet formatting is
+        # adopted deliberately (its own commit, reviewed diff).
+        types_or: [python, pyi, jupyter]
 
   # ============================================================================
   # Secret Detection - TruffleHog
