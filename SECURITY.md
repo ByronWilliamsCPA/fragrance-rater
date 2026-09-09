@@ -57,8 +57,10 @@ longer.
 
 This project applies the following baseline security controls:
 
-- Static analysis: CodeQL (org-wide), SonarCloud (SAST), Ruff and Bandit
-  via pre-commit hooks and CI workflows
+- Static analysis: SonarCloud (SAST), Ruff and Bandit via pre-commit hooks
+  and CI workflows. GitHub CodeQL and the dependency-review action are no
+  longer used; GitHub now bills Advanced Security (Code Security) and these
+  controls stopped functioning fleet-wide.
 - Dependency pinning with Renovate-driven updates and `pip-audit` scanning
 - Container scanning with Trivy (Docker and SBOM workflows)
 - SBOM generation for tagged releases
