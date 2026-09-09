@@ -23,9 +23,14 @@ coverage:
 
     patch:
       default:
-        # AI-generated diff coverage gate per CLAUDE.md ("90% patch")
+        # AI-generated diff coverage gate per CLAUDE.md ("90% patch"). A wide
+        # threshold here defeats the point of a 90% target: a 5% cushion let
+        # health.py's exception-logging path ship with zero test coverage
+        # (see PR #64 review). Kept tighter than the project-level threshold
+        # above since patch coverage should hold new/changed code to the
+        # stated bar, not merely approach it.
         target: 90%
-        threshold: 5%
+        threshold: 2%
         if_ci_failed: error
 
 # Multi-flag tracking for test types
