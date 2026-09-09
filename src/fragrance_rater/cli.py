@@ -9,6 +9,7 @@ import sys
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 import click
 from structlog.stdlib import BoundLogger
@@ -32,6 +33,48 @@ class CLIContext:
     """
 
     debug: bool = False
+
+
+def mask_database_url(url: str) -> str:
+    """Mask any credential in a database URL before it reaches CLI output.
+
+    #CRITICAL: security: a database URL commonly embeds a password in its
+    netloc (``scheme://user:password@host/db``). A previous implementation
+    truncated the URL with a fixed-offset string slice (``url[:50]``), which
+    only hid the password when it happened to land past that offset - for
+    short hosts/usernames the password was printed in full.
+    #VERIFY: this parses the URL structurally (``urlsplit``) and always
+    replaces the password component when one is present, regardless of URL
+    length, host length, or username length, then reassembles the URL
+    without truncating anything else. Covered by
+    ``tests/unit/test_cli.py::test_mask_database_url*``.
+
+    Args:
+        url (str): Raw database URL, potentially containing credentials.
+
+    Returns:
+        str: The URL with any password replaced by ``***``. URLs with no
+            embedded password (e.g. local SQLite paths, or connection
+            strings with no user info) are returned unchanged.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        # Not a well-formed URL (e.g. a bare SQLite file path) - nothing to
+        # mask, and nothing unmasked to leak either.
+        return url
+
+    if parts.password is None:
+        return url
+
+    userinfo = parts.username or ""
+    masked_netloc = f"{userinfo}:***@{parts.hostname or ''}"
+    if parts.port is not None:
+        masked_netloc += f":{parts.port}"
+
+    return urlunsplit(
+        (parts.scheme, masked_netloc, parts.path, parts.query, parts.fragment)
+    )
 
 
 def run_async[T](coro: Coroutine[object, object, T]) -> T:
@@ -370,7 +413,7 @@ def config(ctx: click.Context) -> None:
         click.echo(f"  Version: {settings.version}")
         click.echo(f"  Debug: {cli_ctx.debug}")
         click.echo(f"  Log Level: {settings.log_level}")
-        click.echo(f"  Database URL: {settings.database_url[:50]}...")
+        click.echo(f"  Database URL: {mask_database_url(settings.database_url)}")
 
         logger.info("Configuration displayed successfully")
 

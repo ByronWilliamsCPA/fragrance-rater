@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from click.testing import CliRunner
 
-from fragrance_rater.cli import CLIContext, cli, run_async
+from fragrance_rater.cli import CLIContext, cli, mask_database_url, run_async
 
 
 class TestCLIContext:
@@ -104,6 +104,74 @@ class TestConfigCommand:
         assert "Current Configuration:" in result.output
         assert "Project:" in result.output
         assert "Version:" in result.output
+
+    def test_config_output_never_leaks_password(self) -> None:
+        """The config command must never print a raw password, regardless of
+        how long the host/username portion of the configured URL is.
+        """
+        runner = CliRunner()
+        with patch("fragrance_rater.cli.settings") as mock_settings:
+            mock_settings.project_name = "Fragrance Rater"
+            mock_settings.version = "0.1.0"
+            mock_settings.log_level = "INFO"
+            mock_settings.database_url = (
+                "postgresql://fragrance_rater:super-secret-password"
+                "@a-really-long-hostname.internal.example.com:5432/fragrance_rater"
+            )
+            result = runner.invoke(cli, ["config"])
+
+        assert result.exit_code == 0
+        assert "super-secret-password" not in result.output
+        assert "***" in result.output
+
+
+class TestMaskDatabaseUrl:
+    """Direct unit tests for the mask_database_url helper (Major finding 1)."""
+
+    def test_masks_password_short_url(self) -> None:
+        """A short URL (where a fixed-offset slice would have hidden the
+        password anyway) must still mask it via structural parsing.
+        """
+        url = "postgresql://user:hunter2@db:5432/app"  # trufflehog:ignore
+        masked = mask_database_url(url)
+        assert "hunter2" not in masked
+        assert "***" in masked
+        assert "user" in masked
+        assert "db:5432" in masked
+
+    def test_masks_password_long_hostname(self) -> None:
+        """A long host/user segment must not push the password past a
+        would-be fixed-offset slice and leak it.
+        """
+        url = (
+            "postgresql://fragrance_rater_service_account:hunter2"
+            "@a-really-long-hostname.internal.example.com:5432/fragrance_rater"
+        )
+        masked = mask_database_url(url)
+        assert "hunter2" not in masked
+        assert "***" in masked
+
+    def test_no_password_left_unchanged(self) -> None:
+        """A URL with no embedded credentials is returned unchanged."""
+        url = "sqlite+aiosqlite:///./app.db"
+        assert mask_database_url(url) == url
+
+    def test_no_userinfo_left_unchanged(self) -> None:
+        """A URL with a host but no user info at all is unchanged."""
+        url = "postgresql://db:5432/app"
+        assert mask_database_url(url) == url
+
+    def test_username_without_password_unchanged(self) -> None:
+        """A username with no password segment has nothing to mask."""
+        url = "postgresql://user@db:5432/app"
+        assert mask_database_url(url) == url
+
+    def test_malformed_url_returned_unchanged(self) -> None:
+        """A string that isn't a parseable URL is returned as-is rather than
+        raising, since there is nothing structured to mask.
+        """
+        url = "not a url at all ][{}"
+        assert mask_database_url(url) == url
 
 
 class TestImportDataGroup:
