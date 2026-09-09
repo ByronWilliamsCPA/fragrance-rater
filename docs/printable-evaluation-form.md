@@ -18,7 +18,7 @@ tags:
 ## Session Info
 
 | Field | Value |
-|-------|-------|
+| --- | --- |
 | **Date** | __________________ |
 | **Reviewer** | ☐ Byron  ☐ Veronica  ☐ Bayden  ☐ Ariannah |
 | **Location** | __________________ |
@@ -28,30 +28,30 @@ tags:
 ## Evaluation 1
 
 | Field | Value |
-|-------|-------|
+| --- | --- |
 | **Fragrance Name** | __________________________________ |
 | **Brand** | __________________________________ |
 | **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
 
-### Ratings (circle one)
+### Evaluation 1: Ratings (circle one)
 
 | Category | Rating |
-|----------|--------|
+| --- | --- |
 | **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
 | **Longevity** | 1  2  3  4  5  (or N/A) |
 | **Sillage** | 1  2  3  4  5  (or N/A) |
 
-### Notes Detected
+### Evaluation 1: Notes Detected
 
 | Position | Notes (comma-separated) |
-|----------|------------------------|
+| --- | --- |
 | **Top** | __________________________________ |
 | **Heart** | __________________________________ |
 | **Base** | __________________________________ |
 
-### Comments
+### Evaluation 1: Comments
 
-```
+```text
 _______________________________________________
 _______________________________________________
 _______________________________________________
@@ -62,30 +62,30 @@ _______________________________________________
 ## Evaluation 2
 
 | Field | Value |
-|-------|-------|
+| --- | --- |
 | **Fragrance Name** | __________________________________ |
 | **Brand** | __________________________________ |
 | **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
 
-### Ratings (circle one)
+### Evaluation 2: Ratings (circle one)
 
 | Category | Rating |
-|----------|--------|
+| --- | --- |
 | **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
 | **Longevity** | 1  2  3  4  5  (or N/A) |
 | **Sillage** | 1  2  3  4  5  (or N/A) |
 
-### Notes Detected
+### Evaluation 2: Notes Detected
 
 | Position | Notes (comma-separated) |
-|----------|------------------------|
+| --- | --- |
 | **Top** | __________________________________ |
 | **Heart** | __________________________________ |
 | **Base** | __________________________________ |
 
-### Comments
+### Evaluation 2: Comments
 
-```
+```text
 _______________________________________________
 _______________________________________________
 _______________________________________________
@@ -96,30 +96,30 @@ _______________________________________________
 ## Evaluation 3
 
 | Field | Value |
-|-------|-------|
+| --- | --- |
 | **Fragrance Name** | __________________________________ |
 | **Brand** | __________________________________ |
 | **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
 
-### Ratings (circle one)
+### Evaluation 3: Ratings (circle one)
 
 | Category | Rating |
-|----------|--------|
+| --- | --- |
 | **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
 | **Longevity** | 1  2  3  4  5  (or N/A) |
 | **Sillage** | 1  2  3  4  5  (or N/A) |
 
-### Notes Detected
+### Evaluation 3: Notes Detected
 
 | Position | Notes (comma-separated) |
-|----------|------------------------|
+| --- | --- |
 | **Top** | __________________________________ |
 | **Heart** | __________________________________ |
 | **Base** | __________________________________ |
 
-### Comments
+### Evaluation 3: Comments
 
-```
+```text
 _______________________________________________
 _______________________________________________
 _______________________________________________
@@ -130,30 +130,30 @@ _______________________________________________
 ## Evaluation 4
 
 | Field | Value |
-|-------|-------|
+| --- | --- |
 | **Fragrance Name** | __________________________________ |
 | **Brand** | __________________________________ |
 | **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
 
-### Ratings (circle one)
+### Evaluation 4: Ratings (circle one)
 
 | Category | Rating |
-|----------|--------|
+| --- | --- |
 | **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
 | **Longevity** | 1  2  3  4  5  (or N/A) |
 | **Sillage** | 1  2  3  4  5  (or N/A) |
 
-### Notes Detected
+### Evaluation 4: Notes Detected
 
 | Position | Notes (comma-separated) |
-|----------|------------------------|
+| --- | --- |
 | **Top** | __________________________________ |
 | **Heart** | __________________________________ |
 | **Base** | __________________________________ |
 
-### Comments
+### Evaluation 4: Comments
 
-```
+```text
 _______________________________________________
 _______________________________________________
 _______________________________________________
@@ -164,30 +164,30 @@ _______________________________________________
 ## Evaluation 5
 
 | Field | Value |
-|-------|-------|
+| --- | --- |
 | **Fragrance Name** | __________________________________ |
 | **Brand** | __________________________________ |
 | **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
 
-### Ratings (circle one)
+### Evaluation 5: Ratings (circle one)
 
 | Category | Rating |
-|----------|--------|
+| --- | --- |
 | **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
 | **Longevity** | 1  2  3  4  5  (or N/A) |
 | **Sillage** | 1  2  3  4  5  (or N/A) |
 
-### Notes Detected
+### Evaluation 5: Notes Detected
 
 | Position | Notes (comma-separated) |
-|----------|------------------------|
+| --- | --- |
 | **Top** | __________________________________ |
 | **Heart** | __________________________________ |
 | **Base** | __________________________________ |
 
-### Comments
+### Evaluation 5: Comments
 
-```
+```text
 _______________________________________________
 _______________________________________________
 _______________________________________________
@@ -198,7 +198,7 @@ _______________________________________________
 ## Quick Reference: Rating Guide
 
 | Rating | Meaning | When to Use |
-|--------|---------|-------------|
+| --- | --- | --- |
 | **5** ⭐ | Excellent | Would buy, signature scent material |
 | **4** ⭐ | Good | Enjoyable, would wear regularly |
 | **3** ⭐ | Neutral | Neither like nor dislike |
@@ -208,7 +208,7 @@ _______________________________________________
 ## Quick Reference: Common Notes
 
 | Category | Common Notes |
-|----------|-------------|
+| --- | --- |
 | **Citrus** | Bergamot, Lemon, Orange, Grapefruit, Lime |
 | **Floral** | Rose, Jasmine, Lavender, Iris, Violet |
 | **Woody** | Cedar, Sandalwood, Oud, Vetiver, Pine |
