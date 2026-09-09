@@ -93,6 +93,7 @@ path = [
     ".claude/settings.local.json",
     ".claude/settings.local.json.example",  # Example configuration
     ".claude/**/*.json",  # Claude configuration files
+    ".mcp.json",  # Project-scoped MCP server configuration
     ".claude/**/*.md",  # Claude documentation files
     ".claude/**/*.py",  # Claude skill scripts
     ".standards/**",  # Baseline standards (auto-updated by cruft)
