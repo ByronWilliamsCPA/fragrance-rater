@@ -13,6 +13,7 @@
 name: PR Validation
 
 on:
+  merge_group:
   pull_request:
     types: [opened, synchronize, reopened, edited]
     branches:
@@ -21,7 +22,12 @@ on:
       - develop
 
 concurrency:
-  group: pr-validation-${{ github.event.pull_request.number }}
+  # #ASSUME github.event.pull_request.number is null under merge_group;
+  # fall back to github.ref (unique per merge-group ref) so a merge-group
+  # build never collides with, or is cancelled by, a PR build's group.
+  # #VERIFY confirm no cross-cancellation between a PR run and its
+  # corresponding merge-group run after the first live merge-queue pass.
+  group: pr-validation-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions: {}
@@ -31,6 +37,15 @@ jobs:
     name: PR Title Format
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # #CRITICAL github.event.pull_request.title is null under merge_group
+    # (that event carries no pull_request payload); without this guard the
+    # regex match below would run against an empty string and fail every
+    # merge-group build. Restricting to pull_request makes this job report
+    # "skipped" under merge_group instead, which
+    # dependency-standards-validation below now accepts.
+    # #VERIFY confirm this job shows "skipped", not absent or failed, on the
+    # first live merge-group run.
+    if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
     steps:
@@ -58,6 +73,14 @@ jobs:
     name: PR Body Non-Empty
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # #CRITICAL github.event.pull_request.body is null under merge_group;
+    # without this guard the empty-check below would fail every merge-group
+    # build. Restricting to pull_request makes this job report "skipped"
+    # under merge_group instead, which dependency-standards-validation below
+    # now accepts.
+    # #VERIFY confirm this job shows "skipped", not absent or failed, on the
+    # first live merge-group run.
+    if: github.event_name == 'pull_request'
     permissions:
       pull-requests: read
     steps:
@@ -98,16 +121,22 @@ jobs:
           TITLE_RESULT: ${{ needs.title-check.result }}
           BODY_RESULT: ${{ needs.body-check.result }}
         run: |
+          # #CRITICAL a required status check for the merge queue; a
+          # merge_group build skips title-check/body-check by design (no PR
+          # title/body to read there), so "skipped" is accepted here on top
+          # of "success".
           # #EDGE: this workflow's concurrency group cancels in-progress runs
           # on a new push (cancel-in-progress: true), which can leave
           # title-check/body-check at "cancelled" rather than "success" even
           # though a superseding run will validate the same PR state.
-          # #VERIFY: accept skipped/cancelled alongside success so a
-          # superseded run does not surface as a hard FAILURE here.
-          for r in "$TITLE_RESULT" "$BODY_RESULT"; do
-            if [ "$r" != "success" ] && [ "$r" != "skipped" ] && [ "$r" != "cancelled" ]; then
-              echo "::error::PR validation checks failed: dependency and standards gate blocked."
-              exit 1
-            fi
-          done
+          # #VERIFY: accept skipped/cancelled alongside success so neither the
+          # merge_group event nor a superseded run surfaces as a hard
+          # FAILURE here. A real "failure" under either event still fails
+          # this gate, so it is not weakened, only made tolerant of these
+          # two known-benign outcomes.
+          ok() { [ "$1" = "success" ] || [ "$1" = "skipped" ] || [ "$1" = "cancelled" ]; }
+          if ! ok "$TITLE_RESULT" || ! ok "$BODY_RESULT"; then
+            echo "::error::PR validation checks failed: dependency and standards gate blocked."
+            exit 1
+          fi
           echo "Dependency and standards validation passed."

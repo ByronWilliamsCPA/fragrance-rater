@@ -9,6 +9,7 @@
 name: Security Analysis
 
 on:
+  merge_group:
   push:
     branches: [main, master]
   pull_request:
@@ -73,7 +74,10 @@ jobs:
       - name: Harden runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
-          egress-policy: audit
+          # This job makes no network calls of its own; it only reads the
+          # needs.security result, so egress is blocked outright.
+          egress-policy: block
+          allowed-endpoints: ''
 
       - name: Check security analysis result
         env:
