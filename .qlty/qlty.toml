@@ -12,7 +12,11 @@ config_version = "0"
 # Install: curl https://qlty.sh | bash && qlty plugins install
 # Documentation: https://docs.qlty.sh/analysis/coverage-linters
 [plugins]
-enabled = ["ruff", "pyright", "bandit"]
+# "pyright" is intentionally excluded: Qlty does not support a pyright (or
+# basedpyright) plugin, so listing it here silently enabled nothing. Type
+# checking is enforced via the separate `basedpyright` pre-commit hook
+# against pyproject.toml's [tool.basedpyright] configuration instead.
+enabled = ["ruff", "bandit"]
 
 # File patterns to completely exclude from all analysis
 exclude_patterns = [
