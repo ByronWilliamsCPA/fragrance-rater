@@ -96,6 +96,6 @@ Track fragrance ratings from multiple family members, automatically enrich with 
 
 ## Related Documents
 
-- [Architecture Decisions](./adr/)
-- [Technical Spec](./tech-spec.md)
-- [Roadmap](./roadmap.md)
+- [Architecture Decisions](adr/README.md)
+- [Technical Spec](tech-spec.md)
+- [Roadmap](roadmap.md)

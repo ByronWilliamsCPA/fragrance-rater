@@ -1,4 +1,3 @@
-
 # MkDocs Configuration for Fragrance Rater
 # Documentation: https://www.mkdocs.org/user-guide/configuration/
 
@@ -112,16 +111,12 @@ markdown_extensions:
   - admonition
   - attr_list
   - def_list
-  - footnotes
-  - md_in_html
   - tables
   - toc:
       permalink: true
       toc_depth: 3
 
   # Python Markdown Extensions
-  - pymdownx.arithmatex:
-      generic: true
   - pymdownx.betterem:
       smart_enable: all
   - pymdownx.caret
@@ -142,8 +137,6 @@ markdown_extensions:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed:
-      alternate_style: true
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
@@ -176,12 +169,34 @@ nav:
       - Code Quality: development/code-quality.md
       - Contributing: development/contributing.md
 
+  - Planning:
+      - Overview: planning/README.md
+      - Project Vision: planning/project-vision.md
+      - Technical Spec: planning/tech-spec.md
+      - Development Roadmap: planning/roadmap.md
+      - Project Plan: planning/PROJECT-PLAN.md
+      - Plan Template: planning/project-plan-template.md
+
+  - Architecture Decisions:
+      - Overview: planning/adr/README.md
+      - ADR-001 Initial Architecture: planning/adr/adr-001-initial-architecture.md
+      - ADR-002 Data Source Strategy: planning/adr/adr-002-data-source-strategy.md
+      - ADR-003 LLM Integration: planning/adr/adr-003-llm-integration.md
+      - ADR-004 Recommendation Algorithm: planning/adr/adr-004-recommendation-algorithm.md
+      - ADR Template: ADRs/adr-template.md
+
+  - Reference:
+      - Known Vulnerabilities: known-vulnerabilities.md
+      - OpenSSF Compliance: OPENSSF_COMPLIANCE.md
+      - Python Compatibility: PYTHON_COMPATIBILITY.md
+      - Project Setup: PROJECT_SETUP.md
+      - Template Feedback: template_feedback.md
+      - ADR Guidelines: ADRs/README.md
+
   - Project:
       - Roadmap: project/roadmap.md
       - Changelog: project/changelog.md
       - License: project/license.md
 
 # Validation
-# strict mode disabled to allow links to repo root files
-# These files are valid but outside docs/ directory
-strict: false
+strict: true
