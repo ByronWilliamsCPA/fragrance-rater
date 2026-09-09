@@ -22,7 +22,7 @@ Personal fragrance evaluation and recommendation system for family use with LLM-
 
 ### Quality Assurance
 
-- **pytest** with full coverage
+- **pytest** with a graduated coverage gate (80% line, 90% patch)
 - **Pre-commit hooks** for automated checks
 - **GitHub Actions** CI/CD pipeline
 

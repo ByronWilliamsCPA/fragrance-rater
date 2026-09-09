@@ -38,7 +38,7 @@ Personal fragrance evaluation and recommendation system for family use with LLM-
 
 This project provides:
 - Core functionality for personal fragrance evaluation and recommendation system for family use with llm-powered recommendations
-- Production-ready code with full test coverage
+- Production-ready code with a graduated test coverage gate (80% line, 90% patch)
 - Well-documented API and architecture
 - Security-first development practices
 
