@@ -23,3 +23,12 @@ docs/PROJECT_SETUP.md
 docs/development/architecture.md
 docs/guides/overview.md
 docs/index.md
+docs/ADRs/adr-template.md
+docs/PYTHON_COMPATIBILITY.md
+docs/guides/configuration.md
+docs/development/code-quality.md
+docs/guides/usage.md
+SECURITY.md
+docs/template_feedback.md
+docs/development/testing.md
+docs/project/license.md
