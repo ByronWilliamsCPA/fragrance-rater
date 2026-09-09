@@ -15,7 +15,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
@@ -81,15 +81,36 @@ class ParfumoScraper:
     Attributes:
         BASE_URL: Parfumo site root.
         SEARCH_URL: Perfume search endpoint.
+        ALLOWED_HOSTS (ClassVar[frozenset[str]]): Outbound host allowlist;
+            requests to any other host are refused before being sent.
         REQUEST_DELAY: Minimum seconds between requests.
+        MAX_RETRIES: Maximum retry attempts on a 429/503 response.
+        BACKOFF_BASE_SECONDS: Base delay for exponential backoff between
+            retries when the response carries no ``Retry-After`` header.
         HEADERS (ClassVar[dict[str, str]]): Browser-like request headers.
     """
 
     BASE_URL = "https://www.parfumo.com"
     SEARCH_URL = f"{BASE_URL}/s_perfumes.php"
 
+    # #CRITICAL: security: import_from_url() (via the CLI's `parfumo-url`
+    # command) accepts an operator-supplied URL and passes it straight to
+    # _make_request(). Without a host allowlist this is an SSRF vector: a
+    # malicious/mistaken URL could target internal services reachable from
+    # wherever the CLI runs. The app already ships SSRFPreventionMiddleware
+    # for inbound requests; this list is the outbound equivalent.
+    # #VERIFY: _make_request() rejects any URL whose scheme isn't https or
+    # whose hostname isn't in ALLOWED_HOSTS before making the request.
+    ALLOWED_HOSTS: ClassVar[frozenset[str]] = frozenset(
+        {"parfumo.com", "www.parfumo.com"}
+    )
+
     # Delay between requests (seconds) - be respectful
     REQUEST_DELAY = 3.0
+
+    # Retry/backoff for rate-limited or unavailable responses.
+    MAX_RETRIES = 3
+    BACKOFF_BASE_SECONDS = 2.0
 
     # User agent to identify as a browser
     # Keep headers minimal to avoid Cloudflare issues
@@ -121,11 +142,60 @@ class ParfumoScraper:
         return self._client
 
     def _wait_for_rate_limit(self) -> None:
-        """Ensure we don't make requests too quickly."""
+        """Ensure we don't make requests too quickly.
+
+        # #ASSUME: concurrency: `_last_request_time` is per-instance state,
+        # not shared across ParfumoScraper instances/processes. This is
+        # acceptable because the only callers (fragrance-rater CLI's
+        # `import-data parfumo-url`/`parfumo-search` commands) construct a
+        # single ParfumoScraper per process invocation and run it
+        # single-threaded to completion before exiting; there is no
+        # in-process concurrent scraping path today.
+        # #VERIFY: if a future caller runs multiple ParfumoScraper instances
+        # concurrently (e.g. a batch/worker process), replace this with a
+        # shared/module-level rate limiter so REQUEST_DELAY is enforced
+        # across instances, not just within one.
+        """
         elapsed = time.time() - self._last_request_time
         if elapsed < self.REQUEST_DELAY:
             time.sleep(self.REQUEST_DELAY - elapsed)
         self._last_request_time = time.time()
+
+    def _is_allowed_url(self, url: str) -> bool:
+        """Check a URL against the outbound host allowlist.
+
+        Args:
+            url (str): URL to validate.
+
+        Returns:
+            bool: True if `url` uses https and its host is in
+                `ALLOWED_HOSTS`, False otherwise.
+        """
+        parsed = urlsplit(url)
+        hostname = (parsed.hostname or "").lower()
+        return parsed.scheme == "https" and hostname in self.ALLOWED_HOSTS
+
+    @staticmethod
+    def _parse_retry_after(value: str | None) -> float | None:
+        """Parse a numeric ``Retry-After`` header value into seconds.
+
+        Args:
+            value (str | None): Raw ``Retry-After`` header value.
+
+        Returns:
+            float | None: Seconds to wait, or None if `value` is missing or
+                not a plain integer (HTTP-date forms are not supported; the
+                caller falls back to exponential backoff in that case).
+        """
+        # #EDGE: external-resources: Retry-After may also be an HTTP-date
+        # per RFC 9110; we only special-case the far more common delay-
+        # seconds form here and fall back to our own backoff otherwise.
+        if value is None:
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            return None
 
     def _make_request(self, url: str) -> BeautifulSoup | None:
         """Make HTTP request and return parsed HTML.
@@ -134,22 +204,51 @@ class ParfumoScraper:
             url (str): URL to fetch.
 
         Returns:
-            BeautifulSoup | None: Parsed BeautifulSoup object or None on failure.
+            BeautifulSoup | None: Parsed BeautifulSoup object or None on
+                failure, on a non-200/429/503 status, or when `url` fails
+                the outbound host allowlist check.
         """
-        self._wait_for_rate_limit()
+        if not self._is_allowed_url(url):
+            logger.warning("Refusing to fetch URL outside host allowlist: %s", url)
+            return None
 
-        try:
-            client = self._get_client()
-            response = client.get(url)
+        for attempt in range(self.MAX_RETRIES + 1):
+            self._wait_for_rate_limit()
 
-            if response.status_code != 200:
+            try:
+                client = self._get_client()
+                response = client.get(url)
+
+                if response.status_code in (429, 503):
+                    if attempt >= self.MAX_RETRIES:
+                        logger.warning(
+                            "Giving up on %s after repeated %s responses",
+                            url,
+                            response.status_code,
+                        )
+                        return None
+                    delay = self._parse_retry_after(response.headers.get("Retry-After"))
+                    if delay is None:
+                        delay = self.BACKOFF_BASE_SECONDS * (2**attempt)
+                    logger.info(
+                        "Backing off %.1fs after %s response from %s",
+                        delay,
+                        response.status_code,
+                        url,
+                    )
+                    time.sleep(delay)
+                    continue
+
+                if response.status_code != 200:
+                    return None
+
+                return BeautifulSoup(response.text, "lxml")
+            except httpx.HTTPError:
+                # Log error but don't crash
+                logger.exception("HTTP request failed for %s", url)
                 return None
 
-            return BeautifulSoup(response.text, "lxml")
-        except httpx.HTTPError:
-            # Log error but don't crash
-            logger.exception("HTTP request failed for %s", url)
-            return None
+        return None
 
     def search(self, query: str, limit: int = 10) -> list[SearchResult]:
         """Search Parfumo for fragrances.

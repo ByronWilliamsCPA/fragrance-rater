@@ -434,3 +434,129 @@ class TestParfumoScraperRateLimiting:
 
         # Should be nearly instant
         assert elapsed < 0.1
+
+
+def _new_scraper() -> ParfumoScraper:
+    """Build a bare ParfumoScraper with no DB/HTTP client wired up."""
+    scraper = ParfumoScraper.__new__(ParfumoScraper)
+    scraper.db = None
+    scraper._last_request_time = 0
+    scraper._client = None
+    return scraper
+
+
+class TestParfumoScraperHostAllowlist:
+    """Tests for the outbound SSRF host allowlist (Major finding 3)."""
+
+    def test_allows_configured_parfumo_hosts(self):
+        scraper = _new_scraper()
+        assert scraper._is_allowed_url("https://www.parfumo.com/Perfumes/x/y")
+        assert scraper._is_allowed_url("https://parfumo.com/Perfumes/x/y")
+
+    def test_rejects_non_allowlisted_host(self):
+        scraper = _new_scraper()
+        assert not scraper._is_allowed_url("https://evil.example.com/Perfumes/x/y")
+
+    def test_rejects_non_https_scheme(self):
+        scraper = _new_scraper()
+        assert not scraper._is_allowed_url("http://www.parfumo.com/Perfumes/x/y")
+
+    def test_rejects_lookalike_subdomain(self):
+        """A host merely containing 'parfumo.com' must not be trusted."""
+        scraper = _new_scraper()
+        assert not scraper._is_allowed_url(
+            "https://www.parfumo.com.evil.example/Perfumes/x/y"
+        )
+
+    def test_make_request_short_circuits_disallowed_host(self):
+        """_make_request never touches the network for a disallowed host."""
+        scraper = _new_scraper()
+
+        with patch.object(scraper, "_get_client") as mock_client:
+            result = scraper._make_request("https://evil.example.com/steal")
+
+        assert result is None
+        mock_client.assert_not_called()
+
+    def test_scrape_perfume_page_refuses_disallowed_host(self):
+        """import_from_url()'s operator-supplied URL is also allowlisted."""
+        scraper = _new_scraper()
+
+        with patch.object(scraper, "_get_client") as mock_client:
+            result = scraper.scrape_perfume_page("https://internal.local/admin")
+
+        assert result is None
+        mock_client.assert_not_called()
+
+
+class TestParfumoScraperRetryAfterParsing:
+    """Tests for the Retry-After header parsing helper."""
+
+    def test_parses_numeric_seconds(self):
+        assert ParfumoScraper._parse_retry_after("5") == 5.0
+
+    def test_returns_none_for_missing_header(self):
+        assert ParfumoScraper._parse_retry_after(None) is None
+
+    def test_returns_none_for_http_date_form(self):
+        assert (
+            ParfumoScraper._parse_retry_after("Wed, 21 Oct 2026 07:28:00 GMT") is None
+        )
+
+
+class TestParfumoScraperBackoff:
+    """Tests for 429/503 backoff-and-retry behavior."""
+
+    def test_retries_after_429_then_succeeds(self):
+        scraper = _new_scraper()
+
+        rate_limited = MagicMock()
+        rate_limited.status_code = 429
+        rate_limited.headers = {"Retry-After": "0"}
+
+        ok_response = MagicMock()
+        ok_response.status_code = 200
+        ok_response.text = SAMPLE_PERFUME_PAGE
+
+        client = MagicMock()
+        client.get.side_effect = [rate_limited, ok_response]
+
+        original_delay = ParfumoScraper.REQUEST_DELAY
+        ParfumoScraper.REQUEST_DELAY = 0.0
+        try:
+            with patch.object(scraper, "_get_client", return_value=client):
+                result = scraper.scrape_perfume_page(
+                    "https://parfumo.com/Perfumes/test/test"
+                )
+        finally:
+            ParfumoScraper.REQUEST_DELAY = original_delay
+
+        assert result is not None
+        assert result.name == "Test Fragrance"
+        assert client.get.call_count == 2
+
+    def test_gives_up_after_max_retries_on_503(self):
+        scraper = _new_scraper()
+
+        unavailable = MagicMock()
+        unavailable.status_code = 503
+        unavailable.headers = {}
+
+        client = MagicMock()
+        client.get.return_value = unavailable
+
+        original_delay = ParfumoScraper.REQUEST_DELAY
+        original_backoff = ParfumoScraper.BACKOFF_BASE_SECONDS
+        ParfumoScraper.REQUEST_DELAY = 0.0
+        ParfumoScraper.BACKOFF_BASE_SECONDS = 0.0
+        try:
+            with patch.object(scraper, "_get_client", return_value=client):
+                result = scraper.scrape_perfume_page(
+                    "https://parfumo.com/Perfumes/test/test"
+                )
+        finally:
+            ParfumoScraper.REQUEST_DELAY = original_delay
+            ParfumoScraper.BACKOFF_BASE_SECONDS = original_backoff
+
+        assert result is None
+        assert client.get.call_count == ParfumoScraper.MAX_RETRIES + 1
