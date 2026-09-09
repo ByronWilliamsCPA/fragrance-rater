@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import ForeignKey, Index, Integer, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -55,9 +55,28 @@ class Evaluation(Base):
     # here matches what the existing (racy) application-level check in
     # api/evaluations.py already assumes: one evaluation per reviewer per
     # fragrance, ever. Revisit if "re-rate over time" turns out to be wanted.
+    #
+    # `uq_evaluation_reviewer_fragrance` is a partial unique index scoped to
+    # `deleted_at IS NULL` rather than a plain UniqueConstraint: mirrors the
+    # same fix applied to `uq_fragrance_name_brand` and `uq_reviewer_name`
+    # (migration 22eed1bf0509) for the identical soft-delete interaction --
+    # a plain UNIQUE here would let a soft-deleted evaluation permanently
+    # block re-entering a rating for the same (reviewer_id, fragrance_id)
+    # pair. `sqlite_where` mirrors `postgresql_where` so the SQLite test
+    # database (built from this metadata via `Base.metadata.create_all`,
+    # not the Alembic migration) enforces the same scoped uniqueness as
+    # production. This is separate from the pre-existing, out-of-scope
+    # plain composite index `idx_evaluations_reviewer_fragrance` (added in
+    # 001_initial_schema.py, not modeled in the ORM), which is untouched by
+    # this change.
     __table_args__ = (
-        UniqueConstraint(
-            "reviewer_id", "fragrance_id", name="uq_evaluation_reviewer_fragrance"
+        Index(
+            "uq_evaluation_reviewer_fragrance",
+            "reviewer_id",
+            "fragrance_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
         ),
     )
 
@@ -87,6 +106,14 @@ class Evaluation(Base):
     # Critical finding 2: soft-delete, mirroring Fragrance.deleted_at. Every
     # read query against this table must filter WHERE deleted_at IS NULL;
     # see evaluation_service.py and recommendation_service.py.
+    #
+    # Resolved: `uq_evaluation_reviewer_fragrance` above was originally a
+    # plain UniqueConstraint, so soft-deleting an evaluation and later
+    # re-entering a rating for the same (reviewer_id, fragrance_id) pair
+    # still raised a UNIQUE violation against the deleted row forever. It
+    # is now a partial unique index scoped to `deleted_at IS NULL` (see
+    # __table_args__ above and migration b954e9888344), so uniqueness is
+    # enforced among live rows only.
     deleted_at: Mapped[datetime | None] = mapped_column(
         nullable=True, default=None, index=True
     )

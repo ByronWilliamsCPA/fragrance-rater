@@ -453,3 +453,92 @@ class TestEvaluationSoftDeleteAndRecordedBy:
         )
 
         assert evaluation.recorded_by is None
+
+
+@pytest.mark.asyncio
+class TestEvaluationDedupPartialUniqueIndex:
+    """`uq_evaluation_reviewer_fragrance` is a partial unique index scoped to live rows.
+
+    Regression coverage for the soft-delete/dedup interaction: a plain
+    UniqueConstraint on (reviewer_id, fragrance_id) would let a
+    soft-deleted evaluation block re-entering a rating for the same pair
+    forever. See the resolved RAD note on `Evaluation.deleted_at`.
+    """
+
+    async def test_recreate_after_soft_delete_succeeds(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """Re-entering a rating for the same pair after a soft delete must succeed."""
+        from sqlalchemy import select
+
+        fragrance, reviewer = setup_fragrance_and_reviewer
+
+        original = Evaluation(
+            id="dedup-eval-orig",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=2,
+        )
+        async_session.add(original)
+        await async_session.commit()
+
+        service = EvaluationService(async_session)
+        assert await service.delete("dedup-eval-orig") is True
+        await async_session.commit()
+
+        recreated = Evaluation(
+            id="dedup-eval-new",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=5,
+        )
+        async_session.add(recreated)
+        await async_session.commit()  # Must not raise IntegrityError.
+
+        rows = (
+            (
+                await async_session.execute(
+                    select(Evaluation).where(
+                        Evaluation.reviewer_id == reviewer.id,
+                        Evaluation.fragrance_id == fragrance.id,
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(rows) == 2
+        live = [r for r in rows if r.deleted_at is None]
+        deleted = [r for r in rows if r.deleted_at is not None]
+        assert len(live) == 1
+        assert len(deleted) == 1
+        assert live[0].id == "dedup-eval-new"
+        assert deleted[0].id == "dedup-eval-orig"
+
+    async def test_two_live_evaluations_still_reject_duplicate_reviewer_fragrance(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """Two LIVE evaluations sharing (reviewer_id, fragrance_id) must still be rejected."""
+        from sqlalchemy.exc import IntegrityError
+
+        fragrance, reviewer = setup_fragrance_and_reviewer
+
+        first = Evaluation(
+            id="dup-eval-1",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=3,
+        )
+        async_session.add(first)
+        await async_session.commit()
+
+        second = Evaluation(
+            id="dup-eval-2",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=4,
+        )
+        async_session.add(second)
+        with pytest.raises(IntegrityError):
+            await async_session.commit()
+        await async_session.rollback()
