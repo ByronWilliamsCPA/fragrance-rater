@@ -10,15 +10,21 @@ This module provides:
 
 import os
 
-# The FastAPI app is a module-level singleton, so its in-memory rate limiter
-# would count every request across the whole test session and start returning
-# 429 after the burst allowance. Disable it before Settings() is instantiated.
-os.environ["RATE_LIMIT_ENABLED"] = "false"
+# Rate limiting is intentionally left enabled (settings.rate_limit_enabled
+# defaults to True and nothing here overrides it) so the FastAPI app's
+# module-level singleton gets the same slowapi wiring in tests as in
+# production: DefaultRateLimitMiddleware (a local replacement for slowapi's
+# own SlowAPIMiddleware; see fragrance_rater.middleware.rate_limit for why),
+# its exception handler, and app.state.limiter all register at import time.
+# slowapi is the ONE rate limiter for the whole API; the autouse
+# _reset_slowapi_limiter fixture below resets its in-memory counters between
+# tests so hitting one endpoint many times across the session doesn't
+# accumulate towards a spurious 429.
 
 # Critical finding 2: mutating routes now depend on a verified Authentik
 # forward-auth identity header by default. The test suite doesn't run behind
-# Traefik, so disable the requirement the same way RATE_LIMIT_ENABLED is
-# disabled above; dedicated tests re-enable it via monkeypatch to cover the
+# Traefik, so disable the requirement here, before Settings() is
+# instantiated; dedicated tests re-enable it via monkeypatch to cover the
 # missing-header-rejected case explicitly.
 os.environ["AUTHENTIK_REQUIRED"] = "false"
 
@@ -185,12 +191,14 @@ def setup_logging() -> None:
 def _reset_slowapi_limiter() -> Generator[None, None, None]:
     """Reset the slowapi limiter's in-memory counters around every test.
 
-    RATE_LIMIT_ENABLED=false above only disables the OWASP
-    ``RateLimitMiddleware`` layer. The ``slowapi`` limiter registered in
-    ``fragrance_rater.main`` is always on and applies a per-route, per-client
-    default of 60/minute, so a suite that hits one endpoint many times from
-    the single synthetic test client would otherwise accumulate towards a 429
-    across tests. Resetting per test keeps each test's request budget its own.
+    ``slowapi`` is the SOLE rate limiter for the whole API (the OWASP-aligned
+    ``RateLimitMiddleware`` that used to run alongside it has been removed).
+    It is always on in this suite, since ``settings.rate_limit_enabled``
+    defaults to True and nothing above overrides it, and applies a
+    per-route, per-client default of ``settings.rate_limit_rpm``/minute, so a
+    suite that hits one endpoint many times from the single synthetic test
+    client would otherwise accumulate towards a 429 across tests. Resetting
+    per test keeps each test's request budget its own.
 
     Yields:
         None: Control to the test with a clean limiter.

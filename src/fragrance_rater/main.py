@@ -31,7 +31,6 @@ from typing import TYPE_CHECKING
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
 
 from fragrance_rater.api import (
     catalog_stub_router,
@@ -46,6 +45,7 @@ from fragrance_rater.api import (
 from fragrance_rater.core.config import settings
 from fragrance_rater.middleware import (
     CorrelationMiddleware,
+    DefaultRateLimitMiddleware,
     add_security_middleware,
     limiter,
     rate_limit_exceeded_handler,
@@ -103,24 +103,28 @@ app = FastAPI(
 # Rate limiting (slowapi): in-memory, per-client-IP fixed window. See
 # fragrance_rater.middleware.rate_limit for the rationale and the
 # single-instance/single-worker assumption this relies on. Registered before
-# the other middleware so SlowAPIMiddleware sits innermost and its 429s still
-# pass out through the correlation, security-header, and CORS layers below.
-# This is a second rate-limiting layer alongside add_security_middleware's
-# RateLimitMiddleware (below); the two are deliberately both kept for now.
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
-app.add_middleware(SlowAPIMiddleware)
+# the other middleware so DefaultRateLimitMiddleware sits innermost and its
+# 429s still pass out through the correlation, security-header, and CORS
+# layers below. This is the ONE rate-limiting mechanism for the whole API
+# (the old OWASP RateLimitMiddleware duplicate has been removed); gated on
+# settings.rate_limit_enabled so test suites and local dev can disable it the
+# same way the removed layer used to be disabled.
+#
+# DefaultRateLimitMiddleware is a local stand-in for slowapi's own
+# SlowAPIMiddleware; see its docstring in rate_limit.py for why the upstream
+# middleware does not actually enforce default_limits on this codebase's
+# FastAPI version.
+if settings.rate_limit_enabled:
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+    app.add_middleware(DefaultRateLimitMiddleware)
 
 # Add correlation ID middleware (should be added first)
 app.add_middleware(CorrelationMiddleware)
 
-# Add security middleware (rate limiting is configurable so that test suites
-# sharing one app instance can disable the per-client counter)
-add_security_middleware(
-    app,
-    enable_rate_limiting=settings.rate_limit_enabled,
-    rate_limit_rpm=settings.rate_limit_rpm,
-)
+# Add security middleware (CORS, security headers, SSRF prevention; rate
+# limiting is handled separately above by the slowapi limiter)
+add_security_middleware(app)
 
 # Configure CORS for frontend
 app.add_middleware(

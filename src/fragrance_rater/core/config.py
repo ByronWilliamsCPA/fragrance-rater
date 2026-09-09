@@ -49,8 +49,19 @@ class Settings(BaseSettings):
         database_url (str): PostgreSQL connection string.
         database_echo (bool): Echo SQL queries to logs.
         api_v1_prefix (str): API version 1 prefix.
-        rate_limit_enabled (bool): Enable the in-memory rate limiting middleware.
-        rate_limit_rpm (int): Allowed requests per minute per client.
+        rate_limit_enabled (bool): Enable the ``slowapi``-backed rate limiter
+            (see ``fragrance_rater.middleware.rate_limit``), the single
+            rate-limiting mechanism for the whole API. Controls whether
+            ``DefaultRateLimitMiddleware``, its exception handler, and
+            ``app.state.limiter`` are registered in ``fragrance_rater.main``.
+            Defaults to True and is left at that default in the test suite
+            (see ``tests/conftest.py``), since the suite exercises the real
+            slowapi wiring rather than disabling it; set
+            ``RATE_LIMIT_ENABLED=false`` to disable outside tests.
+        rate_limit_rpm (int): Allowed requests per minute per client, used to
+            build the limiter's ``DEFAULT_RATE_LIMIT``. Does not affect the
+            deliberately tighter, hardcoded ``RATINGS_RATE_LIMIT`` on the
+            billed ``POST /ratings`` endpoint.
         openrouter_api_key (str): OpenRouter API key for LLM integration.
         openrouter_model (str): Default model to use for LLM calls.
         openrouter_base_url (str): OpenRouter API base URL.
@@ -138,12 +149,18 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     rate_limit_enabled: bool = Field(
         default=True,
-        description="Enable per-client in-memory rate limiting middleware",
+        description=(
+            "Enable the slowapi-backed rate limiter (the single "
+            "rate-limiting mechanism for the API)"
+        ),
     )
     rate_limit_rpm: int = Field(
         default=60,
         ge=1,
-        description="Rate limit in requests per minute per client",
+        description=(
+            "Rate limit in requests per minute per client, applied by the "
+            "slowapi limiter's DEFAULT_RATE_LIMIT"
+        ),
     )
 
     # LLM / OpenRouter
@@ -170,8 +187,10 @@ class Settings(BaseSettings):
     # X-Authentik-Username header (meaning the request bypassed the proxy)
     # are rejected rather than silently treated as anonymous.
     # #VERIFY: default True in production; tests and local dev set
-    # AUTHENTIK_REQUIRED=false the same way other test-only toggles already
-    # work in this file (see RATE_LIMIT_ENABLED in tests/conftest.py).
+    # AUTHENTIK_REQUIRED=false via an env var set in tests/conftest.py before
+    # Settings() is instantiated (rate_limit_enabled is a separate,
+    # test-only-disableable toggle but is left at its True default in tests;
+    # see the comment above os.environ["AUTHENTIK_REQUIRED"] in conftest.py).
     authentik_required: bool = Field(
         default=True,
         description=(

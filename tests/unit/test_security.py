@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-import time
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
-from starlette.requests import Request
 from starlette.responses import Response
 
 from fragrance_rater.middleware.security import (
-    RateLimitMiddleware,
     SecurityHeadersMiddleware,
     SSRFPreventionMiddleware,
     add_security_middleware,
@@ -78,100 +74,6 @@ class TestSecurityHeadersMiddleware:
 
         assert response.status_code == 200
         assert "Server" not in response.headers
-
-
-class TestRateLimitMiddleware:
-    """Tests for RateLimitMiddleware."""
-
-    def test_allows_requests_under_limit(self) -> None:
-        client = TestClient(
-            _build_app(RateLimitMiddleware, requests_per_minute=5, burst_size=10)
-        )
-
-        responses = [client.get("/") for _ in range(5)]
-
-        assert all(r.status_code == 200 for r in responses)
-
-    def test_rejects_when_per_minute_limit_exceeded(self) -> None:
-        client = TestClient(
-            _build_app(RateLimitMiddleware, requests_per_minute=3, burst_size=10)
-        )
-        for _ in range(3):
-            assert client.get("/").status_code == 200
-
-        response = client.get("/")
-
-        assert response.status_code == 429
-        assert response.headers["Retry-After"] == "60"
-        body = response.json()
-        assert body["error"] == "Too Many Requests"
-        assert "Rate limit exceeded" in body["message"]
-        assert body["retry_after"] == 60
-
-    def test_rejects_when_burst_limit_exceeded(self) -> None:
-        client = TestClient(
-            _build_app(RateLimitMiddleware, requests_per_minute=100, burst_size=2)
-        )
-        for _ in range(2):
-            assert client.get("/").status_code == 200
-
-        response = client.get("/")
-
-        assert response.status_code == 429
-        assert response.headers["Retry-After"] == "1"
-        assert "Burst limit exceeded" in response.json()["message"]
-
-    @pytest.mark.asyncio
-    async def test_unknown_client_falls_back_to_shared_bucket(self) -> None:
-        middleware = RateLimitMiddleware(app=FastAPI())
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": "/",
-            "headers": [],
-            "query_string": b"",
-        }
-        request = Request(scope)
-
-        async def call_next(_request: Request) -> Response:
-            return Response(content="ok")
-
-        response = await middleware.dispatch(request, call_next)
-
-        assert response.status_code == 200
-        assert len(middleware.requests["unknown"]) == 1
-
-    def test_cleanup_skipped_before_interval(self) -> None:
-        middleware = RateLimitMiddleware(app=FastAPI(), cleanup_interval=300)
-        now = time.time()
-        middleware.requests["stale"] = [now - 120]
-
-        middleware._cleanup_stale_entries(now)
-
-        assert "stale" in middleware.requests
-
-    def test_cleanup_removes_stale_and_trims_expired(self) -> None:
-        middleware = RateLimitMiddleware(app=FastAPI(), cleanup_interval=0)
-        now = time.time()
-        middleware.requests["stale"] = [now - 120, now - 90]
-        middleware.requests["mixed"] = [now - 120, now - 5]
-
-        middleware._cleanup_stale_entries(now)
-
-        assert "stale" not in middleware.requests
-        assert middleware.requests["mixed"] == [now - 5]
-
-    def test_cleanup_evicts_least_recent_ips_over_capacity(self) -> None:
-        middleware = RateLimitMiddleware(
-            app=FastAPI(), cleanup_interval=0, max_tracked_ips=1
-        )
-        now = time.time()
-        middleware.requests["older"] = [now - 30]
-        middleware.requests["newer"] = [now - 1]
-
-        middleware._cleanup_stale_entries(now)
-
-        assert set(middleware.requests) == {"newer"}
 
 
 class TestSSRFPreventionMiddleware:
@@ -260,7 +162,6 @@ class TestAddSecurityMiddleware:
         classes = self._middleware_classes(app)
         assert CORSMiddleware in classes
         assert SecurityHeadersMiddleware in classes
-        assert RateLimitMiddleware in classes
         assert SSRFPreventionMiddleware in classes
         assert HTTPSRedirectMiddleware not in classes
         assert TrustedHostMiddleware not in classes
@@ -268,12 +169,9 @@ class TestAddSecurityMiddleware:
     def test_optional_layers_can_be_disabled(self) -> None:
         app = FastAPI()
 
-        add_security_middleware(
-            app, enable_rate_limiting=False, enable_ssrf_prevention=False
-        )
+        add_security_middleware(app, enable_ssrf_prevention=False)
 
         classes = self._middleware_classes(app)
-        assert RateLimitMiddleware not in classes
         assert SSRFPreventionMiddleware not in classes
         assert SecurityHeadersMiddleware in classes
 
@@ -285,20 +183,15 @@ class TestAddSecurityMiddleware:
             enable_https_redirect=True,
             allowed_hosts=["api.example.com"],
             allowed_origins=["https://example.com"],
-            rate_limit_rpm=5,
         )
 
         classes = self._middleware_classes(app)
         assert HTTPSRedirectMiddleware in classes
         assert TrustedHostMiddleware in classes
-        rate_limit = next(
-            m for m in app.user_middleware if m.cls is RateLimitMiddleware
-        )
-        assert rate_limit.kwargs["requests_per_minute"] == 5
 
     def test_configured_app_serves_requests_with_headers(self) -> None:
         app = FastAPI()
-        add_security_middleware(app, rate_limit_rpm=100)
+        add_security_middleware(app)
 
         @app.get("/")
         async def root() -> dict[str, str]:

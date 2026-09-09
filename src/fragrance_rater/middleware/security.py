@@ -3,15 +3,20 @@
 This module provides production-ready security middleware implementing OWASP best practices:
 - CORS configuration (A05: Security Misconfiguration)
 - Security headers (A05: Security Misconfiguration)
-- Rate limiting (A07: Identification and Authentication Failures)
 - Request validation (A03: Injection)
 - SSRF prevention (A10: Server-Side Request Forgery)
+
+Rate limiting is not implemented here. It lives entirely in
+``fragrance_rater.middleware.rate_limit`` (the ``slowapi``-backed limiter
+registered in ``fragrance_rater.main``), which is the single rate-limiting
+mechanism for the whole API; this module previously carried its own
+in-memory ``RateLimitMiddleware`` as a second, competing layer, and that
+duplication has been removed.
 
 Usage:
     from fragrance_rater.middleware.security import (
         add_security_middleware,
         SecurityHeadersMiddleware,
-        RateLimitMiddleware,
     )
 
     app = FastAPI()
@@ -20,9 +25,6 @@ Usage:
 
 from __future__ import annotations
 
-import logging
-import time
-from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -31,11 +33,8 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse, Response
 
-logger = logging.getLogger(__name__)
-
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
-    from starlette.types import ASGIApp
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -100,141 +99,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             del response.headers["Server"]
 
         return response
-
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Simple in-memory rate limiting middleware.
-
-    Implements rate limiting to prevent:
-    - Brute force attacks (OWASP A07)
-    - DoS attacks (OWASP A04)
-    - Credential stuffing (OWASP A07)
-
-    Note: For production, use Redis-backed rate limiting:
-        - slowapi (https://github.com/laurents/slowapi)
-        - fastapi-limiter (https://github.com/long2ice/fastapi-limiter)
-
-    Args:
-        app (ASGIApp): The ASGI application to wrap
-        requests_per_minute (int): Maximum requests per IP per minute
-        burst_size (int): Maximum burst requests allowed
-        max_tracked_ips (int): Maximum IPs to track (prevents memory exhaustion)
-        cleanup_interval (int): Seconds between full cleanup cycles
-    """
-
-    def __init__(
-        self,
-        app: ASGIApp,
-        requests_per_minute: int = 60,
-        burst_size: int = 10,
-        max_tracked_ips: int = 10000,
-        cleanup_interval: int = 300,
-    ) -> None:
-        super().__init__(app)
-        self.requests_per_minute = requests_per_minute
-        self.burst_size = burst_size
-        self.max_tracked_ips = max_tracked_ips
-        self.cleanup_interval = cleanup_interval
-        self.requests: dict[str, list[float]] = defaultdict(list)
-        self._last_cleanup = time.time()
-
-    def _cleanup_stale_entries(self, current_time: float) -> None:
-        """Remove stale IP entries to prevent memory leaks.
-
-        This method performs two types of cleanup:
-        1. Removes expired timestamps from all tracked IPs
-        2. If we exceed max_tracked_ips, removes least recently active IPs
-
-        Args:
-            current_time (float): Current timestamp for expiration checks
-        """
-        # Only run full cleanup periodically to avoid performance impact
-        if current_time - self._last_cleanup < self.cleanup_interval:
-            return
-
-        self._last_cleanup = current_time
-
-        # Remove expired entries from all IPs
-        stale_ips = []
-        for ip, timestamps in self.requests.items():
-            # Filter to only recent timestamps
-            recent = [t for t in timestamps if current_time - t < 60]
-            if recent:
-                self.requests[ip] = recent
-            else:
-                stale_ips.append(ip)
-
-        # Remove completely stale IPs
-        for ip in stale_ips:
-            del self.requests[ip]
-
-        # If still over limit, remove oldest IPs (LRU-style)
-        if len(self.requests) > self.max_tracked_ips:
-            # Sort by most recent activity and keep only max_tracked_ips
-            sorted_ips = sorted(
-                self.requests.items(),
-                key=lambda x: max(x[1]) if x[1] else 0,
-                reverse=True,
-            )
-            self.requests = defaultdict(
-                list,
-                {
-                    ip: timestamps
-                    for ip, timestamps in sorted_ips[: self.max_tracked_ips]
-                },
-            )
-
-    async def dispatch(self, request: Request, call_next) -> Response:
-        """Apply rate limiting per IP address."""
-        if request.client is None:
-            logger.warning(
-                "request.client is None - cannot determine client IP for rate limiting. "
-                "Using 'unknown' as fallback. This may occur during testing or with certain proxy configurations."
-            )
-        client_ip = request.client.host if request.client else "unknown"
-        current_time = time.time()
-
-        # Periodic cleanup to prevent memory leaks
-        self._cleanup_stale_entries(current_time)
-
-        # Clean up old entries for current IP (older than 1 minute)
-        self.requests[client_ip] = [
-            req_time
-            for req_time in self.requests[client_ip]
-            if current_time - req_time < 60
-        ]
-
-        # Check rate limit
-        if len(self.requests[client_ip]) >= self.requests_per_minute:
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": "Too Many Requests",
-                    "message": f"Rate limit exceeded: {self.requests_per_minute} requests per minute",
-                    "retry_after": 60,
-                },
-                headers={"Retry-After": "60"},
-            )
-
-        # Check burst limit
-        recent_requests = sum(
-            1 for req_time in self.requests[client_ip] if current_time - req_time < 1
-        )
-        if recent_requests >= self.burst_size:
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": "Too Many Requests",
-                    "message": f"Burst limit exceeded: {self.burst_size} requests per second",
-                    "retry_after": 1,
-                },
-                headers={"Retry-After": "1"},
-            )
-
-        # Record request
-        self.requests[client_ip].append(current_time)
-
-        return await call_next(request)
 
 
 class SSRFPreventionMiddleware(BaseHTTPMiddleware):
@@ -426,24 +290,24 @@ def add_security_middleware(
     app: FastAPI,
     *,
     enable_https_redirect: bool = False,
-    enable_rate_limiting: bool = True,
     enable_ssrf_prevention: bool = True,
     allowed_origins: list[str] | None = None,
     allowed_hosts: list[str] | None = None,
-    rate_limit_rpm: int = 60,
 ) -> None:
-    """Add all security middleware to FastAPI application.
+    """Add security middleware to FastAPI application.
 
     This configures comprehensive security following OWASP best practices.
+    Rate limiting is not one of these concerns: it is handled solely by the
+    ``slowapi`` limiter registered directly in ``fragrance_rater.main``
+    (see ``fragrance_rater.middleware.rate_limit``), which is now the single
+    rate-limiting mechanism for the whole API.
 
     Args:
         app (FastAPI): FastAPI application instance
         enable_https_redirect (bool): Redirect HTTP to HTTPS (production only)
-        enable_rate_limiting (bool): Enable rate limiting middleware
         enable_ssrf_prevention (bool): Enable SSRF prevention middleware
         allowed_origins (list[str] | None): CORS allowed origins (default: none)
         allowed_hosts (list[str] | None): Trusted host names (default: all)
-        rate_limit_rpm (int): Rate limit requests per minute
 
     Example:
         >>> from fastapi import FastAPI
@@ -453,7 +317,6 @@ def add_security_middleware(
         ...     enable_https_redirect=True,
         ...     allowed_origins=["https://example.com"],
         ...     allowed_hosts=["example.com", "api.example.com"],
-        ...     rate_limit_rpm=100,
         ... )
     """
     # HTTPS redirect (production only)
@@ -481,14 +344,6 @@ def add_security_middleware(
     # Security headers (OWASP A05, A03, A09)
     app.add_middleware(SecurityHeadersMiddleware)
 
-    # Rate limiting (OWASP A07)
-    if enable_rate_limiting:
-        app.add_middleware(
-            RateLimitMiddleware,
-            requests_per_minute=rate_limit_rpm,
-            burst_size=10,
-        )
-
     # SSRF prevention (OWASP A10)
     if enable_ssrf_prevention:
         app.add_middleware(SSRFPreventionMiddleware)
@@ -501,11 +356,11 @@ from fragrance_rater.middleware.security import add_security_middleware
 
 app = FastAPI()
 
-# Add all security middleware
+# Add all security middleware (rate limiting is registered separately in
+# main.py via the slowapi limiter)
 add_security_middleware(
     app,
     enable_https_redirect=True,  # Production only
-    enable_rate_limiting=True,
     allowed_origins=[
         "https://example.com",
         "https://app.example.com",
@@ -514,7 +369,6 @@ add_security_middleware(
         "api.example.com",
         "localhost",  # Development only
     ],
-    rate_limit_rpm=100,
 )
 
 # Your routes here
