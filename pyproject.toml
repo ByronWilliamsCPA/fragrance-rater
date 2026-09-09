@@ -71,6 +71,7 @@ dependencies = [
     #
     # UV handles these automatically based on the Python version being used.
     # See: https://docs.astral.sh/uv/concepts/dependencies/#dependency-specifiers
+    "slowapi>=0.1.10",
 ]
 
 # Optional dependency groups
@@ -392,6 +393,13 @@ known-first-party = ["fragrance_rater"]
     "C901",   # Complexity allowed in utility scripts
     "ANN", "D", "TRY", "PLR",
     "INP",    # Not packages
+]
+
+# Ratings endpoint - slowapi rate-limit decorator requires a `request`
+# parameter on the endpoint signature even though the handler body doesn't
+# reference it directly (slowapi reads it from the call frame).
+"src/*/api/ratings.py" = [
+    "ARG001",  # request required by @limiter.limit (slowapi) interface
 ]
 
 # API health checks - Example code with template patterns
