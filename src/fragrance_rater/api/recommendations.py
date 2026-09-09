@@ -208,7 +208,10 @@ async def get_recommendation_explanation(
     stmt = (
         select(Fragrance)
         .where(Fragrance.id == fragrance_id)
-        .options(selectinload(Fragrance.notes).selectinload(FragranceNote.note))
+        .options(
+            selectinload(Fragrance.notes).selectinload(FragranceNote.note),
+            selectinload(Fragrance.accords),
+        )
     )
     result = await session.execute(stmt)
     fragrance = result.scalar_one_or_none()
