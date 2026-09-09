@@ -594,18 +594,171 @@ requirement").*
 
 ## 9. Open Questions for Agreement
 
-1. **Entity naming**: this document uses `PERSON`/`Evaluator` and `FRAGRANCE_VERSION`
-   throughout — confirm these names (vs., e.g., keeping `Reviewer` from the old plan) before
-   implementation.
-2. **Bipolar scale convention**: proposed 0–10 for all bipolar dimensions (fresh↔rich,
-   dry↔sweet, etc.) for consistency with `initial_liking`. Confirm, or specify a different
-   range (e.g., −5..+5).
-3. **`CALIBRATION_SET`**: included as a small extra table for historical-set tracking
-   (§3.2) — confirm this is worth the complexity now, or defer it until the Calibration 30
-   membership is actually finalized.
-4. **Scope of Phase 1**: confirm the Library/Admin UI in Phase 1 can be genuinely minimal
-   (even CLI/direct DB entry) rather than a built screen, to avoid over-investing in UI
-   before the evaluation workflow (Phase 2) exists.
+**Status**: blocked on [PR #65](https://github.com/ByronWilliamsCPA/fragrance-rater/pull/65)
+merging (removal of the legacy `docs/planning/backend`/`docs/planning/frontend` scaffold).
+No implementation starts until that lands *and* the four questions below are answered.
 
-Once these are resolved, the next step is implementing Phase 1 (schema + migrations +
-seed data), not before.
+### 9.1 What is the "person" entity actually called, and what does it model?
+
+**The issue.** The superseded plan (`tech-spec.md`, ADR-004) has a `Reviewer` table: one
+row per family member, existing purely to be the other end of an `Evaluation` foreign key.
+The target spec (§1) never uses the word "reviewer" — it says "evaluator" throughout — but
+it also needs the same table to be the `owner` on `PHYSICAL_ITEM` (§5: "Byron owns several
+full bottles..."; §22: "additional... perfumes belonging to Veronica that are still being
+inventoried"). Those two facts pull in different directions: Veronica's bottles are being
+entered as inventory *before* she's necessarily evaluated anything, so "this table only
+holds people who evaluate" isn't quite true from day one, even though in practice every
+household member who owns a bottle will also end up evaluating.
+
+**Your options:**
+
+- **A — Table named `Evaluator`.** Matches the target document's own vocabulary exactly, so
+  every reference in this review and in future code reads naturally ("evaluator_id",
+  "evaluator profile"). `PHYSICAL_ITEM.owner_id` would still point at this same table (an
+  owner is just an evaluator who happens to own something), which is a small naming
+  inconsistency but a harmless one in practice, since nobody in this household owns
+  fragrance who won't eventually be an evaluator.
+- **B — Table named `Person`, with `evaluator_id`/`owner_id` as the role-specific foreign
+  key names.** Slightly more general/correct (ownership and evaluation are modeled as two
+  things a person can do, not one identity), and cheaply future-proofs against an edge case
+  like "a fragrance Veronica owns but never gets around to evaluating" without it feeling
+  like a misnamed table. Costs nothing extra in the schema — it's a naming and FK-column
+  choice, not an additional table.
+- **C — Keep `Reviewer`.** Minimizes the diff against the (already-superseded) planning
+  docs' vocabulary. Doesn't fit the target spec's own language and would read oddly next to
+  "blind evaluation," "evaluation session," etc.
+
+**My recommendation**: **B**. It costs nothing structurally over A (same single table,
+same relationships), it's more accurate to what the household is actually doing (owning
+things and evaluating things are separate facts about a person), and it avoids the minor
+awkwardness in A of an "Evaluator" row existing for someone before they've evaluated
+anything. I'd reject C outright — reusing `Reviewer` would quietly drag the old,
+superseded model's assumptions (one evaluation = one opinion, no blind/reveal distinction)
+back into the new schema's vocabulary even if the columns changed underneath it.
+
+### 9.2 What numeric convention do the bipolar/ordinal scales use?
+
+**The issue.** Target §9 specifies bipolar dimensions (fresh↔rich, dry↔sweet, light↔heavy,
+clean↔earthy, familiar↔unusual) and says they "should ideally use continuous or ordinal
+scales rather than binary choices," without pinning down units. This needs a concrete,
+consistent answer before `SCREENING_OBSERVATION`/`WEAR_OBSERVATION` can be built, because
+it affects both the UI (slider vs. discrete buttons) and every later statistic computed
+over these fields (averages, variance for the reliability work in Phase 3, feature vectors
+for the fingerprint in Phase 3/4).
+
+**Your options:**
+
+- **A — 0–10 integer, endpoints labeled per dimension** (e.g., 0 = "Fresh," 10 = "Rich").
+  Matches `initial_liking`'s existing 0–10 scale, so every screening field uses the same
+  slider widget and the same statistical treatment. 11 discrete positions is enough
+  resolution to see meaningful variation without implying false precision. The only
+  wrinkle: which pole is 0 vs. 10 is an arbitrary convention that has to be documented once
+  and then never violated (a later screen accidentally flipping "Fresh" and "Rich" would
+  quietly corrupt historical comparisons).
+- **B — Symmetric −5..+5 integer**, 0 = neutral/balanced. More intuitive for a *bipolar*
+  framing specifically (0 reads as "right in the middle" without needing a separate
+  documented convention for where "neutral" falls), and slightly nicer for later math (a
+  fragrance's average dryness score across evaluators is directly signed). Costs a UI
+  difference from the 0–10 `initial_liking`/wear-liking fields (those stay unipolar 0–10
+  regardless of which option is picked here), so the app ends up with two scale families
+  instead of one.
+- **C — Continuous float** (e.g., 0.0–1.0 or −1.0..+1.0), closest to the spec's literal
+  word "continuous." Gives the eventual fingerprint model maximal resolution, but humans
+  can't reliably place a slider at 0.42 vs. 0.47, so the extra precision is manufactured,
+  not real signal — and it works against the "Quick Evaluation must be fast and enjoyable"
+  requirement (§24) by inviting evaluators to fuss over slider position.
+- **D — 0–100**, matching the scale already specified for `predicted_liking`/
+  `information_value` (§15), so "everything in the app is 0–100" becomes one rule instead
+  of several. More resolution than A, same false-precision risk as C if evaluators are
+  shown the raw number (a slider UI without a visible numeric readout mostly avoids this).
+
+**My recommendation**: **A (0–10)** for every human-entered screening/wear dimension,
+**1–5** for `confidence` (as the target spec itself already specifies for that field — no
+decision needed there), and **0–100** reserved for computed model outputs only
+(`predicted_liking`, `information_value` in Phase 4/5), never for raw human input. This
+keeps a clean rule: *numbers a person drags a slider to are 0–10; numbers a model computes
+are 0–100.* If the bipolar-vs-unipolar framing bothers you (i.e., you'd rather 0 always mean
+"neutral" rather than "leftmost pole"), B is a completely reasonable alternative — it's a
+genuine style preference at this point, not a correctness issue, so I'd go with whichever
+reads more naturally to the people actually filling out the form.
+
+### 9.3 Is a dedicated `CALIBRATION_SET` table worth building now?
+
+**The issue.** §3.2 proposes `CALIBRATION_SET` / `CALIBRATION_SET_MEMBERSHIP` so that if the
+Calibration 30's membership changes later, you can still answer "which 30 fragrances was
+this evaluator's Calibration-30 session actually drawn from at the time," rather than only
+being able to see today's `calibration` role flags. The request itself says membership "is
+still being finalized," which is exactly the situation where either (a) building this now
+pays off almost immediately, or (b) it's speculative complexity for a set that hasn't
+stabilized enough to be worth versioning yet.
+
+**Your options:**
+
+- **A — Build it in Phase 1.** Two small tables, cheap to add now, expensive to backfill
+  correctly later (reconstructing "what was in the Calibration 30 on date X" after the fact
+  requires either good change-log discipline elsewhere or guesswork). If you expect to
+  revise membership more than once (the request mentions ~24 existing + ~6 new candidates,
+  which is already one revision in progress), this pays for itself the first time you need
+  to ask "was fragrance Y in the set when Byron did his calibration pass."
+- **B — Skip it entirely.** Use `FRAGRANCE_VERSION_ROLE` (role = `calibration`) as the only
+  source of truth, with no versioned "set" concept at all. Simplest possible admin surface
+  — a single checkbox per fragrance version. Historical reconstruction becomes indirect: you'd
+  need to infer past membership from `EVALUATION_SESSION` timestamps plus whatever the role
+  table looked like at that time, which only works if the role table itself never destructively
+  overwrites (see next option).
+- **C — Defer `CALIBRATION_SET`, but make `FRAGRANCE_VERSION_ROLE` append-only from day
+  one** (new row + `is_current=false`/`superseded_by_id` on the old one, instead of an
+  in-place `UPDATE`, matching the provenance-versioning discipline §3.5/§21 already
+  recommends for `FRAGRANCE_NOTE`/`FRAGRANCE_ACCORD`). This gets most of B's simplicity
+  (one table, not three) while preserving enough history to answer "what was flagged
+  `calibration` as of date X" later via a timestamp query, without a dedicated set concept.
+  `CALIBRATION_SET` remains a pure additive migration if named-set comparison ("v1 vs v2")
+  ever becomes a real need.
+
+**My recommendation**: **C**. It's the least schema for the most of the actual benefit:
+you get historical recoverability (the real thing you want) without committing to a
+set-membership UI/table before the Calibration 30 has even stabilized once. If, once
+membership is finalized, you find yourself wanting to explicitly name and compare "the
+original 30" against a later revision, A is a small additive change at that point — nothing
+here forecloses it.
+
+### 9.4 How much Library/Admin UI does Phase 1 actually need?
+
+**The issue.** Phase 1's job is getting real data — houses, fragrances, versions, physical
+items, the Note/Accord vocabulary, calibration/canonical roles, and the historical
+preferences already known (Aventish Orange Dusk, Qasamat Ebhar, etc.) — into the new schema.
+Target §24 explicitly treats Library/Admin as the mode where "clutter" is acceptable and
+design investment matters least; the real design investment belongs in Phase 2's Quick
+Evaluation screen. The question is just how much building happens in Phase 1 to get data
+in, versus deferring even that to Phase 2.
+
+**Your options:**
+
+- **A — CLI/bulk-import only, no admin web UI in Phase 1.** Extend the CLI pattern the old
+  plan already sketched (`fragrance-rater import kaggle`) with a `seed`/`import` command
+  that loads houses/fragrances/versions/roles/notes from structured files (CSV/YAML), plus
+  direct database access for one-off corrections. Fastest path to real data; zero UI
+  investment spent on a mode that's explicitly low-priority. Downside: bulk text-file entry
+  is more typo-prone than a form with autocomplete, and there's no browsing/searching UI
+  until Phase 2.
+- **B — A minimal but real admin web UI in Phase 1** (basic CRUD screens, possibly using an
+  auto-generated admin panel rather than hand-built React). Easier day-to-day data entry and
+  correction, and it's a head start on whatever the Phase 2 Quick Evaluation screen needs to
+  read from (fragrance lookup, physical item selection). Downside: real build time spent on
+  a screen the target spec itself says shouldn't get design attention, before any evaluation
+  capability exists at all.
+- **C — CLI/bulk-import for the initial big seed, plus a bare FastAPI CRUD API with no
+  dedicated frontend yet.** Splits the difference: the *data layer's* read/write contract
+  gets built in Phase 1 (so Phase 2 doesn't have to retrofit it), but no admin frontend
+  screens get built until Phase 2, when they can share components/patterns with the
+  evaluation UI instead of being designed twice.
+
+**My recommendation**: **C**. It keeps Phase 1 scoped to "get the schema right and get real
+data in" (its actual job), avoids spending build time on a UI mode the spec says should stay
+minimal, and avoids the double-build risk of A (writing one-off CLI scripts now, then a
+proper API layer in Phase 2 anyway).
+
+---
+
+Once these four are answered, the next step is implementing Phase 1 (schema + migrations +
+seed data) — but that work is explicitly on hold until PR #65 merges, per your instruction.
