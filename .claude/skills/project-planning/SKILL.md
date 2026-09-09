@@ -183,7 +183,7 @@ Templates are in `templates/` directory:
 
 ## Detailed Guidance
 
-For comprehensive documentation on each document type, see `reference/` directory:
+For full documentation on each document type, see `reference/` directory:
 - `reference/document-guide.md` - Full guidance for all document types
 - `reference/prompting-patterns.md` - How to use documents during development
 

@@ -22,13 +22,13 @@ Personal fragrance evaluation and recommendation system for family use with LLM-
 
 ### Quality Assurance
 
-- **pytest** with comprehensive coverage
+- **pytest** with full coverage
 - **Pre-commit hooks** for automated checks
 - **GitHub Actions** CI/CD pipeline
 
 ### Command Line Interface
 
-Built with Click for a robust CLI experience:
+Built with Click for a reliable CLI experience:
 
 ```bash
 fragrance-rater --help

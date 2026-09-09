@@ -34,7 +34,7 @@ fragrance-rater hello --name "World"
 
 - Modern Python 3.12+ support
 - Type-safe with BasedPyright strict mode
-- Comprehensive test coverage
+- Full test coverage
 - Structured logging with structlog
 - CLI interface with Click
 - Docker support

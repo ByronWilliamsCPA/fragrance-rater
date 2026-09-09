@@ -58,7 +58,7 @@ This is the core value proposition. A bad algorithm undermines the entire applic
 **Pros**:
 
 - ✅ Discovers latent preferences
-- ✅ Leverages similar users' ratings
+- ✅ Uses similar users' ratings
 
 **Cons**:
 
@@ -244,7 +244,7 @@ def get_recommendations(
 
 - ⚠️ **Cold start**: Needs 3+ evaluations for meaningful recommendations
   - Mitigation: Show "rate more fragrances" prompt; suggest popular ones
-- ⚠️ **No cross-user learning**: Doesn't leverage patterns from other family members
+- ⚠️ **No cross-user learning**: Doesn't use patterns from other family members
   - Mitigation: Add collaborative filtering in Phase 3 if needed
 
 ### Technical Debt

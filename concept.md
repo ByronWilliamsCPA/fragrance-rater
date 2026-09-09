@@ -584,7 +584,7 @@ Add a machine learning component that:
 
 4. **Parfumo Note Directory**
    - https://www.parfumo.com/Fragrance_Notes
-   - Comprehensive note categorization
+   - Detailed note categorization
 
 ### Analogous Systems
 

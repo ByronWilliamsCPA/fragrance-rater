@@ -38,7 +38,7 @@ Personal fragrance evaluation and recommendation system for family use with LLM-
 
 This project provides:
 - Core functionality for personal fragrance evaluation and recommendation system for family use with llm-powered recommendations
-- Production-ready code with comprehensive testing
+- Production-ready code with full test coverage
 - Well-documented API and architecture
 - Security-first development practices
 
@@ -46,7 +46,7 @@ This project provides:
 
 - **High Quality**: 80%+ test coverage enforced via CI
 - **Type Safe**: Full type hints with BasedPyright strict mode
-- **Well Documented**: Clear docstrings and comprehensive guides
+- **Well Documented**: Clear docstrings and detailed guides
 - **Developer Friendly**: Pre-commit hooks, automated formatting, linting
 - **Security First**: Dependency scanning, security analysis, SBOM generation
 - **CLI Tool**: Command-line interface via fragrance-rater
