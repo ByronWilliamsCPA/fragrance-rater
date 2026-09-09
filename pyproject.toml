@@ -161,6 +161,11 @@ supply-chain = [
 ]
 
 
+[project.urls]
+Repository = "https://github.com/ByronWilliamsCPA/fragrance-rater"
+Documentation = "https://github.com/ByronWilliamsCPA/fragrance-rater#readme"
+Issues = "https://github.com/ByronWilliamsCPA/fragrance-rater/issues"
+
 [project.scripts]
 fragrance-rater = "fragrance_rater.cli:cli"
 
