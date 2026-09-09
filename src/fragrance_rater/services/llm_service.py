@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import httpx
 
@@ -110,16 +111,36 @@ class LLMService:
     Implements ADR-003 with:
     - OpenRouter API integration
     - Prompt templates for recommendations and profiles
-    - In-memory caching for repeated requests
+    - In-memory caching for repeated requests, bounded to MAX_CACHE_ENTRIES
     - Graceful degradation when API is unavailable
+
+    Attributes:
+        MAX_CACHE_ENTRIES (ClassVar[int]): Upper bound on the number of
+            cached explanations kept in memory before the oldest entry is
+            evicted (Major finding 7).
     """
+
+    # #CRITICAL: data-integrity: this cache lives entirely in process memory
+    # (see module docstring; it is neither Redis nor Postgres despite
+    # ADR-003 describing durable storage) and previously grew without bound
+    # for the lifetime of the process, and `invalidate_reviewer_cache` was
+    # unused dead code that additionally never matched anything because it
+    # substring-searched the *hashed* cache key for a raw reviewer_id
+    # (Major finding 7).
+    # #VERIFY: `_store_in_cache` caps total entries at MAX_CACHE_ENTRIES via
+    # FIFO eviction, and a separate `_cache_reviewer_ids` index lets
+    # `invalidate_reviewer_cache` do an exact match instead of a substring
+    # search against an opaque hash; `EvaluationService` now calls
+    # `invalidate_reviewer_cache` after every create/update/delete.
+    MAX_CACHE_ENTRIES: ClassVar[int] = 500
 
     def __init__(self) -> None:
         self.api_key = settings.openrouter_api_key
         self.base_url = settings.openrouter_base_url
         self.model = settings.openrouter_model
         self.enabled = settings.llm_enabled and bool(self.api_key)
-        self._cache: dict[str, str] = {}
+        self._cache: OrderedDict[str, str] = OrderedDict()
+        self._cache_reviewer_ids: dict[str, str] = {}
 
     def is_available(self) -> bool:
         """Check if LLM service is available.
@@ -198,7 +219,7 @@ class LLMService:
 
         try:
             response = await self._call_openrouter(prompt)
-            self._cache[cache_key] = response
+            self._store_in_cache(cache_key, profile.reviewer_id, response)
             return LLMResponse(text=response, model=self.model, cached=False)
         except LLMServiceError as e:
             # Fallback on error
@@ -257,7 +278,7 @@ class LLMService:
 
         try:
             response = await self._call_openrouter(prompt)
-            self._cache[cache_key] = response
+            self._store_in_cache(cache_key, profile.reviewer_id, response)
             return LLMResponse(text=response, model=self.model, cached=False)
         except LLMServiceError as e:
             fallback = self._fallback_profile_summary(profile, reviewer_name)
@@ -400,9 +421,26 @@ class LLMService:
 
         return LLMResponse(text=" ".join(parts), model="fallback", cached=False)
 
+    def _store_in_cache(self, cache_key: str, reviewer_id: str, response: str) -> None:
+        """Store a generated response in the bounded cache.
+
+        Args:
+            cache_key (str): Hashed cache key from `_cache_key`.
+            reviewer_id (str): UUID of the reviewer this entry belongs to,
+                kept in a separate index so `invalidate_reviewer_cache` can
+                find entries without searching the opaque hashed key.
+            response (str): Generated text to cache.
+        """
+        self._cache[cache_key] = response
+        self._cache_reviewer_ids[cache_key] = reviewer_id
+        if len(self._cache) > self.MAX_CACHE_ENTRIES:
+            oldest_key, _ = self._cache.popitem(last=False)
+            self._cache_reviewer_ids.pop(oldest_key, None)
+
     def clear_cache(self) -> None:
         """Clear the explanation cache."""
         self._cache.clear()
+        self._cache_reviewer_ids.clear()
 
     def invalidate_reviewer_cache(self, reviewer_id: str) -> None:
         """Invalidate cache entries for a specific reviewer.
@@ -410,9 +448,14 @@ class LLMService:
         Args:
             reviewer_id (str): UUID of the reviewer.
         """
-        keys_to_remove = [k for k in self._cache if reviewer_id in k]
+        keys_to_remove = [
+            key
+            for key, cached_reviewer_id in self._cache_reviewer_ids.items()
+            if cached_reviewer_id == reviewer_id
+        ]
         for key in keys_to_remove:
             del self._cache[key]
+            del self._cache_reviewer_ids[key]
 
 
 # Global LLM service instance

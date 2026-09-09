@@ -1,5 +1,7 @@
 """Unit tests for EvaluationService."""
 
+from unittest.mock import MagicMock
+
 import pytest
 import pytest_asyncio
 
@@ -247,3 +249,92 @@ class TestEvaluationService:
         result = await service.delete("nonexistent")
 
         assert result is False
+
+
+@pytest.mark.asyncio
+class TestEvaluationServiceCacheInvalidation:
+    """Tests for Major finding 7: mutations invalidate the reviewer's LLM cache."""
+
+    async def test_create_invalidates_reviewer_cache(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """Creating an evaluation invalidates that reviewer's cached explanations."""
+        fragrance, reviewer = setup_fragrance_and_reviewer
+        mock_llm = MagicMock()
+
+        service = EvaluationService(async_session, llm_service=mock_llm)
+        data = EvaluationCreate(
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=5,
+        )
+        await service.create(data)
+
+        mock_llm.invalidate_reviewer_cache.assert_called_once_with(reviewer.id)
+
+    async def test_update_invalidates_reviewer_cache(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """Updating an evaluation invalidates that reviewer's cached explanations."""
+        fragrance, reviewer = setup_fragrance_and_reviewer
+        evaluation = Evaluation(
+            id="cache-update-eval",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=3,
+        )
+        async_session.add(evaluation)
+        await async_session.commit()
+
+        mock_llm = MagicMock()
+        service = EvaluationService(async_session, llm_service=mock_llm)
+        await service.update("cache-update-eval", EvaluationUpdate(rating=4))
+
+        mock_llm.invalidate_reviewer_cache.assert_called_once_with(reviewer.id)
+
+    async def test_update_nonexistent_does_not_invalidate_cache(self, async_session):
+        """Updating a missing evaluation must not touch the cache."""
+        mock_llm = MagicMock()
+        service = EvaluationService(async_session, llm_service=mock_llm)
+        result = await service.update("nonexistent", EvaluationUpdate(rating=5))
+
+        assert result is None
+        mock_llm.invalidate_reviewer_cache.assert_not_called()
+
+    async def test_delete_invalidates_reviewer_cache(
+        self, async_session, setup_fragrance_and_reviewer
+    ):
+        """Deleting an evaluation invalidates that reviewer's cached explanations."""
+        fragrance, reviewer = setup_fragrance_and_reviewer
+        evaluation = Evaluation(
+            id="cache-delete-eval",
+            fragrance_id=fragrance.id,
+            reviewer_id=reviewer.id,
+            rating=3,
+        )
+        async_session.add(evaluation)
+        await async_session.commit()
+
+        mock_llm = MagicMock()
+        service = EvaluationService(async_session, llm_service=mock_llm)
+        result = await service.delete("cache-delete-eval")
+
+        assert result is True
+        mock_llm.invalidate_reviewer_cache.assert_called_once_with(reviewer.id)
+
+    async def test_delete_nonexistent_does_not_invalidate_cache(self, async_session):
+        """Deleting a missing evaluation must not touch the cache."""
+        mock_llm = MagicMock()
+        service = EvaluationService(async_session, llm_service=mock_llm)
+        result = await service.delete("nonexistent")
+
+        assert result is False
+        mock_llm.invalidate_reviewer_cache.assert_not_called()
+
+    async def test_default_llm_service_is_the_singleton(self, async_session):
+        """Omitting llm_service falls back to the process-wide singleton."""
+        from fragrance_rater.services.llm_service import get_llm_service
+
+        service = EvaluationService(async_session)
+
+        assert service._llm_service is get_llm_service()

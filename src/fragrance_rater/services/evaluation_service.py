@@ -9,11 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.models.evaluation import Evaluation
+from fragrance_rater.services.llm_service import get_llm_service
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from fragrance_rater.schemas.evaluation import EvaluationCreate, EvaluationUpdate
+    from fragrance_rater.services.llm_service import LLMService
 
 
 class EvaluationService:
@@ -21,10 +23,24 @@ class EvaluationService:
 
     Args:
         session (AsyncSession): Async database session.
+        llm_service (LLMService | None): LLM service whose per-reviewer
+            explanation cache is invalidated after create/update/delete
+            (Major finding 7). Defaults to the process-wide singleton.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self, session: AsyncSession, llm_service: LLMService | None = None
+    ) -> None:
         self.session = session
+        # #ASSUME: data-integrity: an evaluation's rating/notes are inputs to
+        # cached LLM explanations (see llm_service.py); any create, update,
+        # or delete can make a previously-cached explanation for this
+        # reviewer stale.
+        # #VERIFY: every mutating method below invalidates this reviewer's
+        # cache entries after the database write succeeds.
+        self._llm_service = (
+            llm_service if llm_service is not None else get_llm_service()
+        )
 
     async def get_by_id(self, evaluation_id: str) -> Evaluation | None:
         """Get an evaluation by ID.
@@ -121,6 +137,7 @@ class EvaluationService:
         )
         self.session.add(evaluation)
         await self.session.flush()
+        self._llm_service.invalidate_reviewer_cache(evaluation.reviewer_id)
         return evaluation
 
     async def update(
@@ -144,6 +161,7 @@ class EvaluationService:
             setattr(evaluation, field, value)
 
         await self.session.flush()
+        self._llm_service.invalidate_reviewer_cache(evaluation.reviewer_id)
         return evaluation
 
     async def delete(self, evaluation_id: str) -> bool:
@@ -159,6 +177,8 @@ class EvaluationService:
         if not evaluation:
             return False
 
+        reviewer_id = evaluation.reviewer_id
         await self.session.delete(evaluation)
         await self.session.flush()
+        self._llm_service.invalidate_reviewer_cache(reviewer_id)
         return True

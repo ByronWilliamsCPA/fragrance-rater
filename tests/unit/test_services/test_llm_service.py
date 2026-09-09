@@ -156,7 +156,15 @@ class TestLLMService:
             assert len(service._cache) == 0
 
     def test_invalidate_reviewer_cache(self):
-        """Test invalidating cache for a specific reviewer."""
+        """Test invalidating cache for a specific reviewer.
+
+        Major finding 7: `_cache` is keyed by an md5 hash (see `_cache_key`),
+        so a naive substring search for the raw reviewer_id against that
+        hash would never match in practice. Entries must be populated via
+        `_store_in_cache` (which maintains the `_cache_reviewer_ids` index)
+        for invalidation to find them, matching how the real read/write
+        paths populate the cache.
+        """
         with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
             mock_settings.openrouter_api_key = "test-key"
             mock_settings.llm_enabled = True
@@ -164,16 +172,76 @@ class TestLLMService:
             mock_settings.openrouter_model = "test-model"
             service = LLMService()
 
-            # Add cached items with reviewer IDs in keys
-            service._cache["user1_frag1"] = "value1"
-            service._cache["user1_frag2"] = "value2"
-            service._cache["user2_frag1"] = "value3"
+            key1 = service._cache_key("rec", "frag1", "user1")
+            key2 = service._cache_key("rec", "frag2", "user1")
+            key3 = service._cache_key("rec", "frag1", "user2")
+            service._store_in_cache(key1, "user1", "value1")
+            service._store_in_cache(key2, "user1", "value2")
+            service._store_in_cache(key3, "user2", "value3")
 
             service.invalidate_reviewer_cache("user1")
 
-            assert "user1_frag1" not in service._cache
-            assert "user1_frag2" not in service._cache
-            assert "user2_frag1" in service._cache
+            assert key1 not in service._cache
+            assert key2 not in service._cache
+            assert key3 in service._cache
+            assert key1 not in service._cache_reviewer_ids
+            assert key2 not in service._cache_reviewer_ids
+            assert key3 in service._cache_reviewer_ids
+
+    def test_invalidate_reviewer_cache_no_match_is_a_noop(self):
+        """Invalidating a reviewer with no cached entries changes nothing."""
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://test.api"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+            key1 = service._cache_key("rec", "frag1", "user1")
+            service._store_in_cache(key1, "user1", "value1")
+
+            service.invalidate_reviewer_cache("no-such-reviewer")
+
+            assert key1 in service._cache
+
+    def test_store_in_cache_evicts_oldest_when_over_capacity(self):
+        """The cache is bounded to MAX_CACHE_ENTRIES via FIFO eviction."""
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://test.api"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+            service.MAX_CACHE_ENTRIES = 3
+
+            keys = [service._cache_key("rec", f"frag{i}", "user1") for i in range(4)]
+            for i, key in enumerate(keys):
+                service._store_in_cache(key, "user1", f"value{i}")
+
+            assert len(service._cache) == 3
+            # The oldest entry (index 0) was evicted; the rest remain.
+            assert keys[0] not in service._cache
+            assert keys[0] not in service._cache_reviewer_ids
+            assert keys[1] in service._cache
+            assert keys[2] in service._cache
+            assert keys[3] in service._cache
+
+    def test_clear_cache_also_clears_reviewer_index(self):
+        """clear_cache empties both the cache and the reviewer index."""
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://test.api"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+            key1 = service._cache_key("rec", "frag1", "user1")
+            service._store_in_cache(key1, "user1", "value1")
+
+            service.clear_cache()
+
+            assert len(service._cache) == 0
+            assert len(service._cache_reviewer_ids) == 0
 
 
 @pytest.mark.asyncio
