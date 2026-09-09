@@ -48,31 +48,11 @@
 # ============================================================================
 # Add your project's vulnerability exceptions below this line
 
-# ----------------------------------------------------------------------------
-# interrogate/py dependency - CVE-2022-42969 (DISPUTED)
-# ----------------------------------------------------------------------------
-[[IgnoredVulns]]
-id = "CVE-2022-42969"
-reason = """
-DISPUTED ReDoS vulnerability in py package (transitive dependency of interrogate).
-Only affects Subversion repository path parsing, which this project does not use.
-interrogate is a dev dependency for docstring coverage checking.
-The py package is unmaintained but poses no security risk in this context.
-See: https://nvd.nist.gov/vuln/detail/CVE-2022-42969
-"""
-
-[[IgnoredVulns]]
-id = "PYSEC-2022-42969"
-reason = """
-Same as CVE-2022-42969 - DISPUTED ReDoS in py package via interrogate.
-Dev dependency only, affects SVN parsing which is not used.
-"""
-
-[[IgnoredVulns]]
-id = "GHSA-w596-4wvx-j9j6"
-reason = """
-GitHub Security Advisory for py ReDoS (same as CVE-2022-42969).
-DISPUTED vulnerability affecting SVN path parsing.
-interrogate (dev dependency) transitively requires py, but this project
-does not interact with Subversion repositories.
-"""
+# No project-specific exceptions currently active.
+# CVE-2022-42969, PYSEC-2022-42969, and GHSA-w596-4wvx-j9j6 (all aliases of
+# the same DISPUTED ReDoS in py's SVN-WC parser, a dev-only transitive
+# dependency of interrogate) were removed on 2026-09-03. OSV withdrew the
+# advisory on 2026-06-09 (GHSA-w596-4wvx-j9j6 on 2025-08-01,
+# PYSEC-2022-42969 on 2026-06-09; CVE-2022-42969 is an alias of both), and
+# osv-scanner was reporting all three ignores as unused, failing Security
+# Gate Validation with exit code 1.
