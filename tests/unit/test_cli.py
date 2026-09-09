@@ -127,7 +127,7 @@ class TestImportKaggleCommand:
 
         assert result.exit_code != 0
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_kaggle_import_success(self, mock_session_maker: MagicMock) -> None:
         """Should import CSV successfully."""
         import csv
@@ -150,9 +150,7 @@ class TestImportKaggleCommand:
             mock_session.__aexit__ = AsyncMock(return_value=None)
             mock_session_maker.return_value = mock_session
 
-            with patch(
-                "fragrance_rater.services.kaggle_importer.KaggleImporter"
-            ) as mock_importer_class:
+            with patch("fragrance_rater.cli.KaggleImporter") as mock_importer_class:
                 mock_importer = AsyncMock()
                 mock_importer.import_csv.return_value = ImportResult(
                     total_rows=1,
@@ -172,7 +170,7 @@ class TestImportKaggleCommand:
 
             os.unlink(temp_path)
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_kaggle_dry_run(self, mock_session_maker: MagicMock) -> None:
         """Should show dry run in output."""
         import csv
@@ -192,9 +190,7 @@ class TestImportKaggleCommand:
             mock_session.__aexit__ = AsyncMock(return_value=None)
             mock_session_maker.return_value = mock_session
 
-            with patch(
-                "fragrance_rater.services.kaggle_importer.KaggleImporter"
-            ) as mock_importer_class:
+            with patch("fragrance_rater.cli.KaggleImporter") as mock_importer_class:
                 mock_importer = AsyncMock()
                 mock_importer.import_csv.return_value = ImportResult(
                     total_rows=1, imported=1, skipped=0, errors=[]
@@ -217,7 +213,7 @@ class TestImportKaggleCommand:
 class TestSeedReviewersCommand:
     """Tests for seed-reviewers command."""
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_seed_reviewers_success(self, mock_session_maker: MagicMock) -> None:
         """Should seed reviewers successfully."""
         mock_session = AsyncMock()
@@ -230,9 +226,7 @@ class TestSeedReviewersCommand:
         mock_reviewer.name = "Byron"
         mock_reviewer.id = "123"
 
-        with patch(
-            "fragrance_rater.services.reviewer_service.ReviewerService"
-        ) as mock_service_class:
+        with patch("fragrance_rater.cli.ReviewerService") as mock_service_class:
             mock_service = AsyncMock()
             mock_service.seed_default_reviewers.return_value = [mock_reviewer]
             mock_service_class.return_value = mock_service
@@ -248,7 +242,7 @@ class TestSeedReviewersCommand:
 class TestProfileCommand:
     """Tests for profile command."""
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_profile_not_found(self, mock_session_maker: MagicMock) -> None:
         """Should show error for unknown reviewer."""
         mock_session = AsyncMock()
@@ -256,9 +250,7 @@ class TestProfileCommand:
         mock_session.__aexit__ = AsyncMock(return_value=None)
         mock_session_maker.return_value = mock_session
 
-        with patch(
-            "fragrance_rater.services.reviewer_service.ReviewerService"
-        ) as mock_service_class:
+        with patch("fragrance_rater.cli.ReviewerService") as mock_service_class:
             mock_service = AsyncMock()
             mock_service.get_by_name.return_value = None
             mock_service_class.return_value = mock_service
@@ -269,7 +261,7 @@ class TestProfileCommand:
             assert result.exit_code == 1
             assert "not found" in result.output
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_profile_success(self, mock_session_maker: MagicMock) -> None:
         """Should display reviewer profile."""
         mock_session = AsyncMock()
@@ -287,9 +279,7 @@ class TestProfileCommand:
         mock_reviewer.created_at = "2024-01-01"
         mock_reviewer.evaluations = [mock_evaluation]
 
-        with patch(
-            "fragrance_rater.services.reviewer_service.ReviewerService"
-        ) as mock_service_class:
+        with patch("fragrance_rater.cli.ReviewerService") as mock_service_class:
             mock_service = AsyncMock()
             mock_service.get_by_name.return_value = mock_reviewer
             mock_service_class.return_value = mock_service
@@ -306,7 +296,7 @@ class TestProfileCommand:
 class TestImportParfumoUrlCommand:
     """Tests for import-data parfumo-url command."""
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_url_success(self, mock_session_maker: MagicMock) -> None:
         """Should import from Parfumo URL."""
         mock_session = AsyncMock()
@@ -314,9 +304,7 @@ class TestImportParfumoUrlCommand:
         mock_session.__aexit__ = AsyncMock(return_value=None)
         mock_session_maker.return_value = mock_session
 
-        with patch(
-            "fragrance_rater.services.parfumo_scraper.ParfumoScraper"
-        ) as mock_scraper_class:
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             mock_scraper = AsyncMock()
             mock_scraper.import_from_url.return_value = "fragrance-123"
             mock_scraper.close = MagicMock()
@@ -331,7 +319,7 @@ class TestImportParfumoUrlCommand:
             assert result.exit_code == 0
             assert "Imported fragrance with ID: fragrance-123" in result.output
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_url_failure(self, mock_session_maker: MagicMock) -> None:
         """Should show error on import failure."""
         mock_session = AsyncMock()
@@ -339,9 +327,7 @@ class TestImportParfumoUrlCommand:
         mock_session.__aexit__ = AsyncMock(return_value=None)
         mock_session_maker.return_value = mock_session
 
-        with patch(
-            "fragrance_rater.services.parfumo_scraper.ParfumoScraper"
-        ) as mock_scraper_class:
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             mock_scraper = AsyncMock()
             mock_scraper.import_from_url.return_value = None
             mock_scraper.close = MagicMock()
@@ -360,7 +346,7 @@ class TestImportParfumoUrlCommand:
 class TestImportParfumoSearchCommand:
     """Tests for import-data parfumo-search command."""
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_no_results(self, mock_session_maker: MagicMock) -> None:
         """Should show message when no results found."""
         mock_session = AsyncMock()
@@ -368,9 +354,7 @@ class TestImportParfumoSearchCommand:
         mock_session.__aexit__ = AsyncMock(return_value=None)
         mock_session_maker.return_value = mock_session
 
-        with patch(
-            "fragrance_rater.services.parfumo_scraper.ParfumoScraper"
-        ) as mock_scraper_class:
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             mock_scraper = MagicMock()
             mock_scraper.search.return_value = []
             mock_scraper.close = MagicMock()
@@ -384,7 +368,7 @@ class TestImportParfumoSearchCommand:
             assert result.exit_code == 0
             assert "No results found" in result.output
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_with_results(self, mock_session_maker: MagicMock) -> None:
         """Should display search results."""
         mock_session = AsyncMock()
@@ -398,9 +382,7 @@ class TestImportParfumoSearchCommand:
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
 
-        with patch(
-            "fragrance_rater.services.parfumo_scraper.ParfumoScraper"
-        ) as mock_scraper_class:
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             mock_scraper = MagicMock()
             mock_scraper.search.return_value = [mock_result]
             mock_scraper.close = MagicMock()
@@ -414,7 +396,7 @@ class TestImportParfumoSearchCommand:
             assert "Aventus" in result.output
             assert "Creed" in result.output
 
-    @patch("fragrance_rater.core.database.async_session_maker")
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_import_first(self, mock_session_maker: MagicMock) -> None:
         """Should import first result with --import-first."""
         mock_session = AsyncMock()
@@ -427,9 +409,7 @@ class TestImportParfumoSearchCommand:
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
 
-        with patch(
-            "fragrance_rater.services.parfumo_scraper.ParfumoScraper"
-        ) as mock_scraper_class:
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             # Use MagicMock for sync methods, AsyncMock for async
             mock_scraper = MagicMock()
             mock_scraper.search.return_value = [mock_result]

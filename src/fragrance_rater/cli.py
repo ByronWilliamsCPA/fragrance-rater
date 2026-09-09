@@ -6,28 +6,47 @@ with structured logging integration.
 
 import asyncio
 import sys
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, TypeVar
 
 import click
 from structlog.stdlib import BoundLogger
 
 from fragrance_rater.core.config import settings
+from fragrance_rater.core.database import async_session_maker
+from fragrance_rater.services.kaggle_importer import KaggleImporter
+from fragrance_rater.services.parfumo_scraper import ParfumoScraper
+from fragrance_rater.services.reviewer_service import ReviewerService
 from fragrance_rater.utils.logging import get_logger
 
 logger: BoundLogger = get_logger(__name__)
 
+T = TypeVar("T")
+
 
 @dataclass
 class CLIContext:
-    """Typed context object for Click commands."""
+    """Typed context object for Click commands.
+
+    Attributes:
+        debug (bool): Whether debug logging was requested via ``--debug``.
+    """
 
     debug: bool = False
 
 
-def run_async(coro):  # noqa: ANN001, ANN201
-    """Run an async coroutine in a new event loop."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+def run_async(coro: Coroutine[Any, Any, T]) -> T:
+    """Run an async coroutine to completion in a fresh event loop.
+
+    Args:
+        coro (Coroutine[Any, Any, T]): The coroutine to execute.
+
+    Returns:
+        T: The coroutine's return value.
+    """
+    return asyncio.run(coro)
 
 
 @click.group()
@@ -64,8 +83,7 @@ def import_data() -> None:
     is_flag=True,
     help="Validate without writing to database",
 )
-@click.pass_context
-def import_kaggle(ctx: click.Context, csv_file: Path, dry_run: bool) -> None:
+def import_kaggle(csv_file: Path, dry_run: bool) -> None:
     """Import fragrances from a Kaggle CSV file.
 
     CSV_FILE: Path to the CSV file to import.
@@ -73,8 +91,6 @@ def import_kaggle(ctx: click.Context, csv_file: Path, dry_run: bool) -> None:
     Expected columns: name, brand, concentration, year, gender, family,
     top_notes, heart_notes, base_notes, accords (flexible matching).
     """
-    from fragrance_rater.core.database import async_session_maker
-    from fragrance_rater.services.kaggle_importer import KaggleImporter
 
     async def do_import() -> None:
         async with async_session_maker() as session:
@@ -114,17 +130,14 @@ def import_kaggle(ctx: click.Context, csv_file: Path, dry_run: bool) -> None:
 
 @import_data.command(name="parfumo-url")
 @click.argument("url", type=str)
-@click.pass_context
-def import_parfumo_url(ctx: click.Context, url: str) -> None:
-    """Import a fragrance from its Parfumo URL.
+def import_parfumo_url(url: str) -> None:
+    r"""Import a fragrance from its Parfumo URL.
 
     URL: Full Parfumo perfume page URL.
 
-    Example: fragrance-rater import-data parfumo-url \\
+    Example: fragrance-rater import-data parfumo-url \
         "https://www.parfumo.com/Perfumes/brand/name"
     """
-    from fragrance_rater.core.database import async_session_maker
-    from fragrance_rater.services.parfumo_scraper import ParfumoScraper
 
     async def do_import() -> None:
         async with async_session_maker() as session:
@@ -165,9 +178,7 @@ def import_parfumo_url(ctx: click.Context, url: str) -> None:
     default=5,
     help="Maximum search results to show",
 )
-@click.pass_context
 def import_parfumo_search(
-    ctx: click.Context,
     query: str,
     import_first: bool,
     limit: int,
@@ -176,12 +187,15 @@ def import_parfumo_search(
 
     QUERY: Search terms (fragrance name, brand, or both).
 
+    Args:
+        query (str): Search terms (fragrance name, brand, or both).
+        import_first (bool): Import the first search result automatically.
+        limit (int): Maximum number of search results to display.
+
     Examples:
         fragrance-rater import-data parfumo-search "Aventus Creed"
         fragrance-rater import-data parfumo-search "Sauvage" --import-first
     """
-    from fragrance_rater.core.database import async_session_maker
-    from fragrance_rater.services.parfumo_scraper import ParfumoScraper
 
     async def do_search() -> None:
         async with async_session_maker() as session:
@@ -237,14 +251,11 @@ def import_parfumo_search(
 
 
 @cli.command(name="seed-reviewers")
-@click.pass_context
-def seed_reviewers(ctx: click.Context) -> None:
+def seed_reviewers() -> None:
     """Create default family reviewer profiles.
 
     Creates: Byron, Veronica, Bayden, Ariannah
     """
-    from fragrance_rater.core.database import async_session_maker
-    from fragrance_rater.services.reviewer_service import ReviewerService
 
     async def do_seed() -> None:
         async with async_session_maker() as session:
@@ -272,14 +283,11 @@ def seed_reviewers(ctx: click.Context) -> None:
 
 @cli.command()
 @click.argument("name", type=str)
-@click.pass_context
-def profile(ctx: click.Context, name: str) -> None:
+def profile(name: str) -> None:
     """Show a reviewer's preference profile.
 
     NAME: Reviewer name to show profile for.
     """
-    from fragrance_rater.core.database import async_session_maker
-    from fragrance_rater.services.reviewer_service import ReviewerService
 
     async def show_profile() -> None:
         async with async_session_maker() as session:
