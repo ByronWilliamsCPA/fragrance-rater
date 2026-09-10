@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -11,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.services.llm_service import get_llm_service
+from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -195,7 +195,7 @@ class EvaluationService:
             return False
 
         reviewer_id = evaluation.reviewer_id
-        evaluation.deleted_at = datetime.now(UTC)
+        evaluation.deleted_at = now_naive_utc()
         await self.session.flush()
         self._llm_service.invalidate_reviewer_cache(reviewer_id)
         return True

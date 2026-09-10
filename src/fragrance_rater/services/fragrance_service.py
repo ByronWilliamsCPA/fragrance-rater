@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -16,6 +15,7 @@ from fragrance_rater.models.fragrance import (
     FragranceNote,
     Note,
 )
+from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -193,7 +193,7 @@ class FragranceService:
         if not fragrance:
             return False
 
-        fragrance.deleted_at = datetime.now(UTC)
+        fragrance.deleted_at = now_naive_utc()
         await self.session.flush()
         return True
 
