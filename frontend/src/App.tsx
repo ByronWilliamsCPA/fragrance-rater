@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import './App.css'
 import { ApiStatus } from '@/components/ApiStatus'
 
@@ -8,8 +8,8 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>{{ cookiecutter.project_name }}</h1>
-        <p>{{ cookiecutter.project_short_description }}</p>
+        <h1>Fragrance Rater</h1>
+        <p>Personal fragrance evaluation and recommendation system</p>
       </header>
 
       <main className="app-main">

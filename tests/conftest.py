@@ -5,11 +5,41 @@ This module provides:
 - Pytest markers for test categorization
 - Shared fixtures for common test resources
 - Temporary directory management
+- Database fixtures for integration tests
 """
 
+import os
+
+# Rate limiting is intentionally left enabled (settings.rate_limit_enabled
+# defaults to True and nothing here overrides it) so the FastAPI app's
+# module-level singleton gets the same slowapi wiring in tests as in
+# production: DefaultRateLimitMiddleware (a local replacement for slowapi's
+# own SlowAPIMiddleware; see fragrance_rater.middleware.rate_limit for why),
+# its exception handler, and app.state.limiter all register at import time.
+# slowapi is the ONE rate limiter for the whole API; the autouse
+# _reset_slowapi_limiter fixture below resets its in-memory counters between
+# tests so hitting one endpoint many times across the session doesn't
+# accumulate towards a spurious 429.
+
+# Critical finding 2: mutating routes now depend on a verified Authentik
+# forward-auth identity header by default. The test suite doesn't run behind
+# Traefik, so disable the requirement here, before Settings() is
+# instantiated; dedicated tests re-enable it via monkeypatch to cover the
+# missing-header-rejected case explicitly.
+os.environ["AUTHENTIK_REQUIRED"] = "false"
+
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
+import pytest_asyncio
+from sqlalchemy import StaticPool, create_engine
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from fragrance_rater.core.database import Base
 
 # ============================================================================
 # Test Fixture Paths
@@ -155,3 +185,218 @@ def setup_logging() -> None:
     from fragrance_rater.utils.logging import setup_logging
 
     setup_logging(level="DEBUG", json_logs=False, include_timestamp=False)
+
+
+@pytest.fixture(autouse=True)
+def _reset_slowapi_limiter() -> Generator[None, None, None]:
+    """Reset the slowapi limiter's in-memory counters around every test.
+
+    ``slowapi`` is the SOLE rate limiter for the whole API (the OWASP-aligned
+    ``RateLimitMiddleware`` that used to run alongside it has been removed).
+    It is always on in this suite, since ``settings.rate_limit_enabled``
+    defaults to True and nothing above overrides it, and applies a
+    per-route, per-client default of ``settings.rate_limit_rpm``/minute, so a
+    suite that hits one endpoint many times from the single synthetic test
+    client would otherwise accumulate towards a 429 across tests. Resetting
+    per test keeps each test's request budget its own.
+
+    Yields:
+        None: Control to the test with a clean limiter.
+    """
+    from fragrance_rater.middleware import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
+# ============================================================================
+# Database Fixtures
+# ============================================================================
+
+# SQLite URL for async testing
+ASYNC_SQLITE_URL = "sqlite+aiosqlite:///:memory:"
+SYNC_SQLITE_URL = "sqlite:///:memory:"
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_engine():
+    """Create async SQLite engine for testing."""
+    engine = create_async_engine(
+        ASYNC_SQLITE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield engine
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="function")
+async def async_session(async_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Create async session for testing."""
+    async_session_maker = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    async with async_session_maker() as session:
+        yield session
+
+
+@pytest.fixture
+def sync_engine():
+    """Create sync SQLite engine for testing."""
+    engine = create_engine(
+        SYNC_SQLITE_URL,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
+
+
+@pytest.fixture
+def sync_session(sync_engine) -> Generator[Session, None, None]:
+    """Create sync session for testing."""
+    session_maker = sessionmaker(bind=sync_engine, expire_on_commit=False)
+    session = session_maker()
+    yield session
+    session.close()
+
+
+# ============================================================================
+# Model Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def sample_fragrance_data() -> dict[str, Any]:
+    """Return sample fragrance data for testing."""
+    return {
+        "id": "test-fragrance-001",
+        "name": "Test Fragrance",
+        "brand": "Test Brand",
+        "concentration": "EDP",
+        "launch_year": 2024,
+        "gender_target": "unisex",
+        "primary_family": "woody",
+        "subfamily": "aromatic",
+        "data_source": "manual",
+    }
+
+
+@pytest.fixture
+def sample_reviewer_data() -> dict[str, Any]:
+    """Return sample reviewer data for testing."""
+    return {
+        "id": "test-reviewer-001",
+        "name": "Test Reviewer",
+    }
+
+
+@pytest.fixture
+def sample_evaluation_data() -> dict[str, Any]:
+    """Return sample evaluation data for testing."""
+    return {
+        "id": "test-eval-001",
+        "fragrance_id": "test-fragrance-001",
+        "reviewer_id": "test-reviewer-001",
+        "rating": 4,
+        "notes": "Great fragrance!",
+    }
+
+
+@pytest.fixture
+def sample_note_data() -> dict[str, Any]:
+    """Return sample note data for testing."""
+    return {
+        "id": "test-note-001",
+        "name": "Bergamot",
+        "category": "citrus",
+    }
+
+
+# ============================================================================
+# Mock Fixtures
+# ============================================================================
+
+
+@pytest.fixture
+def mock_httpx_client() -> MagicMock:
+    """Create a mock httpx client for testing scrapers."""
+    client = MagicMock()
+    response = MagicMock()
+    response.status_code = 200
+    response.text = "<html><body>Mock response</body></html>"
+    client.get.return_value = response
+    client.__enter__ = MagicMock(return_value=client)
+    client.__exit__ = MagicMock(return_value=False)
+    return client
+
+
+@pytest.fixture
+def mock_openrouter_response() -> dict[str, Any]:
+    """Return mock OpenRouter API response."""
+    return {
+        "choices": [
+            {"message": {"content": "This is a mock LLM response for testing."}}
+        ],
+        "model": "anthropic/claude-3-haiku",
+    }
+
+
+# ============================================================================
+# API Testing Fixtures
+# ============================================================================
+
+
+@pytest_asyncio.fixture
+async def test_app(tmp_path):
+    """Create a FastAPI test app with database override using a temp file."""
+    from httpx import ASGITransport, AsyncClient
+
+    from fragrance_rater.core.database import get_db
+    from fragrance_rater.main import app
+
+    # Clear any existing overrides from previous tests
+    app.dependency_overrides.clear()
+
+    # Create a unique database file for each test
+    db_path = tmp_path / "test.db"
+    db_url = f"sqlite+aiosqlite:///{db_path}"
+
+    engine = create_async_engine(
+        db_url,
+        connect_args={"check_same_thread": False},
+    )
+
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        async_session_maker = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False,
+        )
+        async with async_session_maker() as session:
+            yield session
+            await session.commit()
+
+    app.dependency_overrides[get_db] = override_get_db
+
+    transport = ASGITransport(app=app)  # type: ignore[arg-type]
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+    # Cleanup: the SQLite file lives under pytest's tmp_path and is removed with it
+    await engine.dispose()

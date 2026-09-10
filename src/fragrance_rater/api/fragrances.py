@@ -1,120 +1,245 @@
-"""Fragrance catalog endpoints.
+"""Fragrance API endpoints."""
 
-These endpoints describe the fragrance catalog surface used by
-the rating workflow. The current implementation serves an
-in-memory sample list; the production catalog is backed by the
-data pipeline described in ADR-002 and is not part of this
-change. The routes exist primarily to give the OpenAPI document a
-realistic, tagged ``fragrances`` resource and to back the Postman
-contract suite.
-"""
+from typing import Annotated, Literal
 
-from __future__ import annotations
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, Field
+from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.database import get_db
+from fragrance_rater.schemas.fragrance import (
+    FragranceAccordResponse,
+    FragranceCreate,
+    FragranceNoteResponse,
+    FragranceResponse,
+    FragranceSearchParams,
+    FragranceUpdate,
+    NoteResponse,
+)
+from fragrance_rater.services.fragrance_service import FragranceService
+from fragrance_rater.utils.logging import get_logger, log_audit_event
 
 router = APIRouter(prefix="/fragrances", tags=["fragrances"])
 
+logger = get_logger(__name__)
 
-class Fragrance(BaseModel):
-    """A fragrance catalog entry.
 
-    Attributes:
-        id (int): Stable integer identifier.
-        name (str): Fragrance name.
-        brand (str): Fragrance house / brand.
-        notes (list[str]): Accord / top / heart / base notes.
+async def get_fragrance_service(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> FragranceService:
+    """Dependency to get FragranceService instance."""
+    return FragranceService(session)
+
+
+@router.get("", response_model=list[FragranceResponse])
+async def list_fragrances(
+    service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    *,
+    q: Annotated[
+        str | None, Query(description="Search query for name or brand")
+    ] = None,
+    brand: Annotated[str | None, Query(description="Filter by brand")] = None,
+    primary_family: Annotated[
+        str | None, Query(description="Filter by fragrance family")
+    ] = None,
+    gender_target: Annotated[
+        Literal["Masculine", "Feminine", "Unisex"] | None,
+        Query(description="Filter by gender target"),
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[FragranceResponse]:
+    """List and search fragrances.
+
+    Supports filtering by name/brand search, brand, family, and gender. An
+    unknown ``gender_target`` value is rejected with 422 before the search
+    parameters are built.
     """
+    params = FragranceSearchParams(
+        q=q,
+        brand=brand,
+        primary_family=primary_family,
+        gender_target=gender_target,
+        limit=limit,
+        offset=offset,
+    )
+    fragrances = await service.search(params)
 
-    id: int = Field(..., ge=1, description="Stable integer identifier.")
-    name: str = Field(..., description="Fragrance name.")
-    brand: str = Field(..., description="Fragrance house or brand.")
-    notes: list[str] = Field(default_factory=list, description="Accord notes.")
-
-
-class FragranceListResponse(BaseModel):
-    """Paginated-style response for ``GET /fragrances``."""
-
-    items: list[Fragrance] = Field(default_factory=list, description="Catalog entries.")
-    total: int = Field(..., ge=0, description="Total entries available.")
-
-
-_SAMPLE_CATALOG: list[Fragrance] = [
-    Fragrance(
-        id=1,
-        name="Aventus",
-        brand="Creed",
-        notes=["pineapple", "birch", "blackcurrant", "musk"],
-    ),
-    Fragrance(
-        id=2,
-        name="Sauvage",
-        brand="Dior",
-        notes=["bergamot", "pepper", "ambroxan"],
-    ),
-    Fragrance(
-        id=3,
-        name="Bleu de Chanel",
-        brand="Chanel",
-        notes=["grapefruit", "incense", "sandalwood"],
-    ),
-]
+    return [
+        FragranceResponse(
+            id=f.id,
+            name=f.name,
+            brand=f.brand,
+            concentration=f.concentration,
+            launch_year=f.launch_year,
+            gender_target=f.gender_target,
+            primary_family=f.primary_family,
+            subfamily=f.subfamily,
+            intensity=f.intensity,
+            data_source=f.data_source,
+            external_id=f.external_id,
+            created_at=f.created_at,
+            updated_at=f.updated_at,
+            notes=[],  # Simplified for list view
+            accords=[],
+        )
+        for f in fragrances
+    ]
 
 
-@router.get(
-    "",
-    response_model=FragranceListResponse,
-    status_code=status.HTTP_200_OK,
-    summary="List fragrances in the catalog",
-    responses={
-        200: {"description": "Catalog returned."},
-    },
-)
-def list_fragrances() -> FragranceListResponse:
-    """Return the fragrance catalog used by the rating workflow.
+@router.get("/{fragrance_id}", response_model=FragranceResponse)
+async def get_fragrance(
+    fragrance_id: str,
+    service: Annotated[FragranceService, Depends(get_fragrance_service)],
+) -> FragranceResponse:
+    """Get a fragrance by ID with full details."""
+    fragrance = await service.get_by_id(fragrance_id)
+    if not fragrance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "FRAGRANCE_NOT_FOUND", "message": "Fragrance not found"},
+        )
 
-    This is a read-only listing of catalog entries. No LLM call is
-    made; fragrance metadata comes from the local catalog managed
-    by the data pipeline (ADR-002).
+    return FragranceResponse(
+        id=fragrance.id,
+        name=fragrance.name,
+        brand=fragrance.brand,
+        concentration=fragrance.concentration,
+        launch_year=fragrance.launch_year,
+        gender_target=fragrance.gender_target,
+        primary_family=fragrance.primary_family,
+        subfamily=fragrance.subfamily,
+        intensity=fragrance.intensity,
+        data_source=fragrance.data_source,
+        external_id=fragrance.external_id,
+        created_at=fragrance.created_at,
+        updated_at=fragrance.updated_at,
+        notes=[
+            FragranceNoteResponse(
+                note=NoteResponse(
+                    id=fn.note.id,
+                    name=fn.note.name,
+                    category=fn.note.category,
+                    subcategory=fn.note.subcategory,
+                ),
+                position=fn.position,
+            )
+            for fn in fragrance.notes
+        ],
+        accords=[
+            FragranceAccordResponse(
+                accord_type=acc.accord_type,
+                intensity=acc.intensity,
+            )
+            for acc in fragrance.accords
+        ],
+    )
 
-    Returns:
-        FragranceListResponse: The full catalog with its item count.
+
+@router.post("", response_model=FragranceResponse, status_code=status.HTTP_201_CREATED)
+async def create_fragrance(
+    data: FragranceCreate,
+    service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+) -> FragranceResponse:
+    """Create a new fragrance with notes and accords.
+
+    Rejects a (name, brand) pair that already exists (Major finding 8's
+    `uq_fragrance_name_brand` constraint) with a 409 rather than letting the
+    resulting IntegrityError surface as an unhandled 500.
     """
-    return FragranceListResponse(items=_SAMPLE_CATALOG, total=len(_SAMPLE_CATALOG))
+    # #ASSUME: data-integrity: this has no pre-check, only a catch of the
+    # IntegrityError the new UNIQUE(name, brand) constraint raises, since a
+    # pre-check here would carry the same check-then-insert race the
+    # evaluations endpoint has to guard against separately.
+    # #VERIFY: the caught path rolls back before returning, so the session
+    # is left usable for the next request on this connection.
+    try:
+        fragrance = await service.create(data)
+    except IntegrityError:
+        await service.session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "FRAGRANCE_EXISTS",
+                "message": (
+                    f"A fragrance named {data.name!r} by {data.brand!r} already exists"
+                ),
+            },
+        ) from None
+    log_audit_event(
+        logger,
+        action="create",
+        actor=identity.username,
+        target_type="fragrance",
+        target_id=fragrance.id,
+    )
+    return await get_fragrance(fragrance.id, service)
 
 
-@router.get(
-    "/{fragrance_id}",
-    response_model=Fragrance,
-    status_code=status.HTTP_200_OK,
-    summary="Get a fragrance by id",
-    responses={
-        200: {"description": "Fragrance found."},
-        404: {"description": "No fragrance with the given id."},
-        422: {"description": "Path parameter failed validation."},
-    },
-)
-def get_fragrance(fragrance_id: int) -> Fragrance:
-    """Look up a single fragrance by its integer id.
+@router.patch("/{fragrance_id}", response_model=FragranceResponse)
+async def update_fragrance(
+    fragrance_id: str,
+    data: FragranceUpdate,
+    service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+) -> FragranceResponse:
+    """Update an existing fragrance.
 
-    No LLM call is made; this endpoint only serves catalog
-    metadata. Use ``POST /ratings`` to obtain an LLM-powered score
-    for a fragrance.
-
-    Args:
-        fragrance_id (int): Integer primary key of the catalog entry.
-
-    Returns:
-        Fragrance: The matching fragrance record.
-
-    Raises:
-        HTTPException: 404 when no entry has the requested id.
+    Rejects a rename that collides with an existing (name, brand) pair
+    (the `uq_fragrance_name_brand` constraint) with a 409 rather than
+    letting the resulting IntegrityError surface as an unhandled 500.
     """
-    for entry in _SAMPLE_CATALOG:
-        if entry.id == fragrance_id:
-            return entry
-    raise HTTPException(
-        status_code=status.HTTP_404_NOT_FOUND,
-        detail=f"Fragrance {fragrance_id} not found",
+    # #ASSUME: data-integrity: no pre-check, only a catch of the
+    # IntegrityError `uq_fragrance_name_brand` raises on flush, mirroring
+    # the create_fragrance handling above; a pre-check here would carry the
+    # same check-then-insert race.
+    # #VERIFY: the caught path rolls back before returning, so the session
+    # is left usable for the next request on this connection.
+    try:
+        fragrance = await service.update(fragrance_id, data)
+    except IntegrityError:
+        await service.session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "FRAGRANCE_EXISTS",
+                "message": "A fragrance with that name and brand already exists",
+            },
+        ) from None
+    if not fragrance:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "FRAGRANCE_NOT_FOUND", "message": "Fragrance not found"},
+        )
+    log_audit_event(
+        logger,
+        action="update",
+        actor=identity.username,
+        target_type="fragrance",
+        target_id=fragrance_id,
+    )
+    return await get_fragrance(fragrance_id, service)
+
+
+@router.delete("/{fragrance_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_fragrance(
+    fragrance_id: str,
+    service: Annotated[FragranceService, Depends(get_fragrance_service)],
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+) -> None:
+    """Soft-delete a fragrance by ID."""
+    deleted = await service.delete(fragrance_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "FRAGRANCE_NOT_FOUND", "message": "Fragrance not found"},
+        )
+    log_audit_event(
+        logger,
+        action="soft_delete",
+        actor=identity.username,
+        target_type="fragrance",
+        target_id=fragrance_id,
     )

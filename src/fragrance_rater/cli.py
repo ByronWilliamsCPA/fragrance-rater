@@ -4,13 +4,22 @@ Provides commands for common operations and demonstrates Click best practices
 with structured logging integration.
 """
 
+import asyncio
 import sys
+from collections.abc import Coroutine
 from dataclasses import dataclass
+from pathlib import Path
+from typing import TypeVar
+from urllib.parse import urlsplit, urlunsplit
 
 import click
 from structlog.stdlib import BoundLogger
 
 from fragrance_rater.core.config import settings
+from fragrance_rater.core.database import async_session_maker
+from fragrance_rater.services.kaggle_importer import KaggleImporter
+from fragrance_rater.services.parfumo_scraper import ParfumoScraper
+from fragrance_rater.services.reviewer_service import ReviewerService
 from fragrance_rater.utils.logging import get_logger
 
 logger: BoundLogger = get_logger(__name__)
@@ -18,9 +27,81 @@ logger: BoundLogger = get_logger(__name__)
 
 @dataclass
 class CLIContext:
-    """Typed context object for Click commands."""
+    """Typed context object for Click commands.
+
+    Attributes:
+        debug (bool): Whether debug logging was requested via ``--debug``.
+    """
 
     debug: bool = False
+
+
+def mask_database_url(url: str) -> str:
+    """Mask any credential in a database URL before it reaches CLI output.
+
+    #CRITICAL: security: a database URL commonly embeds a password in its
+    netloc (``scheme://user:password@host/db``). A previous implementation
+    truncated the URL with a fixed-offset string slice (``url[:50]``), which
+    only hid the password when it happened to land past that offset - for
+    short hosts/usernames the password was printed in full.
+    #VERIFY: this parses the URL structurally (``urlsplit``) and always
+    replaces the password component when one is present, regardless of URL
+    length, host length, or username length, then reassembles the URL
+    without truncating anything else. Covered by
+    ``tests/unit/test_cli.py::test_mask_database_url*``.
+
+    Args:
+        url (str): Raw database URL, potentially containing credentials.
+
+    Returns:
+        str: The URL with any password replaced by ``***``. URLs with no
+            embedded password (e.g. local SQLite paths, or connection
+            strings with no user info) are returned unchanged.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        # Not a well-formed URL (e.g. a bare SQLite file path) - nothing to
+        # mask, and nothing unmasked to leak either.
+        return url
+
+    if parts.password is None:
+        return url
+
+    userinfo = parts.username or ""
+    masked_netloc = f"{userinfo}:***@{parts.hostname or ''}"
+    if parts.port is not None:
+        masked_netloc += f":{parts.port}"
+
+    return urlunsplit(
+        (parts.scheme, masked_netloc, parts.path, parts.query, parts.fragment)
+    )
+
+
+# #CRITICAL: external-resources: `requires-python = ">=3.10,<3.15"`
+# (pyproject.toml) and the Python Compatibility Matrix CI workflow both
+# claim/test 3.10-3.13. PEP 695's `def f[T](...)` generic syntax is
+# 3.12-only and is a hard `SyntaxError` (not a lint warning) on 3.10/3.11,
+# so `run_async` uses the pre-3.12-compatible explicit `TypeVar` form. Ruff's
+# `target-version` is "py312" (see pyproject.toml's comment there for why
+# that doesn't match `requires-python`), so its UP047 rule suggests
+# reverting to PEP 695 syntax here; that suggestion is wrong for this
+# project's actual floor and is silenced via per-file-ignores.
+# #VERIFY: no other PEP 695 syntax (`class C[T]`, `type X[T] = ...`) is
+# introduced anywhere this project still claims 3.10/3.11 support.
+_T = TypeVar("_T")
+
+
+def run_async(coro: Coroutine[object, object, _T]) -> _T:
+    """Run an async coroutine to completion in a fresh event loop.
+
+    Args:
+        coro (Coroutine[object, object, _T]): The coroutine to execute.
+
+    Returns:
+        _T: The coroutine's return value.
+    """
+    return asyncio.run(coro)
 
 
 @click.group()
@@ -32,12 +113,280 @@ class CLIContext:
 )
 @click.pass_context
 def cli(ctx: click.Context, debug: bool) -> None:
-    """Fragrance Rater - Personal fragrance evaluation and recommendation system for family use with LLM-powered recommendations."""
+    """Fragrance Rater - Personal fragrance evaluation and recommendation system."""
     # Store typed context object for subcommands
     ctx.obj = CLIContext(debug=debug)
 
     if debug:
         logger.debug("Debug mode enabled")
+
+
+# =============================================================================
+# Import Commands
+# =============================================================================
+
+
+@cli.group()
+def import_data() -> None:
+    """Import fragrance data from external sources."""
+
+
+@import_data.command(name="kaggle")
+@click.argument("csv_file", type=click.Path(exists=True, path_type=Path))
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Validate without writing to database",
+)
+def import_kaggle(csv_file: Path, dry_run: bool) -> None:
+    """Import fragrances from a Kaggle CSV file.
+
+    CSV_FILE: Path to the CSV file to import.
+
+    Expected columns: name, brand, concentration, year, gender, family,
+    top_notes, heart_notes, base_notes, accords (flexible matching).
+    """
+
+    async def do_import() -> None:
+        async with async_session_maker() as session:
+            importer = KaggleImporter(session)
+
+            click.echo(f"{'[DRY RUN] ' if dry_run else ''}Importing from {csv_file}...")
+
+            result = await importer.import_csv(csv_file, dry_run=dry_run)
+
+            if not dry_run:
+                await session.commit()
+
+            click.echo("\nImport Results:")
+            click.echo(f"  Total rows: {result.total_rows}")
+            click.echo(f"  Imported:   {result.imported}")
+            click.echo(f"  Skipped:    {result.skipped}")
+
+            if result.errors:
+                click.echo(f"\nErrors ({len(result.errors)}):")
+                for error in result.errors[:10]:  # Show first 10 errors
+                    click.echo(f"  - {error}")
+                if len(result.errors) > 10:
+                    click.echo(f"  ... and {len(result.errors) - 10} more")
+
+    try:
+        run_async(do_import())
+        logger.info(
+            "Kaggle import completed",
+            csv_file=str(csv_file),
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        logger.exception("Kaggle import failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@import_data.command(name="parfumo-url")
+@click.argument("url", type=str)
+def import_parfumo_url(url: str) -> None:
+    r"""Import a fragrance from its Parfumo URL.
+
+    URL: Full Parfumo perfume page URL.
+
+    Example: fragrance-rater import-data parfumo-url \
+        "https://www.parfumo.com/Perfumes/brand/name"
+    """
+
+    async def do_import() -> None:
+        async with async_session_maker() as session:
+            scraper = ParfumoScraper(session)
+
+            click.echo(f"Scraping {url}...")
+
+            fragrance_id = await scraper.import_from_url(url)
+
+            if fragrance_id:
+                click.echo(f"Imported fragrance with ID: {fragrance_id}")
+            else:
+                click.echo("Failed to import fragrance. Check the URL.", err=True)
+                sys.exit(1)
+
+            scraper.close()
+
+    try:
+        run_async(do_import())
+        logger.info("Parfumo URL import completed", url=url)
+    except Exception as e:
+        logger.exception("Parfumo import failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@import_data.command(name="parfumo-search")
+@click.argument("query", type=str)
+@click.option(
+    "--import-first",
+    is_flag=True,
+    help="Automatically import the first result",
+)
+@click.option(
+    "--limit",
+    "-n",
+    type=int,
+    default=5,
+    help="Maximum search results to show",
+)
+def import_parfumo_search(
+    query: str,
+    import_first: bool,
+    limit: int,
+) -> None:
+    """Search Parfumo and optionally import a fragrance.
+
+    QUERY: Search terms (fragrance name, brand, or both).
+
+    Args:
+        query (str): Search terms (fragrance name, brand, or both).
+        import_first (bool): Import the first search result automatically.
+        limit (int): Maximum number of search results to display.
+
+    Examples:
+        fragrance-rater import-data parfumo-search "Aventus Creed"
+        fragrance-rater import-data parfumo-search "Sauvage" --import-first
+    """
+
+    async def do_search() -> None:
+        async with async_session_maker() as session:
+            scraper = ParfumoScraper(session)
+
+            click.echo(f"Searching Parfumo for '{query}'...")
+
+            # #ASSUME: concurrency: ParfumoScraper.search() is a blocking
+            # sync call (a sync httpx.Client plus time.sleep()-based rate
+            # limiting/retry backoff, up to ~14s across retries). Calling
+            # it directly here (an async closure run via run_async's
+            # asyncio.run) would block this process's only event loop for
+            # that whole duration. asyncio.to_thread offloads it to the
+            # default thread pool so the loop stays free. Safe today
+            # because this is a one-shot CLI process: nothing else shares
+            # the loop while a scrape runs.
+            # #VERIFY: if ParfumoScraper is ever invoked from a live
+            # server route (not just this CLI), confirm the thread-pool
+            # offload is still sufficient, or migrate to an
+            # httpx.AsyncClient-based implementation.
+            results = await asyncio.to_thread(scraper.search, query, limit=limit)
+
+            if not results:
+                click.echo("No results found.")
+                scraper.close()
+                return
+
+            click.echo(f"\nFound {len(results)} result(s):\n")
+
+            for i, result in enumerate(results, 1):
+                click.echo(f"  {i}. {result.name}")
+                click.echo(f"     Brand: {result.brand}")
+                click.echo(f"     URL: {result.url}\n")
+
+            if import_first:
+                click.echo(f"Importing first result: {results[0].name}...")
+                fragrance_id = await scraper.import_from_url(results[0].url)
+
+                if fragrance_id:
+                    click.echo(f"Imported with ID: {fragrance_id}")
+                else:
+                    click.echo("Failed to import.", err=True)
+                    sys.exit(1)
+            else:
+                click.echo(
+                    "Use --import-first to automatically import the first result,"
+                )
+                click.echo(
+                    "or use 'import-data parfumo-url <URL>' to import a specific one."
+                )
+
+            scraper.close()
+
+    try:
+        run_async(do_search())
+        logger.info("Parfumo search completed", query=query)
+    except Exception as e:
+        logger.exception("Parfumo search failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+# =============================================================================
+# Seed Commands
+# =============================================================================
+
+
+@cli.command(name="seed-reviewers")
+def seed_reviewers() -> None:
+    """Create default family reviewer profiles.
+
+    Creates: Byron, Veronica, Bayden, Ariannah
+    """
+
+    async def do_seed() -> None:
+        async with async_session_maker() as session:
+            service = ReviewerService(session)
+            reviewers = await service.seed_default_reviewers()
+            await session.commit()
+
+            click.echo("Created/verified reviewers:")
+            for reviewer in reviewers:
+                click.echo(f"  - {reviewer.name} (ID: {reviewer.id})")
+
+    try:
+        run_async(do_seed())
+        logger.info("Seed reviewers completed")
+    except Exception as e:
+        logger.exception("Seed reviewers failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+# =============================================================================
+# Profile Commands
+# =============================================================================
+
+
+@cli.command()
+@click.argument("name", type=str)
+def profile(name: str) -> None:
+    """Show a reviewer's preference profile.
+
+    NAME: Reviewer name to show profile for.
+    """
+
+    async def show_profile() -> None:
+        async with async_session_maker() as session:
+            service = ReviewerService(session)
+            reviewer = await service.get_by_name(name)
+
+            if not reviewer:
+                click.echo(f"Reviewer '{name}' not found.", err=True)
+                sys.exit(1)
+
+            click.echo(f"\nProfile: {reviewer.name}")
+            click.echo(f"ID: {reviewer.id}")
+            click.echo(f"Created: {reviewer.created_at}")
+            click.echo(f"Evaluations: {len(reviewer.evaluations)}")
+
+            if reviewer.evaluations:
+                ratings = [e.rating for e in reviewer.evaluations]
+                avg_rating = sum(ratings) / len(ratings)
+                click.echo(f"Average Rating: {avg_rating:.1f}/5")
+
+    try:
+        run_async(show_profile())
+    except Exception as e:
+        logger.exception("Profile command failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+# =============================================================================
+# Utility Commands
+# =============================================================================
 
 
 @cli.command()
@@ -88,10 +437,11 @@ def config(ctx: click.Context) -> None:
         logger.info("Retrieving configuration")
 
         click.echo("Current Configuration:")
-        click.echo("  Project: Fragrance Rater")
-        click.echo("  Version: 0.1.0")
+        click.echo(f"  Project: {settings.project_name}")
+        click.echo(f"  Version: {settings.version}")
         click.echo(f"  Debug: {cli_ctx.debug}")
         click.echo(f"  Log Level: {settings.log_level}")
+        click.echo(f"  Database URL: {mask_database_url(settings.database_url)}")
 
         logger.info("Configuration displayed successfully")
 

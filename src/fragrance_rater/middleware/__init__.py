@@ -1,12 +1,23 @@
-"""Middleware for API applications.
+"""Security middleware for API applications.
 
-This package exposes the request-correlation middleware, the shared
-household API key auth dependency (``auth.require_api_key``), and the
-``slowapi``-backed rate limiter (``rate_limit.limiter``). The OWASP-aligned
-`SecurityHeadersMiddleware` and `SSRFPreventionMiddleware` helpers were
-removed during the scaffold-cleanup sweep; reintroduce them when an API
-layer actually needs them (this API layer now has explicit auth and rate
-limiting again as of the API compliance remediation pass).
+This package exposes:
+
+- the request-correlation middleware (``correlation``);
+- the OWASP-aligned ``SecurityHeadersMiddleware``, ``SSRFPreventionMiddleware``
+  and the ``add_security_middleware`` helper (``security``), wired in
+  ``fragrance_rater.main``;
+- the shared household API key dependency ``require_api_key`` (``auth``),
+  applied to every endpoint that can trigger a billed upstream LLM call:
+  ``POST /ratings`` and, in ``fragrance_rater.api.recommendations``,
+  ``GET /{reviewer_id}/profile`` and ``GET /{reviewer_id}/{fragrance_id}/explain``;
+- the ``slowapi``-backed limiter, its RFC 7807 429 handler, and
+  ``DefaultRateLimitMiddleware`` (a local replacement for
+  ``slowapi.middleware.SlowAPIMiddleware``, which does not enforce
+  ``default_limits`` on this codebase's FastAPI version; see that class's
+  docstring) (``rate_limit``), also registered in ``fragrance_rater.main``.
+
+Identity for mutating fragrances/evaluations/reviewers routes is a separate
+concern handled by ``fragrance_rater.core.auth`` (Authentik forward-auth).
 """
 
 from __future__ import annotations
@@ -32,8 +43,14 @@ from fragrance_rater.middleware.correlation import (
 from fragrance_rater.middleware.rate_limit import (
     DEFAULT_RATE_LIMIT,
     RATINGS_RATE_LIMIT,
+    DefaultRateLimitMiddleware,
     limiter,
     rate_limit_exceeded_handler,
+)
+from fragrance_rater.middleware.security import (
+    SecurityHeadersMiddleware,
+    SSRFPreventionMiddleware,
+    add_security_middleware,
 )
 
 __all__ = [
@@ -45,6 +62,10 @@ __all__ = [
     "SPAN_ID_HEADER",
     "TRACE_ID_HEADER",
     "CorrelationMiddleware",
+    "DefaultRateLimitMiddleware",
+    "SSRFPreventionMiddleware",
+    "SecurityHeadersMiddleware",
+    "add_security_middleware",
     "correlation_context_processor",
     "generate_correlation_id",
     "get_correlation_id",

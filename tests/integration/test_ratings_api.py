@@ -129,6 +129,41 @@ def test_ratings_rate_limited_after_threshold(
     assert body["title"] == "Rate Limit Exceeded"
 
 
+def test_health_live_rate_limited_after_threshold(client: TestClient) -> None:
+    """More than DEFAULT_RATE_LIMIT requests/minute to a non-/ratings route -> 429.
+
+    Regression test for a bug where ``DefaultRateLimitMiddleware`` (a local
+    replacement for slowapi's own ``SlowAPIMiddleware``) could silently fail
+    to enforce ``DEFAULT_RATE_LIMIT`` on any route mounted via
+    ``app.include_router()`` -- i.e. virtually every route in this API
+    except the bare ``/`` root -- because FastAPI's internal
+    ``_IncludedRouter`` wrapper has no ``.endpoint`` attribute that slowapi's
+    own route-resolution expects. See
+    ``fragrance_rater.middleware.rate_limit.DefaultRateLimitMiddleware``'s
+    docstring for the full root-cause writeup.
+
+    ``/health/live`` stands in for "any undecorated route" here; ``POST
+    /ratings`` is deliberately excluded from this general limit (see
+    ``test_ratings_rate_limited_after_threshold`` above) and enforces its
+    own, tighter ``RATINGS_RATE_LIMIT`` instead.
+    """
+    from fragrance_rater.middleware import DEFAULT_RATE_LIMIT
+
+    limit = int(DEFAULT_RATE_LIMIT.split("/")[0])
+
+    responses = [client.get("/health/live") for _ in range(limit + 1)]
+    statuses = [response.status_code for response in responses]
+
+    assert statuses[:limit] == [200] * limit
+    assert statuses[limit] == 429
+
+    limited_response = responses[limit]
+    assert limited_response.headers["content-type"] == "application/problem+json"
+    body = limited_response.json()
+    assert body["status"] == 429
+    assert body["title"] == "Rate Limit Exceeded"
+
+
 def test_fragrances_list_does_not_require_api_key(
     client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
