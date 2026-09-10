@@ -33,8 +33,12 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse, Response
 
+from fragrance_rater.utils.logging import get_logger
+
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
+
+logger = get_logger(__name__)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -190,15 +194,49 @@ class SSRFPreventionMiddleware(BaseHTTPMiddleware):
             url (str): URL string to parse
 
         Returns:
-            str | None: Hostname string or None if parsing fails
+            str | None: Hostname string, or None if the URL parses
+                cleanly but has no hostname component (e.g. a relative
+                path, or a scheme-only string like "mailto:someone@x").
+
+        Raises:
+            Exception: If ``urlparse`` cannot parse ``url`` at all (for
+                example a malformed IPv6 host literal like
+                "http://[::1"). ``pyproject.toml`` deliberately allows
+                a broad ``except Exception`` in this file (see the
+                ``BLE001`` per-file-ignore for
+                ``src/*/middleware/security.py``, "Blind except for URL
+                parsing resilience") so this can never crash the
+                middleware on adversarial input, but that ignore is
+                about the *breadth* of the except clause, not about
+                swallowing the failure silently.
+                # #CRITICAL: security: this used to be caught here and
+                # turned into a bare `None` return with no logging,
+                # which `_is_blocked_url` then treated exactly like "no
+                # hostname present" and let the request through
+                # (fail-open). For an SSRF deny-list check, a URL we
+                # cannot even parse must not be assumed safe. The
+                # failure is now logged and re-raised so
+                # `_is_blocked_url` fails closed (blocks the request)
+                # instead of silently passing an unparseable URL
+                # through the check.
+                # #VERIFY: if a legitimate, non-malicious client starts
+                # tripping this path, fix the URL construction
+                # upstream; do not swallow the exception again to
+                # route around it.
         """
         from urllib.parse import urlparse
 
         try:
             parsed = urlparse(url)
-            return parsed.hostname
         except Exception:
-            return None
+            logger.warning(
+                "ssrf_prevention.url_parse_failed",
+                helper="_extract_host_from_url",
+                url_preview=url[:200],
+                url_length=len(url),
+            )
+            raise
+        return parsed.hostname
 
     @staticmethod
     def _extract_scheme_from_url(url: str) -> str | None:
@@ -208,15 +246,29 @@ class SSRFPreventionMiddleware(BaseHTTPMiddleware):
             url (str): URL string to parse
 
         Returns:
-            str | None: Scheme string or None if parsing fails
+            str | None: Scheme string, or None if the URL parses
+                cleanly but carries no scheme.
+
+        Raises:
+            Exception: If ``urlparse`` cannot parse ``url`` at all. The
+                failure is logged and re-raised so the caller fails
+                closed instead of treating it as "no scheme present";
+                see ``_extract_host_from_url`` for the full rationale
+                and the RAD ``#CRITICAL``/``#VERIFY`` markers.
         """
         from urllib.parse import urlparse
 
         try:
             parsed = urlparse(url)
-            return parsed.scheme.lower() if parsed.scheme else None
         except Exception:
-            return None
+            logger.warning(
+                "ssrf_prevention.url_parse_failed",
+                helper="_extract_scheme_from_url",
+                url_preview=url[:200],
+                url_length=len(url),
+            )
+            raise
+        return parsed.scheme.lower() if parsed.scheme else None
 
     def _is_blocked_url(self, url: str) -> bool:
         """Check if a URL points to a blocked destination.
@@ -225,26 +277,40 @@ class SSRFPreventionMiddleware(BaseHTTPMiddleware):
             url (str): URL string to validate
 
         Returns:
-            bool: True if the URL should be blocked, False otherwise
+            bool: True if the URL should be blocked, False otherwise.
+                Also returns True (fails closed) when ``url`` cannot be
+                parsed at all: see ``_extract_host_from_url`` for why.
         """
-        # Check scheme
-        scheme = self._extract_scheme_from_url(url)
+        try:
+            # Check scheme
+            scheme = self._extract_scheme_from_url(url)
+            # Extract hostname
+            host = self._extract_host_from_url(url)
+        except Exception:
+            # #CRITICAL: security: fail closed on a URL that could not
+            # be parsed at all, rather than letting it through as if it
+            # were harmless. The parse failure itself is already logged
+            # by the extractor helpers above; see
+            # `_extract_host_from_url`'s docstring for the full
+            # rationale.
+            # #VERIFY: this only changes behavior for strings that fail
+            # `urllib.parse.urlparse` outright (e.g. malformed IPv6
+            # literals); a string that parses cleanly but has no
+            # hostname (e.g. "mailto:someone@example.com") still falls
+            # through to the `if not host: return False` branch below,
+            # unchanged.
+            return True
+
         if scheme and scheme in self.BLOCKED_SCHEMES:
             return True
 
-        # Extract and check hostname
-        host = self._extract_host_from_url(url)
         if not host:
             return False
 
         host_lower = host.lower()
 
-        # Check against blocked hostnames
-        if host_lower in self.BLOCKED_HOSTS:
-            return True
-
-        # Check if it's a private IP
-        if self._is_private_ip(host):
+        # Check against blocked hostnames or private IP ranges
+        if host_lower in self.BLOCKED_HOSTS or self._is_private_ip(host):
             return True
 
         # Check for numeric IP obfuscation (decimal, octal, hex)
@@ -265,10 +331,30 @@ class SSRFPreventionMiddleware(BaseHTTPMiddleware):
         return False
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        """Check for SSRF patterns in request.
+        """Check for SSRF patterns in request query parameters.
 
-        Validates query parameters, form data, and JSON body for potential
-        SSRF attempts targeting internal resources.
+        Validates query parameters for potential SSRF attempts targeting
+        internal resources. This does NOT scan form data or JSON request
+        bodies.
+
+        # #EDGE: security: body scanning is intentionally not
+        # implemented. As of this writing, no route under
+        # src/fragrance_rater/api/ accepts a URL-shaped string in a
+        # JSON or form body that is later fetched server-side: the only
+        # URL-fetching code path, ParfumoScraper.import_from_url, is
+        # wired solely through the CLI (fragrance_rater.cli), never
+        # through an API route, and the `parfumo_url` model field is
+        # not exposed on any request schema. Speculatively scanning
+        # bodies for an input that does not exist would add complexity
+        # (body re-injection so downstream handlers still see the
+        # stream) and its own bug surface for no present benefit.
+        # #VERIFY: if a JSON/form field that accepts a URL to be
+        # fetched server-side is ever added to an API route, extend
+        # this method to scan the request body too. Remember that
+        # `await request.body()` consumes the ASGI receive stream, so
+        # the body must be reconstructed (e.g. cache it on
+        # `request._body` and replay it, or wrap `request.receive`) so
+        # the downstream route handler still receives it unmodified.
         """
         # Check query parameters for URLs
         for param, value in request.query_params.items():
