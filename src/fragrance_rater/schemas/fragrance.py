@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from fragrance_rater.core.vocabulary import GenderTarget
 
@@ -78,7 +78,18 @@ class FragranceCreate(BaseModel):
 
 
 class FragranceUpdate(BaseModel):
-    """Schema for updating a fragrance."""
+    """Schema for updating a fragrance (PATCH semantics).
+
+    Every field defaults to `None` so a client can omit it to mean "leave
+    unchanged"; `fragrance_service.update()` reads only the fields present
+    in the request via `model_dump(exclude_unset=True)`. `launch_year` and
+    `intensity` back nullable columns (`Fragrance.launch_year`/`intensity`),
+    so an explicit `null` for one of those is legitimate and clears it.
+    `name`, `brand`, `concentration`, `gender_target`, `primary_family`, and
+    `subfamily` all back NOT NULL columns and are additionally guarded below
+    so an explicit `null` for any of them is rejected rather than reaching
+    the database layer.
+    """
 
     name: str | None = Field(None, min_length=1, max_length=255)
     brand: str | None = Field(None, min_length=1, max_length=255)
@@ -88,6 +99,59 @@ class FragranceUpdate(BaseModel):
     primary_family: str | None = Field(None, min_length=1, max_length=50)
     subfamily: str | None = Field(None, min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
+
+    # #CRITICAL: data-integrity: `name`, `brand`, `concentration`,
+    # `gender_target`, `primary_family`, and `subfamily` all back NOT NULL
+    # columns on `Fragrance`. Each field is typed as `X | None` only so the
+    # client can omit it from a PATCH body to mean "leave unchanged";
+    # without this validator, an explicit `{"name": null}` (etc.) would
+    # pass the length/Literal constraints (Pydantic skips them for `None`),
+    # survive `exclude_unset=True` (the key *was* present in the request),
+    # and reach `fragrance_service.update()`'s `setattr(fragrance, field,
+    # None)`, failing only at DB flush with a raw IntegrityError instead of
+    # a clean 422.
+    # #VERIFY: Pydantic v2 does not run field validators against a field's
+    # default value (only against values actually supplied in the input),
+    # so omitting any of these fields still reaches `fragrance_service.py`
+    # without tripping this check; `launch_year` and `intensity` are
+    # deliberately excluded from this list because they back nullable
+    # columns and an explicit `null` is the correct way to clear them. See
+    # tests/unit/test_schemas/test_fragrance.py.
+    @field_validator(
+        "name",
+        "brand",
+        "concentration",
+        "gender_target",
+        "primary_family",
+        "subfamily",
+    )
+    @classmethod
+    def _reject_null_for_required_field(
+        cls, value: object, info: ValidationInfo
+    ) -> object:
+        """Reject an explicit `null` for fields backed by NOT NULL columns.
+
+        Args:
+            value (object): The value supplied by the client for the field
+                currently being validated. Only called when the client
+                actually included that field in the request; omitted
+                fields never reach this validator.
+            info (ValidationInfo): Pydantic validation context; used only
+                to name the offending field in the error message.
+
+        Returns:
+            object: The validated value, unchanged.
+
+        Raises:
+            ValueError: If the client explicitly set the field to `null`.
+        """
+        if value is None:
+            msg = (
+                f"{info.field_name} cannot be null; "
+                "omit the field to leave it unchanged"
+            )
+            raise ValueError(msg)
+        return value
 
 
 class FragranceResponse(BaseModel):
