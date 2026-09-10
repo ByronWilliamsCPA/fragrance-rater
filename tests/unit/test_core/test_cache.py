@@ -56,6 +56,75 @@ class TestGetRedis:
             mock_from_url.assert_called_once()
             assert mock_from_url.call_args[0][0] == "redis://custom:6380/1"
 
+    @pytest.mark.asyncio
+    async def test_log_message_never_contains_raw_password(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Finding 4 regression test: the INFO log must not leak the password.
+
+        Before the fix, ``get_redis`` logged the raw ``REDIS_URL`` (including
+        any embedded password) at INFO level. This asserts the actual log
+        record text, not just that ``_mask_redis_url`` behaves correctly in
+        isolation, so a future edit that logs the raw URL through some other
+        code path would still be caught.
+        """
+        secret = "super-secret-password"
+        with (
+            patch.dict(
+                "os.environ", {"REDIS_URL": f"redis://:{secret}@redis-host:6379/0"}
+            ),
+            patch.object(cache, "from_url", return_value=MagicMock()),
+            caplog.at_level("INFO", logger="fragrance_rater.core.cache"),
+        ):
+            await cache.get_redis()
+
+        log_text = "\n".join(record.getMessage() for record in caplog.records)
+        assert secret not in log_text
+        assert "***" in log_text
+
+
+class TestMaskRedisUrl:
+    """Finding 4: `_mask_redis_url` must redact any embedded password."""
+
+    def test_masks_password_when_present(self) -> None:
+        result = cache._mask_redis_url("redis://:hunter2@redis-host:6379/0")
+
+        assert "hunter2" not in result
+        assert result == "redis://:***@redis-host:6379/0"
+
+    def test_masks_password_with_username(self) -> None:
+        result = cache._mask_redis_url("redis://admin:hunter2@redis-host:6379/0")
+
+        assert "hunter2" not in result
+        assert result == "redis://admin:***@redis-host:6379/0"
+
+    def test_url_without_password_is_unchanged(self) -> None:
+        url = "redis://localhost:6379/0"
+
+        assert cache._mask_redis_url(url) == url
+
+    def test_url_without_credentials_at_all_is_unchanged(self) -> None:
+        url = "redis://redis:6379/0"
+
+        assert cache._mask_redis_url(url) == url
+
+    def test_preserves_path_and_query(self) -> None:
+        result = cache._mask_redis_url(
+            "redis://:hunter2@redis-host:6379/3?ssl_cert_reqs=required"
+        )
+
+        assert "hunter2" not in result
+        assert result.endswith("/3?ssl_cert_reqs=required")
+
+    def test_malformed_url_returned_unchanged_without_raising(self) -> None:
+        # #EDGE: data-integrity: urlsplit can raise ValueError on some
+        # malformed inputs (e.g. an invalid IPv6-bracketed host); masking
+        # must never crash the logging call site over a bad URL.
+        # #VERIFY: covered here with a value in that failure shape.
+        malformed = "redis://[::1"
+
+        assert cache._mask_redis_url(malformed) == malformed
+
 
 class TestCloseRedis:
     """Tests for close_redis cleanup."""

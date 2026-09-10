@@ -16,10 +16,20 @@ Pydantic-settings handles the parsing and validation.
 # before Literal validation so a lowercase ambient value still parses.
 """
 
-from typing import Literal
+import json
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+_DEFAULT_CORS_ALLOWED_ORIGINS: list[str] = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://frontend:3000",
+]
+"""Local/docker-compose frontend origins (Vite dev server + the ``frontend``
+service's docker-compose hostname). Matches the origins previously
+hardcoded directly in ``fragrance_rater.main``."""
 
 
 class Settings(BaseSettings):
@@ -69,6 +79,14 @@ class Settings(BaseSettings):
         authentik_required (bool): Require a verified Authentik forward-auth
             identity header on mutating requests. Defaults to True outside
             tests; tests and local dev disable it via AUTHENTIK_REQUIRED=false.
+        cors_allowed_origins (Annotated[list[str], NoDecode]): Allowed CORS
+            origins for the frontend, applied to the single
+            ``CORSMiddleware`` registration in ``fragrance_rater.main``
+            (via
+            ``fragrance_rater.middleware.security.add_security_middleware``).
+            Defaults to the local/docker-compose frontend origins; override
+            with ``CORS_ALLOWED_ORIGINS`` as a comma-separated list or a
+            JSON array for any other deployment.
     """
 
     model_config = SettingsConfigDict(
@@ -136,9 +154,35 @@ class Settings(BaseSettings):
         return value
 
     # Database
+    # #CRITICAL: security: this default is a fallback for contexts with no
+    # DATABASE_URL in the environment (bare `Settings()` construction, e.g.
+    # at test-collection time, before any .env file is read) - it exists so
+    # importing this module never crashes CI, not as a value any real
+    # deployment should ever actually connect with. The credential below is
+    # deliberately an obvious, unmistakable placeholder (never "password" or
+    # any string that could plausibly be a real, working credential) so a
+    # misconfigured deployment that silently falls back to it fails loudly
+    # against any real PostgreSQL instance rather than connecting.
+    # docker-compose.yml enforces this independently for its own deployment
+    # path: `DATABASE_URL: ${DATABASE_URL:-postgresql://...${DB_PASSWORD:?...}}`
+    # has no built-in password default at all, so Compose refuses to start
+    # rather than ever falling back to a weak literal.
+    # #VERIFY: `alembic/env.py` reads this exact `settings.database_url`
+    # (not an independent hardcoded literal of its own) so the two never
+    # drift apart; see `alembic/env.py::get_url`. Any real deployment must
+    # set DATABASE_URL explicitly (see `.env.example`).
     database_url: str = Field(
-        default="postgresql+asyncpg://fragrance_rater:password@localhost:5432/fragrance_rater",
-        description="PostgreSQL connection string",
+        default=(
+            "postgresql+asyncpg://fragrance_rater:"
+            "INSECURE-PLACEHOLDER-SET-DATABASE_URL"
+            "@localhost:5432/fragrance_rater"
+        ),
+        description=(
+            "PostgreSQL connection string (async driver: "
+            "postgresql+asyncpg://). The built-in default is an obvious, "
+            "non-functional placeholder; every real deployment must set "
+            "DATABASE_URL explicitly (see .env.example, docker-compose.yml)."
+        ),
     )
     database_echo: bool = Field(
         default=False,
@@ -198,6 +242,73 @@ class Settings(BaseSettings):
             "mutating fragrances/evaluations/reviewers requests."
         ),
     )
+
+    # CORS (Important finding 1): this is now the ONLY source of the CORS
+    # allow-list. `fragrance_rater.main` previously registered CORSMiddleware
+    # twice: once via `add_security_middleware` (a locked-down, empty
+    # allow-list by default) and once directly with this hardcoded list of
+    # origins. Starlette treats the most-recently-`add_middleware`-added
+    # instance as outermost, so the second, permissive registration silently
+    # shadowed the first, intentionally-restrictive one for every request.
+    # #CRITICAL: security: a CORS allow-list controls which browser-hosted
+    # origins may read authenticated cross-origin responses; a duplicate
+    # registration that silently overrides the intended, more restrictive
+    # config is a class of misconfiguration that is easy to reintroduce by
+    # adding a second `app.add_middleware(CORSMiddleware, ...)` call.
+    # #VERIFY: `fragrance_rater.main` registers CORSMiddleware exactly once
+    # (via `add_security_middleware(app, allowed_origins=settings.cors_allowed_origins)`),
+    # and `tests/unit/test_main.py` asserts both the single-registration
+    # invariant and that only the configured origins receive CORS headers.
+    # #ASSUME: data-integrity: `list[str]`-typed pydantic-settings fields are
+    # treated as "complex" and JSON-decoded by EnvSettingsSource *before*
+    # any `mode="before"` field_validator ever runs, so a plain
+    # comma-separated env var (not valid JSON) raised a SettingsError at
+    # Settings() construction time here, not a graceful fallback to the
+    # validator below.
+    # #VERIFY: `NoDecode` tells pydantic-settings to skip that early JSON
+    # decode and hand the raw string straight to `_split_comma_separated_origins`
+    # below, which now does both the comma-split *and* the JSON-array case
+    # itself. Covered by
+    # tests/unit/test_core/test_config.py::TestCorsAllowedOrigins (comma
+    # list, JSON array, and empty-string cases all constructed via a real
+    # Settings() call, not just the validator in isolation).
+    cors_allowed_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: list(_DEFAULT_CORS_ALLOWED_ORIGINS),
+        description=(
+            "Allowed CORS origins for the frontend. Accepts a JSON array or "
+            "a comma-separated string via CORS_ALLOWED_ORIGINS. Defaults to "
+            "the local/docker-compose frontend origins."
+        ),
+    )
+
+    @field_validator("cors_allowed_origins", mode="before")
+    @classmethod
+    def _split_comma_separated_origins(cls, value: object) -> object:
+        """Parse ``CORS_ALLOWED_ORIGINS`` as a comma-separated string or JSON array.
+
+        Marked ``NoDecode`` above, so pydantic-settings hands this validator
+        the raw string value (or the in-code default list) directly, rather
+        than JSON-decoding it first and only calling this validator on
+        success. A plain comma-separated string (the common convention for
+        this kind of setting, easy to set by hand in a ``.env`` file or
+        shell export) is split here; a JSON-array-looking string is decoded
+        as JSON; anything else (e.g. the in-code default, already a list)
+        passes through unchanged.
+
+        Args:
+            value (object): Raw value from the environment, a ``.env``
+                file, or the field default.
+
+        Returns:
+            object: A list of trimmed, non-empty origins parsed from the
+                string, or `value` unchanged if it was not a string.
+        """
+        if not isinstance(value, str):
+            return value
+        stripped = value.strip()
+        if stripped.startswith("["):
+            return json.loads(stripped)
+        return [origin.strip() for origin in value.split(",") if origin.strip()]
 
 
 # A single, global instance of the settings

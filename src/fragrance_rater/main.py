@@ -29,7 +29,6 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from fragrance_rater.api import (
@@ -114,6 +113,21 @@ app = FastAPI(
 # SlowAPIMiddleware; see its docstring in rate_limit.py for why the upstream
 # middleware does not actually enforce default_limits on this codebase's
 # FastAPI version.
+#
+# #CRITICAL: security: `limiter` is a process-wide singleton, and its own
+# `.enabled` flag (checked by every `@limiter.limit(...)` route decorator,
+# e.g. POST /ratings' RATINGS_RATE_LIMIT) defaults to True independently of
+# whether DefaultRateLimitMiddleware/app.state.limiter get registered below.
+# Without the explicit assignment, setting RATE_LIMIT_ENABLED=false only
+# disabled the general DEFAULT_RATE_LIMIT middleware while POST /ratings
+# kept enforcing RATINGS_RATE_LIMIT, silently defeating the "disable rate
+# limiting entirely" toggle documented on settings.rate_limit_enabled.
+# #VERIFY: empirically confirmed with a live TestClient burst against
+# POST /ratings under RATE_LIMIT_ENABLED=false (see
+# tests/unit/test_main.py::test_rate_limit_enabled_false_disables_decorator_too);
+# re-run that test after any slowapi upgrade in case `Limiter.enabled`
+# semantics change.
+limiter.enabled = settings.rate_limit_enabled
 if settings.rate_limit_enabled:
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
@@ -123,21 +137,22 @@ if settings.rate_limit_enabled:
 app.add_middleware(CorrelationMiddleware)
 
 # Add security middleware (CORS, security headers, SSRF prevention; rate
-# limiting is handled separately above by the slowapi limiter)
-add_security_middleware(app)
-
-# Configure CORS for frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://frontend:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# limiting is handled separately above by the slowapi limiter).
+#
+# #CRITICAL: security: this must be the ONLY CORSMiddleware registration in
+# the app. `add_security_middleware` registers its own CORSMiddleware
+# internally (locked down to `allowed_origins or []` when not passed), and a
+# second, independent `app.add_middleware(CORSMiddleware, ...)` call used to
+# exist right after this one. Starlette treats the most-recently-added
+# middleware as outermost, so that second call silently shadowed this one's
+# (then-empty) allow-list for every request, defeating the intended
+# lockdown. `settings.cors_allowed_origins` is now the single source of
+# truth for the allow-list, passed straight into this one call.
+# #VERIFY: `tests/unit/test_main.py` asserts exactly one CORSMiddleware is
+# registered on `app` and that only origins in
+# `settings.cors_allowed_origins` receive CORS headers; re-check that test
+# before adding any other CORSMiddleware registration in this module.
+add_security_middleware(app, allowed_origins=settings.cors_allowed_origins)
 
 # Include routers
 app.include_router(health_router)

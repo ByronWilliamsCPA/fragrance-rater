@@ -5,7 +5,6 @@ and database connection.
 """
 
 import asyncio
-import os
 from logging.config import fileConfig
 
 from sqlalchemy import pool
@@ -13,6 +12,7 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
+from fragrance_rater.core.config import settings
 from fragrance_rater.models import Base
 
 # this is the Alembic Config object, which provides
@@ -29,16 +29,27 @@ target_metadata = Base.metadata
 
 
 def get_url() -> str:
-    """Get database URL from environment or settings.
+    """Get the database URL from the shared application ``Settings``.
+
+    #ASSUME: data-integrity: this module previously read ``DATABASE_URL``
+    from the environment directly, with its own independent hardcoded
+    fallback literal duplicating (and able to silently drift from) the one
+    in ``fragrance_rater.core.config.Settings.database_url``. Two
+    independently-hardcoded defaults for the same setting is itself a bug
+    class: whichever one gets edited later becomes the only place that
+    reflects reality.
+    #VERIFY: this now reads ``settings.database_url`` directly, which is
+    itself populated from the ``DATABASE_URL`` env var (or the same single
+    placeholder default) via pydantic-settings, so alembic and the app can
+    never disagree about which database URL is in effect. Both this
+    function and ``run_async_migrations`` below use the async
+    (``postgresql+asyncpg://``) form, matching ``async_engine_from_config``.
 
     Returns:
-        str: Database connection URL.
+        str: Database connection URL, sourced from the same ``Settings``
+            singleton the application itself uses.
     """
-    # For alembic, we need a sync URL (postgresql:// instead of postgresql+asyncpg://)
-    return os.environ.get(
-        "DATABASE_URL",
-        "postgresql+asyncpg://fragrance_rater:password@localhost:5432/fragrance_rater",
-    )
+    return settings.database_url
 
 
 def run_migrations_offline() -> None:

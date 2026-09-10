@@ -32,6 +32,7 @@ import json
 import logging
 import os
 from typing import TYPE_CHECKING, Any, TypeVar
+from urllib.parse import urlsplit, urlunsplit
 
 from redis.asyncio import Redis, from_url
 from redis.exceptions import RedisError
@@ -42,6 +43,51 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 T = TypeVar("T")  # Covariant type variable for cached function return types
+
+
+def _mask_redis_url(url: str) -> str:
+    """Mask any credential in a Redis URL before it reaches a log line.
+
+    #CRITICAL: security: ``REDIS_URL`` commonly embeds a password
+    (``redis://:password@host:port/0``); logging it verbatim at INFO level
+    (as this module previously did on every connection-pool initialization)
+    leaks that password into application logs, which are typically far less
+    access-controlled than the secret store the password came from.
+    #VERIFY: this parses the URL structurally (``urlsplit``), same approach
+    as ``fragrance_rater.cli.mask_database_url`` for ``DATABASE_URL``, so it
+    is not fooled by short hosts/usernames the way a fixed-offset string
+    slice would be. Not imported directly from ``cli.py`` to avoid this
+    core, hot-path caching module depending on the CLI entrypoint's heavier
+    import chain (Click, the scrapers, the importers); the logic is
+    intentionally mirrored instead. Covered by
+    ``tests/unit/test_core/test_cache.py::TestMaskRedisUrl`` and the
+    ``get_redis`` logging assertions in the same file.
+
+    Args:
+        url (str): Raw Redis URL, potentially containing a password.
+
+    Returns:
+        str: The URL with any password replaced by ``***``. URLs with no
+            embedded password are returned unchanged.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        # Not a well-formed URL - nothing to mask, and nothing unmasked to
+        # leak either.
+        return url
+
+    if parts.password is None:
+        return url
+
+    userinfo = parts.username or ""
+    masked_netloc = f"{userinfo}:***@{parts.hostname or ''}"
+    if parts.port is not None:
+        masked_netloc += f":{parts.port}"
+
+    return urlunsplit(
+        (parts.scheme, masked_netloc, parts.path, parts.query, parts.fragment)
+    )
 
 
 class _RedisState:
@@ -88,7 +134,9 @@ async def get_redis() -> Redis:
             retry_on_timeout=True,
         )
 
-        logger.info("Redis connection initialized for url: %s", redis_url)
+        logger.info(
+            "Redis connection initialized for url: %s", _mask_redis_url(redis_url)
+        )
 
     return _state.client
 
