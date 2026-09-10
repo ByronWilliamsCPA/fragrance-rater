@@ -480,6 +480,60 @@ class TestLLMServiceCaching:
             assert response.text == "Pre-cached profile summary"
 
 
+@pytest.mark.asyncio
+class TestMalformedResponseFallback:
+    """Important finding: a malformed-but-200 OpenRouter response must
+    degrade to the same fallback path as other failure modes, not raise.
+    """
+
+    async def test_generate_recommendation_explanation_falls_back_on_null_content(
+        self,
+    ):
+        """A `message.content: None` body degrades to the fallback text
+        instead of propagating an unhandled AttributeError.
+        """
+        with patch("fragrance_rater.services.llm_service.settings") as mock_settings:
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.llm_enabled = True
+            mock_settings.openrouter_base_url = "https://test.api"
+            mock_settings.openrouter_model = "test-model"
+            service = LLMService()
+
+        recommendation = Recommendation(
+            fragrance_id="frag-malformed",
+            fragrance_name="Malformed Scent",
+            fragrance_brand="Brand",
+            match_score=0.5,
+            match_percent=50,
+        )
+        profile = UserProfile(reviewer_id="malformed-user")
+        details = FragranceDetails(
+            name="Malformed Scent",
+            brand="Brand",
+            family="fresh",
+            subfamily="citrus",
+        )
+
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(
+            200,
+            request=request,
+            json={"choices": [{"message": {"content": None}}]},
+        )
+
+        with patch(
+            "fragrance_rater.services.llm_service.httpx.AsyncClient",
+            _mock_async_client(response=response),
+        ):
+            result = await service.generate_recommendation_explanation(
+                recommendation, profile, details
+            )
+
+        assert result.model == "fallback"
+        assert result.error is not None
+        assert "Invalid OpenRouter response" in result.error
+
+
 class TestGetLLMService:
     """Tests for the get_llm_service factory function."""
 
@@ -593,6 +647,46 @@ class TestCallOpenrouter:
         service = self._make_service()
         request = httpx.Request("POST", "https://test.api/chat/completions")
         response = httpx.Response(200, request=request, json={"unexpected": "shape"})
+
+        with (
+            patch(
+                "fragrance_rater.services.llm_service.httpx.AsyncClient",
+                _mock_async_client(response=response),
+            ),
+            pytest.raises(LLMServiceError, match="Invalid OpenRouter response"),
+        ):
+            await service._call_openrouter("some prompt")
+
+    async def test_null_choices_raises_llm_service_error(self):
+        """Important finding: `choices: None` raises TypeError (not
+        subscriptable), which must be caught alongside KeyError/IndexError
+        rather than surfacing as an unhandled 500.
+        """
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(200, request=request, json={"choices": None})
+
+        with (
+            patch(
+                "fragrance_rater.services.llm_service.httpx.AsyncClient",
+                _mock_async_client(response=response),
+            ),
+            pytest.raises(LLMServiceError, match="Invalid OpenRouter response"),
+        ):
+            await service._call_openrouter("some prompt")
+
+    async def test_null_content_raises_llm_service_error(self):
+        """Important finding: `message.content: None` raises AttributeError
+        on `.strip()`, which must be caught alongside KeyError/IndexError
+        rather than surfacing as an unhandled 500.
+        """
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(
+            200,
+            request=request,
+            json={"choices": [{"message": {"content": None}}]},
+        )
 
         with (
             patch(

@@ -327,7 +327,24 @@ class LLMService:
         except httpx.RequestError as e:
             msg = f"OpenRouter request failed: {e}"
             raise LLMServiceError(msg) from e
-        except (KeyError, IndexError, json.JSONDecodeError) as e:
+        # #CRITICAL: external-resources: OpenRouter is a third-party gateway
+        # that can return a 200 with an unexpected body shape (a missing
+        # `choices`/`message`/`content` key, `choices` as `None` instead of
+        # a list, or a non-dict `message`). TypeError and AttributeError are
+        # caught alongside KeyError/IndexError/JSONDecodeError because
+        # indexing `None` or calling `.strip()` on a non-str raises those,
+        # not a KeyError, and an uncaught one would bypass the fallback path
+        # below and surface as an unhandled 500.
+        # #VERIFY: every exception caught here routes into the same
+        # LLMServiceError -> fallback path already used for HTTP/network
+        # failures; no new fallback branch was introduced.
+        except (
+            KeyError,
+            IndexError,
+            TypeError,
+            AttributeError,
+            json.JSONDecodeError,
+        ) as e:
             msg = f"Invalid OpenRouter response: {e}"
             raise LLMServiceError(msg) from e
 

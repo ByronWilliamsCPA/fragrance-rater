@@ -185,8 +185,29 @@ async def update_fragrance(
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
     identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> FragranceResponse:
-    """Update an existing fragrance."""
-    fragrance = await service.update(fragrance_id, data)
+    """Update an existing fragrance.
+
+    Rejects a rename that collides with an existing (name, brand) pair
+    (the `uq_fragrance_name_brand` constraint) with a 409 rather than
+    letting the resulting IntegrityError surface as an unhandled 500.
+    """
+    # #ASSUME: data-integrity: no pre-check, only a catch of the
+    # IntegrityError `uq_fragrance_name_brand` raises on flush, mirroring
+    # the create_fragrance handling above; a pre-check here would carry the
+    # same check-then-insert race.
+    # #VERIFY: the caught path rolls back before returning, so the session
+    # is left usable for the next request on this connection.
+    try:
+        fragrance = await service.update(fragrance_id, data)
+    except IntegrityError:
+        await service.session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "FRAGRANCE_EXISTS",
+                "message": "A fragrance with that name and brand already exists",
+            },
+        ) from None
     if not fragrance:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

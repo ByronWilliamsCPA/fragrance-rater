@@ -2,6 +2,8 @@
 
 import pytest
 
+from fragrance_rater.core.config import settings
+
 API_PREFIX = "/api/v1"
 
 
@@ -302,3 +304,174 @@ class TestFragranceAPI:
         listing = await test_app.get(f"{API_PREFIX}/fragrances?q=Duplicate Scent")
         assert listing.status_code == 200
         assert len(listing.json()) == 1
+
+    async def test_update_fragrance_rename_collision_returns_409(self, test_app):
+        """Important finding: renaming a fragrance into an existing (name,
+        brand) pair is rejected with 409, not an unhandled 500.
+        """
+        first = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "First Scent",
+                "brand": "Shared Brand",
+                "concentration": "EDT",
+                "gender_target": "Masculine",
+                "primary_family": "fresh",
+                "subfamily": "citrus",
+            },
+        )
+        assert first.status_code == 201
+
+        second = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "Second Scent",
+                "brand": "Shared Brand",
+                "concentration": "EDT",
+                "gender_target": "Masculine",
+                "primary_family": "fresh",
+                "subfamily": "citrus",
+            },
+        )
+        assert second.status_code == 201
+        second_id = second.json()["id"]
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/fragrances/{second_id}",
+            json={"name": "First Scent"},
+        )
+        assert response.status_code == 409
+        assert response.json()["detail"]["error"] == "FRAGRANCE_EXISTS"
+
+        # The session must still be usable after the rollback, and the
+        # rename must not have been applied.
+        unchanged = await test_app.get(f"{API_PREFIX}/fragrances/{second_id}")
+        assert unchanged.status_code == 200
+        assert unchanged.json()["name"] == "Second Scent"
+
+
+@pytest.mark.asyncio
+class TestFragranceAuthentikRequired:
+    """Important finding: of the ~9 mutating routes gated by
+    ``Depends(get_current_identity)``, only ``create_reviewer`` (see
+    ``TestReviewerAuthentikRequired`` in test_reviewers.py) had a test
+    actually confirming the dependency is enforced. This class adds that
+    coverage for all three fragrances mutating routes.
+    """
+
+    async def _create_fragrance(self, test_app, name: str) -> str:
+        """Create a fragrance via the API (auth disabled) and return its id."""
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": name,
+                "brand": "Auth Test Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+            },
+        )
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    async def test_create_fragrance_rejected_without_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A missing X-Authentik-Username must 401 when authentik_required
+        is True.
+        """
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "Should Fail Fragrance",
+                "brand": "Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+            },
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
+
+    async def test_create_fragrance_succeeds_with_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A valid X-Authentik-Username header allows the mutation through."""
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "Should Succeed Fragrance",
+                "brand": "Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+            },
+            headers={"X-Authentik-Username": "byron"},
+        )
+        assert response.status_code == 201
+
+    async def test_update_fragrance_rejected_without_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A missing X-Authentik-Username must 401 when authentik_required
+        is True.
+        """
+        fragrance_id = await self._create_fragrance(test_app, "Auth Patch Fragrance")
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/fragrances/{fragrance_id}",
+            json={"name": "Renamed"},
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
+
+    async def test_update_fragrance_succeeds_with_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A valid X-Authentik-Username header allows the mutation through."""
+        fragrance_id = await self._create_fragrance(test_app, "Auth Patch OK Fragrance")
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/fragrances/{fragrance_id}",
+            json={"name": "Renamed OK"},
+            headers={"X-Authentik-Username": "byron"},
+        )
+        assert response.status_code == 200
+        assert response.json()["name"] == "Renamed OK"
+
+    async def test_delete_fragrance_rejected_without_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A missing X-Authentik-Username must 401 when authentik_required
+        is True.
+        """
+        fragrance_id = await self._create_fragrance(test_app, "Auth Delete Fragrance")
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.delete(f"{API_PREFIX}/fragrances/{fragrance_id}")
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
+
+    async def test_delete_fragrance_succeeds_with_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A valid X-Authentik-Username header allows the mutation through."""
+        fragrance_id = await self._create_fragrance(
+            test_app, "Auth Delete OK Fragrance"
+        )
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.delete(
+            f"{API_PREFIX}/fragrances/{fragrance_id}",
+            headers={"X-Authentik-Username": "byron"},
+        )
+        assert response.status_code == 204

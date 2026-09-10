@@ -3,6 +3,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
@@ -67,7 +68,12 @@ async def create_reviewer(
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
     identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> ReviewerResponse:
-    """Create a new reviewer."""
+    """Create a new reviewer.
+
+    Rejects a duplicate name (the `uq_reviewer_name` partial unique index)
+    with a 409 rather than letting the resulting IntegrityError surface as
+    an unhandled 500.
+    """
     # Check if name already exists
     existing = await service.get_by_name(data.name)
     if existing:
@@ -79,7 +85,24 @@ async def create_reviewer(
             },
         )
 
-    reviewer = await service.create(data.name)
+    # #ASSUME: data-integrity: the pre-check above has no pre-check-to-insert
+    # locking, only a catch of the IntegrityError `uq_reviewer_name` raises,
+    # since two concurrent requests can both pass the pre-check for the same
+    # name before either commits (matches the same pattern used for
+    # fragrances' `uq_fragrance_name_brand` in api/fragrances.py).
+    # #VERIFY: the caught path rolls back before returning, so the session
+    # is left usable for the next request on this connection.
+    try:
+        reviewer = await service.create(data.name)
+    except IntegrityError:
+        await service.session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "REVIEWER_EXISTS",
+                "message": f"Reviewer '{data.name}' already exists",
+            },
+        ) from None
     log_audit_event(
         logger,
         action="create",

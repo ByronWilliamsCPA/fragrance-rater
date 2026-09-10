@@ -1,5 +1,7 @@
 """Tests for reviewer API endpoints."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 
 from fragrance_rater.core.config import settings
@@ -45,6 +47,37 @@ class TestReviewerAPI:
         assert response.status_code == 409
         data = response.json()
         assert "REVIEWER_EXISTS" in str(data)
+
+    async def test_create_reviewer_race_condition_returns_409(self, test_app):
+        """Important finding: a concurrent create for the same name must
+        409 via the IntegrityError catch, not surface as an unhandled 500.
+
+        Simulates the race by bypassing the pre-check (mocking
+        `get_by_name` to return None as it would for two requests that
+        both read before either commits) so the create actually reaches
+        the `uq_reviewer_name` unique index.
+        """
+        await test_app.post(
+            f"{API_PREFIX}/reviewers",
+            json={"name": "Race Reviewer"},
+        )
+
+        with patch(
+            "fragrance_rater.services.reviewer_service.ReviewerService.get_by_name",
+            new=AsyncMock(return_value=None),
+        ):
+            response = await test_app.post(
+                f"{API_PREFIX}/reviewers",
+                json={"name": "Race Reviewer"},
+            )
+
+        assert response.status_code == 409
+        assert response.json()["detail"]["error"] == "REVIEWER_EXISTS"
+
+        # The session must still be usable after the rollback.
+        listing = await test_app.get(f"{API_PREFIX}/reviewers")
+        assert listing.status_code == 200
+        assert len([r for r in listing.json() if r["name"] == "Race Reviewer"]) == 1
 
     async def test_get_reviewer_by_id(self, test_app):
         """Test getting a reviewer by ID."""
@@ -206,3 +239,65 @@ class TestReviewerAuthentikRequired:
         )
 
         assert response.status_code == 201
+
+    async def test_seed_reviewers_rejected_without_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Important finding: seed_reviewers is also gated by
+        Depends(get_current_identity) but had no test confirming it.
+        """
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.post(f"{API_PREFIX}/reviewers/seed")
+
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
+
+    async def test_seed_reviewers_succeeds_with_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A valid X-Authentik-Username header allows the mutation through."""
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.post(
+            f"{API_PREFIX}/reviewers/seed",
+            headers={"X-Authentik-Username": "byron"},
+        )
+
+        assert response.status_code == 200
+
+    async def test_delete_reviewer_rejected_without_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Important finding: delete_reviewer is also gated by
+        Depends(get_current_identity) but had no test confirming it.
+        """
+        create_response = await test_app.post(
+            f"{API_PREFIX}/reviewers", json={"name": "Auth Delete Reviewer"}
+        )
+        reviewer_id = create_response.json()["id"]
+
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.delete(f"{API_PREFIX}/reviewers/{reviewer_id}")
+
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
+
+    async def test_delete_reviewer_succeeds_with_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A valid X-Authentik-Username header allows the mutation through."""
+        create_response = await test_app.post(
+            f"{API_PREFIX}/reviewers", json={"name": "Auth Delete OK Reviewer"}
+        )
+        reviewer_id = create_response.json()["id"]
+
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.delete(
+            f"{API_PREFIX}/reviewers/{reviewer_id}",
+            headers={"X-Authentik-Username": "byron"},
+        )
+
+        assert response.status_code == 204
