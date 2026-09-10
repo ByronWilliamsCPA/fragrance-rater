@@ -9,6 +9,7 @@ import sys
 from collections.abc import Coroutine
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TypeVar
 from urllib.parse import urlsplit, urlunsplit
 
 import click
@@ -77,14 +78,28 @@ def mask_database_url(url: str) -> str:
     )
 
 
-def run_async[T](coro: Coroutine[object, object, T]) -> T:
+# #CRITICAL: external-resources: `requires-python = ">=3.10,<3.15"`
+# (pyproject.toml) and the Python Compatibility Matrix CI workflow both
+# claim/test 3.10-3.13. PEP 695's `def f[T](...)` generic syntax is
+# 3.12-only and is a hard `SyntaxError` (not a lint warning) on 3.10/3.11,
+# so `run_async` uses the pre-3.12-compatible explicit `TypeVar` form. Ruff's
+# `target-version` is "py312" (see pyproject.toml's comment there for why
+# that doesn't match `requires-python`), so its UP047 rule suggests
+# reverting to PEP 695 syntax here; that suggestion is wrong for this
+# project's actual floor and is silenced via per-file-ignores.
+# #VERIFY: no other PEP 695 syntax (`class C[T]`, `type X[T] = ...`) is
+# introduced anywhere this project still claims 3.10/3.11 support.
+_T = TypeVar("_T")
+
+
+def run_async(coro: Coroutine[object, object, _T]) -> _T:
     """Run an async coroutine to completion in a fresh event loop.
 
     Args:
-        coro (Coroutine[object, object, T]): The coroutine to execute.
+        coro (Coroutine[object, object, _T]): The coroutine to execute.
 
     Returns:
-        T: The coroutine's return value.
+        _T: The coroutine's return value.
     """
     return asyncio.run(coro)
 
@@ -243,7 +258,20 @@ def import_parfumo_search(
 
             click.echo(f"Searching Parfumo for '{query}'...")
 
-            results = scraper.search(query, limit=limit)
+            # #ASSUME: concurrency: ParfumoScraper.search() is a blocking
+            # sync call (a sync httpx.Client plus time.sleep()-based rate
+            # limiting/retry backoff, up to ~14s across retries). Calling
+            # it directly here (an async closure run via run_async's
+            # asyncio.run) would block this process's only event loop for
+            # that whole duration. asyncio.to_thread offloads it to the
+            # default thread pool so the loop stays free. Safe today
+            # because this is a one-shot CLI process: nothing else shares
+            # the loop while a scrape runs.
+            # #VERIFY: if ParfumoScraper is ever invoked from a live
+            # server route (not just this CLI), confirm the thread-pool
+            # offload is still sufficient, or migrate to an
+            # httpx.AsyncClient-based implementation.
+            results = await asyncio.to_thread(scraper.search, query, limit=limit)
 
             if not results:
                 click.echo("No results found.")

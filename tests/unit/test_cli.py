@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -491,3 +492,42 @@ class TestImportParfumoSearchCommand:
             assert result.exit_code == 0
             assert "Importing first result" in result.output
             assert "Imported with ID: fragrance-456" in result.output
+
+    @patch("fragrance_rater.cli.async_session_maker")
+    def test_parfumo_search_offloads_blocking_search_to_thread(
+        self, mock_session_maker: MagicMock
+    ) -> None:
+        """Important finding: search() is a blocking sync call (httpx +
+        time.sleep()-based rate limiting/backoff); do_search() must run it
+        via asyncio.to_thread rather than calling it directly on the event
+        loop. This mocks search() with a real blocking sleep and confirms
+        the CLI command still completes end-to-end and produces correct
+        output, i.e. the wrap doesn't change behavior or hang.
+        """
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        mock_result = MagicMock()
+        mock_result.name = "Aventus"
+        mock_result.brand = "Creed"
+        mock_result.url = "https://parfumo.com/aventus"
+
+        def blocking_search(query: str, limit: int = 10) -> list[MagicMock]:
+            # Simulates the real search()'s blocking network call.
+            time.sleep(0.05)
+            return [mock_result]
+
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
+            mock_scraper = MagicMock()
+            mock_scraper.search = blocking_search
+            mock_scraper.close = MagicMock()
+            mock_scraper_class.return_value = mock_scraper
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["import-data", "parfumo-search", "Aventus"])
+
+            assert result.exit_code == 0
+            assert "Found 1 result" in result.output
+            assert "Aventus" in result.output

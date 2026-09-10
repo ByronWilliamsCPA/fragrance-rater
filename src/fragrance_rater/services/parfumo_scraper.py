@@ -9,6 +9,7 @@ Parfumo uses Cloudflare protection - be respectful of their resources.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -141,8 +142,64 @@ class ParfumoScraper:
                 headers=self.HEADERS,
                 follow_redirects=True,
                 timeout=30.0,
+                event_hooks={"response": [self._validate_response_redirect]},
             )
         return self._client
+
+    # #CRITICAL: security: the client above is configured with
+    # follow_redirects=True. Without this hook, a 3xx response from an
+    # already-allowlisted host (e.g. www.parfumo.com, or anything reachable
+    # via a chain from it - a compromised upstream, an open redirector) could
+    # carry a `Location` pointing at an internal address (127.0.0.1, the
+    # 169.254.169.254 cloud metadata endpoint, an internal hostname) and
+    # httpx would follow it automatically, since _make_request only checks
+    # _is_allowed_url() against the *initial* URL, never against redirect
+    # targets. httpx calls every registered "response" event hook on each
+    # response in the chain - see httpx.Client._send_handling_redirects,
+    # which invokes response hooks before building/following the next
+    # request - so registering this as a response hook re-validates every
+    # hop against the same host allowlist, not just the first one. This
+    # mirrors, rather than reimports, the SSRFPreventionMiddleware pattern in
+    # middleware/security.py: that middleware is a BaseHTTPMiddleware
+    # subclass built to scan *inbound* request parameters against a
+    # blocklist, so it is not directly reusable here, and its blocklist is
+    # strictly weaker than the allowlist this scraper already enforces via
+    # ALLOWED_HOSTS/_is_allowed_url (a scheme+host allowlist blocks every
+    # non-parfumo.com destination outright, including hosts a blocklist
+    # simply forgot to enumerate).
+    # #VERIFY: covered by tests simulating a redirect to a disallowed host
+    # (request aborted, not followed) and to an allowlisted host (followed
+    # normally), including an end-to-end test through a real httpx.Client
+    # with a mock transport.
+    def _validate_response_redirect(self, response: httpx.Response) -> None:
+        """Reject a redirect response whose target fails the host allowlist.
+
+        Registered as an httpx ``"response"`` event hook (see `_get_client`)
+        so it runs on every response in a redirect chain, not just the
+        first request's response.
+
+        Args:
+            response (httpx.Response): The response httpx is about to
+                inspect for a possible redirect.
+
+        Raises:
+            httpx.RequestError: If `response` is a redirect and its resolved
+                target fails `_is_allowed_url`.
+        """
+        if not response.has_redirect_location:
+            return
+
+        location = str(response.headers.get("Location", ""))
+        target = str(response.url.join(location))
+
+        if not self._is_allowed_url(target):
+            logger.warning(
+                "Refusing to follow redirect outside host allowlist: %s -> %s",
+                response.url,
+                target,
+            )
+            error_message = f"Refused redirect to disallowed host: {target}"
+            raise httpx.RequestError(error_message, request=response.request)
 
     def _wait_for_rate_limit(self) -> None:
         """Ensure we don't make requests too quickly.
@@ -645,7 +702,24 @@ class ParfumoScraper:
             str | None: Fragrance ID if imported/found, None otherwise.
         """
         query = f"{name} {brand}" if brand else name
-        results = self.search(query, limit=5)
+        # #ASSUME: concurrency: search()/scrape_perfume_page() are
+        # synchronous (a blocking httpx.Client, plus time.sleep()-based
+        # rate limiting and retry backoff up to
+        # BACKOFF_BASE_SECONDS * 2**attempt per attempt). Calling them
+        # directly from this async method would run all of that blocking
+        # I/O on the event loop thread. asyncio.to_thread offloads each
+        # call to the default thread pool executor so the loop stays free
+        # while the request/backoff runs. This is safe today because the
+        # only caller of ParfumoScraper is the one-shot CLI
+        # (fragrance-rater import-data parfumo-*), which awaits a single
+        # scraper method per process invocation with no other concurrent
+        # async work sharing the loop.
+        # #VERIFY: if ParfumoScraper is ever called from a live server
+        # process (e.g. a FastAPI route) where other requests share the
+        # event loop, confirm the thread-pool offload here (and in
+        # import_from_url/cli.py) is still sufficient, or migrate to an
+        # httpx.AsyncClient-based implementation instead.
+        results = await asyncio.to_thread(self.search, query, limit=5)
 
         if not results:
             return None
@@ -663,8 +737,9 @@ class ParfumoScraper:
         if not best_match:
             best_match = results[0]
 
-        # Scrape full details
-        scraped = self.scrape_perfume_page(best_match.url)
+        # Scrape full details (see #ASSUME above: offloaded to a thread so
+        # this blocking call doesn't stall the event loop).
+        scraped = await asyncio.to_thread(self.scrape_perfume_page, best_match.url)
 
         if not scraped or not scraped.name:
             return None
@@ -702,7 +777,14 @@ class ParfumoScraper:
         Returns:
             str | None: Fragrance ID if imported, None on failure.
         """
-        scraped = self.scrape_perfume_page(url)
+        # #ASSUME: concurrency: see search_and_import() above for the full
+        # rationale - scrape_perfume_page() is a blocking sync call (httpx
+        # + time.sleep()-based rate limiting/backoff), offloaded via
+        # asyncio.to_thread so this async method doesn't stall the event
+        # loop. Safe today because the only caller is the one-shot CLI.
+        # #VERIFY: re-examine before calling ParfumoScraper from a live
+        # server route sharing an event loop with other requests.
+        scraped = await asyncio.to_thread(self.scrape_perfume_page, url)
 
         if not scraped or not scraped.name or not scraped.brand:
             return None

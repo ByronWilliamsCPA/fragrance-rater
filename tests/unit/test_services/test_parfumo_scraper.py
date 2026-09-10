@@ -3,8 +3,11 @@
 Tests the Parfumo.com web scraping functionality with mocked HTTP responses.
 """
 
+import asyncio
+import time
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 from sqlalchemy import select
 
@@ -492,6 +495,130 @@ class TestParfumoScraperHostAllowlist:
         mock_client.assert_not_called()
 
 
+class TestParfumoScraperRedirectValidation:
+    """Tests for the redirect-hop SSRF revalidation hook (Critical finding:
+    the ALLOWED_HOSTS check only ran against the initial URL, so a redirect
+    from an allowlisted host to an internal address would previously be
+    followed unchecked)."""
+
+    @staticmethod
+    def _redirect_response(location: str) -> httpx.Response:
+        request = httpx.Request("GET", "https://www.parfumo.com/Perfumes/a/b")
+        return httpx.Response(302, headers={"Location": location}, request=request)
+
+    def test_allows_redirect_to_allowlisted_host(self):
+        scraper = _new_scraper()
+        response = self._redirect_response("https://www.parfumo.com/Perfumes/a/c")
+
+        scraper._validate_response_redirect(response)  # must not raise
+
+    def test_allows_relative_redirect(self):
+        """A relative Location resolves against an already-allowlisted host."""
+        scraper = _new_scraper()
+        response = self._redirect_response("/Perfumes/a/c")
+
+        scraper._validate_response_redirect(response)  # must not raise
+
+    def test_blocks_redirect_to_loopback_address(self):
+        scraper = _new_scraper()
+        response = self._redirect_response("http://127.0.0.1/admin")
+
+        with pytest.raises(httpx.HTTPError):
+            scraper._validate_response_redirect(response)
+
+    def test_blocks_redirect_to_cloud_metadata_endpoint(self):
+        scraper = _new_scraper()
+        response = self._redirect_response("http://169.254.169.254/latest/meta-data/")
+
+        with pytest.raises(httpx.HTTPError):
+            scraper._validate_response_redirect(response)
+
+    def test_blocks_redirect_to_lookalike_host(self):
+        scraper = _new_scraper()
+        response = self._redirect_response(
+            "https://www.parfumo.com.evil.example/Perfumes/a/c"
+        )
+
+        with pytest.raises(httpx.HTTPError):
+            scraper._validate_response_redirect(response)
+
+    def test_ignores_non_redirect_response(self):
+        scraper = _new_scraper()
+        request = httpx.Request("GET", "https://www.parfumo.com/Perfumes/a/b")
+        response = httpx.Response(200, request=request)
+
+        scraper._validate_response_redirect(response)  # must not raise
+
+    def test_get_client_registers_redirect_validation_hook(self):
+        scraper = _new_scraper()
+
+        client = scraper._get_client()
+        try:
+            assert scraper._validate_response_redirect in client.event_hooks["response"]
+        finally:
+            client.close()
+
+    def test_make_request_follows_allowlisted_redirect_end_to_end(self):
+        """A same-host redirect chain is still followed to completion."""
+        scraper = _new_scraper()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/Perfumes/a/old":
+                return httpx.Response(
+                    302,
+                    headers={"Location": "https://www.parfumo.com/Perfumes/a/new"},
+                )
+            return httpx.Response(200, text=SAMPLE_PERFUME_PAGE)
+
+        client = httpx.Client(
+            headers=ParfumoScraper.HEADERS,
+            follow_redirects=True,
+            timeout=30.0,
+            transport=httpx.MockTransport(handler),
+            event_hooks={"response": [scraper._validate_response_redirect]},
+        )
+
+        original_delay = ParfumoScraper.REQUEST_DELAY
+        ParfumoScraper.REQUEST_DELAY = 0.0
+        try:
+            with patch.object(scraper, "_get_client", return_value=client):
+                result = scraper._make_request("https://www.parfumo.com/Perfumes/a/old")
+        finally:
+            ParfumoScraper.REQUEST_DELAY = original_delay
+            client.close()
+
+        assert result is not None
+
+    def test_make_request_aborts_redirect_to_disallowed_host_end_to_end(self):
+        """Regression test for the SSRF redirect-bypass finding: an
+        allowlisted host that 302s to an internal address must not be
+        followed, exercised through real httpx redirect-handling logic
+        (not just the isolated hook)."""
+        scraper = _new_scraper()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(302, headers={"Location": "http://127.0.0.1/admin"})
+
+        client = httpx.Client(
+            headers=ParfumoScraper.HEADERS,
+            follow_redirects=True,
+            timeout=30.0,
+            transport=httpx.MockTransport(handler),
+            event_hooks={"response": [scraper._validate_response_redirect]},
+        )
+
+        original_delay = ParfumoScraper.REQUEST_DELAY
+        ParfumoScraper.REQUEST_DELAY = 0.0
+        try:
+            with patch.object(scraper, "_get_client", return_value=client):
+                result = scraper._make_request("https://www.parfumo.com/Perfumes/a/old")
+        finally:
+            ParfumoScraper.REQUEST_DELAY = original_delay
+            client.close()
+
+        assert result is None
+
+
 class TestParfumoScraperRetryAfterParsing:
     """Tests for the Retry-After header parsing helper."""
 
@@ -675,3 +802,89 @@ class TestParfumoScraperNoteSavepointIsolation:
         # rather than crashing on the second insert.
         assert len(fragrance_notes) == 1
         assert fragrance_notes[0].position == "top"
+
+
+@pytest.mark.asyncio
+class TestParfumoScraperAsyncOffload:
+    """Important finding: search()/scrape_perfume_page() are blocking sync
+    calls (a sync httpx.Client plus time.sleep()-based rate limiting and
+    retry backoff). import_from_url() and search_and_import() are async
+    methods that call them directly; without offloading to a thread, that
+    blocking I/O runs on the event loop thread and stalls it for the
+    duration of the request/backoff. Both methods now wrap the blocking
+    calls in asyncio.to_thread(); these tests confirm the offload actually
+    happens (a concurrently-scheduled coroutine keeps making progress
+    while the blocking call is in flight), not just that the method still
+    returns a result.
+    """
+
+    async def test_import_from_url_does_not_block_event_loop(
+        self, async_session, monkeypatch
+    ):
+        scraper = ParfumoScraper.__new__(ParfumoScraper)
+        scraper.db = async_session
+
+        def fake_scrape_perfume_page(url: str) -> ScrapedFragrance:
+            # Simulates the blocking network call + backoff sleep inside
+            # the real scrape_perfume_page()/_make_request().
+            time.sleep(0.15)
+            return ScrapedFragrance(url=url, name="Blocking Test", brand="Test Brand")
+
+        monkeypatch.setattr(scraper, "scrape_perfume_page", fake_scrape_perfume_page)
+
+        async def competing_task() -> None:
+            for _ in range(5):
+                await asyncio.sleep(0.02)
+
+        start = time.perf_counter()
+        fragrance_id, _ = await asyncio.gather(
+            scraper.import_from_url("https://parfumo.com/Perfumes/test/blocking"),
+            competing_task(),
+        )
+        elapsed = time.perf_counter() - start
+
+        assert fragrance_id is not None
+        # If scrape_perfume_page() ran directly on the event loop instead
+        # of in a thread, competing_task()'s 5 x 0.02s awaits (0.1s total)
+        # could only proceed after the 0.15s blocking call returned,
+        # pushing elapsed toward 0.25s. Offloaded via asyncio.to_thread,
+        # the loop stays free to run competing_task() while the blocking
+        # call executes in a worker thread, so elapsed stays close to
+        # max(0.15, 0.1) = 0.15s.
+        assert elapsed < 0.22
+
+    async def test_search_and_import_does_not_block_event_loop(
+        self, async_session, monkeypatch
+    ):
+        scraper = ParfumoScraper.__new__(ParfumoScraper)
+        scraper.db = async_session
+
+        def fake_search(query: str, limit: int = 10) -> list[SearchResult]:
+            time.sleep(0.15)
+            return [
+                SearchResult(
+                    name="Blocking Result",
+                    brand="Test Brand",
+                    url="https://parfumo.com/Perfumes/test/blocking-search",
+                )
+            ]
+
+        def fake_scrape_perfume_page(url: str) -> ScrapedFragrance:
+            return ScrapedFragrance(url=url, name="Blocking Result", brand="Test Brand")
+
+        monkeypatch.setattr(scraper, "search", fake_search)
+        monkeypatch.setattr(scraper, "scrape_perfume_page", fake_scrape_perfume_page)
+
+        async def competing_task() -> None:
+            for _ in range(5):
+                await asyncio.sleep(0.02)
+
+        start = time.perf_counter()
+        fragrance_id, _ = await asyncio.gather(
+            scraper.search_and_import("Blocking Result", "Test Brand"),
+            competing_task(),
+        )
+        elapsed = time.perf_counter() - start
+
+        assert fragrance_id is not None
+        assert elapsed < 0.22
