@@ -68,7 +68,65 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Restore the plain (non-partial) UNIQUE constraints."""
+    """Restore the plain (non-partial) UNIQUE constraints.
+
+    #CRITICAL: data-integrity: reverting to a plain (non-partial) UNIQUE
+    constraint is inherently incompatible with data the partial index
+    intentionally allowed: a live row and a soft-deleted row sharing the
+    same (name, brand) / name. This is a deliberate, known limitation of
+    downgrading a soft-delete-aware uniqueness fix, not a defect in this
+    migration; there is no way to recreate a plain UNIQUE constraint while
+    such a pair of rows still exists, because that is exactly the
+    coexistence the partial index above was built to permit.
+    #VERIFY: the pre-checks below query for that coexistence up front and
+    raise a clear, actionable `RuntimeError` naming the conflicting rows
+    instead of letting Postgres fail deep in `create_unique_constraint`
+    with an opaque `IntegrityError`. If one fires, an operator must
+    resolve the conflict by hand (hard-delete or rename the soft-deleted
+    duplicate, or restore/merge it) before retrying the downgrade; this
+    migration will not choose that resolution automatically. Verified via
+    a real Postgres 17 round-trip: upgrade -> downgrade succeeds cleanly
+    when no such duplicates exist, and fails at this pre-check (not at a
+    cryptic constraint-violation error) when they do.
+    """
+    bind = op.get_bind()
+
+    fragrance_dupes = bind.execute(
+        sa.text(
+            "SELECT name, brand, COUNT(*) AS dup_count FROM fragrances "
+            "GROUP BY name, brand HAVING COUNT(*) > 1"
+        )
+    ).fetchall()
+    if fragrance_dupes:
+        msg = (
+            f"Cannot downgrade uq_fragrance_name_brand to a plain UNIQUE "
+            f"constraint: {len(fragrance_dupes)} (name, brand) group(s) have "
+            "more than one row, meaning a live row coexists with at least "
+            "one soft-deleted duplicate. A plain UNIQUE constraint cannot "
+            "express that coexistence. Resolve the conflicting rows (e.g. "
+            "hard-delete or rename the soft-deleted duplicate) before "
+            f"retrying this downgrade. Example conflicting group: "
+            f"name={fragrance_dupes[0][0]!r}, brand={fragrance_dupes[0][1]!r}."
+        )
+        raise RuntimeError(msg)
+
+    reviewer_dupes = bind.execute(
+        sa.text(
+            "SELECT name, COUNT(*) AS dup_count FROM reviewers "
+            "GROUP BY name HAVING COUNT(*) > 1"
+        )
+    ).fetchall()
+    if reviewer_dupes:
+        msg = (
+            f"Cannot downgrade uq_reviewer_name to a plain UNIQUE index: "
+            f"{len(reviewer_dupes)} reviewer name(s) have more than one "
+            "row, meaning a live row coexists with at least one "
+            "soft-deleted duplicate. Resolve the conflicting rows before "
+            "retrying this downgrade. Example conflicting name: "
+            f"{reviewer_dupes[0][0]!r}."
+        )
+        raise RuntimeError(msg)
+
     op.drop_index("uq_reviewer_name", table_name="reviewers")
     op.drop_index("ix_reviewers_name", table_name="reviewers")
     op.create_index("ix_reviewers_name", "reviewers", ["name"], unique=True)

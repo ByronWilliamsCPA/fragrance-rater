@@ -62,7 +62,50 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Restore the plain (non-partial) UNIQUE constraint."""
+    """Restore the plain (non-partial) UNIQUE constraint.
+
+    #CRITICAL: data-integrity: reverting to a plain (non-partial) UNIQUE
+    constraint is inherently incompatible with data the partial index
+    intentionally allowed: a live evaluation and a soft-deleted evaluation
+    sharing the same (reviewer_id, fragrance_id) pair. This mirrors the
+    identical, deliberate limitation documented on `22eed1bf0509`'s
+    downgrade for `fragrances`/`reviewers`; it is not a defect in this
+    migration, and there is no way to recreate a plain UNIQUE constraint
+    while that coexistence still exists.
+    #VERIFY: the pre-check below queries for that coexistence up front and
+    raises a clear, actionable `RuntimeError` naming the conflicting pair
+    instead of letting Postgres fail deep in `create_unique_constraint`
+    with an opaque `IntegrityError`. If it fires, an operator must resolve
+    the conflict by hand (hard-delete or restore/merge the soft-deleted
+    duplicate) before retrying the downgrade. Verified via a real
+    Postgres 17 round-trip: upgrade -> downgrade succeeds cleanly when no
+    such duplicates exist, and fails at this pre-check (not at a cryptic
+    constraint-violation error) when they do.
+    """
+    bind = op.get_bind()
+
+    evaluation_dupes = bind.execute(
+        sa.text(
+            "SELECT reviewer_id, fragrance_id, COUNT(*) AS dup_count "
+            "FROM evaluations GROUP BY reviewer_id, fragrance_id "
+            "HAVING COUNT(*) > 1"
+        )
+    ).fetchall()
+    if evaluation_dupes:
+        msg = (
+            f"Cannot downgrade uq_evaluation_reviewer_fragrance to a plain "
+            f"UNIQUE constraint: {len(evaluation_dupes)} "
+            "(reviewer_id, fragrance_id) group(s) have more than one row, "
+            "meaning a live evaluation coexists with at least one "
+            "soft-deleted duplicate. A plain UNIQUE constraint cannot "
+            "express that coexistence. Resolve the conflicting rows (e.g. "
+            "hard-delete or restore/merge the soft-deleted duplicate) "
+            "before retrying this downgrade. Example conflicting pair: "
+            f"reviewer_id={evaluation_dupes[0][0]!r}, "
+            f"fragrance_id={evaluation_dupes[0][1]!r}."
+        )
+        raise RuntimeError(msg)
+
     op.drop_index("uq_evaluation_reviewer_fragrance", table_name="evaluations")
     op.create_unique_constraint(
         "uq_evaluation_reviewer_fragrance",
