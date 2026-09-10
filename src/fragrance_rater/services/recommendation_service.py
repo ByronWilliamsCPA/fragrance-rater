@@ -133,10 +133,32 @@ class RecommendationService:
         """
         # Fetch all evaluations with fragrance details
         # Critical finding 2: soft-delete filter on the evaluation aggregation.
+        #
+        # #CRITICAL: data integrity: Evaluation.deleted_at above only guards
+        # the evaluation row itself; a live (non-soft-deleted) evaluation can
+        # still point at a fragrance that has since been soft-deleted out of
+        # the active catalog (Fragrance.deleted_at IS NOT NULL). Without an
+        # explicit filter on the joined Fragrance, such "ghost" evaluations
+        # would keep contributing their notes/accords/family to the
+        # reviewer's affinity profile even though that fragrance can never
+        # again be scored or recommended, skewing the profile with data the
+        # recommendation logic can no longer act on.
+        # #VERIFY: join explicitly and filter Fragrance.deleted_at.is_(None)
+        # here rather than relying on the Evaluation.fragrance relationship's
+        # primaryjoin -- mirrors reviewer_service.py's count_evaluations/
+        # list_all comments explaining why this project keeps soft-delete
+        # filters as explicit query-level joins/subqueries instead of
+        # relationship-level filters (which would also affect cascade
+        # semantics). Keep this in sync with the identical
+        # Fragrance.deleted_at.is_(None) guard on the candidate-fragrance
+        # query in get_recommendations below.
         stmt = (
             select(Evaluation)
+            .join(Fragrance, Evaluation.fragrance_id == Fragrance.id)
             .where(
-                Evaluation.reviewer_id == reviewer_id, Evaluation.deleted_at.is_(None)
+                Evaluation.reviewer_id == reviewer_id,
+                Evaluation.deleted_at.is_(None),
+                Fragrance.deleted_at.is_(None),
             )
             .options(
                 selectinload(Evaluation.fragrance)
@@ -255,7 +277,21 @@ class RecommendationService:
 
         # Normalize to 0-1 range using sigmoid
         # Maps roughly: -4 → 0.1, 0 → 0.5, +4 → 0.9
-        normalized = 1 / (1 + math.exp(-raw_score))
+        #
+        # #EDGE: data integrity: raw_score is an unbounded weighted sum of
+        # accumulated note/accord/family affinities, so it grows without
+        # bound as a reviewer's evaluation history grows (more evaluations
+        # -> larger affinity magnitudes -> larger raw_score). math.exp(-x)
+        # raises OverflowError once x exceeds ~709.78 (float64 max), and the
+        # sigmoid is already indistinguishable from 0.0/1.0 at float
+        # precision long before that.
+        # #VERIFY: clamp the sigmoid input to +/-50 before calling
+        # math.exp; sigmoid(+/-50) already round-trips to 1.0/~1.9e-22 in
+        # float64, so this loses no precision the raw float couldn't
+        # already lose, while guaranteeing no OverflowError regardless of
+        # how large raw_score grows in either direction.
+        clamped_raw_score = max(-50.0, min(50.0, raw_score))
+        normalized = 1 / (1 + math.exp(-clamped_raw_score))
 
         return MatchResult(
             score=normalized,

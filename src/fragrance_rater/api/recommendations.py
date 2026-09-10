@@ -1,14 +1,25 @@
-"""Recommendation API endpoints."""
+"""Recommendation API endpoints.
+
+``GET /{reviewer_id}/profile`` and ``GET /{reviewer_id}/{fragrance_id}/explain``
+can each trigger a billed OpenRouter call via
+``fragrance_rater.services.llm_service`` (see ADR-003): the same cost/abuse
+vector documented for ``POST /ratings`` in ``fragrance_rater.api.ratings``.
+Both routes therefore require the shared household ``X-API-Key`` header (see
+``fragrance_rater.middleware.auth.require_api_key``) and are rate limited
+(see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``), mirroring
+``POST /ratings`` exactly rather than inventing a separate scheme.
+"""
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.core.database import get_db
+from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_key
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
 from fragrance_rater.services.llm_service import (
     FragranceDetails,
@@ -137,8 +148,40 @@ async def get_recommendations(
     )
 
 
-@router.get("/{reviewer_id}/profile", response_model=ProfileSummaryResponse)
+# #CRITICAL: security: this route can call the billed OpenRouter LLM (via
+# llm_service.generate_profile_summary) whenever include_llm=True and the
+# LLM is available. Left unauthenticated and unlimited, it is the same
+# cost/abuse vector as POST /ratings (fragrance_rater.api.ratings), just
+# reachable via GET instead of POST.
+# #VERIFY: keep dependencies=[Depends(require_api_key)] and
+# @limiter.limit(RATINGS_RATE_LIMIT) below in sync with the identical
+# pattern on POST /ratings; do not drop either independently, and do not
+# gate them on include_llm since the query param is caller-controlled.
+@router.get(
+    "/{reviewer_id}/profile",
+    response_model=ProfileSummaryResponse,
+    dependencies=[Depends(require_api_key)],
+    responses={
+        401: {
+            "description": (
+                "Missing or invalid X-API-Key header. Required on this "
+                "endpoint because it can trigger a billed LLM call (see "
+                "fragrance_rater.middleware.auth)."
+            )
+        },
+        429: {"description": "Rate limit exceeded; retry after a short delay."},
+        503: {
+            "description": (
+                "No household API key is configured for this deployment "
+                "(FRAGRANCE_RATER_API_KEY unset)."
+            )
+        },
+    },
+)
+@limiter.limit(RATINGS_RATE_LIMIT)  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
 async def get_profile_summary(
+    *,
+    request: Request,
     reviewer_id: str,
     session: Annotated[AsyncSession, Depends(get_db)],
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
@@ -152,6 +195,25 @@ async def get_profile_summary(
     Shows top liked/disliked notes, preferred accords, and fragrance families
     based on their evaluation history. Optionally includes an LLM-generated
     natural language summary.
+
+    Requires the shared household ``X-API-Key`` header (see
+    ``fragrance_rater.middleware.auth.require_api_key``) and is rate limited
+    (see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``)
+    because ``include_llm=True`` can trigger a billed OpenRouter call.
+
+    Args:
+        request (Request): Incoming request, required by the
+            ``@limiter.limit`` decorator to key rate limiting on the caller.
+        reviewer_id (str): Reviewer to summarize.
+        session (Annotated[AsyncSession, Depends(get_db)]): Database session, injected.
+        service (Annotated[RecommendationService, Depends(get_recommendation_service)]):
+            Recommendation service, injected.
+        llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.
+        include_llm (Annotated[bool, Query(description='Include LLM-generated summary')]):
+            Whether to include an LLM-generated summary.
+
+    Returns:
+        ProfileSummaryResponse: The reviewer's preference profile summary.
     """
     summary = await service.get_reviewer_profile_summary(reviewer_id)
 
@@ -180,8 +242,39 @@ async def get_profile_summary(
     )
 
 
-@router.get("/{reviewer_id}/{fragrance_id}/explain", response_model=ExplanationResponse)
+# #CRITICAL: security: this route always calls the billed OpenRouter LLM
+# (via llm_service.generate_recommendation_explanation), unconditionally on
+# every successful request. Left unauthenticated and unlimited, it is the
+# same cost/abuse vector as POST /ratings (fragrance_rater.api.ratings),
+# just reachable via GET instead of POST.
+# #VERIFY: keep dependencies=[Depends(require_api_key)] and
+# @limiter.limit(RATINGS_RATE_LIMIT) below in sync with the identical
+# pattern on POST /ratings; do not drop either independently.
+@router.get(
+    "/{reviewer_id}/{fragrance_id}/explain",
+    response_model=ExplanationResponse,
+    dependencies=[Depends(require_api_key)],
+    responses={
+        401: {
+            "description": (
+                "Missing or invalid X-API-Key header. Required on this "
+                "endpoint because it triggers a billed LLM call (see "
+                "fragrance_rater.middleware.auth)."
+            )
+        },
+        429: {"description": "Rate limit exceeded; retry after a short delay."},
+        503: {
+            "description": (
+                "No household API key is configured for this deployment "
+                "(FRAGRANCE_RATER_API_KEY unset)."
+            )
+        },
+    },
+)
+@limiter.limit(RATINGS_RATE_LIMIT)  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
 async def get_recommendation_explanation(
+    *,
+    request: Request,
     reviewer_id: str,
     fragrance_id: str,
     session: Annotated[AsyncSession, Depends(get_db)],
@@ -192,6 +285,29 @@ async def get_recommendation_explanation(
 
     Uses the reviewer's preference profile and the fragrance's notes/accords
     to generate a personalized explanation.
+
+    Requires the shared household ``X-API-Key`` header (see
+    ``fragrance_rater.middleware.auth.require_api_key``) and is rate limited
+    (see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``)
+    because this endpoint always triggers a billed OpenRouter call.
+
+    Args:
+        request (Request): Incoming request, required by the
+            ``@limiter.limit`` decorator to key rate limiting on the caller.
+        reviewer_id (str): Reviewer whose preference profile is used.
+        fragrance_id (str): Fragrance to explain the match for.
+        session (Annotated[AsyncSession, Depends(get_db)]): Database session, injected.
+        service (Annotated[RecommendationService, Depends(get_recommendation_service)]):
+            Recommendation service, injected.
+        llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.
+
+    Returns:
+        ExplanationResponse: The LLM-authored explanation.
+
+    Raises:
+        HTTPException: 400 if the reviewer has fewer than 3 evaluations, or
+            404 if `fragrance_id` does not resolve to a live (non-soft-
+            deleted) fragrance.
     """
     # Build user profile
     profile = await service.build_preference_profile(reviewer_id)
@@ -246,27 +362,37 @@ async def get_recommendation_explanation(
         accords=[a.accord_type for a in fragrance.accords],
     )
 
-    # Calculate recommendation for this fragrance
-    recommendations = await service.get_recommendations(
-        reviewer_id=reviewer_id, limit=100, exclude_rated=False
+    # #CRITICAL: data integrity: this endpoint asks for the match score of
+    # one specific, caller-requested fragrance, so that score must always be
+    # the real computed value. A prior version instead called
+    # service.get_recommendations(limit=100, exclude_rated=False) and
+    # looked this fragrance up by id in that (size-capped, and previously
+    # also rated-exclusion-filtered) result list; when the target fell
+    # outside the first 100 candidates by match_score, the lookup silently
+    # missed and fell back to a fabricated match_score=0.5/match_percent=50
+    # placeholder that was then fed to the LLM as if it were a real score,
+    # producing an explanation for a match nobody actually computed. The
+    # 100-item cap is a reasonable pagination limit for the general
+    # recommendation *list* endpoint (GET /{reviewer_id}), but must never
+    # gate whether an explicitly-requested target's own score gets computed.
+    # #VERIFY: always call calculate_match_score directly on the fetched
+    # target `fragrance` (already loaded above with notes/accords) instead
+    # of searching for it inside a size-limited candidate list; do not
+    # reintroduce a "look it up in the top-N recommendations" shortcut here.
+    match_result = await service.calculate_match_score(profile, fragrance)
+    recommendation = Recommendation(
+        fragrance_id=fragrance_id,
+        fragrance_name=fragrance.name,
+        fragrance_brand=fragrance.brand,
+        match_score=match_result.score,
+        match_percent=match_result.score_percent,
+        vetoed=match_result.vetoed,
+        veto_reason=(
+            f"Contains {match_result.veto_note} which you dislike"
+            if match_result.vetoed
+            else None
+        ),
     )
-
-    # Find this fragrance in recommendations
-    recommendation = next(
-        (r for r in recommendations if r.fragrance_id == fragrance_id), None
-    )
-
-    if recommendation is None:
-        # Create a basic recommendation object for the explanation
-        recommendation = Recommendation(
-            fragrance_id=fragrance_id,
-            fragrance_name=fragrance.name,
-            fragrance_brand=fragrance.brand,
-            match_score=0.5,
-            match_percent=50,
-            vetoed=False,
-            veto_reason=None,
-        )
 
     # Generate explanation
     llm_response = await llm_service.generate_recommendation_explanation(

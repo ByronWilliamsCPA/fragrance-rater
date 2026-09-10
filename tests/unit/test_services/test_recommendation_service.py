@@ -306,6 +306,48 @@ class TestCalculateMatchScore:
 
         assert result.vetoed is False
 
+    async def test_extreme_positive_raw_score_does_not_overflow(self, async_session):
+        """Critical finding 3: math.exp(-raw_score) overflows once raw_score
+        grows large and negative enough that -raw_score exceeds ~709.78 (the
+        float64 boundary for math.exp). A very large positive family
+        affinity (plausible after many evaluations accumulate) must still
+        produce a valid, non-overflowing score that saturates at ~1.0.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="extreme-positive-profile",
+            family_affinities={"woody": 1_000_000.0},
+        )
+        fragrance = self._fragrance(primary_family="woody", subfamily="unmatched-sub")
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        assert result.vetoed is False
+        assert math.isfinite(result.score)
+        assert not math.isnan(result.score)
+        assert result.score == pytest.approx(1.0)
+        assert result.score_percent == 100
+
+    async def test_extreme_negative_raw_score_does_not_overflow(self, async_session):
+        """Critical finding 3, negative side: a very large negative family
+        affinity must still produce a valid, non-overflowing score that
+        saturates at ~0.0 instead of raising OverflowError.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="extreme-negative-profile",
+            family_affinities={"woody": -1_000_000.0},
+        )
+        fragrance = self._fragrance(primary_family="woody", subfamily="unmatched-sub")
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        assert result.vetoed is False
+        assert math.isfinite(result.score)
+        assert not math.isnan(result.score)
+        assert result.score == pytest.approx(0.0, abs=1e-9)
+        assert result.score_percent == 0
+
 
 @pytest.mark.asyncio
 class TestRecommendationServiceIntegration:
@@ -401,6 +443,93 @@ class TestRecommendationServiceIntegration:
 
         assert "" not in profile.family_affinities
         assert profile.family_affinities.get("woody", 0) == 2.0
+
+    async def test_build_preference_profile_excludes_soft_deleted_fragrance(
+        self, async_session
+    ):
+        """Critical finding 2: an evaluation whose fragrance has since been
+        soft-deleted (Fragrance.deleted_at IS NOT NULL) must not contribute
+        to the reviewer's preference profile, even though the evaluation
+        row itself is still active (Evaluation.deleted_at IS NULL). A live
+        evaluation pointing at a "ghost" fragrance must not leak that
+        fragrance's notes/family into the profile.
+        """
+        from fragrance_rater.utils.timestamps import now_naive_utc
+
+        reviewer = Reviewer(id="reviewer-ghost", name="Ghost Fragrance User")
+        async_session.add(reviewer)
+
+        note_active = Note(id="note-active", name="Rose", category="floral")
+        note_ghost = Note(id="note-ghost", name="Patchouli", category="woody")
+        async_session.add_all([note_active, note_ghost])
+
+        # An active fragrance the reviewer rated.
+        active_fragrance = Fragrance(
+            id="frag-active",
+            name="Active Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family="floral",
+            subfamily="rose",
+            data_source="manual",
+        )
+        # A fragrance that has since been soft-deleted out of the catalog.
+        ghost_fragrance = Fragrance(
+            id="frag-ghost",
+            name="Ghost Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family="oriental",
+            subfamily="oud",
+            data_source="manual",
+            deleted_at=now_naive_utc(),
+        )
+        async_session.add_all([active_fragrance, ghost_fragrance])
+
+        async_session.add_all(
+            [
+                FragranceNote(
+                    fragrance_id="frag-active", note_id="note-active", position="heart"
+                ),
+                FragranceNote(
+                    fragrance_id="frag-ghost", note_id="note-ghost", position="base"
+                ),
+            ]
+        )
+
+        # Both evaluations are themselves active (not soft-deleted); only
+        # the ghost fragrance they point at has been removed from the
+        # catalog.
+        async_session.add_all(
+            [
+                Evaluation(
+                    id="eval-active",
+                    fragrance_id="frag-active",
+                    reviewer_id="reviewer-ghost",
+                    rating=5,
+                ),
+                Evaluation(
+                    id="eval-ghost",
+                    fragrance_id="frag-ghost",
+                    reviewer_id="reviewer-ghost",
+                    rating=5,
+                ),
+            ]
+        )
+        await async_session.commit()
+
+        service = RecommendationService(async_session)
+        profile = await service.build_preference_profile("reviewer-ghost")
+
+        # The soft-deleted evaluation must be excluded entirely: only the
+        # active fragrance's evaluation counts.
+        assert profile.evaluation_count == 1
+        assert profile.note_affinities.get("note-active", 0) == 2.0
+        assert "note-ghost" not in profile.note_affinities
+        assert profile.family_affinities.get("floral", 0) == 2.0
+        assert "oriental" not in profile.family_affinities
 
     async def test_get_recommendations_insufficient_data(self, async_session):
         """Test that insufficient evaluations raises error."""
