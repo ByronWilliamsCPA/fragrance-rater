@@ -7,7 +7,9 @@ This package exposes:
   and the ``add_security_middleware`` helper (``security``), wired in
   ``fragrance_rater.main``;
 - the shared household API key dependency ``require_api_key`` (``auth``),
-  applied only to the billed ``POST /ratings`` endpoint;
+  applied to every endpoint that can trigger a billed upstream LLM call:
+  ``POST /ratings`` and, in ``fragrance_rater.api.recommendations``,
+  ``GET /{reviewer_id}/profile`` and ``GET /{reviewer_id}/{fragrance_id}/explain``;
 - the ``slowapi``-backed limiter, its RFC 7807 429 handler, and
   ``DefaultRateLimitMiddleware`` (a local replacement for
   ``slowapi.middleware.SlowAPIMiddleware``, which does not enforce

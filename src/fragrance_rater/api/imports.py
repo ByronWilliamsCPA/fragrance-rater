@@ -9,10 +9,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.services.kaggle_importer import KaggleImporter
+from fragrance_rater.utils.logging import get_logger, log_audit_event
 
 router = APIRouter(prefix="/import", tags=["import"])
+logger = get_logger(__name__)
 
 
 class ImportResponse(BaseModel):
@@ -28,6 +31,16 @@ class ImportResponse(BaseModel):
 async def import_kaggle_csv(
     file: Annotated[UploadFile, File(description="Kaggle CSV file to import")],
     session: Annotated[AsyncSession, Depends(get_db)],
+    # #CRITICAL: security: this route writes fragrance rows to the database
+    # (a mutating, non-dry-run call can bulk-insert arbitrary caller-supplied
+    # data) and previously carried no authentication dependency at all,
+    # letting any caller who could reach the service trigger an import.
+    # #VERIFY: reuses the same Authentik forward-auth identity dependency
+    # already enforced on the other mutating routes (fragrances/evaluations/
+    # reviewers, see fragrance_rater.core.auth.get_current_identity); fails
+    # closed with 401 whenever settings.authentik_required is true and the
+    # request did not transit the Traefik forward-auth middleware.
+    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
     dry_run: bool = False,
 ) -> ImportResponse:
     """Import fragrances from a Kaggle CSV file.
@@ -37,8 +50,13 @@ async def import_kaggle_csv(
     heart_notes, base_notes, accords (flexible column name matching).
 
     Set dry_run=true to validate without writing to database.
+
+    Requires a verified Authentik forward-auth identity (see
+    ``fragrance_rater.core.auth.get_current_identity``) when
+    ``settings.authentik_required`` is true.
     """
-    if not file.filename or not file.filename.endswith(".csv"):
+    filename = file.filename
+    if not filename or not filename.endswith(".csv"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "INVALID_FILE", "message": "File must be a CSV"},
@@ -56,6 +74,15 @@ async def import_kaggle_csv(
 
         if not dry_run and result.imported > 0:
             await session.commit()
+            log_audit_event(
+                logger,
+                action="kaggle_import",
+                actor=identity.username,
+                target_type="kaggle_csv",
+                target_id=filename,
+                imported=result.imported,
+                skipped=result.skipped,
+            )
 
         return ImportResponse(
             total_rows=result.total_rows,
