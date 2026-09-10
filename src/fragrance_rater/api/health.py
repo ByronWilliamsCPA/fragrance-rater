@@ -16,10 +16,14 @@ from __future__ import annotations
 
 import sys
 import time
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from fragrance_rater.core.database import get_db
 from fragrance_rater.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -91,22 +95,25 @@ async def liveness() -> HealthStatus:
     )
 
 
-async def check_database() -> ReadinessCheck:
+async def check_database(session: AsyncSession) -> ReadinessCheck:
     """Check database connectivity.
+
+    Args:
+        session (AsyncSession): Database session for the request lifecycle.
+            Critical finding 1: this must come from the `get_db` FastAPI
+            dependency (injected by the caller), not from `get_session()`
+            called directly. `get_session()` bypasses the
+            `app.dependency_overrides[get_db]` mechanism the test suite uses
+            to swap in a SQLite-backed session, so a direct call always opens
+            a real connection to `settings.database_url` even under test.
 
     Returns:
         ReadinessCheck: Database status and latency.
     """
     start = time.time()
     try:
-        # Import here to avoid circular dependencies
-        from sqlalchemy import text
-
-        from fragrance_rater.core.database import get_session
-
-        async with get_session() as session:
-            # Simple query to check connectivity
-            await session.execute(text("SELECT 1"))
+        # Simple query to check connectivity
+        await session.execute(text("SELECT 1"))
 
         latency_ms = (time.time() - start) * 1000
         return ReadinessCheck(
@@ -212,7 +219,9 @@ async def check_external_service() -> ReadinessCheck:
     summary="Readiness probe",
     description="Checks if the application can serve traffic. Used by Kubernetes readiness probe.",
 )
-async def readiness() -> ReadinessStatus:
+async def readiness(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ReadinessStatus:
     """Kubernetes readiness probe.
 
     Checks all critical dependencies:
@@ -222,6 +231,12 @@ async def readiness() -> ReadinessStatus:
 
     Returns HTTP 503 if any critical dependency is unavailable.
     If this fails, Kubernetes will stop sending traffic to this pod.
+
+    Args:
+        session (Annotated[AsyncSession, Depends(get_db)]): Database session,
+            injected via the `get_db` FastAPI dependency so the test suite's
+            `app.dependency_overrides[get_db]` takes effect here too
+            (Critical finding 1).
 
     Returns:
         ReadinessStatus: Per-dependency check results and overall uptime.
@@ -233,7 +248,7 @@ async def readiness() -> ReadinessStatus:
 
     # Run all checks in parallel for better performance
     # For now, run sequentially - can be optimized with asyncio.gather()
-    checks["database"] = await check_database()
+    checks["database"] = await check_database(session)
     # Uncomment if using cache:
     # checks["cache"] = await check_cache()
 

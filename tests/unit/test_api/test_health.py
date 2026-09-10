@@ -1,9 +1,11 @@
 """Tests for health check endpoints (Major finding 4: no error leakage)."""
 
-from contextlib import asynccontextmanager
 from unittest.mock import patch
 
 import pytest
+
+from fragrance_rater.core.database import get_db
+from fragrance_rater.main import app
 
 
 @pytest.mark.asyncio
@@ -32,6 +34,13 @@ class TestReadiness:
         """A failed database check must return a generic message to the
         client and never the raw exception text (which can carry host,
         user, or auth-failure details).
+
+        Critical finding 1 (PR #66 review) made `check_database` take its
+        session via the `get_db` FastAPI dependency instead of opening one
+        itself through `core.database.get_session`, so failure now has to be
+        injected at that same seam (overriding `get_db`, as `conftest.py`'s
+        `test_app` fixture already does for the happy path) rather than by
+        patching `get_session`, which `check_database` no longer calls.
         """
         sensitive_message = (
             "connection to server at "
@@ -40,19 +49,28 @@ class TestReadiness:
             '"fragrance_rater"'
         )
 
-        @asynccontextmanager
-        async def _raising_get_session():
-            raise RuntimeError(sensitive_message)
-            yield  # pragma: no cover - unreachable, satisfies generator shape
+        class _RaisingSession:
+            """Stand-in session whose only method `check_database` calls
+            raises, mirroring a real connection failure surfaced through
+            `session.execute(...)`."""
 
-        with (
-            patch(
-                "fragrance_rater.core.database.get_session",
-                _raising_get_session,
-            ),
-            patch("fragrance_rater.api.health.logger") as mock_logger,
-        ):
-            response = await test_app.get("/health/ready")
+            async def execute(self, *args: object, **kwargs: object) -> None:
+                raise RuntimeError(sensitive_message)
+
+        async def _raising_get_db():
+            yield _RaisingSession()
+
+        previous_override = app.dependency_overrides[get_db]
+        app.dependency_overrides[get_db] = _raising_get_db
+        try:
+            with patch("fragrance_rater.api.health.logger") as mock_logger:
+                response = await test_app.get("/health/ready")
+        finally:
+            # test_app's own fixture teardown clears all overrides at the end
+            # of the test, but restoring the happy-path override immediately
+            # keeps this test from leaking a broken get_db into any
+            # assertion added after this block later.
+            app.dependency_overrides[get_db] = previous_override
 
         assert response.status_code == 503
         body = response.text
@@ -67,3 +85,15 @@ class TestReadiness:
         mock_logger.exception.assert_called_once()
         logged_kwargs = mock_logger.exception.call_args.kwargs
         assert sensitive_message in logged_kwargs.get("error", "")
+        assert logged_kwargs.get("error_type") == "RuntimeError"
+
+
+@pytest.mark.asyncio
+class TestStartup:
+    """Tests for the startup probe."""
+
+    async def test_startup_ok(self, test_app):
+        """Startup should report "started" once the app object exists."""
+        response = await test_app.get("/health/startup")
+        assert response.status_code == 200
+        assert response.json()["status"] == "started"
