@@ -2,10 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import App from '../App'
 
-const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+const { get, post, patch } = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  patch: vi.fn(),
+}))
 
 vi.mock('axios', () => ({
-  default: { create: () => ({ get, post }), isAxiosError: () => false },
+  default: { create: () => ({ get, post, patch }), isAxiosError: () => false },
 }))
 
 function expectAccessibleControls() {

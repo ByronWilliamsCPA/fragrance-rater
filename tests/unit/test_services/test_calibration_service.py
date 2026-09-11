@@ -210,6 +210,8 @@ async def test_participant_payload_has_no_identity_or_experimental_role(protocol
         assert hidden not in serialized
     assert len(payload["presentations"]) == 3
     assert payload["revealed"] is False
+    assert payload["reveal_eligible"] is False
+    assert payload["reveal_blocker"] == "SKIN_PLAN"
 
 
 @pytest.mark.parametrize(
@@ -317,10 +319,14 @@ async def test_reveal_waits_for_repeat_and_finalized_locked_skin_plan(protocol):
         row.membership_id: row for row in await service.presentations(enrollment.id)
     }
     await answer_and_lock(service, presentations[base.id])
+    pending_plan = await service.participant_view(enrollment)
+    assert pending_plan["reveal_blocker"] == "SKIN_PLAN"
     with pytest.raises(HTTPException, match="Finalize"):
         await service.reveal(enrollment.id, "family-recorder", admin=False)
     enrollment.skin_plan_locked_at = now_naive_utc()
     await service.db.flush()
+    pending_blotter = await service.participant_view(enrollment)
+    assert pending_blotter["reveal_blocker"] == "BLOTTER"
     with pytest.raises(HTTPException, match="baseline and repeat"):
         await service.reveal(enrollment.id, "family-recorder", admin=False)
     await answer_and_lock(service, presentations[repeat.id])
@@ -328,7 +334,12 @@ async def test_reveal_waits_for_repeat_and_finalized_locked_skin_plan(protocol):
     await service.db.flush()
     with pytest.raises(HTTPException, match="skin tests"):
         await service.reveal(enrollment.id, "family-recorder", admin=False)
+    pending_skin = await service.participant_view(enrollment)
+    assert pending_skin["reveal_blocker"] == "SKIN"
     await answer_and_lock(service, presentations[base.id], "SKIN")
+    eligible = await service.participant_view(enrollment)
+    assert eligible["reveal_eligible"] is True
+    assert eligible["reveal_blocker"] is None
     await service.reveal(enrollment.id, "family-recorder", admin=False)
     assert enrollment.revealed_at is not None
     payload = await service.participant_view(enrollment)

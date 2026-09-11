@@ -267,62 +267,25 @@ async def get_profile_summary(
 
 # #CRITICAL: security: this route always calls the billed OpenRouter LLM
 # (via llm_service.generate_recommendation_explanation), unconditionally on
-# every successful request. Left unauthenticated and unlimited, it is the
-# same cost/abuse vector as POST /ratings (fragrance_rater.api.ratings),
-# just reachable via GET instead of POST.
-# #VERIFY: keep dependencies=[Depends(require_api_key)] and
-# @limiter.limit(RATINGS_RATE_LIMIT) below in sync with the identical
-# pattern on POST /ratings; do not drop either independently.
-@router.get(
-    "/{reviewer_id}/{fragrance_id}/explain",
-    response_model=ExplanationResponse,
-    dependencies=[Depends(require_api_key)],
-    responses={
-        401: {
-            "description": (
-                "Missing or invalid X-API-Key header. Required on this "
-                "endpoint because it triggers a billed LLM call (see "
-                "fragrance_rater.middleware.auth)."
-            )
-        },
-        429: {"description": "Rate limit exceeded; retry after a short delay."},
-        503: {
-            "description": (
-                "No household API key is configured for this deployment "
-                "(FRAGRANCE_RATER_API_KEY unset)."
-            )
-        },
-    },
-)
-@limiter.limit(RATINGS_RATE_LIMIT)  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
-async def get_recommendation_explanation(
+async def build_recommendation_explanation(
     *,
-    request: Request,
     reviewer_id: str,
     fragrance_id: str,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    service: Annotated[RecommendationService, Depends(get_recommendation_service)],
-    llm_service: Annotated[LLMService, Depends(get_llm_service)],
+    session: AsyncSession,
+    service: RecommendationService,
+    llm_service: LLMService,
 ) -> ExplanationResponse:
-    """Get an LLM-generated explanation for why a fragrance matches a reviewer.
+    """Build an LLM-generated explanation for why a fragrance matches a reviewer.
 
     Uses the reviewer's preference profile and the fragrance's notes/accords
     to generate a personalized explanation.
 
-    Requires the shared household ``X-API-Key`` header (see
-    ``fragrance_rater.middleware.auth.require_api_key``) and is rate limited
-    (see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``)
-    because this endpoint always triggers a billed OpenRouter call.
-
     Args:
-        request (Request): Incoming request, required by the
-            ``@limiter.limit`` decorator to key rate limiting on the caller.
         reviewer_id (str): Reviewer whose preference profile is used.
         fragrance_id (str): Fragrance to explain the match for.
-        session (Annotated[AsyncSession, Depends(get_db)]): Database session, injected.
-        service (Annotated[RecommendationService, Depends(get_recommendation_service)]):
-            Recommendation service, injected.
-        llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.
+        session (AsyncSession): Database session.
+        service (RecommendationService): Recommendation service.
+        llm_service (LLMService): LLM service.
 
     Returns:
         ExplanationResponse: The LLM-authored explanation.
@@ -463,4 +426,47 @@ async def get_recommendation_explanation(
         explanation=llm_response.text,
         model=llm_response.model,
         cached=llm_response.cached,
+    )
+
+
+# Every successful request can trigger a billed LLM call. Keep the public
+# catalog-ID endpoint behind the shared key and a rate limit. The participant
+# measurement endpoint applies its own recorder authorization and rate limit.
+@router.get(
+    "/{reviewer_id}/{fragrance_id}/explain",
+    response_model=ExplanationResponse,
+    dependencies=[Depends(require_api_key)],
+    responses={
+        401: {
+            "description": (
+                "Missing or invalid X-API-Key header. Required on this "
+                "endpoint because it triggers a billed LLM call."
+            )
+        },
+        429: {"description": "Rate limit exceeded; retry after a short delay."},
+        503: {
+            "description": (
+                "No household API key is configured for this deployment "
+                "(FRAGRANCE_RATER_API_KEY unset)."
+            )
+        },
+    },
+)
+@limiter.limit(RATINGS_RATE_LIMIT)  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
+async def get_recommendation_explanation(
+    *,
+    request: Request,
+    reviewer_id: str,
+    fragrance_id: str,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    service: Annotated[RecommendationService, Depends(get_recommendation_service)],
+    llm_service: Annotated[LLMService, Depends(get_llm_service)],
+) -> ExplanationResponse:
+    """Return a rate-limited explanation to a caller with the household key."""
+    return await build_recommendation_explanation(
+        reviewer_id=reviewer_id,
+        fragrance_id=fragrance_id,
+        session=session,
+        service=service,
+        llm_service=llm_service,
     )

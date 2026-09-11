@@ -1078,7 +1078,7 @@
           "recommendations"
         ],
         "summary": "Get Recommendation Explanation",
-        "description": "Get an LLM-generated explanation for why a fragrance matches a reviewer.\n\nUses the reviewer's preference profile and the fragrance's notes/accords\nto generate a personalized explanation.\n\nRequires the shared household ``X-API-Key`` header (see\n``fragrance_rater.middleware.auth.require_api_key``) and is rate limited\n(see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``)\nbecause this endpoint always triggers a billed OpenRouter call.\n\nArgs:\n    request (Request): Incoming request, required by the\n        ``@limiter.limit`` decorator to key rate limiting on the caller.\n    reviewer_id (str): Reviewer whose preference profile is used.\n    fragrance_id (str): Fragrance to explain the match for.\n    session (Annotated[AsyncSession, Depends(get_db)]): Database session, injected.\n    service (Annotated[RecommendationService, Depends(get_recommendation_service)]):\n        Recommendation service, injected.\n    llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.\n\nReturns:\n    ExplanationResponse: The LLM-authored explanation.\n\nRaises:\n    HTTPException: 400 if the reviewer has fewer than 3 evaluations, or\n        404 if `fragrance_id` does not resolve to a live (non-soft-\n        deleted) fragrance.",
+        "description": "Return a rate-limited explanation to a caller with the household key.",
         "operationId": "get_recommendation_explanation_api_v1_recommendations__reviewer_id___fragrance_id__explain_get",
         "parameters": [
           {
@@ -1128,7 +1128,7 @@
             }
           },
           "401": {
-            "description": "Missing or invalid X-API-Key header. Required on this endpoint because it triggers a billed LLM call (see fragrance_rater.middleware.auth)."
+            "description": "Missing or invalid X-API-Key header. Required on this endpoint because it triggers a billed LLM call."
           },
           "429": {
             "description": "Rate limit exceeded; retry after a short delay."
@@ -1220,6 +1220,52 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendation-measurement/impressions/{impression_id}/explanation": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Get Impression Explanation",
+        "description": "Explain an existing impression to its assigned recorder.",
+        "operationId": "get_impression_explanation_api_v1_recommendation_measurement_impressions__impression_id__explanation_get",
+        "parameters": [
+          {
+            "name": "impression_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Impression Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplanationResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded; retry after a short delay."
           },
           "422": {
             "description": "Validation Error",
@@ -3311,6 +3357,18 @@
           "match_percent": {
             "type": "integer",
             "title": "Match Percent"
+          },
+          "shown_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Shown At"
+          },
+          "responses": {
+            "items": {
+              "$ref": "#/components/schemas/ResponseView"
+            },
+            "type": "array",
+            "title": "Responses"
           }
         },
         "type": "object",
@@ -3322,7 +3380,8 @@
           "rank",
           "score_type",
           "score_value",
-          "match_percent"
+          "match_percent",
+          "shown_at"
         ],
         "title": "ImpressionView",
         "description": "Candidate and immutable ranking information shown to an evaluator."

@@ -35,6 +35,17 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
   const [detected, setDetected] = useState('')
   const task = useTask()
   const sample = enrollment?.presentations.find((presentation) => presentation.id === selected)
+  function enrollmentGuidance() {
+    if (!enrollment) return ''
+    if (enrollment.revealed) return 'Identities are revealed. You may add post-reveal observations.'
+    if (enrollment.reveal_blocker === 'SKIN_PLAN')
+      return 'All blotter screens are locked. Review and finalize the skin-test plan.'
+    if (enrollment.reveal_blocker === 'BLOTTER')
+      return 'Required blind blotter screens still need to be locked.'
+    if (enrollment.reveal_blocker === 'SKIN')
+      return 'Planned blind skin tests still need to be locked.'
+    return 'All required blind work is locked. The enrollment is eligible to reveal.'
+  }
 
   async function refresh(id = requestedAssignment.current) {
     const generation = ++refreshGeneration.current
@@ -166,6 +177,9 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
               {enrollment.presentations.filter((item) => item.blotter_locked).length} /{' '}
               {enrollment.presentations.length} screens locked
             </p>
+            <p className="notice" role="status">
+              {enrollmentGuidance()}
+            </p>
             {Array.from(
               new Set(enrollment.presentations.map((presentation) => presentation.session_id))
             ).map((sessionId, index) => (
@@ -190,22 +204,23 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                   ))}
               </div>
             ))}
-            <button
+            <ConfirmAction
+              actionLabel="Finalize skin-test plan"
+              confirmLabel="Confirm final plan"
+              description="Finalizing prevents further changes to which samples receive a skin test."
               disabled={task.busy || enrollment.skin_plan_locked}
-              onClick={() =>
+              onConfirm={() =>
                 void task.run(async () => {
                   await api.post(`/calibration/enrollments/${enrollment.id}/lock-skin-plan`)
                   await refresh()
                 })
               }
-            >
-              Finalize skin-test plan
-            </button>
+            />
             <ConfirmAction
               actionLabel="Reveal completed baseline"
               confirmLabel="Confirm reveal"
               description="Reveal makes fragrance identities visible for this enrollment. Confirm that all required blind responses are locked."
-              disabled={task.busy || enrollment.revealed}
+              disabled={task.busy || enrollment.revealed || !enrollment.reveal_eligible}
               onConfirm={() =>
                 void task.run(async () => {
                   await api.post(`/calibration/enrollments/${enrollment.id}/reveal`)
@@ -326,20 +341,21 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                   </fieldset>
                 </form>
                 {!sample.identity && (
-                  <button
+                  <ConfirmAction
+                    actionLabel={`Lock ${stage.toLowerCase()} responses`}
+                    confirmLabel={`Confirm ${stage.toLowerCase()} lock`}
+                    description="Locking ends blind entry for this sample and stage. Review the saved observations before continuing."
                     disabled={
                       task.busy ||
                       (stage === 'BLOTTER' ? sample.blotter_locked : sample.skin_locked)
                     }
-                    onClick={() =>
+                    onConfirm={() =>
                       void task.run(async () => {
                         await api.post(`/calibration/presentations/${sample.id}/lock/${stage}`)
                         await refresh()
                       })
                     }
-                  >
-                    Lock {stage.toLowerCase()} responses
-                  </button>
+                  />
                 )}
                 <h3>Saved observations</h3>
                 {sample.observations.length ? (

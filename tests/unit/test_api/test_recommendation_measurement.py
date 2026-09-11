@@ -63,6 +63,19 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
     run = created.json()
     assert run["impressions"][0]["fragrance_id"] == candidate_id
     impression_id = run["impressions"][0]["id"]
+    assert datetime.fromisoformat(run["impressions"][0]["shown_at"])
+
+    explanation = await test_app.get(
+        f"{API}/recommendation-measurement/impressions/{impression_id}/explanation",
+        headers=IDENTITY,
+    )
+    assert explanation.status_code == 200
+    assert explanation.json()["fragrance_id"] == candidate_id
+    denied_explanation = await test_app.get(
+        f"{API}/recommendation-measurement/impressions/{impression_id}/explanation",
+        headers={"X-Authentik-Username": "unassigned"},
+    )
+    assert denied_explanation.status_code == 403
 
     repeated = await test_app.get(
         f"{API}/recommendation-measurement/runs/{run['id']}", headers=IDENTITY
@@ -84,6 +97,15 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
     assert first.json()["revision"] == 1
     assert second.status_code == 201
     assert second.json()["revision"] == 2
+
+    reopened = await test_app.get(
+        f"{API}/recommendation-measurement/runs/{run['id']}", headers=IDENTITY
+    )
+    assert reopened.status_code == 200
+    saved = reopened.json()["impressions"][0]["responses"]
+    assert [response["revision"] for response in saved] == [1, 2]
+    assert saved[1]["sampling_state"] == "PLANNED"
+    assert saved[1]["interested"] is False
 
     report = await test_app.get(
         f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",

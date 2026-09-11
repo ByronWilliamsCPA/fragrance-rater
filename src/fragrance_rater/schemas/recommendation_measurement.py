@@ -17,30 +17,6 @@ class RunCreate(BaseModel):
     candidate_strategy: Literal["catalog-affinity"] = "catalog-affinity"
 
 
-class ImpressionView(BaseModel):
-    """Candidate and immutable ranking information shown to an evaluator."""
-
-    id: str
-    fragrance_id: str
-    fragrance_name: str
-    fragrance_brand: str
-    rank: int
-    score_type: str
-    score_value: float
-    match_percent: int
-
-
-class RunView(BaseModel):
-    """A recommendation run and its already-persisted impressions."""
-
-    id: str
-    reviewer_id: str
-    algorithm_version: str
-    candidate_strategy: str
-    created_at: datetime
-    impressions: list[ImpressionView]
-
-
 class ResponseCreate(BaseModel):
     """Complete latest feedback state; submission appends a revision."""
 
@@ -81,6 +57,32 @@ class ResponseView(ResponseCreate):
     revision: int
     created_at: datetime
     recorded_by: str | None
+
+
+class ImpressionView(BaseModel):
+    """Candidate and immutable ranking information shown to an evaluator."""
+
+    id: str
+    fragrance_id: str
+    fragrance_name: str
+    fragrance_brand: str
+    rank: int
+    score_type: str
+    score_value: float
+    match_percent: int
+    shown_at: datetime
+    responses: list[ResponseView] = Field(default_factory=list)
+
+
+class RunView(BaseModel):
+    """A recommendation run and its already-persisted impressions."""
+
+    id: str
+    reviewer_id: str
+    algorithm_version: str
+    candidate_strategy: str
+    created_at: datetime
+    impressions: list[ImpressionView]
 
 
 class MetricsView(BaseModel):
