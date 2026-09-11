@@ -420,6 +420,10 @@ This table preserves the complete P0 review so later sprints do not lose its con
 | Published notes, perceived notes, and model interpretations could be conflated | Vision, ADR-006, D1, and D3 separate these layers |
 | Small-support lift could be misleading | D2 requires support, denominator handling, and versioned filtering/shrinkage |
 | External iframe integration could leak data | D3 restricts it to post-reveal and validates origin/source with no evaluator payload |
+| Generic YAML validation rejected supported `!ENV` and Compose `!reset` tags | P1 narrowed the generic hook exclusion; dedicated validators remain active |
+| Strict JSON validation treated TypeScript JSONC configuration as JSON | P1 excludes only the JSONC TypeScript configuration files |
+| Existing shebang maintenance scripts were not executable | P1 corrected their executable modes and the repository-wide hook passes |
+| The FIPS workflow declared a string default for a Boolean dispatch input | P1 corrected the type and the workflow schema validator passes |
 
 ## 18. Evidence locations
 
