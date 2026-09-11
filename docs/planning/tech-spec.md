@@ -16,7 +16,7 @@ boundaries and invariants rather than duplicating every request field.
 
 | Layer | Technology | Responsibility |
 | :--- | :--- | :--- |
-| Frontend | React 19, TypeScript, Vite | Functional single-component prototype; P3-P6 deliver routed, role-aware participant, manager, reporting, and operational workflows before F1 |
+| Frontend | React 19, TypeScript, Vite | P3 routed, role-aware foundation implemented; P4-P6 complete participant, manager, reporting, and operational workflows before F1 |
 | API | FastAPI, Python | Validation, access policy, workflow orchestration, scoring, import |
 | Data | PostgreSQL 16, SQLAlchemy 2, Alembic | Catalog, evidence history, controlled programs, checkpoints |
 | Authentication edge | Authentik forward-auth through Traefik | Verified production identity and access boundary |
