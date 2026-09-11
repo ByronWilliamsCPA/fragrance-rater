@@ -356,7 +356,8 @@ END BASELINE DEVELOPMENT STANDARDS
 
 ## Project Planning Documents
 
-> **Status**: P0 planning baseline ready for core-maintainer review. The project plan owns
+> **Status**: P0 and P2 complete; P1 evidence and P3-P6 product UI gates precede F1 family
+> perfume testing. The project plan owns
 > milestone status.
 
 **Planning Documents** (in `docs/planning/`):
@@ -387,7 +388,12 @@ END BASELINE DEVELOPMENT STANDARDS
 |-------|---------------|
 | P0 | Reconcile governing planning documents |
 | P1 | Calibration migration, recovery, security, and deployment readiness |
-| P2 | Recommendation impressions, feedback, sampling, and outcome measurement |
+| P2 | Recommendation impressions, feedback, sampling, and outcome measurement foundation |
+| P3 | Role-aware routed product foundation |
+| P4 | Complete participant experience |
+| P5 | Complete manager, reporting, and operations experience |
+| P6 | Deployed synthetic rehearsal and pilot-readiness decision |
+| F1 | Initial family pilot using actual perfumes |
 | D1 | Source and vocabulary foundation |
 | D2 | Reproducible catalog statistics |
 | D3 | Post-reveal exploration |

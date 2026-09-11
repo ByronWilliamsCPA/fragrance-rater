@@ -67,7 +67,7 @@ model version, candidate strategy, and source snapshot where applicable.
 | Ordinary adoption | At least 50 encounters in the first active month | Usage signal, reported per evaluator |
 | Entry usability | Median ordinary entry time under 30 seconds | Measured task time, not anecdotal recall |
 | Recommendation interest | At least 80% positive among explicit interest responses after 10+ contributing versions | Funnel metric, not predictive accuracy |
-| Sampling conversion | Baseline established during P2 | Fraction of shown recommendations actually sampled |
+| Sampling conversion | Baseline established during F1 after P6 UI readiness | Fraction of shown recommendations actually sampled |
 | Post-sample liking | Improvement over a frozen baseline strategy | Primary recommendation outcome |
 | Would-wear / would-buy | Reported separately from liking | Practical decision outcomes |
 | Catalog coverage and variety | Baseline and thresholds established before D4 | Guard against repetitive or narrow recommendations |
@@ -91,13 +91,17 @@ classification rule, and uncertainty reporting.
 - Controlled programs with hidden repeats and holdouts, randomized presentations, blotter and
   skin observations, locking, reveal, and post-reveal append-only observations.
 - Shared preference history, holdout exclusion, and frozen model checkpoints.
-- React interface for ordinary encounters, controlled capture, and program setup.
+- Functional React prototype for ordinary encounters, controlled capture, program setup, and
+  recommendation interest; P3-P6 complete and rehearse the family-facing product.
 
 ### Planned before discovery work
 
 - Production-grade migration, concurrency, backup/restore, and proxy-boundary validation (P1).
 - Recommendation impression, interest, sampling, and outcome measurement with reproducible
   reporting (P2).
+- Role-aware product foundation, complete participant and manager workflows, and a deployed
+  synthetic rehearsal before real perfume testing (P3-P6).
+- Initial family perfume pilot using only the completed interface (F1).
 
 ### Planned discovery work
 
@@ -150,12 +154,13 @@ classification rule, and uncertainty reporting.
 | :--- | :--- | :--- |
 | The merged calibration migration preserves production history | Restore a production backup clone, upgrade it, validate counts/IDs, and exercise concurrent writes | P1 |
 | Authentik/Traefik prevents direct mutation and mapping access | Test supported routes and direct backend bypass from the deployed network | P1 |
-| Family members will use recommendation feedback consistently | Instrument impressions and outcomes; review missing-response rates | P2 |
-| Interest predicts useful sampling | Compare interest with subsequent blind liking and wear/buy outcomes | P2/D5 |
+| The completed UI supports family tasks without API or database help | Run participant and manager end-to-end tests plus a deployed synthetic rehearsal | P3-P6 |
+| Family members will use recommendation feedback consistently | Instrument impressions and outcomes; review missing-response rates after UI readiness | F1 |
+| Interest predicts useful sampling | Compare interest with subsequent blind liking and wear/buy outcomes | F1/D5 |
 | Authorized source material is sufficient for D1/D2 | Record license/permission evidence and coverage before adoption | D1 |
 | Alias and taxonomy choices improve retrieval without erasing raw labels | Version mappings and test collisions, ambiguous terms, and coverage | D1/D2 |
 | Candidate discovery improves outcomes over existing affinity scoring | Freeze strategies and compare prospectively | D5 |
-| Home connectivity supports intended use | Measure failures during the pilot; preserve printable/export workflows | P2 |
+| Home connectivity supports intended use | Rehearse failure handling in P6 and measure failures during F1 | P6/F1 |
 
 ## Related documents
 
