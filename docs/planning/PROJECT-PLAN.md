@@ -61,13 +61,12 @@ Status terms:
 
 ```text
 P0 Planning baseline
- ├─ P1 Release evidence -------------------------------┐
- ├─ P2 Measurement foundation -------------------------┤
- └─ P3 UX foundation → P4 Participant UI → P5 Manager UI
-                                                       └─ P6 Integrated pilot readiness
-                                                           └─ F1 Initial family pilot
-                                                               └─ D1 → D2 ┬→ D3
-                                                                           └→ D4 → D5
+ ├─ P1 Release evidence ------------------------------------------┐
+ └─ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
+                                                                  └─ P6 Pilot readiness
+                                                                      └─ F1 Family pilot
+                                                                          └─ D1 → D2 ┬→ D3
+                                                                                      └→ D4 → D5
 ```
 
 P1 evidence may be gathered while P3-P5 are implemented, but its deployed UI, disclosure, and
@@ -116,10 +115,11 @@ deploy on the real PostgreSQL and Authentik/Traefik topology.
 
 **Owner:** Core maintainer
 
-**Status:** Repository controls implemented; external evidence gathered through P6
+**Status:** Repository controls implemented; external evidence pending through P6
 
 **Depends on:** P0
-**Blocks:** P6 and F1
+**Blocks:** F1. P1 repository controls are required to enter P6; full P1 evidence is completed
+and reviewed as P6.1 before P6 can close.
 
 ### Work packages
 
@@ -160,7 +160,7 @@ family pilot.
 **Status:** Complete
 
 **Depends on:** P0
-**Blocks:** P4, P5, P6, and D5
+**Blocks:** P3, P4, P5, P6, and D5
 
 ### Measurement events
 
@@ -280,6 +280,8 @@ without direct database changes or ad hoc API calls.
   secrets or private payloads.
 - Authorization and disclosure tests cover every manager route, cache, error, export, and UI
   state.
+- The disclosure matrix includes a participant requesting a cached manager response and records
+  the `no-store`, policy-aware cache key, or equivalent control used to prevent cross-role reuse.
 
 ## 11. Milestone P6: Integrated pilot readiness
 
@@ -298,14 +300,17 @@ before any family member evaluates an actual pilot perfume.
 - A production-like deployment passes participant, recorder, and manager journeys through
   Authentik/Traefik on supported desktop and family mobile devices.
 - Synthetic/demo data exercises program setup, labels, blind observations, locks, reveal,
-  ordinary history, recommendations, feedback revisions, sampling, outcomes, reporting, and
-  recovery without using pilot perfumes or outcomes.
+  ordinary history, recommendations, feedback revisions, sampling, synthetic outcomes,
+  reporting, and recovery without using pilot perfumes or real family outcomes.
 - Accessibility, keyboard, disclosure, responsive, performance, and failure-recovery checks pass
   for every pilot-critical page.
 - Backup/restore, logs, alerts, secret rotation ownership, and printable/manual outage procedures
   are rehearsed.
 - Participant and manager instructions are complete, and the core maintainer records a go/no-go
   decision for F1.
+
+P6 closes only when every criterion passes and the recorded decision is `go`. Any failed
+criterion or `no-go` decision keeps F1 blocked.
 
 ## 12. Milestone F1: Initial family perfume pilot
 
@@ -327,8 +332,8 @@ values before discovery work.
 - Reports retain interest, response coverage, sampling conversion, post-sample liking, wear/buy,
   availability, coverage, variety, and connectivity/recovery counts with denominators.
 - The review records usability problems separately from fragrance or algorithm outcomes.
-- The core maintainer retains a redacted evidence export and records whether to proceed to D1,
-  revise the UI, extend the pilot, or stop.
+- The core maintainer retains a redacted evidence export and records a decision. Only a
+  proceed-to-D1 decision completes F1 for sequencing; revise, extend, or stop keeps D1 blocked.
 
 ## 13. Milestone D1: Source and vocabulary foundation
 

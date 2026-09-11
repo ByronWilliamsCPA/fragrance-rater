@@ -27,8 +27,9 @@ Assigned holdout versions are removed from candidate generation regardless of th
 current holdouts conservatively. Reports use the latest response revision and expose numerator
 and denominator counts alongside rates.
 
-The evaluator UI records interest or pass in one tap. Sampling state, outcome linking, wear, and
-buy can be added with later API revisions. Managers retrieve the report from
+The current evaluator UI records interest or pass in one tap. The implemented feedback API also
+accepts sampling state, outcome linking, wear, and buy in later append-only response revisions;
+P4 exposes those follow-up actions in the participant UI. Managers retrieve the report from
 `GET /api/v1/recommendation-measurement/reviewers/{reviewer_id}/metrics`. Optional
 `window_start` and `window_end` query parameters bound the report; the response always states the
 effective window and frozen run provenance. When `window_start` is omitted, the API applies a

@@ -19,19 +19,12 @@ behavior but does not silently supersede an accepted ADR.
 ## Current sequence
 
 ```text
-P0 Planning baseline
- → P1 Calibration release readiness
- → P2 Recommendation measurement foundation
- → P3 Product UX foundation
- → P4 Participant experience
- → P5 Manager and operations experience
- → P6 Integrated pilot readiness
- → F1 Initial family perfume pilot
- → D1 Source and vocabulary foundation
- → D2 Reproducible catalog statistics
- → D3 Post-reveal exploration
- → D4 Candidate discovery pilot
- → D5 Prospective evaluation
+P0 ┬→ P1 Calibration release readiness --------------------------┐
+   └→ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
+                                                                    └→ P6 Pilot readiness
+                                                                        └→ F1 Family pilot
+                                                                            └→ D1 → D2 ┬→ D3
+                                                                                        └→ D4 → D5
 ```
 
 P1 evidence can proceed alongside P3-P5, but P6 must close P1 against the final deployed UI.

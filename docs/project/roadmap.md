@@ -22,7 +22,7 @@ subject to the P1 deployment gate.
 | Milestone | Outcome | Status |
 | :--- | :--- | :--- |
 | P0 | Reconciled planning baseline | Complete |
-| P1 | Calibration deployment, migration, recovery, and security readiness | Repository complete; deployment evidence pending |
+| P1 | Calibration deployment, migration, recovery, and security readiness | Repository complete; external evidence pending through P6 |
 | P2 | Recommendation impression, feedback, sampling, and outcome measurement foundation | Complete |
 | P3 | Role-aware routed product foundation | Planned |
 | P4 | Complete participant interface | Planned |
@@ -36,7 +36,8 @@ subject to the P1 deployment gate.
 | D5 | Prospective comparison and strategy decision | Planned |
 
 Actual pilot perfume testing cannot begin until P6 is complete. D1 cannot begin until F1 is
-complete.
+complete with a proceed-to-D1 decision. P1 evidence proceeds in parallel, while the product
+sequence is P2 → P3 → P4 → P5; both paths join at P6.
 
 ## Planning documents
 

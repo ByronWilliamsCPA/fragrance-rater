@@ -11,13 +11,13 @@ the same pull request.
 | Milestone | Outcome | Status | Entry gate | Exit gate |
 | :--- | :--- | :--- | :--- | :--- |
 | P0 | Reconciled planning baseline | Complete | Calibration merged | Governing documents agree and later gates are implementation-ready |
-| P1 | Calibration release readiness | Repository controls complete; external evidence gathered through P6 | P0 complete | Target PostgreSQL, recovery, proxy, disclosure, operations, and target-UI evidence reviewed |
+| P1 | Calibration release readiness | Repository controls complete; external evidence pending through P6 | P0 complete | Target PostgreSQL, recovery, proxy, disclosure, operations, and target-UI evidence reviewed |
 | P2 | Recommendation measurement foundation | Complete | P0 complete | Impressions, feedback, sampling, outcomes, events, and provenance-complete metrics implemented |
 | P3 | Product UX foundation | Planned | P0 and P2 complete | Role-aware routed shell, shared components, typed API policy, accessibility baseline accepted |
 | P4 | Participant experience | Planned | P3 complete | Ordinary, calibration, recommendation, sampling, and outcome workflows usable without IDs or API tools |
 | P5 | Manager and operations experience | Planned | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
-| P6 | Integrated pilot readiness | Planned | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and go/no-go accepted |
-| F1 | Initial family perfume pilot | Planned | P6 complete | Real-use baselines, usability evidence, provenance export, and proceed/revise/stop decision reviewed |
+| P6 | Integrated pilot readiness | Planned | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
+| F1 | Initial family perfume pilot | Planned | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
 | D1 | Source and vocabulary foundation | Planned | F1 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
 | D3 | Post-reveal exploration | Planned | D2 and P1 complete | Accessible, disclosure-safe evidence-layer profiles accepted |
@@ -27,11 +27,10 @@ the same pull request.
 ## Dependency path
 
 ```text
-P0 ┬→ P1 ----------------------------------┐
-   ├→ P2 ----------------------------------┤
-   └→ P3 → P4 → P5 -----------------------┤
-                                           └→ P6 → F1 → D1 → D2 ┬→ D3
-                                                                  └→ D4 → D5
+P0 ┬→ P1 ----------------------------------------------┐
+   └→ P2 → P3 → P4 → P5 ------------------------------┤
+                                                       └→ P6 → F1 → D1 → D2 ┬→ D3
+                                                                              └→ D4 → D5
 ```
 
 ## Immediate queue
