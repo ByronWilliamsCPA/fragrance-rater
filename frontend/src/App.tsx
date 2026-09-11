@@ -4,6 +4,19 @@ import './App.css'
 
 const apiRoot = import.meta.env.PROD ? import.meta.env.VITE_API_URL || '/api' : '/api'
 const api = axios.create({ baseURL: `${apiRoot.replace(/\/$/, '')}/v1` })
+const recommendationRunParameter = 'recommendation_run'
+
+function persistedRecommendationRunId() {
+  return new URLSearchParams(window.location.search).get(recommendationRunParameter)
+}
+
+function persistRecommendationRunId(runId: string | null) {
+  const url = new URL(window.location.href)
+  if (runId) url.searchParams.set(recommendationRunParameter, runId)
+  else url.searchParams.delete(recommendationRunParameter)
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 type Assignment = { id: string; program_id: string; reviewer_id: string }
 type Observation = {
   id: string
@@ -121,6 +134,12 @@ function App() {
   }
   useEffect(() => {
     void load().catch(fail)
+    const runId = persistedRecommendationRunId()
+    if (runId)
+      void hydrateRecommendationRun(runId).catch((reason) => {
+        persistRecommendationRunId(null)
+        fail(reason)
+      })
   }, [])
   const scale = (name: string, max: number, disabled = false) => (
     <label key={name}>
@@ -138,15 +157,36 @@ function App() {
   async function searchCatalog() {
     setCatalog((await api.get('/fragrances', { params: { q: catalogQuery, limit: 100 } })).data)
   }
-  async function startRecommendationRun() {
+  async function hydrateRecommendationRun(runId: string) {
+    const response = await api.get(`/recommendation-measurement/runs/${runId}`)
+    setRecommendationRun(response.data)
+    setRecommendationReviewer(response.data.reviewer_id)
+    setInterest({})
+  }
+  async function createRecommendationRun() {
     const response = await api.post('/recommendation-measurement/runs', {
       reviewer_id: recommendationReviewer,
       limit: 10,
       exclude_rated: true,
     })
     setRecommendationRun(response.data)
+    persistRecommendationRunId(response.data.id)
     setInterest({})
     setNotice('Recommendations saved. Your response helps measure what is useful.')
+  }
+  async function startRecommendationRun() {
+    const runId = persistedRecommendationRunId()
+    if (runId) {
+      await hydrateRecommendationRun(runId)
+      setNotice('Saved recommendations reopened without creating another impression.')
+      return
+    }
+    await createRecommendationRun()
+  }
+  async function startNewRecommendationRun() {
+    persistRecommendationRunId(null)
+    setRecommendationRun(null)
+    await createRecommendationRun()
   }
   async function recordInterest(impressionId: string, interested: boolean) {
     await api.post(`/recommendation-measurement/impressions/${impressionId}/responses`, {
@@ -575,6 +615,7 @@ function App() {
                 onChange={(e) => {
                   setRecommendationReviewer(e.target.value)
                   setRecommendationRun(null)
+                  persistRecommendationRunId(null)
                 }}
               >
                 <option value="">Choose evaluator</option>
@@ -591,6 +632,11 @@ function App() {
             >
               Get recommendations
             </button>
+            {recommendationRun && (
+              <button className="secondary" disabled={busy} onClick={() => void act(startNewRecommendationRun)}>
+                Start new set
+              </button>
+            )}
             {recommendationRun && (
               <div className="recommendation-grid">
                 {recommendationRun.impressions.map((item) => (

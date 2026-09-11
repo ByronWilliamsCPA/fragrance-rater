@@ -6,6 +6,8 @@ import importlib.util
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import pytest
+
 if TYPE_CHECKING:
     from types import ModuleType
 
@@ -143,12 +145,27 @@ def test_production_topology_rejects_direct_backend_port() -> None:
     assert validator.validate_topology(config) == ["service app publishes a host port"]
 
 
-def test_production_topology_rejects_host_networking() -> None:
-    """Host networking cannot bypass the no-published-port control."""
+@pytest.mark.parametrize(
+    ("service", "network_mode"),
+    [
+        ("app", "host"),
+        ("app", "service:frontend"),
+        ("app", "container:proxy"),
+        ("db", "host"),
+        ("db", "service:app"),
+        ("db", "container:database"),
+    ],
+)
+def test_production_topology_rejects_private_network_modes(
+    service: str, network_mode: str
+) -> None:
+    """Private services cannot bypass declared network isolation."""
     validator = load_script("validate_production_topology")
     config = valid_topology()
-    config["services"]["app"]["network_mode"] = "host"
-    assert validator.validate_topology(config) == ["service app uses host networking"]
+    config["services"][service]["network_mode"] = network_mode
+    assert validator.validate_topology(config) == [
+        f"service {service} must not set network_mode={network_mode}"
+    ]
 
 
 def test_production_topology_rejects_unrelated_middleware_chain() -> None:

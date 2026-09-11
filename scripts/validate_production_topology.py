@@ -22,7 +22,10 @@ def validate_topology(config: object) -> list[str]:
             continue
         if service.get("ports"):
             errors.append(f"service {name} publishes a host port")
-        if service.get("network_mode") == "host":
+        network_mode = service.get("network_mode")
+        if name in {"app", "db"} and network_mode:
+            errors.append(f"service {name} must not set network_mode={network_mode}")
+        elif network_mode == "host":
             errors.append(f"service {name} uses host networking")
         if service.get("volumes") and name in {"app", "frontend"}:
             errors.append(f"service {name} retains a development source mount")

@@ -22,8 +22,23 @@ const enrollment = {
     },
   ],
 }
+const recommendationRun = {
+  id: 'run-1',
+  reviewer_id: 'r',
+  impressions: [
+    {
+      id: 'impression-1',
+      fragrance_id: 'f-1',
+      fragrance_name: 'Candidate',
+      fragrance_brand: 'House',
+      rank: 1,
+      match_percent: 78,
+    },
+  ],
+}
 beforeEach(() => {
   vi.clearAllMocks()
+  window.history.replaceState({}, '', '/')
   get.mockImplementation((path: string) => {
     const responses: Record<string, unknown> = {
       '/reviewers': [{ id: 'r', name: 'Evaluator' }],
@@ -71,22 +86,7 @@ describe('Calibration participant workflow', () => {
   it('records recommendation interest with one interaction', async () => {
     post.mockImplementation((path: string) => {
       if (path === '/recommendation-measurement/runs') {
-        return Promise.resolve({
-          data: {
-            id: 'run-1',
-            reviewer_id: 'r',
-            impressions: [
-              {
-                id: 'impression-1',
-                fragrance_id: 'f-1',
-                fragrance_name: 'Candidate',
-                fragrance_brand: 'House',
-                rank: 1,
-                match_percent: 78,
-              },
-            ],
-          },
-        })
+        return Promise.resolve({ data: recommendationRun })
       }
       return Promise.resolve({ data: { revision: 1 } })
     })
@@ -101,5 +101,28 @@ describe('Calibration participant workflow', () => {
         { interested: true }
       )
     )
+    expect(window.location.search).toBe('?recommendation_run=run-1')
+  })
+  it('restores a saved recommendation run without creating another exposure', async () => {
+    window.history.replaceState({}, '', '/?recommendation_run=run-1')
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
+        '/calibration/access': { manager: false },
+        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+        '/recommendation-measurement/runs/run-1': recommendationRun,
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Recommendations' }))
+
+    expect(await screen.findByRole('heading', { name: 'Candidate' })).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/recommendation-measurement/runs/run-1')
+    expect(post).not.toHaveBeenCalledWith('/recommendation-measurement/runs', expect.anything())
   })
 })
