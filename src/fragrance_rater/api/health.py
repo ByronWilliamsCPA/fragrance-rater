@@ -16,25 +16,30 @@ from __future__ import annotations
 
 import sys
 import time
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from fragrance_rater.core.database import get_db
 from fragrance_rater.utils.logging import get_logger
-
-router = APIRouter(prefix="/health", tags=["health"])
 
 logger = get_logger(__name__)
 
+router = APIRouter(prefix="/health", tags=["health"])
+
+# #CRITICAL: security: a dependency-check exception's str() can carry the DB
+# host, username, or an auth-failure message (e.g. libpq's "password
+# authentication failed for user ...") straight into the readiness response
+# body, which is unauthenticated by design (Kubernetes/monitoring probes).
+# #VERIFY: the real exception is logged server-side only; the client-facing
+# ReadinessCheck.error is always this fixed, non-identifying message.
+_GENERIC_DEPENDENCY_ERROR = "dependency unreachable"
+
 # Track application start time for uptime calculation
 _START_TIME = time.time()
-
-# Readiness probes are unauthenticated, so the response body must never
-# carry raw exception text. Driver-level connection errors routinely embed
-# the DSN, host, port, and user, which would leak infrastructure detail (and
-# potentially a credential) to any caller. The full exception is logged
-# server-side instead; the caller only learns which dependency is down.
-_GENERIC_CHECK_ERROR = "dependency check failed; see server logs for detail"
 
 
 class HealthStatus(BaseModel):
@@ -52,8 +57,10 @@ class ReadinessCheck(BaseModel):
 
     name: str = Field(..., description="Dependency name")
     status: bool = Field(..., description="Check passed")
-    latency_ms: float | None = Field(None, description="Check latency in milliseconds")
-    error: str | None = Field(None, description="Error message if failed")
+    latency_ms: float | None = Field(
+        default=None, description="Check latency in milliseconds"
+    )
+    error: str | None = Field(default=None, description="Error message if failed")
 
 
 class ReadinessStatus(HealthStatus):
@@ -88,24 +95,25 @@ async def liveness() -> HealthStatus:
     )
 
 
-async def check_database() -> ReadinessCheck:
+async def check_database(session: AsyncSession) -> ReadinessCheck:
     """Check database connectivity.
+
+    Args:
+        session (AsyncSession): Database session for the request lifecycle.
+            Critical finding 1: this must come from the `get_db` FastAPI
+            dependency (injected by the caller), not from `get_session()`
+            called directly. `get_session()` bypasses the
+            `app.dependency_overrides[get_db]` mechanism the test suite uses
+            to swap in a SQLite-backed session, so a direct call always opens
+            a real connection to `settings.database_url` even under test.
 
     Returns:
         ReadinessCheck: Database status and latency.
     """
     start = time.time()
     try:
-        # Import here to avoid circular dependencies. The module is expected
-        # to exist once a real database layer ships; this scaffold tolerates
-        # its absence via the surrounding except clause.
-        from fragrance_rater.core.database import (  # pyright: ignore[reportMissingImports]
-            get_session,
-        )
-
-        async with get_session() as session:
-            # Simple query to check connectivity
-            await session.execute("SELECT 1")
+        # Simple query to check connectivity
+        await session.execute(text("SELECT 1"))
 
         latency_ms = (time.time() - start) * 1000
         return ReadinessCheck(
@@ -114,14 +122,18 @@ async def check_database() -> ReadinessCheck:
             latency_ms=round(latency_ms, 2),
             error=None,
         )
-    except Exception:
+    except Exception as e:
         latency_ms = (time.time() - start) * 1000
-        logger.exception("readiness check failed", dependency="database")
+        logger.exception(
+            "Database readiness check failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
         return ReadinessCheck(
             name="database",
             status=False,
             latency_ms=round(latency_ms, 2),
-            error=_GENERIC_CHECK_ERROR,
+            error=_GENERIC_DEPENDENCY_ERROR,
         )
 
 
@@ -145,14 +157,18 @@ async def check_cache() -> ReadinessCheck:
             latency_ms=round(latency_ms, 2),
             error=None,
         )
-    except Exception:
+    except Exception as e:
         latency_ms = (time.time() - start) * 1000
-        logger.exception("readiness check failed", dependency="cache")
+        logger.exception(
+            "Cache readiness check failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
         return ReadinessCheck(
             name="cache",
             status=False,
             latency_ms=round(latency_ms, 2),
-            error=_GENERIC_CHECK_ERROR,
+            error=_GENERIC_DEPENDENCY_ERROR,
         )
 
 
@@ -178,14 +194,18 @@ async def check_external_service() -> ReadinessCheck:
             latency_ms=round(latency_ms, 2),
             error=None,
         )
-    except Exception:
+    except Exception as e:
         latency_ms = (time.time() - start) * 1000
-        logger.exception("readiness check failed", dependency="external_api")
+        logger.exception(
+            "External service readiness check failed",
+            error=str(e),
+            error_type=type(e).__name__,
+        )
         return ReadinessCheck(
             name="external_api",
             status=False,
             latency_ms=round(latency_ms, 2),
-            error=_GENERIC_CHECK_ERROR,
+            error=_GENERIC_DEPENDENCY_ERROR,
         )
 
 
@@ -199,7 +219,9 @@ async def check_external_service() -> ReadinessCheck:
     summary="Readiness probe",
     description="Checks if the application can serve traffic. Used by Kubernetes readiness probe.",
 )
-async def readiness() -> ReadinessStatus:
+async def readiness(
+    session: Annotated[AsyncSession, Depends(get_db)],
+) -> ReadinessStatus:
     """Kubernetes readiness probe.
 
     Checks all critical dependencies:
@@ -209,6 +231,12 @@ async def readiness() -> ReadinessStatus:
 
     Returns HTTP 503 if any critical dependency is unavailable.
     If this fails, Kubernetes will stop sending traffic to this pod.
+
+    Args:
+        session (Annotated[AsyncSession, Depends(get_db)]): Database session,
+            injected via the `get_db` FastAPI dependency so the test suite's
+            `app.dependency_overrides[get_db]` takes effect here too
+            (Critical finding 1).
 
     Returns:
         ReadinessStatus: Per-dependency check results and overall uptime.
@@ -220,7 +248,7 @@ async def readiness() -> ReadinessStatus:
 
     # Run all checks in parallel for better performance
     # For now, run sequentially - can be optimized with asyncio.gather()
-    checks["database"] = await check_database()
+    checks["database"] = await check_database(session)
     # Uncomment if using cache:
     # checks["cache"] = await check_cache()
 

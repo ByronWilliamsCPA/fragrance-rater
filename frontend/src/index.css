@@ -1,16 +1,10 @@
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+html {
+  min-width: 320px;
 }
-
-body {
-  margin: 0;
-  padding: 0;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+a {
+  color: #234f45;
 }
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+:focus-visible {
+  outline: 3px solid #b3893e;
+  outline-offset: 3px;
 }

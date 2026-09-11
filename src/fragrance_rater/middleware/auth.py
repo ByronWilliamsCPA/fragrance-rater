@@ -1,12 +1,15 @@
-"""Shared household API key authentication for mutating endpoints.
+"""Shared household API key authentication for mutating or LLM-backed endpoints.
 
 This is a personal, single-household application (see ``project-vision.md``);
 there is no per-user account system. Every endpoint that mutates state or
-triggers a billed upstream call (the LLM rating endpoint) must still require
-*some* explicit credential rather than relying on network-level obscurity
-(e.g. "it's only reachable on the home LAN"). A single shared API key sent as
-the ``X-API-Key`` header is a proportionate control for this deployment size;
-do not build out a full OAuth2/JWT/session system for a household app.
+triggers a billed upstream call (currently ``POST /ratings`` and, in
+``fragrance_rater.api.recommendations``, ``GET /{reviewer_id}/profile`` and
+``GET /{reviewer_id}/{fragrance_id}/explain``, all of which can invoke the
+billed OpenRouter LLM) must still require *some* explicit credential rather
+than relying on network-level obscurity (e.g. "it's only reachable on the
+home LAN"). A single shared API key sent as the ``X-API-Key`` header is a
+proportionate control for this deployment size; do not build out a full
+OAuth2/JWT/session system for a household app.
 
 Read-only, non-billed endpoints (``GET /fragrances*``, ``GET /health/*``) are
 intentionally left unauthenticated: they return static/local catalog data
@@ -58,12 +61,17 @@ def require_api_key(
 
     Apply this as a ``dependencies=[Depends(require_api_key)]`` entry (or a
     direct parameter) on every mutating route (``POST``/``PUT``/``PATCH``/
-    ``DELETE``). Read-only routes should not depend on this.
+    ``DELETE``) and on every route, mutating or not, that can trigger a
+    billed upstream LLM call (e.g. the ``GET`` routes in
+    ``fragrance_rater.api.recommendations`` that call OpenRouter). Read-only,
+    non-billed routes should not depend on this.
 
-    #CRITICAL: security: without this check, mutating endpoints (currently
-    ``POST /ratings``, which triggers a billed OpenRouter call) would be
-    reachable by anyone who can route a request to the service, relying only
-    on network placement for protection.
+    #CRITICAL: security: without this check, endpoints that mutate state or
+    trigger a billed OpenRouter call (currently ``POST /ratings``, and
+    ``GET /{reviewer_id}/profile`` / ``GET /{reviewer_id}/{fragrance_id}/explain``
+    in ``fragrance_rater.api.recommendations``) would be reachable by anyone
+    who can route a request to the service, relying only on network
+    placement for protection.
     #VERIFY: deployments outside a fully trusted, single-household LAN must
     set ``FRAGRANCE_RATER_API_KEY`` to a long random value and configure
     callers to send it as ``X-API-Key``. CI sets a fixture key so the Newman

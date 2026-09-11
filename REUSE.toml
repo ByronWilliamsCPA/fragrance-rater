@@ -19,6 +19,8 @@ path = [
     "benchmarks/**/*.py",
     "scripts/**/*.py",
     "modal/**/*.py",
+    "alembic/**/*.py",  # Migration scripts (feat/recover-phase-0-4)
+    "alembic/**/*.mako",  # script.py.mako revision template
     "*.py",
     "noxfile.py",
 ]
@@ -32,6 +34,7 @@ path = [
     "*.md",
     "tmp_cleanup/**/*.md",  # Temporary reference files
     "benchmarks/*.md",  # Benchmark documentation (not reports)
+    "alembic/README",  # Alembic's generic-template README
     "!LICENSES/*.txt",  # Exclude actual license text files
 ]
 SPDX-License-Identifier = "CC-BY-4.0"
@@ -54,6 +57,7 @@ path = [
     "requirements/**/*.txt",  # Generated from poetry export
     "benchmarks/labelmaps/**/*.yaml",  # Benchmark label mappings
     ".zenodo.json",  # Zenodo metadata for DOI
+    "alembic.ini",  # Alembic migration runner configuration
 ]
 SPDX-License-Identifier = "CC0-1.0"
 SPDX-FileCopyrightText = "2025 Byron Williams"
@@ -155,6 +159,7 @@ path = [
     "frontend/Dockerfile",
     "frontend/nginx.conf",
     "frontend/package.json",
+    "frontend/package-lock.json",
     "frontend/tsconfig*.json",
     "frontend/vite.config.ts",
     "frontend/eslint.config.js",

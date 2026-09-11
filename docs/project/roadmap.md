@@ -27,7 +27,11 @@ Development roadmap for Fragrance Rater.
 
 ### Phase 2: Enhancement
 
-- [ ] Additional features (TBD)
+- [ ] Integrate controlled calibration and retained ordinary encounter history
+- [ ] Verify baseline versions and complete migration/deployment gates
+- [ ] Add versioned note aliases and source provenance
+- [ ] Build reproducible note statistics and post-reveal exploration
+- [ ] Pilot candidate discovery with prospective validation
 - [ ] Performance optimizations
 - [ ] Extended documentation
 
@@ -56,3 +60,5 @@ For detailed project planning documents, see:
 - [Project Vision](../planning/project-vision.md)
 - [Technical Spec](../planning/tech-spec.md)
 - [Development Roadmap](../planning/roadmap.md)
+
+See the [current project plan](../planning/PROJECT-PLAN.md#7-follow-up-explore-and-candidate-discovery) for dependencies and acceptance criteria, and the [Scent chords analysis](../research/scent-chords-analysis.md) for evidence. These items are planned, not a claim of deployed functionality.

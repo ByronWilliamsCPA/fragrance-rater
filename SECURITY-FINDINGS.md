@@ -106,7 +106,7 @@ When LLM-generated recommendation explanations are rendered:
 2. **If markdown rendering is desired** for the explanation pane, use `react-markdown` with the default sanitizer (or `rehype-sanitize` with a strict allow-list). Do not enable `rehype-raw` or any HTML-passthrough plugin for LLM-sourced content.
 3. **Never evaluate model output as code.** Do not pass model output to `eval`, `Function()`, `setTimeout(string, ...)`, `dangerouslySetInnerHTML`, `exec`, `subprocess.shell=True`, or SQL string concatenation.
 4. **Validate structured output.** If the model is asked to return JSON (e.g., a recommendation list), parse it with `pydantic` and reject anything that doesn't match the schema before passing it on to the frontend.
-5. **Server-side rate-limit and length-cap LLM responses** before forwarding to the client (the existing `RateLimitMiddleware` in `src/fragrance_rater/middleware/security.py:104` handles per-IP request rate; a separate per-user token budget should be added).
+5. **Server-side rate-limit and length-cap LLM responses** before forwarding to the client (the `slowapi`-backed limiter in `src/fragrance_rater/middleware/rate_limit.py` handles per-IP request rate; a separate per-user token budget should be added).
 
 ---
 
@@ -160,7 +160,7 @@ When the OpenRouter client is wired up:
 When this prototype migrates to `src/`, fix by:
 - Adding session/JWT auth middleware before the router.
 - Replacing `reviewer_id: int` in the path with an authenticated `current_user` dependency, and only allowing access where `current_user.id == reviewer_id` (or an admin role).
-- Adding a per-user budget for LLM calls separate from the IP-based `RateLimitMiddleware`.
+- Adding a per-user budget for LLM calls separate from the IP-based `slowapi` limiter (`src/fragrance_rater/middleware/rate_limit.py`).
 
 ### 4.3 One frontend pattern flagged for future hardening
 

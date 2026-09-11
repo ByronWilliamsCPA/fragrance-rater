@@ -206,3 +206,8 @@ This is a personal/family project, but suggestions welcome!
 ## License
 
 MIT
+
+## Discovery research
+
+- [Scent chords: analysis and integration reference](../research/scent-chords-analysis.md)
+- [Updated project plan and follow-up acceptance criteria](PROJECT-PLAN.md#7-follow-up-explore-and-candidate-discovery)

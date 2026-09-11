@@ -729,3 +729,7 @@ Thank you to all contributors and the open-source community!
 ---
 
 **Made with by [Byron Williams](https://github.com/ByronWilliamsCPA)**
+
+## Controlled calibration
+
+See [Controlled calibration V1](docs/calibration-v1.md) for encounter history, blind testing, manager setup, training policies, and migration safety. This document supersedes the older single-rating and name/brand-only identity assumptions.

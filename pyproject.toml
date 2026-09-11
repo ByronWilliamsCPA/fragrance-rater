@@ -71,6 +71,10 @@ dependencies = [
     #
     # UV handles these automatically based on the Python version being used.
     # See: https://docs.astral.sh/uv/concepts/dependencies/#dependency-specifiers
+    "asyncpg>=0.31.0",
+    "httpx>=0.28.1",
+    "beautifulsoup4>=4.14.3",
+    "lxml>=6.0.2",
     "slowapi>=0.1.10",
 ]
 
@@ -84,6 +88,7 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-xdist>=3.3.0",
     "hypothesis>=6.82.0",
+    "aiosqlite>=0.22.1",  # Async SQLite driver for the test database
 
     # Code Quality (always included)
     "ruff>=0.9.0",
@@ -180,6 +185,16 @@ packages = ["src/fragrance_rater"]
 # Ruff Configuration - Consolidated Linting & Formatting
 [tool.ruff]
 line-length = 88
+# #ASSUME: external-resources: this is "py312" even though `requires-python`
+# above claims ">=3.10" and the Python Compatibility Matrix CI workflow
+# actually tests 3.10-3.13. Lowering this to "py310" to match would be the
+# more correct fix (it's what caught cli.py's PEP 695 `def f[T](...)`
+# syntax, a real SyntaxError on 3.10/3.11, during PR #66 review), but it
+# also reformats ~13 unrelated files under ruff's version-gated formatter
+# rules - out of scope for this change. See docs/template_feedback.md /
+# the PR #66 review notes for the follow-up to reconcile this properly.
+# #VERIFY: `utils/timestamps.py`'s UP017 ignore below exists because of
+# this exact mismatch; don't "fix" it by accepting ruff's UP017 suggestion.
 target-version = "py312"
 exclude = [
     ".git",
@@ -312,9 +327,28 @@ convention = "google"
 [tool.ruff.lint.isort]
 known-first-party = ["fragrance_rater"]
 
+[tool.ruff.lint.flake8-type-checking]
+# SQLAlchemy and pydantic resolve annotations at runtime, so imports that only
+# appear in their model annotations must stay outside TYPE_CHECKING blocks.
+runtime-evaluated-base-classes = [
+    "sqlalchemy.orm.DeclarativeBase",
+    "fragrance_rater.core.database.Base",
+    "pydantic.BaseModel",
+    "pydantic_settings.BaseSettings",
+]
+
 [tool.ruff.lint.per-file-ignores]
 # Module init files
 "__init__.py" = ["F401", "D104"]
+
+# Alembic migration environment: alembic/ is a script directory loaded by the
+# alembic CLI, not an importable package, so it intentionally has no __init__.py
+"alembic/**/*.py" = ["INP001"]
+
+# ORM models: relationship targets are resolved lazily by SQLAlchemy's registry
+# using the class name, so the circular model imports really are type-only even
+# though runtime-evaluated-base-classes treats Base annotations as runtime
+"src/fragrance_rater/models/*.py" = ["TC004"]
 
 # Test files (relaxed rules for test code)
 "tests/**/*.py" = [
@@ -402,11 +436,24 @@ known-first-party = ["fragrance_rater"]
     "ARG001",  # request required by @limiter.limit (slowapi) interface
 ]
 
+# Recommendations endpoints - same slowapi rate-limit decorator requirement
+# as ratings.py above: /profile and /explain both call the billed LLM
+# service, so both need the `request` parameter for @limiter.limit even
+# though neither handler body references it directly.
+"src/*/api/recommendations.py" = [
+    "ARG001",  # request required by @limiter.limit (slowapi) interface
+]
+
 # API health checks - Example code with template patterns
 "src/*/api/health.py" = [
     "ERA001",  # Commented code shows implementation examples
     "BLE001",  # Blind except in health checks for maximum resilience
     "PLC0415", # Local imports to avoid circular dependencies
+    "TC002",   # AsyncSession must stay runtime-available: `from __future__
+               # import annotations` makes the Depends(get_db) annotation a
+               # string, but FastAPI still resolves it via get_type_hints()
+               # at startup, so moving the import into TYPE_CHECKING breaks
+               # dependency injection (same class of exception as logging.py)
 ]
 
 # Security middleware - SSRF protection with intentional patterns
@@ -430,6 +477,24 @@ known-first-party = ["fragrance_rater"]
 "src/*/utils/logging.py" = [
     "ARG001",  # Unused args required by structlog processor interface
     "TC002",   # Processor needs to be runtime-available
+]
+
+# Timestamp utilities - must stay importable on Python 3.10
+"src/*/utils/timestamps.py" = [
+    "UP017",   # ruff's target-version above is "py312" (see comment there),
+               # but `requires-python` and the Python Compatibility Matrix CI
+               # workflow both claim/test 3.10+. `datetime.UTC` (the alias
+               # UP017 suggests) does not exist before 3.11; this module uses
+               # `datetime.timezone.utc` deliberately to stay 3.10-compatible.
+]
+
+# CLI entry point - run_async must parse on Python 3.10/3.11
+"src/*/cli.py" = [
+    "UP047",   # Same target-version mismatch as timestamps.py above: PEP 695
+               # `def f[T](...)` generic syntax (which UP047 suggests) is
+               # 3.12-only and is a hard SyntaxError, not just unidiomatic,
+               # on the 3.10/3.11 floor this project actually claims and
+               # tests in CI. run_async uses an explicit TypeVar instead.
 ]
 
 # Quality gate script - Intentional URL handling

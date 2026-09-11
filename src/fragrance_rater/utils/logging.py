@@ -156,6 +156,69 @@ def get_logger(name: str) -> BoundLogger:
     return result
 
 
+def log_audit_event(
+    logger: BoundLogger,
+    *,
+    action: str,
+    actor: str | None,
+    target_type: str,
+    target_id: str,
+    **extra: object,
+) -> None:
+    """Log a structured audit event for a mutating action on a tracked entity.
+
+    Critical finding 2: destructive/mutating endpoints on fragrances,
+    evaluations, and reviewers previously had no audit trail. This helper
+    gives every one of those routes one consistent audit log shape: who did
+    what to which entity, with the request's correlation id attached so a
+    soft-delete (or any other mutation) can be traced back to both the
+    acting identity and the specific request that caused it.
+
+    Args:
+        logger (BoundLogger): Structured logger instance from get_logger().
+        action (str): The action performed, e.g. "create", "update",
+            "soft_delete".
+        actor (str | None): The acting identity's username (from the
+            Authentik forward-auth dependency), or None when no Authentik
+            identity is available (local dev/tests/seeded data).
+        target_type (str): The entity type acted upon, e.g. "fragrance".
+        target_id (str): The id of the entity acted upon.
+        **extra (object): Additional context fields to include.
+
+    Example:
+        >>> logger = get_logger(__name__)
+        >>> log_audit_event(
+        ...     logger,
+        ...     action="soft_delete",
+        ...     actor="byron",
+        ...     target_type="fragrance",
+        ...     target_id="abc-123",
+        ... )
+    """
+    # #CRITICAL: security: this is the audit trail for every mutating
+    # request on fragrances/evaluations/reviewers (Critical finding 2). Do
+    # not wrap this in a try/except that swallows failures; a mutation that
+    # was not audited should be visible, not silently lost.
+    # #VERIFY: correlation_id is read directly from request context here
+    # rather than relying solely on structlog's correlation_context_processor,
+    # since that processor only runs when setup_logging() was called with
+    # include_correlation=True in this process (true for the API server and
+    # the test suite, not guaranteed for every entry point e.g. the CLI).
+    from fragrance_rater.middleware.correlation import (  # noqa: PLC0415
+        get_correlation_id,
+    )
+
+    logger.info(
+        "audit_event",
+        action=action,
+        actor=actor,
+        target_type=target_type,
+        target_id=target_id,
+        correlation_id=get_correlation_id(),
+        **extra,
+    )
+
+
 def log_performance(
     logger: BoundLogger,
     operation: str,
