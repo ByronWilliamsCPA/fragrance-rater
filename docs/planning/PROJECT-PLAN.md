@@ -112,7 +112,7 @@ deploy on the real PostgreSQL and Authentik/Traefik topology.
 
 **Owner:** Core maintainer
 
-**Status:** Planned
+**Status:** Repository controls implemented; external evidence pending
 
 **Depends on:** P0
 **Blocks:** P2 and D1
@@ -153,7 +153,7 @@ algorithms or catalog statistics.
 
 **Owner:** Core maintainer
 
-**Status:** Planned
+**Status:** Repository implementation complete; blocked on P1 and pilot evidence
 
 **Depends on:** P1
 **Blocks:** D1 and D5
@@ -186,13 +186,13 @@ algorithms or catalog statistics.
 
 ### P2 acceptance criteria
 
-- [ ] A recommendation impression is persisted before feedback can be recorded.
-- [ ] Repeated views do not silently create duplicate impressions; the event policy is explicit.
-- [ ] Feedback can be changed only through an auditable revision policy.
-- [ ] An outcome can be linked to a later encounter without changing raw encounter data.
-- [ ] Blind and holdout rules apply to feedback queries and reports.
-- [ ] An admin report shows response coverage as well as positive-response rate.
-- [ ] A family evaluator can record interest on mobile without adding more than one interaction.
+- [x] A recommendation impression is persisted before feedback can be recorded.
+- [x] Repeated views do not silently create duplicate impressions; the event policy is explicit.
+- [x] Feedback can be changed only through an auditable revision policy.
+- [x] An outcome can be linked to a later encounter without changing raw encounter data.
+- [x] Blind and holdout rules apply to feedback queries and reports.
+- [x] An admin report shows response coverage as well as positive-response rate.
+- [x] A family evaluator can record interest on mobile without adding more than one interaction.
 - [ ] P2 establishes baseline values for interest, sampling conversion, post-sample liking,
   coverage, and variety.
 - [ ] LLM call count, latency, cache hit rate, failure rate, and estimated cost are measurable.

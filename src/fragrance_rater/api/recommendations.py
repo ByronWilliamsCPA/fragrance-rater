@@ -10,6 +10,7 @@ Both routes therefore require the shared household ``X-API-Key`` header (see
 ``POST /ratings`` exactly rather than inventing a separate scheme.
 """
 
+from time import perf_counter
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -21,11 +22,13 @@ from sqlalchemy.orm import selectinload
 from fragrance_rater.core.database import get_db
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_key
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
+from fragrance_rater.models.recommendation_measurement import LLMInvocation
 from fragrance_rater.services.llm_service import (
     FragranceDetails,
     LLMService,
     get_llm_service,
 )
+from fragrance_rater.services.preference_history import PreferenceHistoryService
 from fragrance_rater.services.recommendation_service import (
     InsufficientDataError,
     Recommendation,
@@ -225,11 +228,24 @@ async def get_profile_summary(
         if reviewer:
             profile = await service.build_preference_profile(reviewer_id)
             if profile.evaluation_count > 0:
+                started = perf_counter()
                 llm_response = await llm_service.generate_profile_summary(
                     profile=profile,
                     reviewer_name=reviewer.name,
                 )
                 llm_summary = llm_response.text
+                session.add(
+                    LLMInvocation(
+                        reviewer_id=reviewer_id,
+                        operation="PROFILE_SUMMARY",
+                        model=llm_response.model,
+                        latency_ms=round((perf_counter() - started) * 1000),
+                        cache_hit=llm_response.cached,
+                        succeeded=llm_response.error is None,
+                        estimated_cost_usd=None,
+                    )
+                )
+                await session.commit()
 
     return ProfileSummaryResponse(
         reviewer_id=reviewer_id,
@@ -309,6 +325,16 @@ async def get_recommendation_explanation(
             404 if `fragrance_id` does not resolve to a live (non-soft-
             deleted) fragrance.
     """
+    # A reviewer-specific explanation is itself a recommendation surface.
+    # Reject assigned holdouts even when a caller already knows a catalog ID.
+    if fragrance_id in await PreferenceHistoryService(session).excluded_versions(
+        reviewer_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NOT_FOUND", "message": "Fragrance not found"},
+        )
+
     # Build user profile
     profile = await service.build_preference_profile(reviewer_id)
     if profile.evaluation_count < 3:
@@ -399,11 +425,25 @@ async def get_recommendation_explanation(
     )
 
     # Generate explanation
+    started = perf_counter()
     llm_response = await llm_service.generate_recommendation_explanation(
         recommendation=recommendation,
         profile=profile,
         fragrance_details=fragrance_details,
     )
+    if llm_service.is_available():
+        session.add(
+            LLMInvocation(
+                reviewer_id=reviewer_id,
+                operation="RECOMMENDATION_EXPLANATION",
+                model=llm_response.model,
+                latency_ms=round((perf_counter() - started) * 1000),
+                cache_hit=llm_response.cached,
+                succeeded=llm_response.error is None,
+                estimated_cost_usd=None,
+            )
+        )
+        await session.commit()
 
     return ExplanationResponse(
         fragrance_id=fragrance_id,

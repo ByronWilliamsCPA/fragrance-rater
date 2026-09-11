@@ -68,4 +68,38 @@ describe('Calibration participant workflow', () => {
     expect(screen.getByRole('button', { name: 'Save new encounter' })).toBeInTheDocument()
     await screen.findByRole('option', { name: 'Evaluator' })
   })
+  it('records recommendation interest with one interaction', async () => {
+    post.mockImplementation((path: string) => {
+      if (path === '/recommendation-measurement/runs') {
+        return Promise.resolve({
+          data: {
+            id: 'run-1',
+            reviewer_id: 'r',
+            impressions: [
+              {
+                id: 'impression-1',
+                fragrance_id: 'f-1',
+                fragrance_name: 'Candidate',
+                fragrance_brand: 'House',
+                rank: 1,
+                match_percent: 78,
+              },
+            ],
+          },
+        })
+      }
+      return Promise.resolve({ data: { revision: 1 } })
+    })
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Recommendations' }))
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Interested' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/recommendation-measurement/impressions/impression-1/responses',
+        { interested: true }
+      )
+    )
+  })
 })

@@ -1149,6 +1149,231 @@
         }
       }
     },
+    "/api/v1/recommendation-measurement/runs": {
+      "post": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Create Run",
+        "description": "Generate recommendations and persist their impressions atomically.",
+        "operationId": "create_run_api_v1_recommendation_measurement_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendation-measurement/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Get Run",
+        "description": "Return an existing run; repeated views create no new impressions.",
+        "operationId": "get_run_api_v1_recommendation_measurement_runs__run_id__get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendation-measurement/impressions/{impression_id}/responses": {
+      "post": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Append Response",
+        "description": "Append feedback, preserving every prior response revision.",
+        "operationId": "append_response_api_v1_recommendation_measurement_impressions__impression_id__responses_post",
+        "parameters": [
+          {
+            "name": "impression_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Impression Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendation-measurement/reviewers/{reviewer_id}/metrics": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Metrics",
+        "description": "Return the admin metric contract with explicit counts and denominators.",
+        "operationId": "metrics_api_v1_recommendation_measurement_reviewers__reviewer_id__metrics_get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendation-measurement/operational-events": {
+      "post": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Operational Event",
+        "description": "Record a pilot connectivity failure or subsequent manual recovery.",
+        "operationId": "operational_event_api_v1_recommendation_measurement_operational_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationalEventCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Operational Event Api V1 Recommendation Measurement Operational Events Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/import/kaggle": {
       "post": {
         "tags": [
@@ -3013,6 +3238,55 @@
         "title": "ImportResponse",
         "description": "Response model for import operations."
       },
+      "ImpressionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "fragrance_id": {
+            "type": "string",
+            "title": "Fragrance Id"
+          },
+          "fragrance_name": {
+            "type": "string",
+            "title": "Fragrance Name"
+          },
+          "fragrance_brand": {
+            "type": "string",
+            "title": "Fragrance Brand"
+          },
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "score_type": {
+            "type": "string",
+            "title": "Score Type"
+          },
+          "score_value": {
+            "type": "number",
+            "title": "Score Value"
+          },
+          "match_percent": {
+            "type": "integer",
+            "title": "Match Percent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "fragrance_id",
+          "fragrance_name",
+          "fragrance_brand",
+          "rank",
+          "score_type",
+          "score_value",
+          "match_percent"
+        ],
+        "title": "ImpressionView",
+        "description": "Candidate and immutable ranking information shown to an evaluator."
+      },
       "MembershipInput": {
         "properties": {
           "fragrance_id": {
@@ -3084,6 +3358,165 @@
         "title": "MembershipInput",
         "description": "Require exact catalog ID and documented identity verification."
       },
+      "MetricsView": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "eligible_impressions": {
+            "type": "integer",
+            "title": "Eligible Impressions"
+          },
+          "explicit_interest_responses": {
+            "type": "integer",
+            "title": "Explicit Interest Responses"
+          },
+          "positive_interest_responses": {
+            "type": "integer",
+            "title": "Positive Interest Responses"
+          },
+          "response_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Coverage"
+          },
+          "interest_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interest Rate"
+          },
+          "sampled_recommendations": {
+            "type": "integer",
+            "title": "Sampled Recommendations"
+          },
+          "sampling_conversion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sampling Conversion"
+          },
+          "linked_outcomes": {
+            "type": "integer",
+            "title": "Linked Outcomes"
+          },
+          "mean_ordinary_rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Ordinary Rating"
+          },
+          "would_wear_positive": {
+            "type": "integer",
+            "title": "Would Wear Positive"
+          },
+          "would_wear_responses": {
+            "type": "integer",
+            "title": "Would Wear Responses"
+          },
+          "would_buy_positive": {
+            "type": "integer",
+            "title": "Would Buy Positive"
+          },
+          "would_buy_responses": {
+            "type": "integer",
+            "title": "Would Buy Responses"
+          },
+          "unique_brands": {
+            "type": "integer",
+            "title": "Unique Brands"
+          },
+          "unavailable_candidates": {
+            "type": "integer",
+            "title": "Unavailable Candidates"
+          },
+          "llm_call_count": {
+            "type": "integer",
+            "title": "Llm Call Count"
+          },
+          "llm_cache_hits": {
+            "type": "integer",
+            "title": "Llm Cache Hits"
+          },
+          "llm_failures": {
+            "type": "integer",
+            "title": "Llm Failures"
+          },
+          "mean_llm_latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Llm Latency Ms"
+          },
+          "known_estimated_cost_usd": {
+            "type": "number",
+            "title": "Known Estimated Cost Usd"
+          },
+          "connectivity_failures": {
+            "type": "integer",
+            "title": "Connectivity Failures"
+          },
+          "manual_recoveries": {
+            "type": "integer",
+            "title": "Manual Recoveries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewer_id",
+          "eligible_impressions",
+          "explicit_interest_responses",
+          "positive_interest_responses",
+          "response_coverage",
+          "interest_rate",
+          "sampled_recommendations",
+          "sampling_conversion",
+          "linked_outcomes",
+          "mean_ordinary_rating",
+          "would_wear_positive",
+          "would_wear_responses",
+          "would_buy_positive",
+          "would_buy_responses",
+          "unique_brands",
+          "unavailable_candidates",
+          "llm_call_count",
+          "llm_cache_hits",
+          "llm_failures",
+          "mean_llm_latency_ms",
+          "known_estimated_cost_usd",
+          "connectivity_failures",
+          "manual_recoveries"
+        ],
+        "title": "MetricsView",
+        "description": "Explicit counts and denominators for recommendation outcomes."
+      },
       "NoteResponse": {
         "properties": {
           "id": {
@@ -3119,6 +3552,41 @@
         ],
         "title": "NoteResponse",
         "description": "Schema for note response."
+      },
+      "OperationalEventCreate": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "CONNECTIVITY_FAILURE",
+              "MANUAL_RECOVERY"
+            ],
+            "title": "Event Type"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewer_id",
+          "event_type"
+        ],
+        "title": "OperationalEventCreate",
+        "description": "Pilot connectivity or manual-recovery observation."
       },
       "ProfileSummaryResponse": {
         "properties": {
@@ -3545,6 +4013,97 @@
         "title": "RecommendationResponse",
         "description": "Response model for a single recommendation."
       },
+      "ResponseCreate": {
+        "properties": {
+          "interested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interested"
+          },
+          "sampling_state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PLANNED",
+                  "ACQUIRED",
+                  "SAMPLED",
+                  "UNAVAILABLE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sampling State"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "outcome_evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Evaluation Id"
+          },
+          "outcome_observation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Observation Id"
+          },
+          "would_wear": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Wear"
+          },
+          "would_buy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Buy"
+          }
+        },
+        "type": "object",
+        "title": "ResponseCreate",
+        "description": "Complete latest feedback state; submission appends a revision."
+      },
       "ResponseInput": {
         "properties": {
           "stage": {
@@ -3892,6 +4451,132 @@
         "title": "ResponseInput",
         "description": "A submitted timepoint; null means unanswered, zero is a response."
       },
+      "ResponseView": {
+        "properties": {
+          "interested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interested"
+          },
+          "sampling_state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "PLANNED",
+                  "ACQUIRED",
+                  "SAMPLED",
+                  "UNAVAILABLE"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sampling State"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "outcome_evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Evaluation Id"
+          },
+          "outcome_observation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Observation Id"
+          },
+          "would_wear": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Wear"
+          },
+          "would_buy": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Buy"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "impression_id": {
+            "type": "string",
+            "title": "Impression Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "impression_id",
+          "revision",
+          "created_at",
+          "recorded_by"
+        ],
+        "title": "ResponseView",
+        "description": "Stored append-only feedback revision."
+      },
       "ReviewerCreate": {
         "properties": {
           "name": {
@@ -3937,6 +4622,82 @@
         ],
         "title": "ReviewerResponse",
         "description": "Schema for reviewer response."
+      },
+      "RunCreate": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 10
+          },
+          "exclude_rated": {
+            "type": "boolean",
+            "title": "Exclude Rated",
+            "default": true
+          },
+          "candidate_strategy": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Candidate Strategy",
+            "default": "catalog-affinity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewer_id"
+        ],
+        "title": "RunCreate",
+        "description": "Parameters that produce a new persisted recommendation run."
+      },
+      "RunView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "algorithm_version": {
+            "type": "string",
+            "title": "Algorithm Version"
+          },
+          "candidate_strategy": {
+            "type": "string",
+            "title": "Candidate Strategy"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "impressions": {
+            "items": {
+              "$ref": "#/components/schemas/ImpressionView"
+            },
+            "type": "array",
+            "title": "Impressions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reviewer_id",
+          "algorithm_version",
+          "candidate_strategy",
+          "created_at",
+          "impressions"
+        ],
+        "title": "RunView",
+        "description": "A recommendation run and its already-persisted impressions."
       },
       "SkinPlanInput": {
         "properties": {

@@ -176,8 +176,16 @@ nav:
       - Development Roadmap: planning/roadmap.md
       - Project Plan: planning/PROJECT-PLAN.md
       - P0 Planning Baseline: planning/gates/p0.md
+      - P1 Release Readiness Gate: planning/gates/p1.md
+      - P2 Outcome Measurement Gate: planning/gates/p2.md
       - Controlled Calibration V1: calibration-v1.md
       - Scent chords Analysis: research/scent-chords-analysis.md
+
+  - Deployment:
+      - P1 Release Readiness: deployment/p1-release-readiness.md
+
+  - Measurement:
+      - Recommendation Outcomes: measurement/recommendation-outcomes.md
 
   - Architecture Decisions:
       - Overview: planning/adr/README.md

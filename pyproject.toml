@@ -508,6 +508,8 @@ runtime-evaluated-base-classes = [
 [tool.basedpyright]
 pythonVersion = "3.12"
 pythonPlatform = "All"
+venvPath = "."
+venv = ".venv"
 
 # Type checking mode: basic, standard, strict, all
 # "strict" aligns with Google Python Style Guide requirements

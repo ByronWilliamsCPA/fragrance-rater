@@ -424,6 +424,15 @@ class RecommendationService:
             )
         )
 
+        # Assigned holdouts must remain absent from every recommendation
+        # surface, even when exclude_rated is false. Merely showing the
+        # candidate would disclose a concealed program version.
+        holdout_ids = await PreferenceHistoryService(self.session).excluded_versions(
+            reviewer_id
+        )
+        if holdout_ids:
+            stmt = stmt.where(Fragrance.id.notin_(holdout_ids))
+
         # Exclude already-rated fragrances if requested
         if exclude_rated:
             rated_stmt = select(Evaluation.fragrance_id).where(

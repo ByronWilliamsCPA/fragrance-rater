@@ -1,20 +1,27 @@
 # Production overrides for docker-compose.yml
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-version: '3.9'
-
 services:
   app:
     # Production image (pre-built)
     # image: ghcr.io/ByronWilliamsCPA/fragrance_rater:${VERSION:-latest}
+    build:
+      args:
+        BUILD_ENV: production
 
     # Don't mount source code in production
-    volumes: []
+    volumes: !reset []
+
+    # The API is reachable only from the internal application network. All
+    # client traffic enters through Traefik -> Authentik -> frontend nginx.
+    ports: !reset []
 
     environment:
       ENVIRONMENT: production
       JSON_LOGS: "true"
       LOG_LEVEL: ${LOG_LEVEL:-WARNING}
+      AUTHENTIK_REQUIRED: "true"
+      CALIBRATION_ADMIN_USERNAMES: ${CALIBRATION_ADMIN_USERNAMES:?Set a JSON array of verified Authentik manager usernames}
 
     # Production replicas (for load balancing).
     # Defaults to 1: rate_limit.py's Limiter uses slowapi's default in-memory
@@ -51,10 +58,27 @@ services:
       dockerfile: Dockerfile
       target: production
       args:
-        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_API_URL: /api
     image: fragrance_rater-frontend:${VERSION:-latest}
-    ports:
-      - "${FRONTEND_PORT:-80}:80"
+    environment:
+      VITE_API_URL: /api
+    volumes: !reset []
+    # Do not retain the development host-port mapping. Traefik is the only
+    # supported production entry point.
+    ports: !reset []
+
+    networks:
+      - fragrance_rater-network
+      - reverse-proxy
+
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:?Set the external Traefik network name}
+      traefik.http.routers.fragrance-rater.rule: Host(`${FRAGRANCE_HOST:?Set the production hostname}`)
+      traefik.http.routers.fragrance-rater.entrypoints: websecure
+      traefik.http.routers.fragrance-rater.tls: "true"
+      traefik.http.routers.fragrance-rater.middlewares: ${AUTHENTIK_MIDDLEWARE:?Set the Authentik forward-auth middleware name}
+      traefik.http.services.fragrance-rater.loadbalancer.server.port: "80"
 
     deploy:
       replicas: ${FRONTEND_REPLICAS:-1}
@@ -79,8 +103,7 @@ services:
     # compose file publishes ${DB_PORT}:5432 on all interfaces for local
     # development; bind it to loopback here so production only reaches
     # Postgres over the internal compose network.
-    ports:
-      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    ports: !reset []
 
     # Increased connection pool
     command: >
@@ -121,3 +144,8 @@ services:
 #
 # 4. Monitor:
 #    docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
+
+networks:
+  reverse-proxy:
+    external: true
+    name: ${TRAEFIK_NETWORK:?Set the external Traefik network name}

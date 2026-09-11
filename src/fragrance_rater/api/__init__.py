@@ -11,6 +11,9 @@ from fragrance_rater.api.fragrances import router as fragrances_router
 from fragrance_rater.api.health import router as health_router
 from fragrance_rater.api.imports import router as imports_router
 from fragrance_rater.api.ratings import router as ratings_router
+from fragrance_rater.api.recommendation_measurement import (
+    router as recommendation_measurement_router,
+)
 from fragrance_rater.api.recommendations import router as recommendations_router
 from fragrance_rater.api.reviewers import router as reviewers_router
 
@@ -21,6 +24,7 @@ __all__ = [
     "health_router",
     "imports_router",
     "ratings_router",
+    "recommendation_measurement_router",
     "recommendations_router",
     "reviewers_router",
 ]
