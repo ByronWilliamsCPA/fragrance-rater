@@ -152,7 +152,9 @@ class RecommendationMeasurementService:
         self, impression_ids: set[str]
     ) -> dict[str, list[RecommendationResponseRevision]]:
         """Load append-only feedback revisions grouped in revision order."""
-        histories = {impression_id: [] for impression_id in impression_ids}
+        histories: dict[str, list[RecommendationResponseRevision]] = {
+            impression_id: [] for impression_id in impression_ids
+        }
         if not impression_ids:
             return histories
         responses = await self.db.scalars(

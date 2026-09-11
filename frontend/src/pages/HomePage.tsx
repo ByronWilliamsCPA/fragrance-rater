@@ -14,12 +14,10 @@ type HomePageProps = {
 
 function nextAction(enrollment: Enrollment): string {
   if (enrollment.revealed) return 'Review revealed results or add a post-reveal observation.'
-  const openBlotter = enrollment.presentations.find((item) => !item.blotter_locked)
-  if (openBlotter) return `Continue blind sample ${openBlotter.blind_code}.`
-  if (!enrollment.skin_plan_locked) return 'Finalize the skin-test plan.'
-  const openSkin = enrollment.presentations.find((item) => item.skin_planned && !item.skin_locked)
-  if (openSkin) return `Complete the skin observation for ${openSkin.blind_code}.`
-  return 'Blind work is complete. Review eligibility and reveal when ready.'
+  if (enrollment.reveal_blocker === 'SKIN_PLAN') return 'Finalize the skin-test plan.'
+  if (enrollment.reveal_blocker === 'BLOTTER') return 'Continue required blind blotter screens.'
+  if (enrollment.reveal_blocker === 'SKIN') return 'Complete the planned blind skin tests.'
+  return 'Required blind work is complete. Reveal when ready.'
 }
 
 export function HomePage({ assignments, programs, reviewers, navigate }: HomePageProps) {
@@ -31,6 +29,7 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
   useEffect(() => {
     let current = true
     if (!assignments.length) {
+      setError('')
       setEnrollments([])
       setLoading(false)
       return

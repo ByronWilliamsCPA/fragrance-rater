@@ -39,6 +39,8 @@ export type Sample = {
 
 export type Enrollment = Assignment & {
   revealed: boolean
+  reveal_eligible: boolean
+  reveal_blocker: 'BLOTTER' | 'SKIN_PLAN' | 'SKIN' | null
   skin_plan_locked: boolean
   presentations: Sample[]
 }
@@ -63,6 +65,7 @@ export type RecommendationImpression = {
   fragrance_brand: string
   rank: number
   match_percent: number
+  shown_at: string
   responses: RecommendationResponse[]
 }
 

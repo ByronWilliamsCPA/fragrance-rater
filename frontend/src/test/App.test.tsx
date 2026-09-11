@@ -22,7 +22,9 @@ const enrollment = {
   program_id: 'p',
   reviewer_id: 'r',
   revealed: false,
-  skin_plan_locked: false,
+  reveal_eligible: false,
+  reveal_blocker: 'BLOTTER',
+  skin_plan_locked: true,
   presentations: [
     {
       id: 'sample',
@@ -48,6 +50,7 @@ const recommendationRun = {
       fragrance_brand: 'House',
       rank: 1,
       match_percent: 78,
+      shown_at: '2026-09-11T12:00:05',
       responses: [],
     },
   ],
@@ -77,9 +80,33 @@ describe('Calibration participant workflow', () => {
     render(<App />)
 
     expect(await screen.findByRole('heading', { name: 'Your scent journal' })).toBeInTheDocument()
-    expect(await screen.findByText('Continue blind sample A82F.')).toBeInTheDocument()
+    expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
     expect(screen.getByText(/0 of 1 blind screens locked/)).toBeInTheDocument()
     expect(screen.queryByText('assignment')).not.toBeInTheDocument()
+  })
+
+  it('offers reveal from home when only concealed holdout work remains', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+        '/calibration/enrollments/assignment': {
+          ...enrollment,
+          reveal_eligible: true,
+          reveal_blocker: null,
+          skin_plan_locked: true,
+        },
+      }
+      return Promise.resolve({ data: responses[path] })
+    })
+    window.history.replaceState({}, '', '/')
+    render(<App />)
+
+    expect(
+      await screen.findByText('Required blind work is complete. Reveal when ready.')
+    ).toBeInTheDocument()
   })
 
   it('retries assignment progress without reloading the application', async () => {
@@ -106,7 +133,7 @@ describe('Calibration participant workflow', () => {
     progressUnavailable = false
     fireEvent.click(screen.getByRole('button', { name: 'Retry assignment progress' }))
 
-    expect(await screen.findByText('Continue blind sample A82F.')).toBeInTheDocument()
+    expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
     expect(screen.queryByText('Request failed. Check your connection and try again.')).toBeNull()
   })
 
@@ -141,9 +168,38 @@ describe('Calibration participant workflow', () => {
     })
 
     expect(
-      await screen.findByText('1 blind blotter screen still needs to be locked.')
+      await screen.findByText('Required blind blotter screens still need to be locked.')
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reveal completed baseline' })).toBeDisabled()
+  })
+
+  it('uses server eligibility when an unlocked concealed holdout remains', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+        '/calibration/enrollments/assignment': {
+          ...enrollment,
+          reveal_eligible: true,
+          reveal_blocker: null,
+          skin_plan_locked: true,
+        },
+      }
+      return Promise.resolve({ data: responses[path] })
+    })
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator and program'), {
+      target: { value: 'assignment' },
+    })
+
+    expect(
+      await screen.findByText(
+        'All required blind work is locked. The enrollment is eligible to reveal.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reveal completed baseline' })).toBeEnabled()
   })
   it('offers the form for recording a new ordinary encounter', async () => {
     render(<App />)
@@ -223,6 +279,12 @@ describe('Calibration participant workflow', () => {
             observed_at: '2026-09-10T12:00:00Z',
           },
           {
+            id: 'premature-encounter',
+            workflow: 'ORDINARY',
+            fragrance_id: 'f-1',
+            observed_at: '2026-09-11T12:00:03Z',
+          },
+          {
             id: 'encounter-1',
             workflow: 'ORDINARY',
             fragrance_id: 'f-1',
@@ -251,9 +313,11 @@ describe('Calibration participant workflow', () => {
     fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
     fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Update sampling and outcome' }))
+    expect(await screen.findByLabelText('Link a later matching encounter')).toBeDisabled()
     fireEvent.change(await screen.findByLabelText('Sampling status'), {
       target: { value: 'SAMPLED' },
     })
+    expect(screen.getByLabelText('Link a later matching encounter')).toBeEnabled()
     fireEvent.change(screen.getByLabelText('Link a later matching encounter'), {
       target: { value: 'ORDINARY:encounter-1' },
     })
@@ -261,6 +325,11 @@ describe('Calibration participant workflow', () => {
       screen
         .getByLabelText('Link a later matching encounter')
         .querySelector('option[value="ORDINARY:historical-encounter"]')
+    ).toBeNull()
+    expect(
+      screen
+        .getByLabelText('Link a later matching encounter')
+        .querySelector('option[value="ORDINARY:premature-encounter"]')
     ).toBeNull()
     fireEvent.change(screen.getByLabelText('Would wear'), { target: { value: 'yes' } })
     fireEvent.change(screen.getByLabelText('Would buy'), { target: { value: 'no' } })
@@ -294,6 +363,83 @@ describe('Calibration participant workflow', () => {
 
     expect(await screen.findByText(/78% affinity score/)).toBeInTheDocument()
     expect(screen.getByText(/optional service is unavailable/)).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith(
+      '/recommendation-measurement/impressions/impression-1/explanation'
+    )
+  })
+
+  it('caches a successfully loaded empty outcome history', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [],
+        '/calibration/history/r': [],
+      }
+      return Promise.resolve({ data: responses[path] })
+    })
+    post.mockImplementation((path: string) =>
+      path === '/recommendation-measurement/runs'
+        ? Promise.resolve({ data: recommendationRun })
+        : Promise.resolve({ data: { revision: 1 } })
+    )
+    window.history.replaceState({}, '', '/recommendations')
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
+    const followUp = await screen.findByRole('button', { name: 'Update sampling and outcome' })
+    fireEvent.click(followUp)
+    await screen.findByLabelText('Sampling status')
+    fireEvent.click(followUp)
+
+    await waitFor(() =>
+      expect(get.mock.calls.filter(([path]) => path === '/calibration/history/r')).toHaveLength(1)
+    )
+  })
+
+  it('ignores outcome history returned after the evaluator changes', async () => {
+    const firstHistory = deferred<{ data: unknown[] }>()
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [
+          { id: 'r', name: 'Evaluator' },
+          { id: 'r2', name: 'Second evaluator' },
+        ],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [],
+        '/calibration/history/r2': [],
+      }
+      if (path === '/calibration/history/r') return firstHistory.promise
+      return Promise.resolve({ data: responses[path] })
+    })
+    post.mockImplementation((_path: string, data: { reviewer_id: string }) =>
+      Promise.resolve({ data: { ...recommendationRun, reviewer_id: data.reviewer_id } })
+    )
+    window.history.replaceState({}, '', '/recommendations')
+    render(<App />)
+    const reviewer = await screen.findByLabelText('Evaluator')
+    fireEvent.change(reviewer, { target: { value: 'r' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Update sampling and outcome' }))
+    fireEvent.change(reviewer, { target: { value: 'r2' } })
+    firstHistory.resolve({
+      data: [
+        {
+          id: 'stale-encounter',
+          workflow: 'ORDINARY',
+          fragrance_id: 'f-1',
+          observed_at: '2026-09-12T12:00:00Z',
+        },
+      ],
+    })
+    await waitFor(() => expect(screen.queryByText('Candidate')).not.toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Update sampling and outcome' }))
+
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/history/r2'))
+    expect(screen.queryByDisplayValue('ORDINARY:stale-encounter')).toBeNull()
   })
   it('restores a saved recommendation run without creating another exposure', async () => {
     window.history.replaceState({}, '', '/recommendations?recommendation_run=run-1')

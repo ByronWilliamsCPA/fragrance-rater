@@ -10,6 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.api.calibration import actor, manager
+from fragrance_rater.api.recommendations import (
+    ExplanationResponse,
+    build_recommendation_explanation,
+)
 from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter
@@ -27,11 +31,15 @@ from fragrance_rater.schemas.recommendation_measurement import (
     RunCreate,
     RunView,
 )
+from fragrance_rater.services.llm_service import LLMService, get_llm_service
 from fragrance_rater.services.recommendation_measurement_service import (
     MeasurementConflictError,
     RecommendationMeasurementService,
 )
-from fragrance_rater.services.recommendation_service import InsufficientDataError
+from fragrance_rater.services.recommendation_service import (
+    InsufficientDataError,
+    RecommendationService,
+)
 
 router = APIRouter(prefix="/recommendation-measurement", tags=["recommendations"])
 DB = Annotated[AsyncSession, Depends(get_db)]
@@ -84,6 +92,7 @@ async def run_view(service: RecommendationMeasurementService, run_id: str) -> Ru
                 score_type=impression.score_type,
                 score_value=impression.score_value,
                 match_percent=int(impression.score_value * 100),
+                shown_at=impression.shown_at,
                 responses=[
                     response_view(response) for response in histories[impression.id]
                 ],
@@ -166,6 +175,37 @@ async def get_run(run_id: str, db: DB, identity: Identity) -> RunView:
         return await run_view(RecommendationMeasurementService(db), run_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get(
+    "/impressions/{impression_id}/explanation",
+    response_model=ExplanationResponse,
+    responses={429: {"description": "Rate limit exceeded; retry after a short delay."}},
+)
+@limiter.limit(RATINGS_RATE_LIMIT)  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
+async def get_impression_explanation(
+    request: Request,  # noqa: ARG001 - required by SlowAPI
+    impression_id: str,
+    db: DB,
+    identity: Identity,
+    llm_service: Annotated[LLMService, Depends(get_llm_service)],
+) -> ExplanationResponse:
+    """Explain an existing impression to its assigned recorder."""
+    username, admin = actor(identity)
+    impression = await db.get(RecommendationImpression, impression_id)
+    if impression is None:
+        raise HTTPException(
+            status_code=404, detail="recommendation impression not found"
+        )
+    reviewer_id = await impression_reviewer_id(db, impression_id)
+    await authorize_reviewer(db, reviewer_id, username, admin)
+    return await build_recommendation_explanation(
+        reviewer_id=reviewer_id,
+        fragrance_id=impression.fragrance_id,
+        session=db,
+        service=RecommendationService(db),
+        llm_service=llm_service,
+    )
 
 
 @router.post(

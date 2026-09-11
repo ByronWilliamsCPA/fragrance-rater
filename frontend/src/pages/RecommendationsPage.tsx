@@ -24,13 +24,20 @@ function persistRunId(runId: string | null) {
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
+function utcDate(value: string) {
+  return new Date(/(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : `${value}Z`)
+}
+
 export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
   const [reviewerId, setReviewerId] = useState('')
   const [recommendationRun, setRecommendationRun] = useState<RecommendationRun | null>(null)
   const [followUpId, setFollowUpId] = useState('')
+  const [samplingState, setSamplingState] = useState('')
   const [outcomes, setOutcomes] = useState<HistoryItem[]>([])
+  const [outcomesReviewerId, setOutcomesReviewerId] = useState('')
   const [explanations, setExplanations] = useState<Record<string, string>>({})
   const hydrationGeneration = useRef(0)
+  const outcomeGeneration = useRef(0)
   const task = useTask()
   const setError = task.setError
 
@@ -126,16 +133,20 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
 
   async function openFollowUp(item: RecommendationImpression) {
     setFollowUpId(item.id)
-    if (!outcomes.length) {
-      const response = await api.get<HistoryItem[]>(`/calibration/history/${reviewerId}`)
-      setOutcomes(response.data)
-    }
+    setSamplingState(latestResponse(item)?.sampling_state ?? '')
+    if (outcomesReviewerId === reviewerId) return
+    const requestedReviewer = reviewerId
+    const generation = ++outcomeGeneration.current
+    const response = await api.get<HistoryItem[]>(`/calibration/history/${requestedReviewer}`)
+    if (generation !== outcomeGeneration.current) return
+    setOutcomes(response.data)
+    setOutcomesReviewerId(requestedReviewer)
   }
 
   async function explain(item: RecommendationImpression) {
     try {
       const response = await api.get<{ explanation: string }>(
-        `/recommendations/${reviewerId}/${item.fragrance_id}/explain`
+        `/recommendation-measurement/impressions/${item.id}/explanation`
       )
       setExplanations((current) => ({ ...current, [item.id]: response.data.explanation }))
     } catch {
@@ -185,10 +196,12 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
           value={reviewerId}
           onChange={(event) => {
             hydrationGeneration.current += 1
+            outcomeGeneration.current += 1
             setReviewerId(event.target.value)
             setRecommendationRun(null)
             setFollowUpId('')
             setOutcomes([])
+            setOutcomesReviewerId('')
             setExplanations({})
             persistRunId(null)
           }}
@@ -228,8 +241,8 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                       item.fragrance_id &&
                     Boolean(
                       observedAt &&
-                      recommendationRun.created_at &&
-                      new Date(observedAt) >= new Date(recommendationRun.created_at)
+                      item.shown_at &&
+                      utcDate(observedAt).getTime() >= utcDate(item.shown_at).getTime()
                     )
                   )
                 })
@@ -290,7 +303,11 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                       >
                         <label>
                           Sampling status
-                          <select name="sampling_state" defaultValue={latest?.sampling_state ?? ''}>
+                          <select
+                            name="sampling_state"
+                            value={samplingState}
+                            onChange={(event) => setSamplingState(event.target.value)}
+                          >
                             <option value="">Not set</option>
                             <option value="PLANNED">Plan to sample</option>
                             <option value="ACQUIRED">Sample acquired</option>
@@ -310,6 +327,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                           Link a later matching encounter
                           <select
                             name="outcome"
+                            disabled={samplingState !== 'SAMPLED'}
                             defaultValue={
                               latest?.outcome_evaluation_id
                                 ? `ORDINARY:${latest.outcome_evaluation_id}`
@@ -328,7 +346,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                                   ? 'Journal encounter'
                                   : 'Calibration observation'}{' '}
                                 ·{' '}
-                                {new Date(
+                                {utcDate(
                                   outcome.observed_at || outcome.created_at || ''
                                 ).toLocaleDateString()}
                               </option>
@@ -369,7 +387,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                               {item.responses.map((response) => (
                                 <li key={response.id}>
                                   Revision {response.revision} ·{' '}
-                                  {new Date(response.created_at).toLocaleString()}
+                                  {utcDate(response.created_at).toLocaleString()}
                                 </li>
                               ))}
                             </ol>

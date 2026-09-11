@@ -70,6 +70,7 @@ class ImpressionView(BaseModel):
     score_type: str
     score_value: float
     match_percent: int
+    shown_at: datetime
     responses: list[ResponseView] = Field(default_factory=list)
 
 

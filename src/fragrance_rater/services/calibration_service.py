@@ -308,20 +308,45 @@ class CalibrationService:
         enrollment = await self.enrollment(enrollment_id, username, admin)
         if enrollment.revealed_at:
             return
-        if enrollment.skin_plan_locked_at is None:
-            reject("Finalize the planned skin tests before reveal")
         presentations = await self.presentations(enrollment_id)
-        for obj in presentations:
-            member = await self.db.get(Membership, obj.membership_id)
-            assert member is not None
-            if member.role != "HOLDOUT" and obj.blotter_locked_at is None:
-                reject("All baseline and repeat blotter responses must be locked")
-            if obj.skin_reason and obj.skin_locked_at is None:
-                reject("All planned blind skin tests must be locked")
+        members = {
+            member.id: member
+            for member in await self.db.scalars(
+                select(Membership).where(
+                    Membership.id.in_({obj.membership_id for obj in presentations})
+                )
+            )
+        }
+        blocker = self.reveal_blocker(enrollment, presentations, members)
+        if blocker == "SKIN_PLAN":
+            reject("Finalize the planned skin tests before reveal")
+        if blocker == "BLOTTER":
+            reject("All baseline and repeat blotter responses must be locked")
+        if blocker == "SKIN":
+            reject("All planned blind skin tests must be locked")
         enrollment.revealed_at = now_naive_utc()
         enrollment.revealed_by = username
         get_llm_service().invalidate_reviewer_cache(enrollment.reviewer_id)
         await self.db.flush()
+
+    @staticmethod
+    def reveal_blocker(
+        enrollment: Enrollment,
+        presentations: list[Presentation],
+        members: dict[str, Membership],
+    ) -> str | None:
+        """Return a disclosure-safe reason that currently prevents reveal."""
+        if enrollment.skin_plan_locked_at is None:
+            return "SKIN_PLAN"
+        if any(
+            members[obj.membership_id].role != "HOLDOUT"
+            and obj.blotter_locked_at is None
+            for obj in presentations
+        ):
+            return "BLOTTER"
+        if any(obj.skin_reason and obj.skin_locked_at is None for obj in presentations):
+            return "SKIN"
+        return None
 
     async def participant_view(self, enrollment: Enrollment) -> dict[str, object]:
         """Build an allowlisted payload; never serialize hidden ORM rows."""
@@ -390,11 +415,19 @@ class CalibrationService:
                     "concentration": fragrance.concentration,
                 }
             result.append(row)
+        reveal_blocker = (
+            None
+            if enrollment.revealed_at
+            else self.reveal_blocker(enrollment, presentations, members)
+        )
         return {
             "id": enrollment.id,
             "program_id": enrollment.program_id,
             "reviewer_id": enrollment.reviewer_id,
             "revealed": enrollment.revealed_at is not None,
+            "reveal_eligible": reveal_blocker is None
+            and enrollment.revealed_at is None,
+            "reveal_blocker": reveal_blocker,
             "skin_plan_locked": enrollment.skin_plan_locked_at is not None,
             "presentations": result,
         }

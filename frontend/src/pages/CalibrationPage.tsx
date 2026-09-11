@@ -35,26 +35,15 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
   const [detected, setDetected] = useState('')
   const task = useTask()
   const sample = enrollment?.presentations.find((presentation) => presentation.id === selected)
-  const openBlotters = enrollment?.presentations.filter((item) => !item.blotter_locked).length ?? 0
-  const openSkinTests =
-    enrollment?.presentations.filter((item) => item.skin_planned && !item.skin_locked).length ?? 0
-  const revealEligible = Boolean(
-    enrollment &&
-    !enrollment.revealed &&
-    !openBlotters &&
-    enrollment.skin_plan_locked &&
-    !openSkinTests
-  )
-
   function enrollmentGuidance() {
     if (!enrollment) return ''
     if (enrollment.revealed) return 'Identities are revealed. You may add post-reveal observations.'
-    if (openBlotters)
-      return `${openBlotters} blind blotter screen${openBlotters === 1 ? '' : 's'} still ${openBlotters === 1 ? 'needs' : 'need'} to be locked.`
-    if (!enrollment.skin_plan_locked)
+    if (enrollment.reveal_blocker === 'SKIN_PLAN')
       return 'All blotter screens are locked. Review and finalize the skin-test plan.'
-    if (openSkinTests)
-      return `${openSkinTests} planned skin test${openSkinTests === 1 ? '' : 's'} still ${openSkinTests === 1 ? 'needs' : 'need'} to be locked.`
+    if (enrollment.reveal_blocker === 'BLOTTER')
+      return 'Required blind blotter screens still need to be locked.'
+    if (enrollment.reveal_blocker === 'SKIN')
+      return 'Planned blind skin tests still need to be locked.'
     return 'All required blind work is locked. The enrollment is eligible to reveal.'
   }
 
@@ -231,7 +220,7 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
               actionLabel="Reveal completed baseline"
               confirmLabel="Confirm reveal"
               description="Reveal makes fragrance identities visible for this enrollment. Confirm that all required blind responses are locked."
-              disabled={task.busy || enrollment.revealed || !revealEligible}
+              disabled={task.busy || enrollment.revealed || !enrollment.reveal_eligible}
               onConfirm={() =>
                 void task.run(async () => {
                   await api.post(`/calibration/enrollments/${enrollment.id}/reveal`)
