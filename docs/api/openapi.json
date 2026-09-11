@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Fragrance Rater API",
-    "description": "HTTP API for the Fragrance Rater service. Provides a small fragrance catalog and an LLM-powered rating endpoint that scores a fragrance description and returns the model's reasoning. The rating endpoint calls OpenRouter (default model: `anthropic/claude-3.5-sonnet`); set `TEST_MODE=true` to use the bundled fixture response instead, which is what the Newman contract tests rely on.",
+    "title": "Fragrance Rater",
+    "description": "HTTP API for the Fragrance Rater service: a personal fragrance evaluation and recommendation system. Provides the fragrance catalog and an LLM-powered rating endpoint that scores a fragrance description and returns the model's reasoning. The rating endpoint calls OpenRouter (default model: `anthropic/claude-3.5-sonnet`); set `TEST_MODE=true` to use the bundled fixture response instead, which is what the Newman contract tests rely on. `POST /ratings` requires a shared household `X-API-Key` header and is rate limited; read-only endpoints do not require it.",
     "contact": {
       "name": "Byron Williams",
       "url": "https://github.com/ByronWilliamsCPA/fragrance-rater",
@@ -89,17 +89,35 @@
           "ratings"
         ],
         "summary": "Rate a fragrance with an LLM",
-        "description": "Produce an LLM-powered rating for a fragrance.\n\nAccepted fields: ``name`` (required), ``brand``, ``description``\n(required), and an optional list of accord ``notes``.\n\nReturned fields: ``score`` (1-10), ``reasoning`` (LLM-authored\nexplanation), ``model`` identifier, echoed ``notes``, and a\n``latency_warning`` string.\n\nThe endpoint calls OpenRouter using the ``anthropic/claude-3.5-sonnet``\nmodel by default (see ADR-003). When the service is started\nwith ``TEST_MODE=true``, a deterministic fixture is returned\ninstead of issuing a network call \u2014 CI relies on this seam.\n\nResponse time may vary by several seconds because the LLM\nbackend is the dominant cost; clients should not block hot\npaths on this call.",
+        "description": "Produce an LLM-powered rating for a fragrance.\n\nRequires the shared household ``X-API-Key`` header (see\n``fragrance_rater.middleware.auth.require_api_key``) and is rate\nlimited (see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``).\n\nAccepted fields: ``name`` (required), ``brand``, ``description``\n(required), and an optional list of accord ``notes``.\n\nReturned fields: ``score`` (1-10), ``reasoning`` (LLM-authored\nexplanation), ``model`` identifier, echoed ``notes``, and a\n``latency_warning`` string.\n\nThe endpoint calls OpenRouter using the ``anthropic/claude-3.5-sonnet``\nmodel by default (see ADR-003). When the service is started\nwith ``TEST_MODE=true``, a deterministic fixture is returned\ninstead of issuing a network call; CI relies on this seam.\n\nResponse time may vary by several seconds because the LLM\nbackend is the dominant cost; clients should not block hot\npaths on this call.\n\nTwo failure modes never reach this function body and so are not in its\nown ``Raises`` section: the ``require_api_key`` dependency rejects with\n401 (missing/invalid ``X-API-Key``) or 503 (no key configured) before\nthis function runs, and the ``@limiter.limit`` decorator rejects with\n429 (rate limit exceeded) the same way. See\n``fragrance_rater.middleware.auth.require_api_key`` and\n``fragrance_rater.middleware.rate_limit`` for those conditions.\n\nArgs:\n    request (Request): Incoming request, required by the\n        ``@limiter.limit`` decorator to key rate limiting on the caller.\n    payload (RatingRequest): Validated rating request body.\n    client (LLMRatingClient): LLM rating client injected via FastAPI dependency.\n\nReturns:\n    RatingResponse: The LLM-authored rating, model identifier, and latency note.\n\nRaises:\n    HTTPException: 503 when the upstream LLM client raises a\n        ``RuntimeError`` (upstream unavailable or misconfigured). This is\n        distinct from the 401/503/429 cases described above, which are\n        raised by the dependency and rate-limit decorator before this\n        function body runs.",
         "operationId": "create_rating_ratings_post",
+        "parameters": [
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RatingRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -112,11 +130,17 @@
               }
             }
           },
+          "401": {
+            "description": "Missing or invalid X-API-Key header. Required on this endpoint (see fragrance_rater.middleware.auth)."
+          },
           "422": {
             "description": "Request body failed validation."
           },
+          "429": {
+            "description": "Rate limit exceeded; retry after a short delay."
+          },
           "503": {
-            "description": "LLM upstream is unavailable."
+            "description": "LLM upstream is unavailable, or no household API key is configured for this deployment (FRAGRANCE_RATER_API_KEY unset)."
           }
         }
       }
@@ -124,18 +148,18 @@
     "/fragrances": {
       "get": {
         "tags": [
-          "fragrances"
+          "catalog-stub"
         ],
-        "summary": "List fragrances in the catalog",
-        "description": "Return the fragrance catalog used by the rating workflow.\n\nThis is a read-only listing of catalog entries. No LLM call is\nmade \u2014 fragrance metadata comes from the local catalog managed\nby the data pipeline (ADR-002).",
-        "operationId": "list_fragrances_fragrances_get",
+        "summary": "List the sample fragrance catalog",
+        "description": "Return the sample catalog used by the contract suite.\n\nReturns:\n    CatalogListResponse: The full sample catalog with its item count.",
+        "operationId": "list_catalog_entries_fragrances_get",
         "responses": {
           "200": {
             "description": "Catalog returned.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/FragranceListResponse"
+                  "$ref": "#/components/schemas/CatalogListResponse"
                 }
               }
             }
@@ -146,11 +170,11 @@
     "/fragrances/{fragrance_id}": {
       "get": {
         "tags": [
-          "fragrances"
+          "catalog-stub"
         ],
-        "summary": "Get a fragrance by id",
-        "description": "Look up a single fragrance by its integer id.\n\nNo LLM call is made \u2014 this endpoint only serves catalog\nmetadata. Use ``POST /ratings`` to obtain an LLM-powered score\nfor a fragrance.",
-        "operationId": "get_fragrance_fragrances__fragrance_id__get",
+        "summary": "Get a sample catalog entry by id",
+        "description": "Look up a single sample entry by its integer id.\n\nArgs:\n    fragrance_id (int): Integer identifier of the catalog entry.\n\nReturns:\n    CatalogEntry: The matching catalog entry.\n\nRaises:\n    HTTPException: 404 when no entry has the requested id.",
+        "operationId": "get_catalog_entry_fragrances__fragrance_id__get",
         "parameters": [
           {
             "name": "fragrance_id",
@@ -168,7 +192,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Fragrance"
+                  "$ref": "#/components/schemas/CatalogEntry"
                 }
               }
             }
@@ -181,11 +205,1923 @@
           }
         }
       }
+    },
+    "/api/v1/fragrances": {
+      "get": {
+        "tags": [
+          "fragrances"
+        ],
+        "summary": "List Fragrances",
+        "description": "List and search fragrances.\n\nSupports filtering by name/brand search, brand, family, and gender. An\nunknown ``gender_target`` value is rejected with 422 before the search\nparameters are built.",
+        "operationId": "list_fragrances_api_v1_fragrances_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Search query for name or brand",
+              "title": "Q"
+            },
+            "description": "Search query for name or brand"
+          },
+          {
+            "name": "brand",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by brand",
+              "title": "Brand"
+            },
+            "description": "Filter by brand"
+          },
+          {
+            "name": "primary_family",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by fragrance family",
+              "title": "Primary Family"
+            },
+            "description": "Filter by fragrance family"
+          },
+          {
+            "name": "gender_target",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "Masculine",
+                    "Feminine",
+                    "Unisex"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by gender target",
+              "title": "Gender Target"
+            },
+            "description": "Filter by gender target"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FragranceResponse"
+                  },
+                  "title": "Response List Fragrances Api V1 Fragrances Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "fragrances"
+        ],
+        "summary": "Create Fragrance",
+        "description": "Create a new fragrance with notes and accords.\n\nRejects a (name, brand) pair that already exists (Major finding 8's\n`uq_fragrance_name_brand` constraint) with a 409 rather than letting the\nresulting IntegrityError surface as an unhandled 500.",
+        "operationId": "create_fragrance_api_v1_fragrances_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FragranceCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FragranceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fragrances/{fragrance_id}": {
+      "get": {
+        "tags": [
+          "fragrances"
+        ],
+        "summary": "Get Fragrance",
+        "description": "Get a fragrance by ID with full details.",
+        "operationId": "get_fragrance_api_v1_fragrances__fragrance_id__get",
+        "parameters": [
+          {
+            "name": "fragrance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fragrance Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FragranceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "fragrances"
+        ],
+        "summary": "Update Fragrance",
+        "description": "Update an existing fragrance.\n\nRejects a rename that collides with an existing (name, brand) pair\n(the `uq_fragrance_name_brand` constraint) with a 409 rather than\nletting the resulting IntegrityError surface as an unhandled 500.",
+        "operationId": "update_fragrance_api_v1_fragrances__fragrance_id__patch",
+        "parameters": [
+          {
+            "name": "fragrance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fragrance Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FragranceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FragranceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "fragrances"
+        ],
+        "summary": "Delete Fragrance",
+        "description": "Soft-delete a fragrance by ID.",
+        "operationId": "delete_fragrance_api_v1_fragrances__fragrance_id__delete",
+        "parameters": [
+          {
+            "name": "fragrance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fragrance Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reviewers": {
+      "get": {
+        "tags": [
+          "reviewers"
+        ],
+        "summary": "List Reviewers",
+        "description": "List all reviewers with evaluation counts.",
+        "operationId": "list_reviewers_api_v1_reviewers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewerResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Reviewers Api V1 Reviewers Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "reviewers"
+        ],
+        "summary": "Create Reviewer",
+        "description": "Create a new reviewer.\n\nRejects a duplicate name (the `uq_reviewer_name` partial unique index)\nwith a 409 rather than letting the resulting IntegrityError surface as\nan unhandled 500.",
+        "operationId": "create_reviewer_api_v1_reviewers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewerCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reviewers/{reviewer_id}": {
+      "get": {
+        "tags": [
+          "reviewers"
+        ],
+        "summary": "Get Reviewer",
+        "description": "Get a reviewer by ID.",
+        "operationId": "get_reviewer_api_v1_reviewers__reviewer_id__get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewerResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "reviewers"
+        ],
+        "summary": "Delete Reviewer",
+        "description": "Soft-delete a reviewer by ID.",
+        "operationId": "delete_reviewer_api_v1_reviewers__reviewer_id__delete",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/reviewers/seed": {
+      "post": {
+        "tags": [
+          "reviewers"
+        ],
+        "summary": "Seed Reviewers",
+        "description": "Create default family reviewer profiles.\n\nCreates: Byron, Veronica, Bayden, Ariannah\nIdempotent - existing reviewers are returned as-is.",
+        "operationId": "seed_reviewers_api_v1_reviewers_seed_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewerResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Seed Reviewers Api V1 Reviewers Seed Post"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evaluations": {
+      "get": {
+        "tags": [
+          "evaluations"
+        ],
+        "summary": "List Evaluations",
+        "description": "List evaluations with optional filters.",
+        "operationId": "list_evaluations_api_v1_evaluations_get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by reviewer ID",
+              "title": "Reviewer Id"
+            },
+            "description": "Filter by reviewer ID"
+          },
+          {
+            "name": "fragrance_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by fragrance ID",
+              "title": "Fragrance Id"
+            },
+            "description": "Filter by fragrance ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EvaluationResponse"
+                  },
+                  "title": "Response List Evaluations Api V1 Evaluations Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "evaluations"
+        ],
+        "summary": "Create Evaluation",
+        "description": "Create a new evaluation.\n\nEach submission creates a dated encounter, retaining earlier ratings.\nBoth the fragrance and the reviewer must already exist.\n\nCritical finding 2: `recorded_by` is populated from the Authentik\nforward-auth identity of whoever is logged in when this request is\nmade, independent of `reviewer_id` (whose palate the rating reflects).\nOne logged-in person can record ratings for several different\nreviewers across separate requests (a group-smelling session); this\nendpoint places no constraint tying the two together.",
+        "operationId": "create_evaluation_api_v1_evaluations_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/evaluations/{evaluation_id}": {
+      "get": {
+        "tags": [
+          "evaluations"
+        ],
+        "summary": "Get Evaluation",
+        "description": "Get an evaluation by ID.",
+        "operationId": "get_evaluation_api_v1_evaluations__evaluation_id__get",
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "evaluations"
+        ],
+        "summary": "Update Evaluation",
+        "description": "Update an existing evaluation.",
+        "operationId": "update_evaluation_api_v1_evaluations__evaluation_id__patch",
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "evaluations"
+        ],
+        "summary": "Delete Evaluation",
+        "description": "Soft-delete an evaluation by ID.",
+        "operationId": "delete_evaluation_api_v1_evaluations__evaluation_id__delete",
+        "parameters": [
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendations/{reviewer_id}": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Get Recommendations",
+        "description": "Get personalized fragrance recommendations for a reviewer.\n\nRequires at least 3 evaluations to generate meaningful recommendations.\nReturns fragrances sorted by match score, with vetoed items last.",
+        "operationId": "get_recommendations_api_v1_recommendations__reviewer_id__get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Maximum recommendations",
+              "default": 10,
+              "title": "Limit"
+            },
+            "description": "Maximum recommendations"
+          },
+          {
+            "name": "exclude_rated",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Exclude already-rated fragrances",
+              "default": true,
+              "title": "Exclude Rated"
+            },
+            "description": "Exclude already-rated fragrances"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendations/{reviewer_id}/profile": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Get Profile Summary",
+        "description": "Get a summary of a reviewer's preference profile.\n\nShows top liked/disliked notes, preferred accords, and fragrance families\nbased on their evaluation history. Optionally includes an LLM-generated\nnatural language summary.\n\nRequires the shared household ``X-API-Key`` header (see\n``fragrance_rater.middleware.auth.require_api_key``) and is rate limited\n(see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``)\nbecause ``include_llm=True`` can trigger a billed OpenRouter call.\n\nArgs:\n    request (Request): Incoming request, required by the\n        ``@limiter.limit`` decorator to key rate limiting on the caller.\n    reviewer_id (str): Reviewer to summarize.\n    session (Annotated[AsyncSession, Depends(get_db)]): Database session, injected.\n    service (Annotated[RecommendationService, Depends(get_recommendation_service)]):\n        Recommendation service, injected.\n    llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.\n    include_llm (Annotated[bool, Query(description='Include LLM-generated summary')]):\n        Whether to include an LLM-generated summary.\n\nReturns:\n    ProfileSummaryResponse: The reviewer's preference profile summary.",
+        "operationId": "get_profile_summary_api_v1_recommendations__reviewer_id__profile_get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          },
+          {
+            "name": "include_llm",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include LLM-generated summary",
+              "default": true,
+              "title": "Include Llm"
+            },
+            "description": "Include LLM-generated summary"
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileSummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header. Required on this endpoint because it can trigger a billed LLM call (see fragrance_rater.middleware.auth)."
+          },
+          "429": {
+            "description": "Rate limit exceeded; retry after a short delay."
+          },
+          "503": {
+            "description": "No household API key is configured for this deployment (FRAGRANCE_RATER_API_KEY unset)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendations/{reviewer_id}/{fragrance_id}/explain": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Get Recommendation Explanation",
+        "description": "Get an LLM-generated explanation for why a fragrance matches a reviewer.\n\nUses the reviewer's preference profile and the fragrance's notes/accords\nto generate a personalized explanation.\n\nRequires the shared household ``X-API-Key`` header (see\n``fragrance_rater.middleware.auth.require_api_key``) and is rate limited\n(see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``)\nbecause this endpoint always triggers a billed OpenRouter call.\n\nArgs:\n    request (Request): Incoming request, required by the\n        ``@limiter.limit`` decorator to key rate limiting on the caller.\n    reviewer_id (str): Reviewer whose preference profile is used.\n    fragrance_id (str): Fragrance to explain the match for.\n    session (Annotated[AsyncSession, Depends(get_db)]): Database session, injected.\n    service (Annotated[RecommendationService, Depends(get_recommendation_service)]):\n        Recommendation service, injected.\n    llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.\n\nReturns:\n    ExplanationResponse: The LLM-authored explanation.\n\nRaises:\n    HTTPException: 400 if the reviewer has fewer than 3 evaluations, or\n        404 if `fragrance_id` does not resolve to a live (non-soft-\n        deleted) fragrance.",
+        "operationId": "get_recommendation_explanation_api_v1_recommendations__reviewer_id___fragrance_id__explain_get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          },
+          {
+            "name": "fragrance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fragrance Id"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExplanationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid X-API-Key header. Required on this endpoint because it triggers a billed LLM call (see fragrance_rater.middleware.auth)."
+          },
+          "429": {
+            "description": "Rate limit exceeded; retry after a short delay."
+          },
+          "503": {
+            "description": "No household API key is configured for this deployment (FRAGRANCE_RATER_API_KEY unset)."
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/kaggle": {
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Import Kaggle Csv",
+        "description": "Import fragrances from a Kaggle CSV file.\n\nUpload a CSV file with fragrance data. Expected columns include:\nname, brand, concentration, year, gender, family, top_notes,\nheart_notes, base_notes, accords (flexible column name matching).\n\nSet dry_run=true to validate without writing to database.\n\nRequires a verified Authentik forward-auth identity (see\n``fragrance_rater.core.auth.get_current_identity``) when\n``settings.authentik_required`` is true.",
+        "operationId": "import_kaggle_csv_api_v1_import_kaggle_post",
+        "parameters": [
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Dry Run"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_kaggle_csv_api_v1_import_kaggle_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/access": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Access",
+        "description": "Expose capabilities without hidden experiment data.",
+        "operationId": "access_api_v1_calibration_access_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Access Api V1 Calibration Access Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/programs": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Programs",
+        "description": "List protocol descriptions without membership or blind mappings.",
+        "operationId": "programs_api_v1_calibration_programs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Programs Api V1 Calibration Programs Get"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Create Program",
+        "description": "Create a draft without hard-coded baseline size.",
+        "operationId": "create_program_api_v1_calibration_programs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgramInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Create Program Api V1 Calibration Programs Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/programs/{program_id}/members": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Add Member",
+        "description": "Add a canonical version with experimental role.",
+        "operationId": "add_member_api_v1_calibration_programs__program_id__members_post",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Program Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MembershipInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Add Member Api V1 Calibration Programs  Program Id  Members Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Members",
+        "description": "Return setup references only to managers.",
+        "operationId": "members_api_v1_calibration_programs__program_id__members_get",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Program Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Members Api V1 Calibration Programs  Program Id  Members Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/programs/{program_id}/activate": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Activate",
+        "description": "Freeze a nonempty definition before assigning evaluators.",
+        "operationId": "activate_api_v1_calibration_programs__program_id__activate_post",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Program Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Activate Api V1 Calibration Programs  Program Id  Activate Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/programs/{program_id}/enroll": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Enroll",
+        "description": "Assign and randomize the program for one shared reviewer.",
+        "operationId": "enroll_api_v1_calibration_programs__program_id__enroll_post",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Program Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Enroll Api V1 Calibration Programs  Program Id  Enroll Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/enrollments": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Enrollments",
+        "description": "List only evaluator assignments the recorder can access.",
+        "operationId": "enrollments_api_v1_calibration_enrollments_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Enrollments Api V1 Calibration Enrollments Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/enrollments/{enrollment_id}": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Enrollment",
+        "description": "Return the allowlisted blind session history.",
+        "operationId": "enrollment_api_v1_calibration_enrollments__enrollment_id__get",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrollment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Enrollment Api V1 Calibration Enrollments  Enrollment Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/presentations/{presentation_id}/observations": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Observe",
+        "description": "Append a blind timepoint.",
+        "operationId": "observe_api_v1_calibration_presentations__presentation_id__observations_post",
+        "parameters": [
+          {
+            "name": "presentation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Presentation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Observe Api V1 Calibration Presentations  Presentation Id  Observations Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/presentations/{presentation_id}/post-reveal": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Post Reveal",
+        "description": "Append an informed observation without changing blind responses.",
+        "operationId": "post_reveal_api_v1_calibration_presentations__presentation_id__post_reveal_post",
+        "parameters": [
+          {
+            "name": "presentation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Presentation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResponseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Post Reveal Api V1 Calibration Presentations  Presentation Id  Post Reveal Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/presentations/{presentation_id}/lock/{stage}": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Lock Stage",
+        "description": "Lock the submitted stage.",
+        "operationId": "lock_stage_api_v1_calibration_presentations__presentation_id__lock__stage__post",
+        "parameters": [
+          {
+            "name": "presentation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Presentation Id"
+            }
+          },
+          {
+            "name": "stage",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "BLOTTER",
+                "SKIN"
+              ],
+              "type": "string",
+              "title": "Stage"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Lock Stage Api V1 Calibration Presentations  Presentation Id  Lock  Stage  Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/presentations/{presentation_id}/skin-plan": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Skin Plan",
+        "description": "Select a skin test before finalizing the plan.",
+        "operationId": "skin_plan_api_v1_calibration_presentations__presentation_id__skin_plan_post",
+        "parameters": [
+          {
+            "name": "presentation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Presentation Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkinPlanInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Skin Plan Api V1 Calibration Presentations  Presentation Id  Skin Plan Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/enrollments/{enrollment_id}/lock-skin-plan": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Lock Skin Plan",
+        "description": "Explicitly finalize the skin plan, including an intentionally empty plan.",
+        "operationId": "lock_skin_plan_api_v1_calibration_enrollments__enrollment_id__lock_skin_plan_post",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrollment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Lock Skin Plan Api V1 Calibration Enrollments  Enrollment Id  Lock Skin Plan Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/enrollments/{enrollment_id}/reveal": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Reveal",
+        "description": "Apply the delayed-reveal policy on the server.",
+        "operationId": "reveal_api_v1_calibration_enrollments__enrollment_id__reveal_post",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrollment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Reveal Api V1 Calibration Enrollments  Enrollment Id  Reveal Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/enrollments/{enrollment_id}/checkpoints": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Checkpoint",
+        "description": "Snapshot model inputs and predictions before holdout outcomes exist.",
+        "operationId": "checkpoint_api_v1_calibration_enrollments__enrollment_id__checkpoints_post",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrollment Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckpointInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Checkpoint Api V1 Calibration Enrollments  Enrollment Id  Checkpoints Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Checkpoints",
+        "description": "Retrieve frozen inputs and predictions for manager-side analysis.",
+        "operationId": "checkpoints_api_v1_calibration_enrollments__enrollment_id__checkpoints_get",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrollment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Checkpoints Api V1 Calibration Enrollments  Enrollment Id  Checkpoints Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/enrollments/{enrollment_id}/mapping": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Mapping",
+        "description": "Manager-only decant labeling sheet; never part of participant payloads.",
+        "operationId": "mapping_api_v1_calibration_enrollments__enrollment_id__mapping_get",
+        "parameters": [
+          {
+            "name": "enrollment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Enrollment Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Mapping Api V1 Calibration Enrollments  Enrollment Id  Mapping Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/history/{reviewer_id}": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "History",
+        "description": "Unified history; conceal controlled identities according to reveal state.",
+        "operationId": "history_api_v1_calibration_history__reviewer_id__get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response History Api V1 Calibration History  Reviewer Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
-      "Fragrance": {
+      "Body_import_kaggle_csv_api_v1_import_kaggle_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Kaggle CSV file to import"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_kaggle_csv_api_v1_import_kaggle_post"
+      },
+      "CatalogEntry": {
         "properties": {
           "id": {
             "type": "integer",
@@ -218,14 +2154,14 @@
           "name",
           "brand"
         ],
-        "title": "Fragrance",
-        "description": "A fragrance catalog entry.\n\nAttributes:\n    id: Stable integer identifier.\n    name: Fragrance name.\n    brand: Fragrance house / brand.\n    notes: Accord / top / heart / base notes."
+        "title": "CatalogEntry",
+        "description": "A sample catalog entry.\n\nAttributes:\n    id (int): Stable integer identifier.\n    name (str): Fragrance name.\n    brand (str): Fragrance house / brand.\n    notes (list[str]): Accord / top / heart / base notes."
       },
-      "FragranceListResponse": {
+      "CatalogListResponse": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/Fragrance"
+              "$ref": "#/components/schemas/CatalogEntry"
             },
             "type": "array",
             "title": "Items",
@@ -242,8 +2178,768 @@
         "required": [
           "total"
         ],
-        "title": "FragranceListResponse",
-        "description": "Paginated-style response for ``GET /fragrances``."
+        "title": "CatalogListResponse",
+        "description": "Paginated-style response for ``GET /fragrances``.\n\nAttributes:\n    items (list[CatalogEntry]): Catalog entries.\n    total (int): Total entries available."
+      },
+      "CheckpointInput": {
+        "properties": {
+          "algorithm_version": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Algorithm Version"
+          },
+          "predictions": {
+            "items": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Predictions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "algorithm_version"
+        ],
+        "title": "CheckpointInput",
+        "description": "External model outputs retain their actual units and algorithm."
+      },
+      "EnrollmentInput": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "recorder_usernames": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Recorder Usernames"
+          },
+          "session_size": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Session Size",
+            "default": 3
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reviewer_id",
+          "recorder_usernames"
+        ],
+        "title": "EnrollmentInput",
+        "description": "Recorder identity is independent of whose palate is measured."
+      },
+      "EvaluationCreate": {
+        "properties": {
+          "fragrance_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Fragrance Id"
+          },
+          "reviewer_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reviewer Id"
+          },
+          "rating": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Rating"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "longevity_rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longevity Rating"
+          },
+          "sillage_rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sillage Rating"
+          },
+          "evaluated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluated At",
+            "description": "Encounter time; timezone-naive inputs are interpreted as UTC."
+          }
+        },
+        "type": "object",
+        "required": [
+          "fragrance_id",
+          "reviewer_id",
+          "rating"
+        ],
+        "title": "EvaluationCreate",
+        "description": "Schema for creating a new evaluation."
+      },
+      "EvaluationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "fragrance_id": {
+            "type": "string",
+            "title": "Fragrance Id"
+          },
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "rating": {
+            "type": "integer",
+            "title": "Rating"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "longevity_rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longevity Rating"
+          },
+          "sillage_rating": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sillage Rating"
+          },
+          "evaluated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Evaluated At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "fragrance_id",
+          "reviewer_id",
+          "rating",
+          "notes",
+          "longevity_rating",
+          "sillage_rating",
+          "evaluated_at",
+          "created_at"
+        ],
+        "title": "EvaluationResponse",
+        "description": "Schema for evaluation response."
+      },
+      "EvaluationUpdate": {
+        "properties": {
+          "rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "longevity_rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longevity Rating"
+          },
+          "sillage_rating": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sillage Rating"
+          }
+        },
+        "type": "object",
+        "title": "EvaluationUpdate",
+        "description": "Schema for updating an evaluation (PATCH semantics).\n\nEvery field defaults to `None` so a client can omit it to mean \"leave\nunchanged\"; `evaluation_service.update()` reads only the fields present\nin the request via `model_dump(exclude_unset=True)`. `notes`,\n`longevity_rating`, and `sillage_rating` back nullable columns\n(`Evaluation.notes`/`longevity_rating`/`sillage_rating`), so an explicit\n`null` for one of those is legitimate and clears it. `rating` backs a\nNOT NULL column and is additionally guarded below so an explicit `null`\nis rejected rather than reaching the database layer."
+      },
+      "ExplanationResponse": {
+        "properties": {
+          "fragrance_id": {
+            "type": "string",
+            "title": "Fragrance Id"
+          },
+          "fragrance_name": {
+            "type": "string",
+            "title": "Fragrance Name"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model",
+            "description": "Model used to generate explanation"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached",
+            "description": "Whether response was cached",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "fragrance_id",
+          "fragrance_name",
+          "explanation",
+          "model"
+        ],
+        "title": "ExplanationResponse",
+        "description": "Response model for recommendation explanation."
+      },
+      "FragranceAccordCreate": {
+        "properties": {
+          "accord_type": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Accord Type"
+          },
+          "intensity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Intensity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accord_type",
+          "intensity"
+        ],
+        "title": "FragranceAccordCreate",
+        "description": "Schema for creating a fragrance accord."
+      },
+      "FragranceAccordResponse": {
+        "properties": {
+          "accord_type": {
+            "type": "string",
+            "title": "Accord Type"
+          },
+          "intensity": {
+            "type": "number",
+            "title": "Intensity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accord_type",
+          "intensity"
+        ],
+        "title": "FragranceAccordResponse",
+        "description": "Schema for fragrance accord response."
+      },
+      "FragranceCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "brand": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Brand"
+          },
+          "concentration": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Concentration"
+          },
+          "version_key": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Version Key",
+            "default": "legacy"
+          },
+          "launch_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2100.0,
+                "minimum": 1800.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Year"
+          },
+          "gender_target": {
+            "type": "string",
+            "enum": [
+              "Masculine",
+              "Feminine",
+              "Unisex"
+            ],
+            "title": "Gender Target",
+            "default": "Unisex"
+          },
+          "primary_family": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Primary Family"
+          },
+          "subfamily": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Subfamily"
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/FragranceNoteCreate"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "accords": {
+            "items": {
+              "$ref": "#/components/schemas/FragranceAccordCreate"
+            },
+            "type": "array",
+            "title": "Accords"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "brand",
+          "concentration",
+          "primary_family",
+          "subfamily"
+        ],
+        "title": "FragranceCreate",
+        "description": "Schema for creating a new fragrance."
+      },
+      "FragranceNoteCreate": {
+        "properties": {
+          "note_name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Note Name"
+          },
+          "note_category": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Note Category"
+          },
+          "position": {
+            "type": "string",
+            "enum": [
+              "top",
+              "heart",
+              "base"
+            ],
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note_name",
+          "note_category",
+          "position"
+        ],
+        "title": "FragranceNoteCreate",
+        "description": "Schema for creating a fragrance-note association."
+      },
+      "FragranceNoteResponse": {
+        "properties": {
+          "note": {
+            "$ref": "#/components/schemas/NoteResponse"
+          },
+          "position": {
+            "type": "string",
+            "title": "Position"
+          }
+        },
+        "type": "object",
+        "required": [
+          "note",
+          "position"
+        ],
+        "title": "FragranceNoteResponse",
+        "description": "Schema for fragrance-note response."
+      },
+      "FragranceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "brand": {
+            "type": "string",
+            "title": "Brand"
+          },
+          "concentration": {
+            "type": "string",
+            "title": "Concentration"
+          },
+          "launch_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Year"
+          },
+          "gender_target": {
+            "type": "string",
+            "title": "Gender Target"
+          },
+          "primary_family": {
+            "type": "string",
+            "title": "Primary Family"
+          },
+          "subfamily": {
+            "type": "string",
+            "title": "Subfamily"
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity"
+          },
+          "data_source": {
+            "type": "string",
+            "title": "Data Source"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/FragranceNoteResponse"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "accords": {
+            "items": {
+              "$ref": "#/components/schemas/FragranceAccordResponse"
+            },
+            "type": "array",
+            "title": "Accords"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "brand",
+          "concentration",
+          "launch_year",
+          "gender_target",
+          "primary_family",
+          "subfamily",
+          "intensity",
+          "data_source",
+          "external_id",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "FragranceResponse",
+        "description": "Schema for fragrance response."
+      },
+      "FragranceUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "brand": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brand"
+          },
+          "concentration": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concentration"
+          },
+          "launch_year": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2100.0,
+                "minimum": 1800.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Launch Year"
+          },
+          "gender_target": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Masculine",
+                  "Feminine",
+                  "Unisex"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gender Target"
+          },
+          "primary_family": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Family"
+          },
+          "subfamily": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subfamily"
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity"
+          }
+        },
+        "type": "object",
+        "title": "FragranceUpdate",
+        "description": "Schema for updating a fragrance (PATCH semantics).\n\nEvery field defaults to `None` so a client can omit it to mean \"leave\nunchanged\"; `fragrance_service.update()` reads only the fields present\nin the request via `model_dump(exclude_unset=True)`. `launch_year` and\n`intensity` back nullable columns (`Fragrance.launch_year`/`intensity`),\nso an explicit `null` for one of those is legitimate and clears it.\n`name`, `brand`, `concentration`, `gender_target`, `primary_family`, and\n`subfamily` all back NOT NULL columns and are additionally guarded below\nso an explicit `null` for any of them is rejected rather than reaching\nthe database layer."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
       },
       "HealthStatus": {
         "properties": {
@@ -280,6 +2976,287 @@
         ],
         "title": "HealthStatus",
         "description": "Health check response model."
+      },
+      "ImportResponse": {
+        "properties": {
+          "total_rows": {
+            "type": "integer",
+            "title": "Total Rows",
+            "description": "Total rows processed"
+          },
+          "imported": {
+            "type": "integer",
+            "title": "Imported",
+            "description": "Successfully imported count"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped",
+            "description": "Skipped rows count"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors",
+            "description": "Error messages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_rows",
+          "imported",
+          "skipped"
+        ],
+        "title": "ImportResponse",
+        "description": "Response model for import operations."
+      },
+      "MembershipInput": {
+        "properties": {
+          "fragrance_id": {
+            "type": "string",
+            "title": "Fragrance Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "UNIVERSAL_BASELINE",
+              "HIDDEN_REPEAT",
+              "HOLDOUT",
+              "ACTIVE_LEARNING",
+              "RETEST",
+              "OWNED_VALIDATION",
+              "OTHER"
+            ],
+            "title": "Role"
+          },
+          "repeat_of_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat Of Id"
+          },
+          "group_name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Group Name",
+            "default": "Baseline"
+          },
+          "selection": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Selection"
+          },
+          "identity_evidence": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Identity Evidence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fragrance_id",
+          "role",
+          "identity_evidence"
+        ],
+        "title": "MembershipInput",
+        "description": "Require exact catalog ID and documented identity verification."
+      },
+      "NoteResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "subcategory": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subcategory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "subcategory"
+        ],
+        "title": "NoteResponse",
+        "description": "Schema for note response."
+      },
+      "ProfileSummaryResponse": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "evaluation_count": {
+            "type": "integer",
+            "title": "Evaluation Count"
+          },
+          "top_liked_notes": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Top Liked Notes",
+            "description": "Top 5 liked notes with scores"
+          },
+          "top_disliked_notes": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Top Disliked Notes",
+            "description": "Top 5 disliked notes with scores"
+          },
+          "top_accords": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Top Accords",
+            "description": "Top 5 preferred accords"
+          },
+          "top_families": {
+            "items": {
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "title": "Top Families",
+            "description": "Top 5 preferred fragrance families"
+          },
+          "llm_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Summary",
+            "description": "LLM-generated natural language summary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewer_id",
+          "evaluation_count"
+        ],
+        "title": "ProfileSummaryResponse",
+        "description": "Response model for reviewer preference profile summary."
+      },
+      "ProgramInput": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "maxLength": 50,
+            "minLength": 1,
+            "title": "Version"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "ProgramInput",
+        "description": "Versioned program definition."
       },
       "RatingRequest": {
         "properties": {
@@ -352,7 +3329,7 @@
           "description"
         ],
         "title": "RatingRequest",
-        "description": "Request body for ``POST /ratings``.\n\nAttributes:\n    name: Fragrance name (required).\n    brand: Fragrance house or brand. Improves rating accuracy.\n    description: Free-text description of the scent profile.\n    notes: Optional list of accord/top/heart/base notes."
+        "description": "Request body for ``POST /ratings``.\n\nAttributes:\n    name (str): Fragrance name (required).\n    brand (str | None): Fragrance house or brand. Improves rating accuracy.\n    description (str): Free-text description of the scent profile.\n    notes (list[FragranceNote] | None): Optional list of accord/top/heart/base notes."
       },
       "RatingResponse": {
         "properties": {
@@ -395,7 +3372,7 @@
           "model"
         ],
         "title": "RatingResponse",
-        "description": "Response body returned by ``POST /ratings``.\n\nAttributes:\n    score: Integer rating, 1 (poor) to 10 (excellent).\n    reasoning: Human-readable explanation written by the LLM.\n    model: Identifier of the LLM that produced the rating.\n    notes: Echo of accord notes used by the model.\n    latency_warning: Reminder that LLM latency is variable."
+        "description": "Response body returned by ``POST /ratings``.\n\nAttributes:\n    score (int): Integer rating, 1 (poor) to 10 (excellent).\n    reasoning (str): Human-readable explanation written by the LLM.\n    model (str): Identifier of the LLM that produced the rating.\n    notes (list[str]): Echo of accord notes used by the model.\n    latency_warning (str): Reminder that LLM latency is variable."
       },
       "ReadinessCheck": {
         "properties": {
@@ -485,6 +3462,537 @@
         ],
         "title": "ReadinessStatus",
         "description": "Readiness check response with dependency details."
+      },
+      "RecommendationListResponse": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "recommendations": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationResponse"
+            },
+            "type": "array",
+            "title": "Recommendations"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewer_id",
+          "recommendations",
+          "count"
+        ],
+        "title": "RecommendationListResponse",
+        "description": "Response model for recommendation list."
+      },
+      "RecommendationResponse": {
+        "properties": {
+          "fragrance_id": {
+            "type": "string",
+            "title": "Fragrance Id"
+          },
+          "fragrance_name": {
+            "type": "string",
+            "title": "Fragrance Name"
+          },
+          "fragrance_brand": {
+            "type": "string",
+            "title": "Fragrance Brand"
+          },
+          "match_score": {
+            "type": "number",
+            "title": "Match Score",
+            "description": "Match score from 0.0 to 1.0"
+          },
+          "match_percent": {
+            "type": "integer",
+            "title": "Match Percent",
+            "description": "Match score as percentage 0-100"
+          },
+          "vetoed": {
+            "type": "boolean",
+            "title": "Vetoed",
+            "description": "Whether fragrance contains a disliked note",
+            "default": false
+          },
+          "veto_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Veto Reason",
+            "description": "Reason for veto if applicable"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fragrance_id",
+          "fragrance_name",
+          "fragrance_brand",
+          "match_score",
+          "match_percent"
+        ],
+        "title": "RecommendationResponse",
+        "description": "Response model for a single recommendation."
+      },
+      "ResponseInput": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "BLOTTER",
+              "SKIN"
+            ],
+            "title": "Stage"
+          },
+          "elapsed_minutes": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Elapsed Minutes",
+            "default": 0
+          },
+          "detected": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detected"
+          },
+          "intensity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intensity"
+          },
+          "liking": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liking"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "sweetness": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sweetness"
+          },
+          "freshness": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freshness"
+          },
+          "density": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Density"
+          },
+          "familiarity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Familiarity"
+          },
+          "dryness": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dryness"
+          },
+          "clean_soapy": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clean Soapy"
+          },
+          "earthy_rooty": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Earthy Rooty"
+          },
+          "bodily_animalic": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodily Animalic"
+          },
+          "discomfort": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discomfort"
+          },
+          "opening_liking": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opening Liking"
+          },
+          "drydown_liking": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drydown Liking"
+          },
+          "would_wear": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Wear"
+          },
+          "would_buy": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Would Buy"
+          },
+          "artistic_appreciation": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artistic Appreciation"
+          },
+          "projection": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projection"
+          },
+          "longevity_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longevity Minutes"
+          },
+          "perceived_notes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Perceived Notes"
+          },
+          "likes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Likes"
+          },
+          "dislikes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dislikes"
+          },
+          "reminds_me_of": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reminds Me Of"
+          },
+          "comments": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comments"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stage"
+        ],
+        "title": "ResponseInput",
+        "description": "A submitted timepoint; null means unanswered, zero is a response."
+      },
+      "ReviewerCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ReviewerCreate",
+        "description": "Schema for creating a new reviewer."
+      },
+      "ReviewerResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "evaluation_count": {
+            "type": "integer",
+            "title": "Evaluation Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "created_at"
+        ],
+        "title": "ReviewerResponse",
+        "description": "Schema for reviewer response."
+      },
+      "SkinPlanInput": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "SkinPlanInput",
+        "description": "Explicit reason, including low confidence or low-rated controls."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       }
     }
   }

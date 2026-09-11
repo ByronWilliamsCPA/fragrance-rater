@@ -1,5 +1,6 @@
 """Unit tests for EvaluationService."""
 
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -456,14 +457,8 @@ class TestEvaluationSoftDeleteAndRecordedBy:
 
 
 @pytest.mark.asyncio
-class TestEvaluationDedupPartialUniqueIndex:
-    """`uq_evaluation_reviewer_fragrance` is a partial unique index scoped to live rows.
-
-    Regression coverage for the soft-delete/dedup interaction: a plain
-    UniqueConstraint on (reviewer_id, fragrance_id) would let a
-    soft-deleted evaluation block re-entering a rating for the same pair
-    forever. See the resolved RAD note on `Evaluation.deleted_at`.
-    """
+class TestOrdinaryEncounterHistory:
+    """Repeated ordinary encounters coexist and remain independently addressable."""
 
     async def test_recreate_after_soft_delete_succeeds(
         self, async_session, setup_fragrance_and_reviewer
@@ -515,30 +510,31 @@ class TestEvaluationDedupPartialUniqueIndex:
         assert live[0].id == "dedup-eval-new"
         assert deleted[0].id == "dedup-eval-orig"
 
-    async def test_two_live_evaluations_still_reject_duplicate_reviewer_fragrance(
+    async def test_latest_encounter_is_deterministic_and_excludes_deleted(
         self, async_session, setup_fragrance_and_reviewer
     ):
-        """Two LIVE evaluations sharing (reviewer_id, fragrance_id) must still be rejected."""
-        from sqlalchemy.exc import IntegrityError
-
+        """Encounter dates win over insert order; ties and deleted rows are stable."""
         fragrance, reviewer = setup_fragrance_and_reviewer
-
-        first = Evaluation(
-            id="dup-eval-1",
-            fragrance_id=fragrance.id,
-            reviewer_id=reviewer.id,
-            rating=3,
-        )
-        async_session.add(first)
-        await async_session.commit()
-
-        second = Evaluation(
-            id="dup-eval-2",
-            fragrance_id=fragrance.id,
-            reviewer_id=reviewer.id,
-            rating=4,
-        )
-        async_session.add(second)
-        with pytest.raises(IntegrityError):
-            await async_session.commit()
-        await async_session.rollback()
+        service = EvaluationService(async_session)
+        for key, day in [("encounter-a", 11), ("encounter-b", 11), ("encounter-c", 10)]:
+            async_session.add(
+                Evaluation(
+                    id=key,
+                    fragrance_id=fragrance.id,
+                    reviewer_id=reviewer.id,
+                    rating=3,
+                    evaluated_at=datetime(2026, 9, day, tzinfo=timezone.utc).replace(  # noqa: UP017 - Python 3.10
+                        tzinfo=None
+                    ),
+                    created_at=datetime(2026, 9, 12, tzinfo=timezone.utc).replace(  # noqa: UP017 - Python 3.10
+                        tzinfo=None
+                    ),
+                )
+            )
+        await async_session.flush()
+        assert len(await service.get_by_reviewer(reviewer.id)) == 3
+        latest = await service.get_by_reviewer_and_fragrance(reviewer.id, fragrance.id)
+        assert latest.id == "encounter-b"
+        await service.delete(latest.id)
+        latest = await service.get_by_reviewer_and_fragrance(reviewer.id, fragrance.id)
+        assert latest.id == "encounter-a"

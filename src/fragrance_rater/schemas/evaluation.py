@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -16,6 +16,19 @@ class EvaluationCreate(BaseModel):
     notes: str | None = Field(None, max_length=2000)
     longevity_rating: int | None = Field(None, ge=1, le=5)
     sillage_rating: int | None = Field(None, ge=1, le=5)
+
+    evaluated_at: datetime | None = Field(
+        None,
+        description="Encounter time; timezone-naive inputs are interpreted as UTC.",
+    )
+
+    @field_validator("evaluated_at")
+    @classmethod
+    def normalize_encounter_time(cls, value: datetime | None) -> datetime | None:
+        """Normalize supplied encounter times for the existing UTC database columns."""
+        if value is None or value.tzinfo is None:
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)  # noqa: UP017 - Python 3.10
 
 
 class EvaluationUpdate(BaseModel):

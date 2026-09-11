@@ -68,6 +68,7 @@ class FragranceCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     brand: str = Field(..., min_length=1, max_length=255)
     concentration: str = Field(..., min_length=1, max_length=50)
+    version_key: str = Field(default="legacy", min_length=1, max_length=200)
     launch_year: int | None = Field(None, ge=1800, le=2100)
     gender_target: GenderTarget = "Unisex"
     primary_family: str = Field(..., min_length=1, max_length=50)

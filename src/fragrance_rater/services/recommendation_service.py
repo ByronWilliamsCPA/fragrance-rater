@@ -16,8 +16,16 @@ from typing import TYPE_CHECKING, TypedDict
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.models.calibration import (
+    CalibrationSession,
+    Enrollment,
+    Membership,
+    Observation,
+    Presentation,
+)
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
+from fragrance_rater.services.preference_history import PreferenceHistoryService
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -169,6 +177,17 @@ class RecommendationService:
         )
         result = await self.session.execute(stmt)
         evaluations = list(result.scalars().all())
+        history = PreferenceHistoryService(self.session)
+        excluded = await history.excluded_versions(reviewer_id)
+        # One latest ordinary encounter contributes per version; retain all history.
+        evaluations.sort(
+            key=lambda e: (e.evaluated_at, e.created_at, e.id), reverse=True
+        )
+        latest: dict[str, Evaluation] = {}
+        for item in evaluations:
+            if item.fragrance_id not in excluded:
+                latest.setdefault(item.fragrance_id, item)
+        evaluations = list(latest.values())
 
         # Initialize affinity dictionaries
         note_affinities: dict[str, float] = defaultdict(float)
@@ -176,9 +195,9 @@ class RecommendationService:
         accord_affinities: dict[str, float] = defaultdict(float)
         family_affinities: dict[str, float] = defaultdict(float)
 
-        for evaluation in evaluations:
-            weight = RATING_WEIGHTS.get(evaluation.rating, 0.0)
-            fragrance = evaluation.fragrance
+        contributions = await self._contributions(reviewer_id, evaluations)
+        for fragrance, weights in contributions.values():
+            weight = sum(weights) / len(weights)
 
             # Accumulate note affinities
             for fn in fragrance.notes:
@@ -215,10 +234,63 @@ class RecommendationService:
             note_affinities=dict(note_affinities),
             accord_affinities=dict(accord_affinities),
             family_affinities=dict(family_affinities),
-            evaluation_count=len(evaluations),
+            evaluation_count=len(contributions),
             top_liked_notes=top_liked,
             top_disliked_notes=list(reversed(top_disliked)),
         )
+
+    async def _contributions(
+        self, reviewer_id: str, evaluations: list[Evaluation]
+    ) -> dict[str, tuple[Fragrance, list[float]]]:
+        """Average available workflow evidence once per canonical version."""
+        history = PreferenceHistoryService(self.session)
+        contributions: dict[str, tuple[Fragrance, list[float]]] = {
+            e.fragrance_id: (e.fragrance, [RATING_WEIGHTS.get(e.rating, 0.0)])
+            for e in evaluations
+        }
+        # Controlled data contributes to ordinary recommendations only after reveal.
+        # Experimental checkpoints may consume locked blind data through the manifest.
+        revealed_programs = set(
+            await self.session.scalars(
+                select(Enrollment.program_id).where(
+                    Enrollment.reviewer_id == reviewer_id,
+                    Enrollment.revealed_at.is_not(None),
+                )
+            )
+        )
+        if revealed_programs:
+            manifest = await history.training_manifest(reviewer_id)
+            controlled: dict[str, dict[str, object]] = {}
+            for row in manifest:
+                if (
+                    row["workflow"] != "CONTROLLED"
+                    or row["program_id"] not in revealed_programs
+                ):
+                    continue
+                fid = str(row["fragrance_id"])
+                if fid not in controlled or (
+                    row["stage"] == "SKIN" and controlled[fid]["stage"] != "SKIN"
+                ):
+                    controlled[fid] = row
+            for fid, row in controlled.items():
+                fragrance = await self.session.scalar(
+                    select(Fragrance)
+                    .where(Fragrance.id == fid)
+                    .options(
+                        selectinload(Fragrance.notes).selectinload(FragranceNote.note),
+                        selectinload(Fragrance.accords),
+                    )
+                )
+                if fragrance is not None:
+                    # Explicit linear affinity-v1 conversion; this is not predicted liking.
+                    rating = row["rating"]
+                    assert isinstance(rating, (int, float))
+                    contribution = (rating - 5.0) / 2.5
+                    if fid in contributions:
+                        contributions[fid][1].append(contribution)
+                    else:
+                        contributions[fid] = (fragrance, [contribution])
+        return contributions
 
     async def calculate_match_score(
         self, profile: UserProfile, fragrance: Fragrance
@@ -352,6 +424,21 @@ class RecommendationService:
             )
             rated_result = await self.session.execute(rated_stmt)
             rated_ids = {row[0] for row in rated_result.all()}
+            controlled_ids = await self.session.scalars(
+                select(Membership.fragrance_id)
+                .join(Presentation, Presentation.membership_id == Membership.id)
+                .join(
+                    CalibrationSession, CalibrationSession.id == Presentation.session_id
+                )
+                .join(Enrollment, Enrollment.id == CalibrationSession.enrollment_id)
+                .join(Observation, Observation.presentation_id == Presentation.id)
+                .where(
+                    Enrollment.reviewer_id == reviewer_id,
+                    Enrollment.revealed_at.is_not(None),
+                    Presentation.blotter_locked_at.is_not(None),
+                )
+            )
+            rated_ids.update(controlled_ids)
             stmt = stmt.where(Fragrance.id.notin_(rated_ids))
 
         result = await self.session.execute(stmt)

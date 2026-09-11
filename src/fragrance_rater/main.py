@@ -41,6 +41,7 @@ from fragrance_rater.api import (
     recommendations_router,
     reviewers_router,
 )
+from fragrance_rater.api.calibration import router as calibration_router
 from fragrance_rater.core.config import settings
 from fragrance_rater.middleware import (
     CorrelationMiddleware,
@@ -181,3 +182,6 @@ async def root() -> dict[str, str]:
         "docs": "/docs",
         "health": "/health/live",
     }
+
+
+app.include_router(calibration_router, prefix=settings.api_v1_prefix)

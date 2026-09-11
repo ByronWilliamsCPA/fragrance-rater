@@ -24,3 +24,6 @@ __all__ = [
     "Note",
     "Reviewer",
 ]
+
+# Register controlled tables for Alembic and test metadata.
+from fragrance_rater.models import calibration as calibration

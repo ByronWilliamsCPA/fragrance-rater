@@ -6,12 +6,10 @@ fragrance_id or reviewer_id must return a clean 404, not silently succeed
 """
 
 import sqlite3
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from fragrance_rater.core.config import settings
-from fragrance_rater.services.evaluation_service import EvaluationService
 
 API_PREFIX = "/api/v1"
 
@@ -157,92 +155,40 @@ class TestCreateEvaluationAPI:
         assert response.status_code == 404
         assert response.json()["detail"]["error"] == "FRAGRANCE_NOT_FOUND"
 
-    async def test_create_duplicate_evaluation_returns_409(self, test_app):
-        """Major finding 8: a second evaluation for the same reviewer and
-        fragrance is rejected by the existing application-level pre-check
-        (the common, non-racy path).
-        """
-        reviewer_resp = await test_app.post(
-            f"{API_PREFIX}/reviewers", json={"name": "Dup Eval Tester"}
+    async def test_repeated_encounters_retain_history(self, test_app):
+        """New submissions preserve dated ratings; correction edits one encounter."""
+        reviewer_id = await _create_reviewer(test_app, "Encounter Tester")
+        fragrance_id = await _create_fragrance(test_app, "Encounter Fragrance")
+        payload = {"fragrance_id": fragrance_id, "reviewer_id": reviewer_id}
+        first = await test_app.post(
+            f"{API_PREFIX}/evaluations",
+            json={**payload, "rating": 4, "evaluated_at": "2026-09-10T12:00:00-07:00"},
         )
-        reviewer_id = reviewer_resp.json()["id"]
-        fragrance_resp = await test_app.post(
-            f"{API_PREFIX}/fragrances",
-            json={
-                "name": "Dup Eval Fragrance",
-                "brand": "Brand",
-                "concentration": "EDP",
-                "gender_target": "Unisex",
-                "primary_family": "woody",
-                "subfamily": "aromatic",
-            },
+        second = await test_app.post(
+            f"{API_PREFIX}/evaluations",
+            json={**payload, "rating": 2, "evaluated_at": "2026-09-11T10:00:00Z"},
         )
-        fragrance_id = fragrance_resp.json()["id"]
-        payload = {
-            "fragrance_id": fragrance_id,
-            "reviewer_id": reviewer_id,
-            "rating": 4,
-        }
-
-        first = await test_app.post(f"{API_PREFIX}/evaluations", json=payload)
-        assert first.status_code == 201
-
-        second = await test_app.post(f"{API_PREFIX}/evaluations", json=payload)
-        assert second.status_code == 409
-        assert second.json()["detail"]["error"] == "EVALUATION_EXISTS"
-
-    async def test_create_evaluation_race_condition_hits_integrity_error_path(
-        self, test_app
-    ):
-        """Major finding 8: if the pre-check races and misses an already
-        committed duplicate, the DB-level UNIQUE(reviewer_id, fragrance_id)
-        constraint is the actual backstop, and the endpoint must translate
-        the resulting IntegrityError into the same 409 the pre-check
-        produces for the common case, not an unhandled 500.
-
-        The race is simulated by patching the pre-check to always report
-        "no existing evaluation" so the request falls through to the
-        insert. That patch also covers the endpoint's post-IntegrityError
-        lookup, so `existing_id` in the 409 body comes back None here; this
-        pins the "still a clean 409, not a 500" behavior, not the
-        existing_id enrichment.
-        """
-        reviewer_resp = await test_app.post(
-            f"{API_PREFIX}/reviewers", json={"name": "Race Eval Tester"}
+        assert first.status_code == second.status_code == 201
+        assert first.json()["id"] != second.json()["id"]
+        assert first.json()["evaluated_at"] == "2026-09-10T19:00:00"
+        history = await test_app.get(
+            f"{API_PREFIX}/evaluations", params={"reviewer_id": reviewer_id}
         )
-        reviewer_id = reviewer_resp.json()["id"]
-        fragrance_resp = await test_app.post(
-            f"{API_PREFIX}/fragrances",
-            json={
-                "name": "Race Eval Fragrance",
-                "brand": "Brand",
-                "concentration": "EDP",
-                "gender_target": "Unisex",
-                "primary_family": "woody",
-                "subfamily": "aromatic",
-            },
+        assert [row["rating"] for row in history.json()] == [2, 4]
+        correction = await test_app.patch(
+            f"{API_PREFIX}/evaluations/{second.json()['id']}", json={"rating": 3}
         )
-        fragrance_id = fragrance_resp.json()["id"]
-        payload = {
-            "fragrance_id": fragrance_id,
-            "reviewer_id": reviewer_id,
-            "rating": 4,
-        }
-
-        first = await test_app.post(f"{API_PREFIX}/evaluations", json=payload)
-        assert first.status_code == 201
-
-        with patch.object(
-            EvaluationService,
-            "get_by_reviewer_and_fragrance",
-            AsyncMock(return_value=None),
-        ):
-            second = await test_app.post(f"{API_PREFIX}/evaluations", json=payload)
-
-        assert second.status_code == 409
-        detail = second.json()["detail"]
-        assert detail["error"] == "EVALUATION_EXISTS"
-        assert detail["existing_id"] is None
+        assert correction.status_code == 200
+        original = await test_app.get(f"{API_PREFIX}/evaluations/{first.json()['id']}")
+        assert original.json()["rating"] == 4
+        deleted = await test_app.delete(
+            f"{API_PREFIX}/evaluations/{second.json()['id']}"
+        )
+        assert deleted.status_code == 204
+        history = await test_app.get(
+            f"{API_PREFIX}/evaluations", params={"reviewer_id": reviewer_id}
+        )
+        assert [row["id"] for row in history.json()] == [first.json()["id"]]
 
 
 @pytest.mark.asyncio

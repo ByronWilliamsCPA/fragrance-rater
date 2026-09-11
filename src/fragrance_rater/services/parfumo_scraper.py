@@ -14,7 +14,7 @@ import logging
 import re
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import quote_plus, urlsplit
 
@@ -23,6 +23,12 @@ from bs4 import BeautifulSoup
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from fragrance_rater.models.calibration import (
+    Membership,
+    Perfumer,
+    SourceSnapshot,
+    VersionPerfumer,
+)
 from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
@@ -45,12 +51,15 @@ class ScrapedFragrance:
     url: str
     name: str
     brand: str
+    display_title: str | None = None
+    flat_notes: list[str] = field(default_factory=list)
+    perfumers: list[str] = field(default_factory=list)
     top_notes: list[str] = field(default_factory=list)
     heart_notes: list[str] = field(default_factory=list)
     base_notes: list[str] = field(default_factory=list)
     accords: dict[str, float] = field(default_factory=dict)
     rating: float | None = None
-    rating_count: int = 0
+    rating_count: int | None = None
     gender: str | None = None
     year: int | None = None
     perfumer: str | None = None
@@ -233,7 +242,12 @@ class ParfumoScraper:
         """
         parsed = urlsplit(url)
         hostname = (parsed.hostname or "").lower()
-        return parsed.scheme == "https" and hostname in self.ALLOWED_HOSTS
+        return (
+            parsed.scheme == "https"
+            and hostname in self.ALLOWED_HOSTS
+            and parsed.username is None
+            and parsed.password is None
+        )
 
     @staticmethod
     def _parse_retry_after(value: str | None) -> float | None:
@@ -397,6 +411,25 @@ class ParfumoScraper:
             data.gender = self._extract_gender(soup)
             data.year = self._extract_year(soup)
             data.perfumer = self._extract_perfumer(soup)
+            data.perfumers = list(
+                dict.fromkeys(
+                    el.get_text(strip=True)
+                    for el in soup.select("a[href*='/Perfumers/']")
+                    if el.get_text(strip=True)
+                )
+            )
+            title = soup.find("h1")
+            data.display_title = title.get_text(" ", strip=True) if title else data.name
+            title_text = data.display_title.lower()
+            for label, value in [
+                ("eau de parfum", "EDP"),
+                ("eau de toilette", "EDT"),
+                ("extrait de parfum", "Extrait"),
+                ("eau de cologne", "EDC"),
+            ]:
+                if label in title_text:
+                    data.concentration = value
+                    break
             data.image_url = self._extract_image_url(soup)
         except Exception:
             # Page layout changes must degrade to "no data", not crash an import
@@ -628,7 +661,7 @@ class ParfumoScraper:
         # Method 3: If still no notes, look for any note links
         if not any([data.top_notes, data.heart_notes, data.base_notes]):
             all_notes = soup.select("a[href*='/Notes/'], span.pointer")
-            data.heart_notes = list(
+            data.flat_notes = list(
                 {n.get_text(strip=True) for n in all_notes if n.get_text(strip=True)}
             )
 
@@ -753,12 +786,11 @@ class ParfumoScraper:
         # Check if fragrance already exists
         # Critical finding 2: soft-delete filter.
         stmt = select(Fragrance).where(
-            Fragrance.name == final_name,
-            Fragrance.brand == final_brand,
+            Fragrance.parfumo_url == scraped.url,
             Fragrance.deleted_at.is_(None),
         )
         result = await self.db.execute(stmt)
-        existing = result.scalar_one_or_none()
+        existing = result.scalars().first()
 
         if existing:
             # Update with scraped data
@@ -792,12 +824,11 @@ class ParfumoScraper:
         # Check if exists
         # Critical finding 2: soft-delete filter.
         stmt = select(Fragrance).where(
-            Fragrance.name == scraped.name,
-            Fragrance.brand == scraped.brand,
+            Fragrance.parfumo_url == scraped.url,
             Fragrance.deleted_at.is_(None),
         )
         result = await self.db.execute(stmt)
-        existing = result.scalar_one_or_none()
+        existing = result.scalars().first()
 
         if existing:
             await self._update_fragrance(existing, scraped)
@@ -841,7 +872,8 @@ class ParfumoScraper:
             id=str(uuid.uuid4()),
             name=name,
             brand=brand,
-            concentration=scraped.concentration or "EDP",
+            concentration=scraped.concentration or "Unknown",
+            version_key="parfumo:" + scraped.url.rsplit("/", 1)[-1][:190],
             gender_target=gender_map.get(scraped.gender or "", "Unisex"),
             launch_year=scraped.year,
             primary_family=self._infer_family(scraped),
@@ -858,6 +890,7 @@ class ParfumoScraper:
         self.db.add(fragrance)
         await self.db.flush()
 
+        await self._save_source(fragrance.id, scraped)
         # Add notes
         await self._add_notes(fragrance.id, scraped)
 
@@ -885,16 +918,52 @@ class ParfumoScraper:
             scraped (ScrapedFragrance): Scraped data.
         """
         # Update basic fields if not set
-        if not fragrance.launch_year and scraped.year:
+        await self.db.execute(
+            select(Fragrance.id).where(Fragrance.id == fragrance.id).with_for_update()
+        )
+        assigned = await self.db.scalar(
+            select(Membership.id).where(Membership.fragrance_id == fragrance.id)
+        )
+        if not assigned and not fragrance.launch_year and scraped.year:
             fragrance.launch_year = scraped.year
 
         if not fragrance.parfumo_url:
             fragrance.parfumo_url = scraped.url
 
+        await self._save_source(fragrance.id, scraped)
         # Note: We don't overwrite existing notes/accords
         # to preserve user's data integrity
 
         await self.db.commit()
+
+    async def _save_source(self, fragrance_id: str, scraped: ScrapedFragrance) -> None:
+        """Append source evidence and preserve every perfumer attribution."""
+        self.db.add(
+            SourceSnapshot(
+                fragrance_id=fragrance_id,
+                source_url=scraped.url,
+                payload=asdict(scraped),
+            )
+        )
+        names = scraped.perfumers or ([scraped.perfumer] if scraped.perfumer else [])
+        for name in names:
+            perfumer = await self.db.scalar(
+                select(Perfumer).where(Perfumer.name == name)
+            )
+            if perfumer is None:
+                perfumer = Perfumer(name=name)
+                self.db.add(perfumer)
+                await self.db.flush()
+            link = await self.db.get(VersionPerfumer, (fragrance_id, perfumer.id))
+            if link is None:
+                self.db.add(
+                    VersionPerfumer(
+                        fragrance_id=fragrance_id,
+                        perfumer_id=perfumer.id,
+                        source_url=scraped.url,
+                    )
+                )
+        await self.db.flush()
 
     async def _add_notes(self, fragrance_id: str, scraped: ScrapedFragrance) -> None:
         """Add notes to fragrance.
@@ -906,6 +975,7 @@ class ParfumoScraper:
         note_types = [
             ("top", scraped.top_notes),
             ("heart", scraped.heart_notes),
+            ("flat", scraped.flat_notes),
             ("base", scraped.base_notes),
         ]
 

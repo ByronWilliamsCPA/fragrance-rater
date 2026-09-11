@@ -15,7 +15,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from fragrance_rater.schemas.evaluation import EvaluationUpdate
+from fragrance_rater.schemas.evaluation import EvaluationCreate, EvaluationUpdate
 
 
 class TestEvaluationUpdateOmittedFields:
@@ -74,3 +74,21 @@ class TestEvaluationUpdateNonNullableRating:
         """The null guard must not weaken the existing 1-5 range check."""
         with pytest.raises(ValidationError):
             EvaluationUpdate.model_validate({"rating": 6})
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2026-09-10T12:00:00-07:00", "2026-09-10T19:00:00"),
+        ("2026-09-10T19:00:00Z", "2026-09-10T19:00:00"),
+        ("2026-09-10T19:00:00", "2026-09-10T19:00:00"),
+        (None, None),
+    ],
+)
+def test_encounter_dates_use_naive_utc(value, expected):
+    """Offsets normalize; legacy naive UTC and omitted encounter times remain valid."""
+    data = EvaluationCreate(
+        fragrance_id="fragrance", reviewer_id="reviewer", rating=3, evaluated_at=value
+    )
+    actual = data.evaluated_at.isoformat() if data.evaluated_at else None
+    assert actual == expected

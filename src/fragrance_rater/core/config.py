@@ -76,6 +76,9 @@ class Settings(BaseSettings):
         openrouter_model (str): Default model to use for LLM calls.
         openrouter_base_url (str): OpenRouter API base URL.
         llm_enabled (bool): Enable/disable LLM features.
+        calibration_admin_usernames (list[str]): Verified Authentik usernames
+            permitted to administer controlled calibration programs. Empty by
+            default, which denies calibration administration.
         authentik_required (bool): Require a verified Authentik forward-auth
             identity header on mutating requests. Defaults to True outside
             tests; tests and local dev disable it via AUTHENTIK_REQUIRED=false.
@@ -235,6 +238,8 @@ class Settings(BaseSettings):
     # Settings() is instantiated (rate_limit_enabled is a separate,
     # test-only-disableable toggle but is left at its True default in tests;
     # see the comment above os.environ["AUTHENTIK_REQUIRED"] in conftest.py).
+    calibration_admin_usernames: list[str] = Field(default_factory=list)
+
     authentik_required: bool = Field(
         default=True,
         description=(
