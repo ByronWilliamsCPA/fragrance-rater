@@ -1,8 +1,6 @@
 # Docker Compose configuration for Fragrance Rater
 # Development and production-ready setup with common services
 
-version: '3.9'
-
 services:
   # =============================================================================
   # Application Service
@@ -30,7 +28,7 @@ services:
       # No credential default: DB_PASSWORD must come from .env (see
       # .env.example) or the environment, so no weak literal password can
       # be inherited silently by any environment, including production.
-      DATABASE_URL: ${DATABASE_URL:-postgresql://fragrance_rater:${DB_PASSWORD:?DB_PASSWORD must be set (copy .env.example to .env)}@db:5432/fragrance_rater}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://fragrance_rater:${DB_PASSWORD:?DB_PASSWORD must be set (copy .env.example to .env)}@db:5432/fragrance_rater}
       # Redis cache (if applicable)
       # REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 

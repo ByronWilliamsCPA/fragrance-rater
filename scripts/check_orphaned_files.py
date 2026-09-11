@@ -72,7 +72,6 @@ def check_orphaned_files(context: dict) -> list[tuple[str, str, Path]]:
             "no",
             [
                 Path("mkdocs.yml"),
-                Path("docs"),
                 Path("tools/validate_front_matter.py"),
                 Path("tools/frontmatter_contract"),
             ],
@@ -123,6 +122,7 @@ def check_orphaned_files(context: dict) -> list[tuple[str, str, Path]]:
                 src_dir / "middleware" / "correlation.py",
             ],
         ),
+        ("include_health_checks", "no", [src_dir / "api" / "health.py"]),
         ("include_sentry", "no", [src_dir / "core" / "sentry.py"]),
         ("include_background_jobs", "no", [src_dir / "jobs"]),
         ("include_caching", "no", [src_dir / "core" / "cache.py"]),

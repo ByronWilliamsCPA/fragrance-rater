@@ -14,6 +14,13 @@ from fragrance_rater.models.fragrance import (
     FragranceNote,
     Note,
 )
+from fragrance_rater.models.recommendation_measurement import (
+    LLMInvocation,
+    PilotOperationalEvent,
+    RecommendationImpression,
+    RecommendationResponseRevision,
+    RecommendationRun,
+)
 from fragrance_rater.models.reviewer import Reviewer
 
 __all__ = [
@@ -22,6 +29,11 @@ __all__ = [
     "Fragrance",
     "FragranceAccord",
     "FragranceNote",
+    "LLMInvocation",
     "Note",
+    "PilotOperationalEvent",
+    "RecommendationImpression",
+    "RecommendationResponseRevision",
+    "RecommendationRun",
     "Reviewer",
 ]

@@ -26,19 +26,20 @@ Functions:
     setup_credentials(): Decode and setup credentials from environment.
 """
 
+from __future__ import annotations
+
 import base64
+import binascii
+import importlib
 import json
 import os
 import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
-from google.api_core.exceptions import GoogleAPICallError
-from google.auth.exceptions import DefaultCredentialsError
-from google.cloud.assuredoss import V1Client
 
 
-def setup_credentials() -> None:
+def setup_credentials() -> Path | None:
     """Set up Google Cloud credentials from environment variables.
 
     Handles both file-based credentials (GOOGLE_APPLICATION_CREDENTIALS)
@@ -56,7 +57,7 @@ def setup_credentials() -> None:
             "✅ Using credentials from file:",
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"],
         )
-        return
+        return None
 
     # Try to use base64-encoded credentials
     cred_b64 = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_B64")
@@ -70,19 +71,61 @@ def setup_credentials() -> None:
 
     # Decode base64 credentials and write to temp file
     try:
-        cred_json = base64.b64decode(cred_b64).decode("utf-8")
+        cred_json = base64.b64decode(cred_b64, validate=True).decode("utf-8")
         json.loads(cred_json)  # Validate JSON
 
-        # Write to temporary file
-        temp_cred_file = Path(tempfile.gettempdir()) / "gcp-credentials.json"
-        temp_cred_file.write_text(cred_json)
+        # mkstemp uses an unpredictable name and creates the file with mode 0600.
+        descriptor, raw_path = tempfile.mkstemp(
+            prefix="gcp-credentials-", suffix=".json"
+        )
+        temp_cred_file = Path(raw_path)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as credential_file:
+                credential_file.write(cred_json)
+        except Exception:
+            temp_cred_file.unlink(missing_ok=True)
+            raise
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(temp_cred_file)
 
-        print(f"✅ Using base64-encoded credentials (temp file: {temp_cred_file})")
+        print("✅ Using base64-encoded credentials from a restricted temporary file")
+        return temp_cred_file
 
-    except (base64.binascii.Error, UnicodeDecodeError, json.JSONDecodeError) as e:
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError) as e:
         msg = f"❌ Invalid base64 credentials: {e}"
         raise ValueError(msg) from e
+
+
+def list_assured_oss_packages() -> None:
+    """List packages while keeping optional Google dependencies lazy-loaded."""
+    try:
+        api_exceptions = importlib.import_module("google.api_core.exceptions")
+        auth_exceptions = importlib.import_module("google.auth.exceptions")
+        assured_oss = importlib.import_module("google.cloud.assuredoss")
+    except ImportError as exc:
+        message = (
+            "Assured OSS validation dependencies are unavailable; install the "
+            "project's assured-oss dependencies before enabling USE_ASSURED_OSS"
+        )
+        raise RuntimeError(message) from exc
+
+    try:
+        client = assured_oss.V1Client()
+        print("🔍 Connecting to Assured OSS...")
+        response = client.list_packages()
+    except auth_exceptions.DefaultCredentialsError as exc:
+        print(f"❌ Could not load credentials: {exc}")
+        raise
+    except api_exceptions.GoogleAPICallError as exc:
+        print(f"❌ Failed to list packages: {exc}")
+        raise
+
+    print(f"✅ Connected! Found {len(response.packages)} packages:\n")
+    for index, package in enumerate(response.packages, 1):
+        version = getattr(package, "version", "unknown")
+        print(f"  {index:3d}. {package.name:40s} (v{version})")
+    print("\n" + "=" * 70)
+    print(f"✅ Validation successful! Total packages: {len(response.packages)}")
+    print("=" * 70)
 
 
 def main() -> None:
@@ -100,16 +143,22 @@ def main() -> None:
     # Load environment variables from .env file
     load_dotenv()
 
+    use_assured_oss = os.environ.get("USE_ASSURED_OSS", "true").lower() == "true"
+    if not use_assured_oss:
+        print("⚠️  Assured OSS is disabled (USE_ASSURED_OSS=false)")
+        print("📦 Using PyPI as the only package source")
+        return
+
+    temporary_credentials: Path | None = None
     try:
         # Setup credentials (from file or base64)
-        setup_credentials()
+        temporary_credentials = setup_credentials()
 
         # Validate required environment variables
         project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
         if not project_id:
             raise ValueError("❌ GOOGLE_CLOUD_PROJECT not set")
 
-        use_assured_oss = os.environ.get("USE_ASSURED_OSS", "true").lower() == "true"
         region = os.environ.get("ASSURED_OSS_REGION", "us")
         repository = os.environ.get("ASSURED_OSS_REPOSITORY", "assuredoss")
 
@@ -122,28 +171,7 @@ def main() -> None:
         print(f"✨ Enabled:    {use_assured_oss}")
         print("=" * 70 + "\n")
 
-        if not use_assured_oss:
-            print("⚠️  Assured OSS is disabled (USE_ASSURED_OSS=false)")
-            print("📦 Using PyPI as the only package source")
-            return
-
-        # Initialize Assured OSS client
-        client = V1Client()
-
-        # List available packages
-        print("🔍 Connecting to Assured OSS...")
-        response = client.list_packages()
-
-        print(f"✅ Connected! Found {len(response.packages)} packages:\n")
-
-        # Display packages in a formatted way
-        for i, pkg in enumerate(response.packages, 1):
-            version = getattr(pkg, "version", "unknown")
-            print(f"  {i:3d}. {pkg.name:40s} (v{version})")
-
-        print("\n" + "=" * 70)
-        print(f"✅ Validation successful! Total packages: {len(response.packages)}")
-        print("=" * 70)
+        list_assured_oss_packages()
 
     except ValueError as e:
         print(f"\n{e}\n")
@@ -155,21 +183,13 @@ def main() -> None:
         print("      b) GOOGLE_APPLICATION_CREDENTIALS_B64=<base64-encoded-json>")
         raise
 
-    except DefaultCredentialsError as e:
-        print(f"❌ Could not load credentials: {e}")
-        print("\n💡 Troubleshooting:")
-        print("   - Verify your service account JSON is valid")
-        print("   - Check that the service account has 'Artifact Registry Reader' role")
-        print("   - Ensure GOOGLE_APPLICATION_CREDENTIALS points to the right file")
-        raise
-
-    except GoogleAPICallError as e:
-        print(f"❌ Failed to list packages: {e}")
-        print("\n💡 Troubleshooting:")
-        print("   - Verify your GCP project ID is correct")
-        print("   - Check that Assured OSS is enabled in your project")
-        print("   - Ensure the service account has proper permissions")
-        raise
+    finally:
+        if temporary_credentials is not None:
+            temporary_credentials.unlink(missing_ok=True)
+            if os.environ.get("GOOGLE_APPLICATION_CREDENTIALS") == str(
+                temporary_credentials
+            ):
+                os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,21 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import './App.css'
 
-const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || '/api'}/v1` })
+const apiRoot = import.meta.env.PROD ? import.meta.env.VITE_API_URL || '/api' : '/api'
+const api = axios.create({ baseURL: `${apiRoot.replace(/\/$/, '')}/v1` })
+const recommendationRunParameter = 'recommendation_run'
+
+function persistedRecommendationRunId() {
+  return new URLSearchParams(window.location.search).get(recommendationRunParameter)
+}
+
+function persistRecommendationRunId(runId: string | null) {
+  const url = new URL(window.location.href)
+  if (runId) url.searchParams.set(recommendationRunParameter, runId)
+  else url.searchParams.delete(recommendationRunParameter)
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
 type Assignment = { id: string; program_id: string; reviewer_id: string }
 type Observation = {
   id: string
@@ -30,6 +44,19 @@ type Enrollment = Assignment & {
 }
 type Person = { id: string; name: string }
 type Program = Person & { version: string; status: string }
+type RecommendationImpression = {
+  id: string
+  fragrance_id: string
+  fragrance_name: string
+  fragrance_brand: string
+  rank: number
+  match_percent: number
+}
+type RecommendationRun = {
+  id: string
+  reviewer_id: string
+  impressions: RecommendationImpression[]
+}
 const dimensions = [
   'confidence',
   'sweetness',
@@ -70,6 +97,9 @@ function App() {
   const [history, setHistory] = useState<
     { id: string; fragrance_id: string; rating: number; evaluated_at: string }[]
   >([])
+  const [recommendationReviewer, setRecommendationReviewer] = useState('')
+  const [recommendationRun, setRecommendationRun] = useState<RecommendationRun | null>(null)
+  const [interest, setInterest] = useState<Record<string, boolean>>({})
   const sample = enrollment?.presentations.find((p) => p.id === selected)
   function fail(e: unknown) {
     const detail = axios.isAxiosError(e) ? e.response?.data?.detail : undefined
@@ -104,6 +134,12 @@ function App() {
   }
   useEffect(() => {
     void load().catch(fail)
+    const runId = persistedRecommendationRunId()
+    if (runId)
+      void hydrateRecommendationRun(runId).catch((reason) => {
+        persistRecommendationRunId(null)
+        fail(reason)
+      })
   }, [])
   const scale = (name: string, max: number, disabled = false) => (
     <label key={name}>
@@ -120,6 +156,44 @@ function App() {
   )
   async function searchCatalog() {
     setCatalog((await api.get('/fragrances', { params: { q: catalogQuery, limit: 100 } })).data)
+  }
+  async function hydrateRecommendationRun(runId: string) {
+    const response = await api.get(`/recommendation-measurement/runs/${runId}`)
+    setRecommendationRun(response.data)
+    setRecommendationReviewer(response.data.reviewer_id)
+    setInterest({})
+  }
+  async function createRecommendationRun() {
+    const response = await api.post('/recommendation-measurement/runs', {
+      reviewer_id: recommendationReviewer,
+      limit: 10,
+      exclude_rated: true,
+    })
+    setRecommendationRun(response.data)
+    persistRecommendationRunId(response.data.id)
+    setInterest({})
+    setNotice('Recommendations saved. Your response helps measure what is useful.')
+  }
+  async function startRecommendationRun() {
+    const runId = persistedRecommendationRunId()
+    if (runId) {
+      await hydrateRecommendationRun(runId)
+      setNotice('Saved recommendations reopened without creating another impression.')
+      return
+    }
+    await createRecommendationRun()
+  }
+  async function startNewRecommendationRun() {
+    persistRecommendationRunId(null)
+    setRecommendationRun(null)
+    await createRecommendationRun()
+  }
+  async function recordInterest(impressionId: string, interested: boolean) {
+    await api.post(`/recommendation-measurement/impressions/${impressionId}/responses`, {
+      interested,
+    })
+    setInterest((current) => ({ ...current, [impressionId]: interested }))
+    setNotice('Response saved.')
   }
   async function save(form: HTMLFormElement) {
     if (!sample) return
@@ -171,7 +245,7 @@ function App() {
         <p>Explore your preferences, one encounter at a time.</p>
       </header>
       <nav aria-label="Main navigation">
-        {['Calibration', 'My Ratings', ...(manager ? ['Program setup'] : [])].map((p) => (
+        {['Calibration', 'Recommendations', 'My Ratings', ...(manager ? ['Program setup'] : [])].map((p) => (
           <button key={p} aria-current={page === p ? 'page' : undefined} onClick={() => setPage(p)}>
             {p}
           </button>
@@ -525,6 +599,74 @@ function App() {
                 <p>{formatUtc(h.evaluated_at)}</p>
               </article>
             ))}
+          </section>
+        )}
+        {page === 'Recommendations' && (
+          <section>
+            <h2>Recommendations</h2>
+            <p>
+              Start a new set when you want fresh choices. Opening this saved set again does not
+              count as another impression.
+            </p>
+            <label>
+              Evaluator
+              <select
+                value={recommendationReviewer}
+                onChange={(e) => {
+                  setRecommendationReviewer(e.target.value)
+                  setRecommendationRun(null)
+                  persistRecommendationRunId(null)
+                }}
+              >
+                <option value="">Choose evaluator</option>
+                {reviewers.map((reviewer) => (
+                  <option key={reviewer.id} value={reviewer.id}>
+                    {reviewer.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              disabled={busy || !recommendationReviewer}
+              onClick={() => void act(startRecommendationRun)}
+            >
+              Get recommendations
+            </button>
+            {recommendationRun && (
+              <button className="secondary" disabled={busy} onClick={() => void act(startNewRecommendationRun)}>
+                Start new set
+              </button>
+            )}
+            {recommendationRun && (
+              <div className="recommendation-grid">
+                {recommendationRun.impressions.map((item) => (
+                  <article className="recommendation-card" key={item.id}>
+                    <div className="eyebrow">CHOICE {item.rank}</div>
+                    <h3>{item.fragrance_name}</h3>
+                    <p>
+                      {item.fragrance_brand} · {item.match_percent}% affinity
+                    </p>
+                    <div className="interest-actions" aria-label={`Interest in ${item.fragrance_name}`}>
+                      <button
+                        aria-pressed={interest[item.id] === true}
+                        disabled={busy}
+                        onClick={() => void act(() => recordInterest(item.id, true))}
+                      >
+                        Interested
+                      </button>
+                      <button
+                        className="secondary"
+                        aria-pressed={interest[item.id] === false}
+                        disabled={busy}
+                        onClick={() => void act(() => recordInterest(item.id, false))}
+                      >
+                        Pass
+                      </button>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         )}
         {page === 'Program setup' && manager && (

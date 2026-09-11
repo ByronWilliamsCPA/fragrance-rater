@@ -132,8 +132,6 @@ def cleanup_conditional_files(context: dict, dry_run: bool = False) -> int:
     if context.get("use_mkdocs") == "no":
         if remove_file(Path("mkdocs.yml"), dry_run):
             removed_count += 1
-        if remove_dir(Path("docs"), dry_run):
-            removed_count += 1
         if remove_file(Path("tools/validate_front_matter.py"), dry_run):
             removed_count += 1
         if remove_dir(Path("tools/frontmatter_contract"), dry_run):

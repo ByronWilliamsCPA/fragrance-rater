@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -28,6 +29,9 @@ if TYPE_CHECKING:
 
 
 # Prompt templates per ADR-003
+RECOMMENDATION_PROMPT_VERSION = "recommendation-explanation-v1"
+PROFILE_SUMMARY_PROMPT_VERSION = "profile-summary-v1"
+
 RECOMMENDATION_PROMPT = """You are a fragrance expert. Explain why this fragrance might appeal to the user.
 
 User's preference profile:
@@ -87,6 +91,21 @@ class LLMResponse:
     model: str
     cached: bool = False
     error: str | None = None
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    total_tokens: int | None = None
+    provider_cost_usd: float | None = None
+
+
+@dataclass(frozen=True)
+class LLMProviderResponse:
+    """Validated text and usage accounting returned by OpenRouter."""
+
+    text: str
+    prompt_tokens: int | None
+    completion_tokens: int | None
+    total_tokens: int | None
+    cost_usd: float | None
 
 
 @dataclass
@@ -180,7 +199,13 @@ class LLMService:
         )
         if cache_key in self._cache:
             return LLMResponse(
-                text=self._cache[cache_key], model=self.model, cached=True
+                text=self._cache[cache_key],
+                model=self.model,
+                cached=True,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                provider_cost_usd=0.0,
             )
 
         # Build prompt
@@ -226,8 +251,16 @@ class LLMService:
 
         try:
             response = await self._call_openrouter(prompt)
-            self._store_in_cache(cache_key, profile.reviewer_id, response)
-            return LLMResponse(text=response, model=self.model, cached=False)
+            self._store_in_cache(cache_key, profile.reviewer_id, response.text)
+            return LLMResponse(
+                text=response.text,
+                model=self.model,
+                cached=False,
+                prompt_tokens=response.prompt_tokens,
+                completion_tokens=response.completion_tokens,
+                total_tokens=response.total_tokens,
+                provider_cost_usd=response.cost_usd,
+            )
         except LLMServiceError as e:
             # Fallback on error
             fallback = self._fallback_recommendation_explanation(
@@ -257,7 +290,13 @@ class LLMService:
         cache_key = self._cache_key("profile", profile.reviewer_id)
         if cache_key in self._cache:
             return LLMResponse(
-                text=self._cache[cache_key], model=self.model, cached=True
+                text=self._cache[cache_key],
+                model=self.model,
+                cached=True,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                provider_cost_usd=0.0,
             )
 
         # Build prompt
@@ -285,21 +324,29 @@ class LLMService:
 
         try:
             response = await self._call_openrouter(prompt)
-            self._store_in_cache(cache_key, profile.reviewer_id, response)
-            return LLMResponse(text=response, model=self.model, cached=False)
+            self._store_in_cache(cache_key, profile.reviewer_id, response.text)
+            return LLMResponse(
+                text=response.text,
+                model=self.model,
+                cached=False,
+                prompt_tokens=response.prompt_tokens,
+                completion_tokens=response.completion_tokens,
+                total_tokens=response.total_tokens,
+                provider_cost_usd=response.cost_usd,
+            )
         except LLMServiceError as e:
             fallback = self._fallback_profile_summary(profile, reviewer_name)
             fallback.error = str(e)
             return fallback
 
-    async def _call_openrouter(self, prompt: str) -> str:
+    async def _call_openrouter(self, prompt: str) -> LLMProviderResponse:
         """Call OpenRouter API with the given prompt.
 
         Args:
             prompt (str): The prompt to send.
 
         Returns:
-            str: Generated text response.
+            LLMProviderResponse: Generated text and provider usage accounting.
 
         Raises:
             LLMServiceError: If API call fails.
@@ -327,7 +374,15 @@ class LLMService:
                 )
                 response.raise_for_status()
                 data = response.json()
-                return data["choices"][0]["message"]["content"].strip()
+                text = data["choices"][0]["message"]["content"].strip()
+                usage = self._usage_object(data.get("usage"))
+                return LLMProviderResponse(
+                    text=text,
+                    prompt_tokens=self._usage_int(usage.get("prompt_tokens")),
+                    completion_tokens=self._usage_int(usage.get("completion_tokens")),
+                    total_tokens=self._usage_int(usage.get("total_tokens")),
+                    cost_usd=self._usage_cost(usage.get("cost")),
+                )
         except httpx.HTTPStatusError as e:
             msg = f"OpenRouter API error: {e.response.status_code}"
             raise LLMServiceError(msg) from e
@@ -350,10 +405,45 @@ class LLMService:
             IndexError,
             TypeError,
             AttributeError,
+            UnicodeDecodeError,
             json.JSONDecodeError,
         ) as e:
             msg = f"Invalid OpenRouter response: {e}"
             raise LLMServiceError(msg) from e
+
+    @staticmethod
+    def _usage_object(value: object) -> dict[object, object]:
+        """Return a validated usage object, treating omission as empty."""
+        if value is None:
+            return {}
+        if not isinstance(value, dict):
+            message = "usage must be an object"
+            raise TypeError(message)
+        return value
+
+    @staticmethod
+    def _usage_int(value: object) -> int | None:
+        """Return a validated optional non-negative usage count."""
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            message = "usage token counts must be non-negative integers"
+            raise TypeError(message)
+        return value
+
+    @staticmethod
+    def _usage_cost(value: object) -> float | None:
+        """Return a validated optional non-negative provider cost."""
+        if value is None:
+            return None
+        if isinstance(value, bool) or not isinstance(value, int | float):
+            message = "usage cost must be a finite non-negative number"
+            raise TypeError(message)
+        cost = float(value)
+        if not math.isfinite(cost) or cost < 0:
+            message = "usage cost must be a finite non-negative number"
+            raise TypeError(message)
+        return cost
 
     def _cache_key(self, prefix: str, *args: str) -> str:
         """Generate a cache key from arguments.

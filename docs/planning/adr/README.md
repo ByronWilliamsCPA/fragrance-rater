@@ -28,7 +28,12 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-001](./adr-001-initial-architecture.md) | Initial Architecture - Docker Compose Monolith | Accepted | 2025-12-28 |
 | [ADR-002](./adr-002-data-source-strategy.md) | Data Source Strategy - Tiered Acquisition | Accepted | 2025-12-28 |
 | [ADR-003](./adr-003-llm-integration.md) | LLM Integration - OpenRouter for Recommendations | Accepted | 2025-12-28 |
-| [ADR-004](./adr-004-recommendation-algorithm.md) | V1 Recommendation Scoring Algorithm | Accepted | 2025-12-28 |
+| [ADR-004](./adr-004-recommendation-algorithm.md) | V1 Recommendation Scoring Algorithm | Partially superseded by ADR-007 | 2025-12-28 |
+| [ADR-005](./adr-005-controlled-calibration.md) | Controlled Calibration and Disclosure State | Accepted | 2026-09-11 |
+| [ADR-006](./adr-006-version-identity-and-source-provenance.md) | Version Identity, Source Provenance, and Vocabulary | Accepted | 2026-09-11 |
+| [ADR-007](./adr-007-preference-evidence-and-score-semantics.md) | Preference Evidence and Score Semantics | Accepted | 2026-09-11 |
+| [ADR-008](./adr-008-authentication-and-production-boundary.md) | Authentication and Production Trust Boundary | Accepted | 2026-09-11 |
+| [ADR-009](./adr-009-prospective-evaluation-and-checkpoints.md) | Prospective Evaluation and Frozen Checkpoints | Accepted | 2026-09-11 |
 
 ## Creating ADRs
 
@@ -42,7 +47,7 @@ When making a new architectural decision:
 
 ```text
 Create an ADR for [decision topic].
-Use template: .claude/skills/project-planning/templates/adr-template.md
+Use template: docs/ADRs/adr-template.md
 Save to: docs/planning/adr/adr-NNN-[decision-slug].md
 ```
 
@@ -82,8 +87,9 @@ Proposed → Accepted → [Deprecated | Superseded]
 
 ## Template Reference
 
-See `.claude/skills/project-planning/templates/adr-template.md` for the full template structure.
+See [the ADR template](../../ADRs/adr-template.md) for the full template structure.
 
 ## More Information
 
-For additional guidance on creating and maintaining ADRs, refer to the Claude Code skills documentation in `.claude/skills/project-planning/`.
+When a later ADR changes an accepted decision, update both records and this index so readers can
+follow the supersession chain.

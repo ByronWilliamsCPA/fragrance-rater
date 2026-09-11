@@ -356,57 +356,63 @@ END BASELINE DEVELOPMENT STANDARDS
 
 ## Project Planning Documents
 
-> **Status**: Complete - All planning documents have been generated and reviewed.
+> **Status**: P0 planning baseline ready for core-maintainer review. The project plan owns
+> milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
-| Document | Description | Status |
-|----------|-------------|--------|
-| [PROJECT-PLAN.md](docs/planning/PROJECT-PLAN.md) | Synthesized actionable plan with git branches | Complete |
-| [project-vision.md](docs/planning/project-vision.md) | Problem, solution, scope, success metrics | Complete |
-| [tech-spec.md](docs/planning/tech-spec.md) | Architecture, data model, APIs, security | Complete |
-| [roadmap.md](docs/planning/roadmap.md) | 5-phase implementation plan with user stories | Complete |
-| [adr/](docs/planning/adr/) | 4 Architecture Decision Records | Complete |
+| Document | Description |
+|----------|-------------|
+| [PROJECT-PLAN.md](docs/planning/PROJECT-PLAN.md) | Authoritative sequence, status, gates, risks, audit disposition, and evidence |
+| [project-vision.md](docs/planning/project-vision.md) | Product outcomes, scope, principles, and success measures |
+| [tech-spec.md](docs/planning/tech-spec.md) | Current and target architecture contracts |
+| [roadmap.md](docs/planning/roadmap.md) | Compact mirror of the authoritative plan |
+| [adr/](docs/planning/adr/) | Durable architecture and policy decisions |
+| [calibration-v1.md](docs/calibration-v1.md) | Controlled workflow and deployment constraints |
 
 **Key Architecture Decisions**:
 
 - **ADR-001**: Docker Compose monolith (React + FastAPI + PostgreSQL)
-- **ADR-002**: Tiered data acquisition (Kaggle → manual → Fragella API)
+- **ADR-002/006**: Local-first sources with exact-version provenance and reuse-rights review
 - **ADR-003**: OpenRouter LLM for recommendation explanations
-- **ADR-004**: Weighted affinity scoring algorithm with veto mechanism
+- **ADR-004/007**: Weighted affinity with veto plus current evidence-selection and score semantics
+- **ADR-005**: Controlled calibration and disclosure state
+- **ADR-006**: Canonical version identity, source provenance, aliases, and taxonomy
+- **ADR-008**: Authentik/Traefik production trust boundary
+- **ADR-009**: Prospective evaluation with frozen checkpoints
 
-### Development Phases
+### Current Delivery Sequence
 
-| Phase | Branch Pattern | Focus |
-|-------|---------------|-------|
-| 0 | `feat/phase-0-*` | Foundation (Docker, FastAPI, React scaffold) |
-| 1 | `feat/phase-1-*` | Data & Seed (Kaggle import, manual entry) |
-| 2 | `feat/phase-2-*` | Core Features (Evaluations, recommendations) |
-| 3 | `feat/phase-3-*` | Enhancement (LLM explanations, enrichment) |
-| 4 | `chore/phase-4-*` | Polish (Testing, docs, deployment) |
+| Milestone | Focus |
+|-------|---------------|
+| P0 | Reconcile governing planning documents |
+| P1 | Calibration migration, recovery, security, and deployment readiness |
+| P2 | Recommendation impressions, feedback, sampling, and outcome measurement |
+| D1 | Source and vocabulary foundation |
+| D2 | Reproducible catalog statistics |
+| D3 | Post-reveal exploration |
+| D4 | Candidate discovery pilot |
+| D5 | Prospective comparison and decision |
 
 ### Quick Start
 
-```bash
-# Start Phase 0 development
-git checkout -b feat/phase-0-docker-setup
-
-# Reference the project plan
-# See docs/planning/PROJECT-PLAN.md for deliverables and acceptance criteria
+```text
+Read docs/planning/PROJECT-PLAN.md for the active milestone, entry gate,
+acceptance criteria, and required evidence before creating a branch.
 ```
 
 ### Using Planning Documents
 
 ```text
 # Load context for a task
-Load from project-vision.md sections 2-3 and adr/adr-001-*.md,
-then implement [feature] per tech-spec.md section [X].
+Load the active milestone from PROJECT-PLAN.md, then read the linked
+vision outcome, technical contract, calibration policy, and ADRs.
 
 # Validate code against specs
-Review this code against tech-spec.md section 6 (security).
+Review the change against its milestone criteria and governing ADRs.
 
-# Check phase progress
-Review PROJECT-PLAN.md Phase 1 deliverables and update status.
+# Check milestone progress
+Update PROJECT-PLAN.md status only when the retained gate evidence exists.
 ```
 
 ---

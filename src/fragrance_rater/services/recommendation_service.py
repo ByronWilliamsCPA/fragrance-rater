@@ -124,7 +124,9 @@ class RecommendationService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def build_preference_profile(self, reviewer_id: str) -> UserProfile:
+    async def build_preference_profile(
+        self, reviewer_id: str, *, excluded: set[str] | None = None
+    ) -> UserProfile:
         """Build a user preference profile from their evaluations.
 
         Aggregates note/accord/family affinities using rating weights:
@@ -136,6 +138,7 @@ class RecommendationService:
 
         Args:
             reviewer_id (str): UUID of the reviewer.
+            excluded (set[str] | None): Precomputed experiment exclusions.
 
         Returns:
             UserProfile: UserProfile with computed affinities.
@@ -179,7 +182,11 @@ class RecommendationService:
         result = await self.session.execute(stmt)
         evaluations = list(result.scalars().all())
         history = PreferenceHistoryService(self.session)
-        excluded = await history.excluded_versions(reviewer_id)
+        excluded = (
+            excluded
+            if excluded is not None
+            else await history.excluded_versions(reviewer_id)
+        )
         # One latest ordinary encounter contributes per version; retain all history.
         evaluations.sort(
             key=lambda e: (e.evaluated_at, e.created_at, e.id), reverse=True
@@ -405,8 +412,11 @@ class RecommendationService:
         Raises:
             InsufficientDataError: If user has fewer than MIN_EVALUATIONS.
         """
-        # Build preference profile
-        profile = await self.build_preference_profile(reviewer_id)
+        history = PreferenceHistoryService(self.session)
+        holdout_ids = await history.excluded_versions(reviewer_id)
+
+        # Build the profile and candidate query from one consistent holdout set.
+        profile = await self.build_preference_profile(reviewer_id, excluded=holdout_ids)
 
         if profile.evaluation_count < MIN_EVALUATIONS:
             msg = f"Need at least {MIN_EVALUATIONS} evaluations for recommendations"
@@ -423,6 +433,12 @@ class RecommendationService:
                 selectinload(Fragrance.accords),
             )
         )
+
+        # Assigned holdouts must remain absent from every recommendation
+        # surface, even when exclude_rated is false. Merely showing the
+        # candidate would disclose a concealed program version.
+        if holdout_ids:
+            stmt = stmt.where(Fragrance.id.notin_(holdout_ids))
 
         # Exclude already-rated fragrances if requested
         if exclude_rated:

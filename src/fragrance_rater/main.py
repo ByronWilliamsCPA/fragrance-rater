@@ -38,6 +38,7 @@ from fragrance_rater.api import (
     health_router,
     imports_router,
     ratings_router,
+    recommendation_measurement_router,
     recommendations_router,
     reviewers_router,
 )
@@ -167,6 +168,7 @@ app.include_router(fragrances_router, prefix=settings.api_v1_prefix)
 app.include_router(reviewers_router, prefix=settings.api_v1_prefix)
 app.include_router(evaluations_router, prefix=settings.api_v1_prefix)
 app.include_router(recommendations_router, prefix=settings.api_v1_prefix)
+app.include_router(recommendation_measurement_router, prefix=settings.api_v1_prefix)
 app.include_router(imports_router, prefix=settings.api_v1_prefix)
 
 

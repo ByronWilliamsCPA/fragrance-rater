@@ -3,54 +3,41 @@ title: "Architecture"
 schema_type: common
 status: published
 owner: core-maintainer
-purpose: "Architecture documentation for Fragrance Rater."
+purpose: "Orient contributors to the current Fragrance Rater architecture."
 tags:
   - development
   - architecture
 ---
 
-This document describes the architecture and design decisions for Fragrance Rater.
+Fragrance Rater is a self-hosted React, FastAPI, and PostgreSQL application. It supports a
+personal encounter journal, deterministic recommendations, optional LLM explanations, and
+controlled blind calibration programs.
 
-## Project Structure
+## Components
 
-```
-fragrance_rater/
-├── src/
-│   └── fragrance_rater/
-│       ├── __init__.py          # Package initialization
-│       ├── core/                # Core functionality
-│       │   ├── config.py        # Configuration with Pydantic
-│       │   └── ...
-│       ├── utils/               # Utility modules
-│       │   ├── logging.py       # Structured logging
-│       │   └── ...
-│       └── cli.py               # CLI entry point
-├── tests/                       # Test suite
-├── docs/                        # Documentation
-└── pyproject.toml               # Project configuration
-```
+| Component | Responsibility |
+| :--- | :--- |
+| React frontend | Ordinary ratings, calibration observations, and manager program setup |
+| FastAPI application | API validation, workflow state, authorization, scoring, and imports |
+| PostgreSQL | Catalog, ordinary history, controlled observations, source snapshots, checkpoints |
+| Traefik and Authentik | Required production request and identity boundary |
+| OpenRouter | Optional recommendation explanations |
+| Authorized catalog sources | Optional metadata import and refresh |
 
-## Design Principles
+## Core boundaries
 
-### 1. Type Safety
+- Canonical fragrance versions are distinct from raw source snapshots.
+- Ordinary and controlled observations preserve original scales and provenance.
+- Model contribution policy is separate from stored history.
+- Blind disclosure policy applies to direct routes and derived surfaces.
+- Deterministic scoring works without OpenRouter.
+- Production does not expose a backend path that bypasses Authentik/Traefik.
 
-All code is fully typed with BasedPyright strict mode validation.
+## Governing documents
 
-### 2. Structured Logging
+- [Technical Specification](../planning/tech-spec.md)
+- [Authoritative Project Plan](../planning/PROJECT-PLAN.md)
+- [Architecture Decision Records](../planning/adr/README.md)
+- [Controlled Calibration V1](../calibration-v1.md)
 
-Uses structlog for structured, JSON-formatted logs in production.
-
-### 3. Configuration Management
-
-Pydantic Settings for type-safe configuration from environment variables.
-
-### 4. CLI Design
-
-Click framework for a well-tested command-line interface with subcommands.
-## Dependencies
-
-See `pyproject.toml` for the complete dependency list.
-
-## Architecture Decision Records
-
-See the [ADRs directory](../ADRs/README.md) for documented architecture decisions.
+Those documents replace the earlier template-level package sketch.

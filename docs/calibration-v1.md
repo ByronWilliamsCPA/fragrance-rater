@@ -9,6 +9,10 @@ tags:
   - architecture
 ---
 
+**Implementation state:** Merged in `main` at commit `0d85747`; target PostgreSQL,
+backup/restore, concurrency, and production proxy validation remain the P1 release gate in the
+[authoritative project plan](planning/PROJECT-PLAN.md#6-milestone-p1-calibration-release-readiness).
+
 Ordinary ratings and controlled measurements share existing reviewer and fragrance IDs.
 The catalog row is the canonical version in this release. Its version key, concentration,
 name and brand distinguish versions; identity fields become immutable once assigned to a

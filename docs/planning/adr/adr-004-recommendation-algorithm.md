@@ -1,6 +1,7 @@
 # ADR-004: V1 Recommendation Scoring Algorithm
 
-> **Status**: Accepted
+> **Status**: Partially superseded by ADR-007
+>
 > **Date**: 2025-12-28
 
 ## TL;DR
@@ -284,4 +285,6 @@ def get_recommendations(
 ## Related
 
 - [ADR-003](./adr-003-llm-integration.md): LLM adds explanations to these scores
-- [Tech Spec API](../tech-spec.md#api-specification): Recommendation endpoints
+- [ADR-007](./adr-007-preference-evidence-and-score-semantics.md): Current evidence
+  selection and score semantics
+- [Tech Spec API](../tech-spec.md#api-surface): Recommendation endpoints
