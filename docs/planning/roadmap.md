@@ -10,28 +10,37 @@ the same pull request.
 
 | Milestone | Outcome | Status | Entry gate | Exit gate |
 | :--- | :--- | :--- | :--- | :--- |
-| P0 | Reconciled planning baseline | Ready for review | Calibration merged | Governing documents agree and P1/P2 are implementation-ready |
-| P1 | Calibration release readiness | Repository controls complete; external evidence pending | P0 complete | Target PostgreSQL, recovery, proxy, disclosure, and operations evidence reviewed |
-| P2 | Recommendation outcome measurement | Repository implementation complete; P1 and pilot evidence pending | P1 complete | Impressions, feedback, sampling, outcomes, and baseline metrics usable |
-| D1 | Source and vocabulary foundation | Planned | P2 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
+| P0 | Reconciled planning baseline | Complete | Calibration merged | Governing documents agree and later gates are implementation-ready |
+| P1 | Calibration release readiness | Repository controls complete; external evidence pending through P6 | P0 complete | Target PostgreSQL, recovery, proxy, disclosure, operations, and target-UI evidence reviewed |
+| P2 | Recommendation measurement foundation | Complete | P0 complete | Impressions, feedback, sampling, outcomes, events, and provenance-complete metrics implemented |
+| P3 | Product UX foundation | Planned | P0 and P2 complete | Role-aware routed shell, shared components, typed API policy, accessibility baseline accepted |
+| P4 | Participant experience | Planned | P3 complete | Ordinary, calibration, recommendation, sampling, and outcome workflows usable without IDs or API tools |
+| P5 | Manager and operations experience | Planned | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
+| P6 | Integrated pilot readiness | Planned | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
+| F1 | Initial family perfume pilot | Planned | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
+| D1 | Source and vocabulary foundation | Planned | F1 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
 | D3 | Post-reveal exploration | Planned | D2 and P1 complete | Accessible, disclosure-safe evidence-layer profiles accepted |
-| D4 | Candidate discovery pilot | Planned | D2 and P2 complete | Versioned candidates, availability, provenance, and diversity accepted |
-| D5 | Prospective evaluation | Planned | D4 and P2 complete | Frozen comparison results and adopt/revise/stop decision recorded |
+| D4 | Candidate discovery pilot | Planned | D2 and F1 complete | Versioned candidates, availability, provenance, and diversity accepted |
+| D5 | Prospective evaluation | Planned | D4, P2, and F1 complete | Frozen comparison results and adopt/revise/stop decision recorded |
 
 ## Dependency path
 
 ```text
-P0 → P1 → P2 → D1 → D2 ┬→ D3
-                        └→ D4 → D5
+P0 ┬→ P1 ----------------------------------------------┐
+   └→ P2 → P3 → P4 → P5 ------------------------------┤
+                                                       └→ P6 → F1 → D1 → D2 ┬→ D3
+                                                                              └→ D4 → D5
 ```
 
 ## Immediate queue
 
-1. Complete P0 documentation validation and review.
-2. Supply and review the exact physical baseline manifest and authorized parser fixtures.
-3. Run P1 against an isolated production backup clone and the target proxy topology.
-4. Run and retain the declared P2 family pilot before any D1 source or vocabulary work.
+1. Implement P3's role-aware routed frontend foundation.
+2. Continue non-UI P1 evidence: physical manifest, authorized fixtures, backup clone, migration,
+   concurrency, and recovery.
+3. Complete P4 participant workflows and P5 manager/reporting workflows using demo data.
+4. Run P6 on the final deployed UI and close all remaining P1 evidence.
+5. Begin F1 with actual pilot perfumes only after the P6 go decision.
 
 ## Delivered historical scope
 
@@ -46,7 +55,8 @@ record.
 - Status changes require an evidence link in the authoritative plan.
 - New scope must belong to a named milestone.
 - Durable policy or architecture changes require an ADR.
-- D1 cannot begin until P0, P1, and P2 are complete.
+- No actual pilot perfume testing begins before P6 is complete.
+- D1 cannot begin until F1 is complete.
 
 ## Related documents
 

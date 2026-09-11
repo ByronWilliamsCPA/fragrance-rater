@@ -19,17 +19,17 @@ behavior but does not silently supersede an accepted ADR.
 ## Current sequence
 
 ```text
-P0 Planning baseline
- → P1 Calibration release readiness
- → P2 Recommendation outcome measurement
- → D1 Source and vocabulary foundation
- → D2 Reproducible catalog statistics
- → D3 Post-reveal exploration
- → D4 Candidate discovery pilot
- → D5 Prospective evaluation
+P0 ┬→ P1 Calibration release readiness --------------------------┐
+   └→ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
+                                                                    └→ P6 Pilot readiness
+                                                                        └→ F1 Family pilot
+                                                                            └→ D1 → D2 ┬→ D3
+                                                                                        └→ D4 → D5
 ```
 
-D3 and D4 may overlap after D2. D1 cannot begin until P0, P1, and P2 are complete.
+P1 evidence can proceed alongside P3-P5, but P6 must close P1 against the final deployed UI.
+No actual pilot perfume testing begins before P6. D3 and D4 may overlap after D2; D1 cannot
+begin until F1 is complete.
 
 ## Current architecture
 

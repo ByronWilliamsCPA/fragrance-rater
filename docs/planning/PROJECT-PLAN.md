@@ -1,6 +1,6 @@
 # Fragrance Rater: Authoritative Project Plan
 
-> **Version**: 2.0 | **Status**: Active | **Updated**: 2026-09-11
+> **Version**: 2.1 | **Status**: Active | **Updated**: 2026-09-11
 
 ## 1. Planning authority
 
@@ -31,9 +31,9 @@ predicted rating.
 
 ## 3. Current-state ledger
 
-**Audited repository baseline:** branch `main`, commit
-`d597e025798078e2ebfeb1f74615551aafb66ee7` on 2026-09-11. P-sprint changes after that baseline
-are retained in the linked P1 and P2 gate records.
+**Audited repository baseline:** branch `main`, merge commit
+`7f0884fb3fd5a5faa5178952ae4ef1f08792d010` on 2026-09-11. P0-P2 implementation and review
+evidence are retained in the linked gate records and PR #70.
 
 | Capability | State | Evidence or remaining limitation |
 | :--- | :--- | :--- |
@@ -43,10 +43,10 @@ are retained in the linked P1 and P2 gate records.
 | Parfumo capture | Partially implemented | Source snapshots and exact titles are preserved; representative live fixtures and full field coverage remain P1/D1 work |
 | Deterministic recommendations | Implemented | Weighted affinity with veto; score is uncalibrated |
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
-| OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the P2 pilot |
+| OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the F1 pilot |
 | Controlled calibration | Merged, not deployment-verified | Program, enrollment, hidden repeat/holdout, presentation, observation, locking, reveal, and checkpoint flows exist |
-| React product workflow | Implemented baseline | Calibration, ordinary ratings, program setup, measured recommendations, and one-tap interest feedback exist |
-| Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist |
+| React product workflow | Functional prototype | Core forms exist in one component; P3-P6 add the role-aware, guided, complete participant and manager product required before family use |
+| Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
 | Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |
@@ -61,17 +61,19 @@ Status terms:
 
 ```text
 P0 Planning baseline
- └─ P1 Calibration release readiness
-     └─ P2 Outcome measurement
-         └─ D1 Source and vocabulary foundation
-             └─ D2 Reproducible catalog statistics
-                 ├─ D3 Post-reveal exploration
-                 └─ D4 Candidate discovery pilot
-                     └─ D5 Prospective evaluation
+ ├─ P1 Release evidence ------------------------------------------┐
+ └─ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
+                                                                  └─ P6 Pilot readiness
+                                                                      └─ F1 Family pilot
+                                                                          └─ D1 → D2 ┬→ D3
+                                                                                      └→ D4 → D5
 ```
 
-P0, P1, and P2 are mandatory before D1. D3 and D4 may proceed in parallel only after D2's
-snapshot and statistical contracts are frozen. D5 requires D4 and the P2 measurement path.
+P1 evidence may be gathered while P3-P5 are implemented, but its deployed UI, disclosure, and
+smoke checks use the final P6 candidate. No family member evaluates an actual pilot perfume
+until P6 closes. F1 establishes the real-use baselines previously assigned to P2. D1 begins only
+after F1 evidence is reviewed. D3 and D4 may overlap after D2's snapshot and statistical
+contracts are frozen.
 
 ## 5. Milestone P0: Planning baseline
 
@@ -79,7 +81,7 @@ snapshot and statistical contracts are frozen. D5 requires D4 and the P2 measure
 
 **Owner:** Core maintainer
 
-**Status:** Ready for core-maintainer review
+**Status:** Complete
 
 **Evidence:** [P0 Planning Baseline Gate](gates/p0.md)
 **Depends on:** Controlled-calibration merge
@@ -113,10 +115,11 @@ deploy on the real PostgreSQL and Authentik/Traefik topology.
 
 **Owner:** Core maintainer
 
-**Status:** Repository controls implemented; external evidence pending
+**Status:** Repository controls implemented; external evidence pending through P6
 
 **Depends on:** P0
-**Blocks:** P2 and D1
+**Blocks:** F1. P1 repository controls are required to enter P6; full P1 evidence is completed
+and reviewed as P6.1 before P6 can close.
 
 ### Work packages
 
@@ -149,15 +152,15 @@ SQLite tests or compiling PostgreSQL SQL is insufficient.
 
 ## 7. Milestone P2: Recommendation outcome measurement
 
-**Objective:** Make recommendation usefulness measurable before investing in discovery
-algorithms or catalog statistics.
+**Objective:** Implement the durable measurement contract needed by the complete UI and later
+family pilot.
 
 **Owner:** Core maintainer
 
-**Status:** Repository implementation complete; blocked on P1 and pilot evidence
+**Status:** Complete
 
-**Depends on:** P1
-**Blocks:** D1 and D5
+**Depends on:** P0
+**Blocks:** P3, P4, P5, P6, and D5
 
 ### Measurement events
 
@@ -194,12 +197,145 @@ algorithms or catalog statistics.
 - [x] Blind and holdout rules apply to feedback queries and reports.
 - [x] An admin report shows response coverage as well as positive-response rate.
 - [x] A family evaluator can record interest on mobile without adding more than one interaction.
-- [ ] P2 establishes baseline values for interest, sampling conversion, post-sample liking,
-  coverage, and variety.
 - [x] LLM call count, latency, cache hit rate, failure rate, token usage, and provider-reported cost are measurable.
-- [ ] Home-connectivity failures and offline/manual recovery are recorded during the pilot.
+- [x] Connectivity failures and offline/manual recovery can be recorded and reported.
 
-## 8. Milestone D1: Source and vocabulary foundation
+Real baseline values and observed connectivity behavior are F1 outcomes. They are deliberately
+excluded from P2 completion so implementation does not force family members onto an incomplete
+interface.
+
+## 8. Milestone P3: Product UX foundation
+
+**Objective:** Replace the single-component prototype with a stable, role-aware application
+foundation before expanding user workflows.
+
+**Owner:** Core maintainer
+
+**Status:** Planned
+**Depends on:** P0 and P2
+**Evidence:** [P3 Product UX Foundation Gate](gates/p3.md)
+
+### P3 acceptance criteria
+
+- Route-backed pages preserve useful URLs, reload state, and browser navigation.
+- Authenticated identity and evaluator, recorder, and manager capabilities drive navigation and
+  controls without exposing privileged data.
+- Shared layout, form, status, confirmation, and error components replace duplicated page logic.
+- Loading, empty, retry, validation, API failure, and optional-service degradation states are
+  explicit and usable.
+- The shell works at 360 CSS pixels, supports keyboard navigation and visible focus, and passes
+  the declared automated accessibility baseline.
+- API access uses generated or equivalently typed contracts with one error-handling policy.
+- Frontend architecture and test strategy support feature-level components and end-to-end tests.
+
+## 9. Milestone P4: Participant experience
+
+**Objective:** Let a family evaluator complete every ordinary, calibration, recommendation, and
+follow-up task through a guided interface without API tools or raw identifiers.
+
+**Owner:** Core maintainer
+
+**Status:** Planned
+**Depends on:** P3
+**Evidence:** [P4 Participant Experience Gate](gates/p4.md)
+
+### P4 acceptance criteria
+
+- A participant can understand current assignments and resume the next valid calibration step.
+- Catalog search, ordinary encounter entry, correction/history, and validation are complete on
+  mobile and desktop.
+- Blind blotter and skin workflows explain progress, lock consequences, and reveal eligibility.
+- Recommendation cards support interest, sampling state, later outcome linkage, would-wear, and
+  would-buy revisions through the UI.
+- Saved recommendation runs reopen without duplicate impressions and clearly distinguish a new
+  set from an existing set.
+- Participant pages never require UUID entry and never reveal manager-only mapping, role,
+  repeat, selection, or holdout data.
+- End-to-end tests cover ordinary entry, blind calibration, recommendation feedback, sampling,
+  and later outcome linkage, including interruption and retry.
+
+## 10. Milestone P5: Manager and operations experience
+
+**Objective:** Let an authorized manager prepare, operate, observe, and close the family program
+without direct database changes or ad hoc API calls.
+
+**Owner:** Core maintainer
+
+**Status:** Planned
+**Depends on:** P3 and P4
+**Evidence:** [P5 Manager and Operations Experience Gate](gates/p5.md)
+
+### P5 acceptance criteria
+
+- Managers create programs, select exact catalog versions, assign roles/repeats, validate the
+  definition, activate it, enroll evaluators, and manage sessions using names and search.
+- Mapping and printable labeling views are manager-only, minimize disclosure, and never appear
+  in participant navigation or payloads.
+- Progress views show completion, locks, reveal readiness, missing work, and safe next actions.
+- Destructive or irreversible transitions require context-specific confirmation and return a
+  reviewable result.
+- Managers can view and export recommendation metrics with window, population, exclusions,
+  denominators, algorithm version, strategy, and source snapshot.
+- Connectivity failure/recovery entry and operational status are available without exposing
+  secrets or private payloads.
+- Authorization and disclosure tests cover every manager route, cache, error, export, and UI
+  state.
+- The disclosure matrix includes a participant requesting a cached manager response and records
+  the `no-store`, policy-aware cache key, or equivalent control used to prevent cross-role reuse.
+
+## 11. Milestone P6: Integrated pilot readiness
+
+**Objective:** Prove the complete deployed product is safe and usable with synthetic/demo data
+before any family member evaluates an actual pilot perfume.
+
+**Owner:** Core maintainer
+
+**Status:** Planned
+**Depends on:** P1 repository controls, P2, and P5
+**Evidence:** [P6 Integrated Pilot Readiness Gate](gates/p6.md)
+
+### P6 acceptance criteria
+
+- P1.1-P1.10 external evidence is complete against the release candidate and target topology.
+- A production-like deployment passes participant, recorder, and manager journeys through
+  Authentik/Traefik on supported desktop and family mobile devices.
+- Synthetic/demo data exercises program setup, labels, blind observations, locks, reveal,
+  ordinary history, recommendations, feedback revisions, sampling, synthetic outcomes,
+  reporting, and recovery without using pilot perfumes or real family outcomes.
+- Accessibility, keyboard, disclosure, responsive, performance, and failure-recovery checks pass
+  for every pilot-critical page.
+- Backup/restore, logs, alerts, secret rotation ownership, and printable/manual outage procedures
+  are rehearsed.
+- Participant and manager instructions are complete, and the core maintainer records a go/no-go
+  decision for F1.
+
+P6 closes only when every criterion passes and the recorded decision is `go`. Any failed
+criterion or `no-go` decision keeps F1 blocked.
+
+## 12. Milestone F1: Initial family perfume pilot
+
+**Objective:** Observe real family use of the complete product and establish honest baseline
+values before discovery work.
+
+**Owner:** Product owner and core maintainer
+
+**Status:** Planned
+**Depends on:** P6
+**Evidence:** [F1 Initial Family Pilot Gate](gates/f1.md)
+
+### F1 acceptance criteria
+
+- The pilot declares its dates, evaluators, exact physical samples, algorithm version, candidate
+  strategy, source snapshot, exclusions, and stopping conditions before first exposure.
+- Family members use only the released UI for pilot tasks; support interventions and workflow
+  failures are logged.
+- Reports retain interest, response coverage, sampling conversion, post-sample liking, wear/buy,
+  availability, coverage, variety, and connectivity/recovery counts with denominators.
+- The review records usability problems separately from fragrance or algorithm outcomes.
+- The core maintainer retains a redacted evidence export and records a decision. Only a
+  proceed-to-D1 decision completes F1 for sequencing; revise, extend, or stop keeps D1 blocked.
+
+## 13. Milestone D1: Source and vocabulary foundation
 
 **Objective:** Create a reproducible, licensed vocabulary and source layer without erasing raw
 labels or changing assigned identities.
@@ -207,7 +343,7 @@ labels or changing assigned identities.
 **Owner:** Core maintainer
 
 **Status:** Planned
-**Depends on:** P2
+**Depends on:** F1
 
 ### D1 deliverables and acceptance criteria
 
@@ -235,7 +371,7 @@ labels or changing assigned identities.
 | Adopt Parfica assets | Pilot only identified assets under their individual licenses and pinned revisions |
 | Use one global family taxonomy | Preserve source-specific classifications and explicit mapping versions |
 
-## 9. Milestone D2: Reproducible catalog statistics
+## 14. Milestone D2: Reproducible catalog statistics
 
 **Objective:** Produce reviewable frequency and association statistics from one declared eligible
 population.
@@ -260,7 +396,7 @@ population.
 - Performance budgets are defined for preprocessing, artifact size, API latency, and frontend
   loading before implementation is accepted.
 
-## 10. Milestone D3: Post-reveal exploration
+## 15. Milestone D3: Post-reveal exploration
 
 **Objective:** Help evaluators understand a fragrance after reveal while maintaining clear
 evidence boundaries.
@@ -282,7 +418,7 @@ evidence boundaries.
   source, uses a narrow schema, and sends no evaluator data.
 - New APIs, caches, summaries, and exports reuse the central disclosure policy.
 
-## 11. Milestone D4: Candidate discovery pilot
+## 16. Milestone D4: Candidate discovery pilot
 
 **Objective:** Generate useful candidates from published-note similarity and controlled contrasts
 without claiming that similarity predicts liking.
@@ -290,7 +426,7 @@ without claiming that similarity predicts liking.
 **Owner:** Core maintainer
 
 **Status:** Planned
-**Depends on:** D2 and P2
+**Depends on:** D2 and F1
 
 ### D4 acceptance criteria
 
@@ -306,7 +442,7 @@ without claiming that similarity predicts liking.
 - Coverage and variety thresholds prevent a narrow set of houses, families, or notes from
   dominating without explicit justification.
 
-## 12. Milestone D5: Prospective evaluation
+## 17. Milestone D5: Prospective evaluation
 
 **Objective:** Determine whether candidate discovery improves real post-sample outcomes over the
 existing affinity approach.
@@ -314,7 +450,7 @@ existing affinity approach.
 **Owner:** Core maintainer
 
 **Status:** Planned
-**Depends on:** D4 and P2
+**Depends on:** D4, P2, and F1
 
 ### D5 acceptance criteria
 
@@ -331,7 +467,7 @@ existing affinity approach.
   against those outcomes.
 - A written decision records whether to adopt, revise, or stop each candidate strategy.
 
-## 13. Cross-cutting definition of ready
+## 18. Cross-cutting definition of ready
 
 A work package may enter implementation only when:
 
@@ -344,7 +480,7 @@ A work package may enter implementation only when:
 - target environment, fixtures, performance budget, and rollback/recovery path are identified;
 - the work is small enough to complete and review within one sprint or is split further.
 
-## 14. Cross-cutting definition of done
+## 19. Cross-cutting definition of done
 
 - Acceptance criteria pass with retained evidence.
 - Backend and frontend lint, type, test, and build checks pass as applicable.
@@ -356,19 +492,20 @@ A work package may enter implementation only when:
 - Performance and external-service degradation meet the declared budgets.
 - Code review is complete and the change is merged.
 
-## 15. Traceability matrix
+## 20. Traceability matrix
 
 | Product outcome | Delivery path | Evidence |
 | :--- | :--- | :--- |
-| Preserve trustworthy experience history | P1, ADR-005, ADR-007 | Migration inventory, history/disclosure tests, restore drill |
+| Preserve trustworthy experience history | P1, P4-P6, ADR-005, ADR-007 | Migration inventory, UI history/disclosure tests, restore drill |
 | Resolve exact fragrance versions | P1, D1, ADR-006 | Verified manifest, collision report, immutable-assignment tests |
 | Produce explainable profiles | D1–D3, ADR-006/007 | Snapshot manifests, statistic fixtures, accessible profile tests |
-| Recommend useful and varied candidates | P2, D4 | Impression/outcome records, coverage and variety reports |
-| Demonstrate improvement prospectively | D5, ADR-009 | Frozen checkpoints, holdout analysis, adoption decision |
+| Provide a usable family product before testing | P3-P6 | Role-aware UI tests, synthetic rehearsal, pilot-readiness decision |
+| Recommend useful and varied candidates | P2, F1, D4 | Impression/outcome records, coverage and variety reports |
+| Demonstrate improvement prospectively | F1, D5, ADR-009 | Baseline export, frozen checkpoints, holdout analysis, adoption decision |
 | Protect family and blind data | P1 and every later milestone, ADR-008 | Proxy bypass and disclosure matrices |
 | Maintain low-touch self-hosting | P1 operations and all degradation criteria | Runbook, health checks, backup/restore evidence |
 
-## 16. Risk register
+## 21. Risk register
 
 | Risk | Probability | Impact | Owner | Mitigation and trigger |
 | :--- | :--- | :--- | :--- | :--- |
@@ -376,17 +513,18 @@ A work package may enter implementation only when:
 | Backend bypasses Authentik/Traefik | Medium | Critical | Core maintainer | Remove or isolate direct exposure; deployed bypass test blocks release |
 | Blind identity leaks through a derived surface | Medium | Critical | Core maintainer | Central policy plus route/cache/export/log disclosure matrix |
 | Baseline manifest maps the wrong concentration | Medium | High | Experiment manager | Two-source/physical verification; unresolved versions remain unassigned |
-| Recommendation work optimizes interest instead of liking | High | High | Product owner | P2 separates funnel and outcome metrics before D1 |
+| Recommendation work optimizes interest instead of liking | High | High | Product owner | P2 separates metric types; F1 records real outcomes before D1 |
 | Small sample produces unstable conclusions | High | High | Product owner | Counts, uncertainty, repeats, frozen baselines, modest claims |
 | Source rights do not permit intended reuse | Medium | High | Core maintainer | D1 rights record and safe defaults; retain manual/source-link alternatives |
 | Alias mapping merges distinct concepts | Medium | High | Core maintainer | Versioned mappings, raw labels, collision review, reversible reprocessing |
 | Filtered statistics mix denominators | Medium | High | Core maintainer | Same-population calculation contract and subset regression fixture |
 | External sources or OpenRouter fail | Medium | Medium | Core maintainer | Local capture/scoring fallback, timeouts, rate limits, observability |
-| Family participation or feedback coverage is low | Medium | High | Product owner | One-interaction feedback, response coverage reporting, workflow observation |
-| Mobile/home connectivity prevents use | Medium | Medium | Core maintainer | Measure failures, preserve printable/manual capture, consider PWA only from evidence |
+| Prototype UI causes invalid or abandoned pilot data | High | High | Core maintainer | P3-P6 complete and pass a synthetic rehearsal before F1 |
+| Family participation or feedback coverage is low | Medium | High | Product owner | P4 one-interaction feedback and F1 response-coverage/workflow observation |
+| Mobile/home connectivity prevents use | Medium | Medium | Core maintainer | P6 rehearses failure handling; F1 measures failures and retains manual recovery |
 | Scope expands into advanced ML too early | Medium | Medium | Product owner | D5 decision gate; active learning and calibrated claims remain out of scope |
 
-## 17. Audit finding disposition
+## 22. Audit finding disposition
 
 This table preserves the complete P0 review so later sprints do not lose its constraints.
 
@@ -395,8 +533,9 @@ This table preserves the complete P0 review so later sprints do not lose its con
 | Plan was pinned to `ff026ef` and called merged calibration pending | Corrected by the current-state ledger and P1 deployment distinction |
 | Frontend was described as a scaffold | Corrected; current UI baseline and missing recommendation flow are explicit |
 | Vision omitted controlled calibration and prospective evaluation | Vision v2 now includes both |
-| “80% interesting” was called accuracy | Reclassified as an interest metric; P2 and D5 define actual outcome evaluation |
-| Recommendation feedback did not exist despite being a success dependency | P2 makes impressions, feedback, sampling, and outcome linkage mandatory before D1 |
+| “80% interesting” was called accuracy | Reclassified as an interest metric; P2 defines measurement and F1/D5 define actual outcome evaluation |
+| Recommendation feedback did not exist despite being a success dependency | P2 implements durable measurement; P4 exposes the complete workflow before F1 collects data |
+| The measurement gate placed family testing before a complete product UI | P3-P6 now require participant, manager, reporting, deployment, and synthetic rehearsal readiness before F1 |
 | Accepted ADRs diverged from implementation | ADR-005 through ADR-009 amend or supersede the affected decisions |
 | Technical specification said no authentication | Corrected to the Authentik/Traefik trust boundary |
 | Production Compose could expose backend port 8000 | P1.6 requires topology correction/validation and a bypass test |
@@ -409,8 +548,8 @@ This table preserves the complete P0 review so later sprints do not lose its con
 | Calibration design was missing from documentation navigation | P0 adds it to published navigation |
 | Test plan depended heavily on SQLite | Definition of done and P1 require PostgreSQL for PostgreSQL behavior |
 | Blind tests did not enumerate every derived surface | P1.7 covers search, history, profiles, recommendations, explanations, caches, errors, exports, and logs |
-| Plan lacked observability and external-service degradation | P1.10 and P2 metrics add operations, cost, latency, failures, and cache behavior |
-| Plan lacked mobile/accessibility acceptance criteria | P2 and D3 include mobile and accessible workflows |
+| Plan lacked observability and external-service degradation | P1.10 and P2 metrics add operations, cost, latency, failures, and cache behavior; P6 rehearses them |
+| Plan lacked mobile/accessibility acceptance criteria | P3-P6 and D3 include mobile and accessible workflows |
 | Plan did not define candidate availability or diversity | D4 records availability and enforces coverage/variety reporting |
 | Plan did not define prospective comparison protocol | ADR-009 and D5 specify frozen strategies, inputs, outcomes, and reporting |
 | Historical roadmaps remained easy to mistake for current work | Roadmap is replaced with a compact mirror of this authority |
@@ -426,7 +565,7 @@ This table preserves the complete P0 review so later sprints do not lose its con
 | Existing shebang maintenance scripts were not executable | P1 corrected their executable modes and the repository-wide hook passes |
 | The FIPS workflow declared a string default for a Boolean dispatch input | P1 corrected the type and the workflow schema validator passes |
 
-## 18. Evidence locations
+## 23. Evidence locations
 
 Milestone evidence belongs under `docs/planning/gates/<milestone>.md` with the date, environment,
 commit, commands/procedure, result, reviewer, and any redactions. Machine-generated artifacts may
@@ -435,7 +574,7 @@ recorded in the gate report.
 
 Production backups, secrets, raw private responses, and blind mappings must not be committed.
 
-## 19. Change control
+## 24. Change control
 
 - Update this plan in the same pull request when scope, sequence, status, or a gate changes.
 - Record expensive-to-reverse technical or policy changes in an ADR.
@@ -444,7 +583,7 @@ Production backups, secrets, raw private responses, and blind mappings must not 
 - Any exception to a release-blocking invariant requires an explicit ADR and product-owner
   decision; schedule pressure is not sufficient.
 
-## 20. Related documents
+## 25. Related documents
 
 - [Project Vision](project-vision.md)
 - [Technical Specification](tech-spec.md)

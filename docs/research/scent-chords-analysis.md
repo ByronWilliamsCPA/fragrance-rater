@@ -18,9 +18,9 @@ and candidate generation. Keep our canonical version catalog, evaluator records,
 workflow and recommendation policies authoritative. Co-occurrence describes a published
 catalog; it does not measure a person's preference or a perfume's chemical composition.
 
-The [Project Plan](../planning/PROJECT-PLAN.md#8-milestone-d1-source-and-vocabulary-foundation)
-translates these findings into D1–D5 deliverables and acceptance criteria after the P1 release
-and P2 measurement gates. This document records
+The [Project Plan](../planning/PROJECT-PLAN.md#13-milestone-d1-source-and-vocabulary-foundation)
+translates these findings into D1-D5 deliverables and acceptance criteria after P6 UI readiness
+and the F1 family pilot. This document records
 the evidence and reasoning; it does not authorize a data import or assert that these features
 have been implemented.
 

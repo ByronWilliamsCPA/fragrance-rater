@@ -21,16 +21,23 @@ subject to the P1 deployment gate.
 
 | Milestone | Outcome | Status |
 | :--- | :--- | :--- |
-| P0 | Reconciled planning baseline | Ready for review |
-| P1 | Calibration deployment, migration, recovery, and security readiness | Repository complete; deployment evidence pending |
-| P2 | Recommendation impression, feedback, sampling, and outcome measurement | Repository complete; P1 and pilot evidence pending |
+| P0 | Reconciled planning baseline | Complete |
+| P1 | Calibration deployment, migration, recovery, and security readiness | Repository complete; external evidence pending through P6 |
+| P2 | Recommendation impression, feedback, sampling, and outcome measurement foundation | Complete |
+| P3 | Role-aware routed product foundation | Planned |
+| P4 | Complete participant interface | Planned |
+| P5 | Complete manager, reporting, and operations interface | Planned |
+| P6 | Deployed synthetic rehearsal and pilot-readiness decision | Planned |
+| F1 | Initial family pilot with actual perfumes | Planned after P6 |
 | D1 | Versioned source, alias, and taxonomy foundation | Planned |
 | D2 | Reproducible catalog statistics | Planned |
 | D3 | Disclosure-safe post-reveal exploration | Planned |
 | D4 | Candidate discovery pilot | Planned |
 | D5 | Prospective comparison and strategy decision | Planned |
 
-D1 cannot begin until P0, P1, and P2 are complete.
+Actual pilot perfume testing cannot begin until P6 is complete. D1 cannot begin until F1 is
+complete with a proceed-to-D1 decision. P1 evidence proceeds in parallel, while the product
+sequence is P2 → P3 → P4 → P5; both paths join at P6.
 
 ## Planning documents
 

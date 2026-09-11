@@ -16,7 +16,7 @@ boundaries and invariants rather than duplicating every request field.
 
 | Layer | Technology | Responsibility |
 | :--- | :--- | :--- |
-| Frontend | React 19, TypeScript, Vite | Ordinary capture, calibration capture, program setup, planned recommendation/profile flows |
+| Frontend | React 19, TypeScript, Vite | Functional single-component prototype; P3-P6 deliver routed, role-aware participant, manager, reporting, and operational workflows before F1 |
 | API | FastAPI, Python | Validation, access policy, workflow orchestration, scoring, import |
 | Data | PostgreSQL 16, SQLAlchemy 2, Alembic | Catalog, evidence history, controlled programs, checkpoints |
 | Authentication edge | Authentik forward-auth through Traefik | Verified production identity and access boundary |
@@ -91,6 +91,11 @@ source labels or evaluator wording.
 P2 adds first-class recommendation runs, impressions, interest responses, sampling states, and
 links to subsequent outcomes. A persisted impression is required before feedback. Outcome links
 reference existing observations rather than copying or rewriting them.
+
+P3-P6 are product-interface gates over these contracts. They require routed and resumable pages,
+verified capability-driven navigation, complete participant and manager workflows, responsive
+and accessible interaction, explicit failure/recovery states, and a deployed synthetic rehearsal.
+F1 is the first stage allowed to collect outcomes from actual pilot perfumes.
 
 Required provenance includes algorithm version, candidate strategy, rank, score type, source
 snapshot, frozen input manifest, timestamp, and recorder.
