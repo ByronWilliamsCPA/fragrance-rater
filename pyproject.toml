@@ -204,12 +204,6 @@ exclude = [
     "__pycache__",
     "dist",
     "build",
-    # Frozen Phase-0 planning scaffold, superseded by src/fragrance_rater/.
-    # SECURITY-FINDINGS.md documents its vulnerabilities by exact line
-    # number; reformatting or fixing lint here would shift those line
-    # numbers and invalidate that public disclosure document. Not shipped
-    # code, not covered by the API/operations remediation domains.
-    "docs/planning/backend",
 ]
 
 [tool.ruff.format]
