@@ -41,6 +41,7 @@ Fragrance: {fragrance_name} by {fragrance_brand}
 - Top notes: {top_notes}
 - Heart notes: {heart_notes}
 - Base notes: {base_notes}
+- Published notes without pyramid placement: {unpositioned_notes}
 - Accords: {accords}
 
 Write 2-3 sentences explaining the match. Highlight specific notes they'll enjoy.
@@ -72,6 +73,7 @@ Fragrance: {fragrance_name} by {fragrance_brand}
 - Top notes: {top_notes}
 - Heart notes: {heart_notes}
 - Base notes: {base_notes}
+- Published notes without pyramid placement: {unpositioned_notes}
 
 Write 1-2 sentences explaining why this might not be their best choice,
 but acknowledge any positive aspects if relevant."""
@@ -98,6 +100,7 @@ class FragranceDetails:
     top_notes: list[str] = field(default_factory=list)
     heart_notes: list[str] = field(default_factory=list)
     base_notes: list[str] = field(default_factory=list)
+    unpositioned_notes: list[str] = field(default_factory=list)
     accords: list[str] = field(default_factory=list)
 
 
@@ -192,6 +195,8 @@ class LLMService:
                 top_notes=", ".join(fragrance_details.top_notes) or "Unknown",
                 heart_notes=", ".join(fragrance_details.heart_notes) or "Unknown",
                 base_notes=", ".join(fragrance_details.base_notes) or "Unknown",
+                unpositioned_notes=", ".join(fragrance_details.unpositioned_notes)
+                or "None",
             )
         else:
             prompt = RECOMMENDATION_PROMPT.format(
@@ -214,6 +219,8 @@ class LLMService:
                 top_notes=", ".join(fragrance_details.top_notes) or "Unknown",
                 heart_notes=", ".join(fragrance_details.heart_notes) or "Unknown",
                 base_notes=", ".join(fragrance_details.base_notes) or "Unknown",
+                unpositioned_notes=", ".join(fragrance_details.unpositioned_notes)
+                or "None",
                 accords=", ".join(fragrance_details.accords) or "Unknown",
             )
 

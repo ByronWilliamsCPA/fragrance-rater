@@ -30,6 +30,7 @@ class Fragrance(Base):
         name (Mapped[str]): Fragrance name.
         brand (Mapped[str]): Brand/house name.
         concentration (Mapped[str]): EDT, EDP, Parfum, etc.
+        version_key (Mapped[str]): Stable formulation/version identifier.
         launch_year (Mapped[int | None]): Year of release.
         gender_target (Mapped[str]): Masculine, Feminine, or Unisex.
         primary_family (Mapped[str]): Michael Edwards Wheel family (Fresh, Floral,
@@ -52,27 +53,15 @@ class Fragrance(Base):
     """
 
     __tablename__ = "fragrances"
-    # Major finding 8: no UNIQUE constraint on (name, brand) let the same
-    # catalog entry be imported twice with no detection. `uq_fragrance_name_brand`
-    # is the reference implementation preserved from prior review; the search
-    # index name (`ix_fragrance_search`) is likewise the agreed naming.
-    # #EDGE: data-integrity: this does not include `concentration`, so a
-    # legitimate EDT/EDP pair sharing a name and brand will collide.
-    # #VERIFY: if that turns out to happen in practice, widen the constraint
-    # to include `concentration` in a follow-up migration.
-    #
-    # `uq_fragrance_name_brand` is a partial unique index scoped to
-    # `deleted_at IS NULL` rather than a plain UniqueConstraint: see the
-    # resolved RAD note on `deleted_at` below for why (soft-deleted rows
-    # must not permanently block recreating the same (name, brand) pair).
-    # `sqlite_where` mirrors `postgresql_where` so the SQLite test database
-    # (built from this metadata via `Base.metadata.create_all`, not this
-    # migration) enforces the same scoped uniqueness as production.
+    # Preserve distinct concentrations and formulation/version identities.
+    # Live rows are unique; archived rows do not block replacement records.
     __table_args__ = (
         Index(
-            "uq_fragrance_name_brand",
+            "uq_fragrance_version",
             "name",
             "brand",
+            "concentration",
+            "version_key",
             unique=True,
             postgresql_where=text("deleted_at IS NULL"),
             sqlite_where=text("deleted_at IS NULL"),
@@ -86,6 +75,9 @@ class Fragrance(Base):
     name: Mapped[str] = mapped_column(String(255), index=True)
     brand: Mapped[str] = mapped_column(String(255), index=True)
     concentration: Mapped[str] = mapped_column(String(50))
+    version_key: Mapped[str] = mapped_column(
+        String(200), default="legacy", server_default="legacy"
+    )
     launch_year: Mapped[int | None] = mapped_column(nullable=True)
     gender_target: Mapped[str] = mapped_column(String(20))
 

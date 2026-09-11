@@ -78,7 +78,11 @@ class EvaluationService:
                 Evaluation.reviewer_id == reviewer_id, Evaluation.deleted_at.is_(None)
             )
             .options(selectinload(Evaluation.fragrance))
-            .order_by(Evaluation.evaluated_at.desc())
+            .order_by(
+                Evaluation.evaluated_at.desc(),
+                Evaluation.created_at.desc(),
+                Evaluation.id.desc(),
+            )
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -98,7 +102,11 @@ class EvaluationService:
                 Evaluation.fragrance_id == fragrance_id, Evaluation.deleted_at.is_(None)
             )
             .options(selectinload(Evaluation.reviewer))
-            .order_by(Evaluation.evaluated_at.desc())
+            .order_by(
+                Evaluation.evaluated_at.desc(),
+                Evaluation.created_at.desc(),
+                Evaluation.id.desc(),
+            )
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
@@ -106,7 +114,7 @@ class EvaluationService:
     async def get_by_reviewer_and_fragrance(
         self, reviewer_id: str, fragrance_id: str
     ) -> Evaluation | None:
-        """Get an evaluation for a specific reviewer and fragrance.
+        """Get the latest active encounter for a reviewer and fragrance.
 
         Args:
             reviewer_id (str): UUID of the reviewer.
@@ -115,10 +123,19 @@ class EvaluationService:
         Returns:
             Evaluation | None: Evaluation if found, None otherwise.
         """
-        stmt = select(Evaluation).where(
-            Evaluation.reviewer_id == reviewer_id,
-            Evaluation.fragrance_id == fragrance_id,
-            Evaluation.deleted_at.is_(None),
+        stmt = (
+            select(Evaluation)
+            .where(
+                Evaluation.reviewer_id == reviewer_id,
+                Evaluation.fragrance_id == fragrance_id,
+                Evaluation.deleted_at.is_(None),
+            )
+            .order_by(
+                Evaluation.evaluated_at.desc(),
+                Evaluation.created_at.desc(),
+                Evaluation.id.desc(),
+            )
+            .limit(1)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -147,6 +164,7 @@ class EvaluationService:
             longevity_rating=data.longevity_rating,
             sillage_rating=data.sillage_rating,
             recorded_by=recorded_by,
+            evaluated_at=data.evaluated_at or now_naive_utc(),
         )
         self.session.add(evaluation)
         await self.session.flush()

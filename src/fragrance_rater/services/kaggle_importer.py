@@ -248,7 +248,7 @@ class KaggleImporter:
         # Parse concentration
         concentration = row.get(col_map.get("concentration", ""), "").strip()
         if not concentration:
-            concentration = "EDP"  # Default
+            concentration = "Unknown"  # Preserve missing concentration without guessing
 
         # Parse family
         family = row.get(col_map.get("family", ""), "").strip()

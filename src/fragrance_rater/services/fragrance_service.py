@@ -5,10 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.core.exceptions import DatabaseError
+from fragrance_rater.models.calibration import Membership
 from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
@@ -115,6 +117,7 @@ class FragranceService:
             name=data.name,
             brand=data.brand,
             concentration=data.concentration,
+            version_key=data.version_key,
             launch_year=data.launch_year,
             gender_target=data.gender_target,
             primary_family=data.primary_family,
@@ -163,12 +166,51 @@ class FragranceService:
 
         Returns:
             Fragrance | None: Updated fragrance if found, None otherwise.
+
+        Raises:
+            HTTPException: If calibration references the version and an
+                identity field would change.
         """
         fragrance = await self.get_by_id(fragrance_id)
         if not fragrance:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+        identity_fields = {
+            "name",
+            "brand",
+            "concentration",
+            "launch_year",
+            "version_key",
+            "gender_target",
+            "primary_family",
+            "subfamily",
+            "intensity",
+        }
+        if identity_fields.intersection(update_data):
+            # Membership creation takes the same row lock so assignment cannot
+            # race an identity correction between this check and the update.
+            await self.session.execute(
+                select(Fragrance.id)
+                .where(Fragrance.id == fragrance_id)
+                .with_for_update()
+            )
+            await self.session.refresh(fragrance)
+            if fragrance.deleted_at is not None:
+                return None
+            identity_changed = any(
+                getattr(fragrance, field) != update_data[field]
+                for field in identity_fields.intersection(update_data)
+            )
+            if identity_changed and await self.session.scalar(
+                select(Membership.id)
+                .where(Membership.fragrance_id == fragrance_id)
+                .limit(1)
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Calibration references this version; create a new version to change its identity",
+                )
         for field, value in update_data.items():
             setattr(fragrance, field, value)
 
@@ -188,10 +230,30 @@ class FragranceService:
         Returns:
             bool: True if soft-deleted, False if not found (or already
                 soft-deleted, since get_by_id excludes it).
+
+        Raises:
+            HTTPException: If calibration references the version.
         """
         fragrance = await self.get_by_id(fragrance_id)
         if not fragrance:
             return False
+
+        # Calibration memberships preserve the identity of an assigned
+        # stimulus. Lock the catalog row so assignment cannot race this check,
+        # then refuse deletion rather than leaving presentations pointing at a
+        # version that silently disappears from histories and training data.
+        await self.session.execute(
+            select(Fragrance.id).where(Fragrance.id == fragrance_id).with_for_update()
+        )
+        if await self.session.scalar(
+            select(Membership.id)
+            .where(Membership.fragrance_id == fragrance_id)
+            .limit(1)
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="Calibration references this version; it cannot be deleted",
+            )
 
         fragrance.deleted_at = now_naive_utc()
         await self.session.flush()

@@ -159,6 +159,7 @@ path = [
     "frontend/Dockerfile",
     "frontend/nginx.conf",
     "frontend/package.json",
+    "frontend/package-lock.json",
     "frontend/tsconfig*.json",
     "frontend/vite.config.ts",
     "frontend/eslint.config.js",

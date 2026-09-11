@@ -519,10 +519,10 @@ class TestFragranceDedupPartialUniqueIndex:
         assert live[0].id == "dedup-frag-new"
         assert deleted[0].id == "dedup-frag-orig"
 
-    async def test_two_live_fragrances_still_reject_duplicate_name_brand(
+    async def test_versions_coexist_but_exact_live_duplicates_are_rejected(
         self, async_session
     ):
-        """Two LIVE fragrances sharing (name, brand) must still be rejected."""
+        """EDT and EDP coexist, while an exact active version duplicate fails."""
         from sqlalchemy.exc import IntegrityError
 
         first = Fragrance(
@@ -549,6 +549,19 @@ class TestFragranceDedupPartialUniqueIndex:
             data_source="manual",
         )
         async_session.add(second)
+        await async_session.commit()
+        assert first.id != second.id
+        duplicate = Fragrance(
+            id="dup-frag-3",
+            name="Duplicate Name",
+            brand="Duplicate Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(duplicate)
         with pytest.raises(IntegrityError):
             await async_session.commit()
         await async_session.rollback()

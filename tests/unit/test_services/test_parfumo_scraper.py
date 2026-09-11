@@ -3,21 +3,26 @@
 Tests the Parfumo.com web scraping functionality with mocked HTTP responses.
 """
 
-import asyncio
-import time
+import threading
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
+from bs4 import BeautifulSoup
 from sqlalchemy import select
 
 from fragrance_rater.core.vocabulary import GENDER_TARGETS
+from fragrance_rater.models.calibration import Perfumer, SourceSnapshot, VersionPerfumer
+from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
+from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.services.parfumo_scraper import (
     ParfumoScraper,
     ScrapedFragrance,
     SearchResult,
 )
+from fragrance_rater.utils.timestamps import now_naive_utc
 
 # Sample HTML for testing
 SAMPLE_PERFUME_PAGE = """
@@ -474,6 +479,13 @@ class TestParfumoScraperHostAllowlist:
             "https://www.parfumo.com.evil.example/Perfumes/x/y"
         )
 
+    def test_rejects_url_credentials(self):
+        """Credentials must not be accepted, logged, or persisted in source URLs."""
+        scraper = _new_scraper()
+        assert not scraper._is_allowed_url(
+            "https://user:secret@www.parfumo.com/Perfumes/x/y"
+        )
+
     def test_make_request_short_circuits_disallowed_host(self):
         """_make_request never touches the network for a disallowed host."""
         scraper = _new_scraper()
@@ -812,10 +824,8 @@ class TestParfumoScraperAsyncOffload:
     methods that call them directly; without offloading to a thread, that
     blocking I/O runs on the event loop thread and stalls it for the
     duration of the request/backoff. Both methods now wrap the blocking
-    calls in asyncio.to_thread(); these tests confirm the offload actually
-    happens (a concurrently-scheduled coroutine keeps making progress
-    while the blocking call is in flight), not just that the method still
-    returns a result.
+    calls in asyncio.to_thread(); these tests compare thread identities to
+    confirm the offload deterministically, without wall-clock thresholds.
     """
 
     async def test_import_from_url_does_not_block_event_loop(
@@ -823,44 +833,33 @@ class TestParfumoScraperAsyncOffload:
     ):
         scraper = ParfumoScraper.__new__(ParfumoScraper)
         scraper.db = async_session
+        event_loop_thread = threading.get_ident()
+        worker_thread: int | None = None
 
         def fake_scrape_perfume_page(url: str) -> ScrapedFragrance:
-            # Simulates the blocking network call + backoff sleep inside
-            # the real scrape_perfume_page()/_make_request().
-            time.sleep(0.15)
+            nonlocal worker_thread
+            worker_thread = threading.get_ident()
             return ScrapedFragrance(url=url, name="Blocking Test", brand="Test Brand")
 
         monkeypatch.setattr(scraper, "scrape_perfume_page", fake_scrape_perfume_page)
-
-        async def competing_task() -> None:
-            for _ in range(5):
-                await asyncio.sleep(0.02)
-
-        start = time.perf_counter()
-        fragrance_id, _ = await asyncio.gather(
-            scraper.import_from_url("https://parfumo.com/Perfumes/test/blocking"),
-            competing_task(),
+        fragrance_id = await scraper.import_from_url(
+            "https://parfumo.com/Perfumes/test/blocking"
         )
-        elapsed = time.perf_counter() - start
 
         assert fragrance_id is not None
-        # If scrape_perfume_page() ran directly on the event loop instead
-        # of in a thread, competing_task()'s 5 x 0.02s awaits (0.1s total)
-        # could only proceed after the 0.15s blocking call returned,
-        # pushing elapsed toward 0.25s. Offloaded via asyncio.to_thread,
-        # the loop stays free to run competing_task() while the blocking
-        # call executes in a worker thread, so elapsed stays close to
-        # max(0.15, 0.1) = 0.15s.
-        assert elapsed < 0.22
+        assert worker_thread is not None
+        assert worker_thread != event_loop_thread
 
     async def test_search_and_import_does_not_block_event_loop(
         self, async_session, monkeypatch
     ):
         scraper = ParfumoScraper.__new__(ParfumoScraper)
         scraper.db = async_session
+        event_loop_thread = threading.get_ident()
+        worker_threads: list[int] = []
 
         def fake_search(query: str, limit: int = 10) -> list[SearchResult]:
-            time.sleep(0.15)
+            worker_threads.append(threading.get_ident())
             return [
                 SearchResult(
                     name="Blocking Result",
@@ -870,21 +869,129 @@ class TestParfumoScraperAsyncOffload:
             ]
 
         def fake_scrape_perfume_page(url: str) -> ScrapedFragrance:
+            worker_threads.append(threading.get_ident())
             return ScrapedFragrance(url=url, name="Blocking Result", brand="Test Brand")
 
         monkeypatch.setattr(scraper, "search", fake_search)
         monkeypatch.setattr(scraper, "scrape_perfume_page", fake_scrape_perfume_page)
 
-        async def competing_task() -> None:
-            for _ in range(5):
-                await asyncio.sleep(0.02)
-
-        start = time.perf_counter()
-        fragrance_id, _ = await asyncio.gather(
-            scraper.search_and_import("Blocking Result", "Test Brand"),
-            competing_task(),
-        )
-        elapsed = time.perf_counter() - start
+        fragrance_id = await scraper.search_and_import("Blocking Result", "Test Brand")
 
         assert fragrance_id is not None
-        assert elapsed < 0.22
+        assert len(worker_threads) == 2
+        assert all(worker != event_loop_thread for worker in worker_threads)
+
+
+def test_version_key_hashes_the_full_url_after_bounded_readable_prefix():
+    """Long URLs with the same truncated tail prefix retain distinct identities."""
+    prefix = "x" * 190
+    first = ParfumoScraper._version_key(f"https://parfumo.com/Perfumes/a/{prefix}-one")
+    second = ParfumoScraper._version_key(f"https://parfumo.com/Perfumes/b/{prefix}-two")
+    assert first != second
+    assert len(first) <= 200
+    assert len(second) <= 200
+
+
+@pytest.mark.asyncio
+async def test_source_snapshots_preserve_collaborators_flat_notes_and_unknown_concentration(
+    async_session,
+):
+    """Refresh appends source evidence without inventing a pyramid or touching ratings."""
+    scraper = ParfumoScraper.__new__(ParfumoScraper)
+    scraper.db = async_session
+    scraped = ScrapedFragrance(
+        url="https://parfumo.com/Perfumes/test/source-evidence",
+        name="Source evidence",
+        brand="Test",
+        flat_notes=["Vetiver", "Musk"],
+        perfumers=["First Nose", "Second Nose"],
+        rating=8.1,
+        rating_count=31,
+    )
+    fragrance_id = await scraper._create_fragrance(scraped, scraped.name, scraped.brand)
+    fragrance = await async_session.get(Fragrance, fragrance_id)
+    assert fragrance.concentration == "Unknown"
+    notes = list(
+        await async_session.scalars(
+            select(FragranceNote).where(FragranceNote.fragrance_id == fragrance_id)
+        )
+    )
+    assert len(notes) == 2
+    assert {note.position for note in notes} == {"flat"}
+    names = set(
+        await async_session.scalars(
+            select(Perfumer.name)
+            .join(VersionPerfumer)
+            .where(VersionPerfumer.fragrance_id == fragrance_id)
+        )
+    )
+    assert names == {"First Nose", "Second Nose"}
+    first_snapshot = await async_session.scalar(
+        select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
+    )
+    assert first_snapshot is not None
+    first_snapshot.retrieved_at = now_naive_utc() - timedelta(minutes=1)
+    reviewer = Reviewer(id="source-reviewer", name="Source Reviewer")
+    async_session.add(reviewer)
+    await async_session.flush()
+    rating = Evaluation(
+        fragrance_id=fragrance_id,
+        reviewer_id=reviewer.id,
+        rating=2,
+        notes="Pencil shavings",
+    )
+    async_session.add(rating)
+    await async_session.flush()
+    scraped.rating = 9.0
+    scraped.rating_count = 45
+    scraped.flat_notes = ["Rose"]
+    await scraper._update_fragrance(fragrance, scraped)
+    latest_snapshot = next(
+        snapshot
+        for snapshot in await async_session.scalars(
+            select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
+        )
+        if snapshot.payload["rating_count"] == 45
+    )
+    latest_snapshot.retrieved_at = now_naive_utc()
+    snapshots = list(
+        await async_session.scalars(
+            select(SourceSnapshot)
+            .where(SourceSnapshot.fragrance_id == fragrance_id)
+            .order_by(SourceSnapshot.retrieved_at)
+        )
+    )
+    assert len(snapshots) == 2
+    assert snapshots[0].payload["rating"] == 8.1
+    assert snapshots[0].payload["flat_notes"] == ["Vetiver", "Musk"]
+    assert snapshots[1].payload["rating_count"] == 45
+    assert snapshots[1].payload["flat_notes"] == ["Rose"]
+    assert all(snapshot.source_url == scraped.url for snapshot in snapshots)
+    links = list(
+        await async_session.scalars(
+            select(VersionPerfumer).where(VersionPerfumer.fragrance_id == fragrance_id)
+        )
+    )
+    assert len(links) == 2
+    await async_session.refresh(rating)
+    assert rating.rating == 2
+    assert rating.notes == "Pencil shavings"
+
+
+def test_unstructured_notes_remain_flat_during_extraction():
+    """A page without a pyramid must not turn all published notes into heart notes."""
+    scraper = ParfumoScraper.__new__(ParfumoScraper)
+    scraped = ScrapedFragrance(
+        url="https://parfumo.com/Perfumes/test/flat", name="Flat", brand="Test"
+    )
+    scraper._extract_notes(
+        BeautifulSoup(
+            '<a href="/Notes/Vetiver">Vetiver</a><a href="/Notes/Musk">Musk</a>',
+            "html.parser",
+        ),
+        scraped,
+    )
+    assert set(scraped.flat_notes) == {"Vetiver", "Musk"}
+    assert scraped.top_notes == []
+    assert scraped.heart_notes == []
+    assert scraped.base_notes == []
