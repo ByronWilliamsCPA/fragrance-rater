@@ -80,7 +80,18 @@ if [ -f "scripts/cleanup_conditional_files.py" ]; then
     fi
 else
     echo "⚠️  Cleanup script not found: scripts/cleanup_conditional_files.py"
-    echo "   Skipping conditional file cleanup"
+    cleanup_result=1
+fi
+
+if [ "$update_result" -ne 0 ] || [ "${cleanup_result:-0}" -ne 0 ]; then
+    echo ""
+    echo "========================================"
+    echo "❌ Cruft update or cleanup failed"
+    echo "========================================"
+    if [ "$update_result" -ne 0 ]; then
+        exit "$update_result"
+    fi
+    exit "$cleanup_result"
 fi
 
 echo ""

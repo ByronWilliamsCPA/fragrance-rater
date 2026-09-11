@@ -19,9 +19,10 @@ Exit codes:
     1: Violations found (or other errors)
 """
 
+from __future__ import annotations
+
 import argparse
 import ast
-import re
 import sys
 from pathlib import Path
 
@@ -32,37 +33,27 @@ class UnionSyntaxVisitor(ast.NodeVisitor):
     def __init__(self) -> None:
         self.has_union_syntax = False
 
-    def visit_BinOp(self, node: ast.BinOp) -> None:
-        """Visit binary operations to detect | in type contexts."""
-        if isinstance(node.op, ast.BitOr):
-            # Check if this is likely a type annotation context
-            # This is a heuristic - it will catch most cases
+    def inspect_annotation(self, annotation: ast.expr | None) -> None:
+        """Record a pipe union only while walking an annotation subtree."""
+        if annotation is not None and any(
+            isinstance(node, ast.BinOp) and isinstance(node.op, ast.BitOr)
+            for node in ast.walk(annotation)
+        ):
             self.has_union_syntax = True
-        self.generic_visit(node)
 
     def visit_arg(self, node: ast.arg) -> None:
         """Visit function arguments with annotations."""
-        if node.annotation:
-            self.visit(node.annotation)
-        self.generic_visit(node)
+        self.inspect_annotation(node.annotation)
 
     def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
         """Visit annotated assignments."""
-        if node.annotation:
-            self.visit(node.annotation)
-        self.generic_visit(node)
+        self.inspect_annotation(node.annotation)
+        if node.value is not None:
+            self.visit(node.value)
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         """Visit function definitions with return annotations."""
-        if node.returns:
-            self.visit(node.returns)
-        for arg in node.args.args + node.args.posonlyargs + node.args.kwonlyargs:
-            if arg.annotation:
-                self.visit(arg.annotation)
-        if node.args.vararg and node.args.vararg.annotation:
-            self.visit(node.args.vararg.annotation)
-        if node.args.kwarg and node.args.kwarg.annotation:
-            self.visit(node.args.kwarg.annotation)
+        self.inspect_annotation(node.returns)
         self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
@@ -89,34 +80,16 @@ def has_future_annotations_import(content: str) -> bool:
 def has_union_pipe_syntax(content: str) -> bool:
     """Check if file uses | union syntax in type hints.
 
-    Uses multiple detection methods:
-    1. AST parsing to detect BinOp with BitOr in annotation contexts
-    2. Regex pattern matching for common type hint patterns
+    Parses annotation nodes so ordinary bitwise-OR expressions do not trigger it.
     """
     # Method 1: AST-based detection
     try:
         tree = ast.parse(content)
         visitor = UnionSyntaxVisitor()
         visitor.visit(tree)
-        if visitor.has_union_syntax:
-            return True
+        return visitor.has_union_syntax
     except SyntaxError:
-        pass
-
-    # Method 2: Regex patterns for common type hint usage
-    # Match patterns like: ": int | str", "-> bool | None", "[int | float]"
-    patterns = [
-        r":\s*\w+\s*\|\s*\w+",  # : Type | Type
-        r"->\s*\w+\s*\|\s*\w+",  # -> Type | Type
-        r"\[\s*\w+\s*\|\s*\w+",  # [Type | Type
-        r"=\s*\w+\s*\|\s*\w+",  # = Type | Type (in function params)
-    ]
-
-    for pattern in patterns:
-        if re.search(pattern, content):
-            return True
-
-    return False
+        return False
 
 
 def check_file(file_path: Path) -> tuple[bool, str]:
