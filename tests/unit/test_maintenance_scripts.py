@@ -90,14 +90,18 @@ def test_assured_oss_credentials_use_restricted_temporary_file(
     assert credential_path is not None
     try:
         assert credential_path.name != "gcp-credentials.json"
-        assert stat.S_IMODE(credential_path.stat().st_mode) == (
-            stat.S_IRUSR | stat.S_IWUSR
-        )
+        if os.name == "posix":
+            assert stat.S_IMODE(credential_path.stat().st_mode) == (
+                stat.S_IRUSR | stat.S_IWUSR
+            )
     finally:
         credential_path.unlink(missing_ok=True)
 
 
-@pytest.mark.skipif(shutil.which("bash") is None, reason="bash is unavailable")
+@pytest.mark.skipif(
+    os.name == "nt" or shutil.which("bash") is None,
+    reason="the wrapper has POSIX shell semantics",
+)
 @pytest.mark.parametrize(
     ("cruft_exit", "cleanup_exit", "expected"), [(7, 0, 7), (0, 6, 6)]
 )
