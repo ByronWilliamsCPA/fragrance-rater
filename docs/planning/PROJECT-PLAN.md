@@ -45,7 +45,7 @@ evidence are retained in the linked gate records and PR #70.
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
 | OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the F1 pilot |
 | Controlled calibration | Merged, not deployment-verified | Program, enrollment, hidden repeat/holdout, presentation, observation, locking, reveal, and checkpoint flows exist |
-| React product workflow | Functional prototype | Core forms exist in one component; P3-P6 add the role-aware, guided, complete participant and manager product required before family use |
+| React product workflow | P3 foundation implemented; review pending | Routed capability-aware shell, shared states, and feature pages exist; P4-P6 complete participant and manager workflows before family use |
 | Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
 | Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
@@ -211,7 +211,7 @@ foundation before expanding user workflows.
 
 **Owner:** Core maintainer
 
-**Status:** Planned
+**Status:** Implementation complete; review pending
 **Depends on:** P0 and P2
 **Evidence:** [P3 Product UX Foundation Gate](gates/p3.md)
 

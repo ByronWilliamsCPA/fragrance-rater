@@ -17,7 +17,7 @@ controlled blind calibration programs.
 
 | Component | Responsibility |
 | :--- | :--- |
-| React frontend | Ordinary ratings, calibration observations, and manager program setup |
+| React frontend | Routed, capability-aware shell for ordinary ratings, calibration, recommendations, and manager setup |
 | FastAPI application | API validation, workflow state, authorization, scoring, and imports |
 | PostgreSQL | Catalog, ordinary history, controlled observations, source snapshots, checkpoints |
 | Traefik and Authentik | Required production request and identity boundary |
@@ -32,6 +32,25 @@ controlled blind calibration programs.
 - Blind disclosure policy applies to direct routes and derived surfaces.
 - Deterministic scoring works without OpenRouter.
 - Production does not expose a backend path that bypasses Authentik/Traefik.
+
+## Frontend structure
+
+The frontend keeps navigation and network policy separate from feature workflows:
+
+- `src/api/` owns the single `/api/v1` Axios client, typed response contracts, capability
+  derivation, and user-facing request errors.
+- `src/routing/` maps stable paths to product pages and synchronizes browser history without a
+  second routing dependency.
+- `src/hooks/` loads verified access and shared reference data and provides consistent async task
+  state.
+- `src/components/` contains the application shell and reusable loading, retry, feedback, empty,
+  and confirmation states.
+- `src/pages/` contains calibration, ratings, recommendations, and manager setup workflows.
+
+The frontend capability model controls which navigation and actions are presented. It is not an
+authorization boundary; FastAPI continues to enforce manager and recorder access for every
+request. Direct navigation to a manager page is redirected for a non-manager, and the server
+still rejects any forged request.
 
 ## Governing documents
 
