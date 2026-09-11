@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
@@ -418,7 +418,8 @@ class RecommendationMeasurementService:
         """Normalize an API timestamp for UTC-naive database columns."""
         if value.tzinfo is None:
             return value
-        return value.astimezone(UTC).replace(tzinfo=None)
+        # datetime.UTC is unavailable on the supported Python 3.10 floor.
+        return value.astimezone(timezone.utc).replace(tzinfo=None)  # noqa: UP017
 
     @staticmethod
     def _unique_json(items: list[dict[str, object]]) -> list[dict[str, object]]:
