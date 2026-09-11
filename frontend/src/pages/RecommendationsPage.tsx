@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, requestErrorMessage } from '../api/client'
 import type { Person, RecommendationRun } from '../api/types'
 import { EmptyState } from '../components/PageState'
@@ -22,19 +22,23 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
   const [reviewerId, setReviewerId] = useState('')
   const [recommendationRun, setRecommendationRun] = useState<RecommendationRun | null>(null)
   const [interest, setInterest] = useState<Record<string, boolean>>({})
+  const hydrationGeneration = useRef(0)
   const task = useTask()
   const setError = task.setError
 
   useEffect(() => {
     const runId = persistedRunId()
     if (!runId) return
+    const generation = ++hydrationGeneration.current
     void api
       .get<RecommendationRun>(`/recommendation-measurement/runs/${runId}`)
       .then((response) => {
+        if (generation !== hydrationGeneration.current || persistedRunId() !== runId) return
         setRecommendationRun(response.data)
         setReviewerId(response.data.reviewer_id)
       })
       .catch((reason: unknown) => {
+        if (generation !== hydrationGeneration.current || persistedRunId() !== runId) return
         persistRunId(null)
         setError(requestErrorMessage(reason))
       })
@@ -68,8 +72,6 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
   }
 
   async function startNewRun() {
-    persistRunId(null)
-    setRecommendationRun(null)
     await createRun()
   }
 
@@ -100,6 +102,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
         <select
           value={reviewerId}
           onChange={(event) => {
+            hydrationGeneration.current += 1
             setReviewerId(event.target.value)
             setRecommendationRun(null)
             persistRunId(null)

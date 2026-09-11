@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Assignment, Enrollment, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -27,15 +27,24 @@ const dimensions = [
 
 export function CalibrationPage({ assignments, programs, reviewers }: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
+  const [assignmentId, setAssignmentId] = useState('')
+  const requestedAssignment = useRef('')
+  const refreshGeneration = useRef(0)
   const [selected, setSelected] = useState('')
   const [stage, setStage] = useState('BLOTTER')
   const [detected, setDetected] = useState('')
   const task = useTask()
   const sample = enrollment?.presentations.find((presentation) => presentation.id === selected)
 
-  async function refresh(id = enrollment?.id) {
-    if (!id) return
-    setEnrollment((await api.get<Enrollment>(`/calibration/enrollments/${id}`)).data)
+  async function refresh(id = requestedAssignment.current) {
+    const generation = ++refreshGeneration.current
+    if (!id) {
+      setEnrollment(null)
+      return
+    }
+    const response = await api.get<Enrollment>(`/calibration/enrollments/${id}`)
+    if (generation === refreshGeneration.current && requestedAssignment.current === id)
+      setEnrollment(response.data)
   }
 
   function scale(name: string, max: number, disabled = false) {
@@ -121,10 +130,14 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
           <label>
             Evaluator and program
             <select
-              value={enrollment?.id || ''}
+              value={assignmentId}
               onChange={(event) => {
+                const id = event.target.value
+                requestedAssignment.current = id
+                setAssignmentId(id)
+                setEnrollment(null)
                 setSelected('')
-                void task.run(() => refresh(event.target.value))
+                void task.run(() => refresh(id))
               }}
             >
               <option value="">Choose assignment</option>

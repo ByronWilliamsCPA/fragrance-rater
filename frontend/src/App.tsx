@@ -14,9 +14,14 @@ function App() {
   const { route, navigate } = useRoute()
 
   useEffect(() => {
-    if (!appData.loading && route === 'programs' && !appData.capabilities.canManagePrograms)
+    if (
+      !appData.loading &&
+      !appData.error &&
+      route === 'programs' &&
+      !appData.capabilities.canManagePrograms
+    )
       navigate('calibration', true)
-  }, [appData.capabilities.canManagePrograms, appData.loading, navigate, route])
+  }, [appData.capabilities.canManagePrograms, appData.error, appData.loading, navigate, route])
 
   if (appData.loading) return <LoadingState />
   if (appData.error)

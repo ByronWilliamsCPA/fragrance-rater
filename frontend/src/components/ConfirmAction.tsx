@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 type ConfirmActionProps = {
   actionLabel: string
@@ -16,6 +16,11 @@ export function ConfirmAction({
   onConfirm,
 }: ConfirmActionProps) {
   const [confirming, setConfirming] = useState(false)
+  const confirmButton = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (confirming) confirmButton.current?.focus()
+  }, [confirming])
 
   if (!confirming)
     return (
@@ -29,6 +34,7 @@ export function ConfirmAction({
       <p>{description}</p>
       <div className="button-row">
         <button
+          ref={confirmButton}
           disabled={disabled}
           onClick={() => {
             setConfirming(false)

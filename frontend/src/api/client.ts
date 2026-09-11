@@ -1,9 +1,16 @@
 import axios from 'axios'
 
+export function apiV1BaseUrl(configuredRoot: string): string {
+  const root = configuredRoot.replace(/\/$/, '')
+  if (root.endsWith('/api/v1')) return root
+  if (root.endsWith('/api')) return `${root}/v1`
+  return `${root}/api/v1`
+}
+
 const apiRoot = import.meta.env.PROD ? import.meta.env.VITE_API_URL || '/api' : '/api'
 
 export const api = axios.create({
-  baseURL: `${apiRoot.replace(/\/$/, '')}/v1`,
+  baseURL: apiV1BaseUrl(apiRoot),
   timeout: 10_000,
   headers: { 'Content-Type': 'application/json' },
 })

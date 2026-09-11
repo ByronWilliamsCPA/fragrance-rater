@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Encounter, FragranceSummary, Person } from '../api/types'
 import { EmptyState } from '../components/PageState'
@@ -17,6 +17,8 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
   const [catalog, setCatalog] = useState<FragranceSummary[]>([])
   const [catalogQuery, setCatalogQuery] = useState('')
   const [history, setHistory] = useState<Encounter[]>([])
+  const [reviewerId, setReviewerId] = useState('')
+  const historyGeneration = useRef(0)
   const task = useTask()
 
   async function searchCatalog() {
@@ -28,13 +30,15 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
   }
 
   async function loadHistory(reviewerId: string) {
+    const generation = ++historyGeneration.current
     if (!reviewerId) {
       setHistory([])
       return
     }
-    setHistory(
-      (await api.get<Encounter[]>('/evaluations', { params: { reviewer_id: reviewerId } })).data
-    )
+    const response = await api.get<Encounter[]>('/evaluations', {
+      params: { reviewer_id: reviewerId },
+    })
+    if (generation === historyGeneration.current) setHistory(response.data)
   }
 
   async function saveEncounter(form: HTMLFormElement) {
@@ -46,8 +50,10 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
         ? new Date(String(values.evaluated_at)).toISOString()
         : null,
     })
-    await loadHistory(String(values.reviewer_id))
+    const savedReviewerId = String(values.reviewer_id)
     form.reset()
+    setReviewerId(savedReviewerId)
+    await loadHistory(savedReviewerId)
     task.setNotice('New encounter saved.')
   }
 
@@ -86,7 +92,13 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
           <select
             name="reviewer_id"
             required
-            onChange={(event) => void task.run(() => loadHistory(event.target.value))}
+            value={reviewerId}
+            disabled={task.busy}
+            onChange={(event) => {
+              const id = event.target.value
+              setReviewerId(id)
+              void task.run(() => loadHistory(id))
+            }}
           >
             <option value="">Choose evaluator</option>
             {reviewers.map((reviewer) => (
