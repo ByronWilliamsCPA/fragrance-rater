@@ -114,16 +114,19 @@ class LLMInvocation(Base):
         CheckConstraint("prompt_tokens IS NULL OR prompt_tokens >= 0"),
         CheckConstraint("completion_tokens IS NULL OR completion_tokens >= 0"),
         CheckConstraint("total_tokens IS NULL OR total_tokens >= 0"),
-        CheckConstraint("provider_cost_credits IS NULL OR provider_cost_credits >= 0"),
+        CheckConstraint("provider_cost_usd IS NULL OR provider_cost_usd >= 0"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     reviewer_id: Mapped[str] = mapped_column(
         ForeignKey("reviewers.id", ondelete="RESTRICT"), index=True
     )
     impression_id: Mapped[str | None] = mapped_column(
-        ForeignKey("recommendation_impressions.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("recommendation_impressions.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
     )
     operation: Mapped[str] = mapped_column(String(50))
+    prompt_version: Mapped[str] = mapped_column(String(100))
     model: Mapped[str] = mapped_column(String(200))
     latency_ms: Mapped[int] = mapped_column(Integer)
     cache_hit: Mapped[bool] = mapped_column(Boolean)
@@ -132,7 +135,7 @@ class LLMInvocation(Base):
     prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    provider_cost_credits: Mapped[float | None] = mapped_column(Float, nullable=True)
+    provider_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc, index=True)
 
 

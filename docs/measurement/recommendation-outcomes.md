@@ -31,7 +31,8 @@ The evaluator UI records interest or pass in one tap. Sampling state, outcome li
 buy can be added with later API revisions. Managers retrieve the report from
 `GET /api/v1/recommendation-measurement/reviewers/{reviewer_id}/metrics`. Optional
 `window_start` and `window_end` query parameters bound the report; the response always states the
-effective window and frozen run provenance.
+effective window and frozen run provenance. When `window_start` is omitted, the API applies a
+90-day window ending at `window_end` (or the current time when both are omitted).
 
 ## Metric meanings
 
@@ -43,7 +44,8 @@ effective window and frozen run provenance.
 - Wear and buy have separate response and positive counts.
 - Variety currently reports unique houses; candidate count and unavailable count accompany it.
 - LLM telemetry records attempt count, latency, cache status, failure status, model, token counts,
-  and OpenRouter's provider-reported cost in credits. Missing provider accounting remains null;
+  prompt-template version, and OpenRouter's provider-reported cost in USD. Missing provider
+  accounting remains null;
   reports distinguish calls with known cost and never silently convert an unknown cost to zero.
 - Connectivity failures and manual recoveries are explicit pilot events.
 

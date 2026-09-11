@@ -84,6 +84,10 @@ Retain a redacted pass/fail matrix.
 
 ## Production topology
 
+Create the external Docker network named by `FRAGRANCE_TRAEFIK_NETWORK` and attach only the
+Traefik service and this deployment's frontend. A shared proxy network lets unrelated containers
+reach nginx with forged identity headers and does not satisfy the P1 trust-boundary gate.
+
 Render the exact deployment configuration and save it to the private evidence directory:
 
 ```bash

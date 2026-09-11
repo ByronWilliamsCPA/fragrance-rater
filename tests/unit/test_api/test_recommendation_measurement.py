@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime
+
 import pytest
 
 from fragrance_rater.core.config import settings
@@ -50,6 +53,7 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
 ) -> None:
     """A run persists once, views are idempotent, and feedback revisions append."""
     reviewer_id, candidate_id = await seed_recommendable_catalog(test_app)
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
     created = await test_app.post(
         f"{API}/recommendation-measurement/runs",
         headers=IDENTITY,
@@ -81,15 +85,16 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
     assert second.status_code == 201
     assert second.json()["revision"] == 2
 
-    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
     report = await test_app.get(
         f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
         headers=IDENTITY,
     )
     assert report.status_code == 200
     metrics = report.json()
-    assert metrics.pop("window_start") == "1970-01-01T00:00:00"
-    assert metrics.pop("window_end") >= run["created_at"]
+    window_start = datetime.fromisoformat(metrics.pop("window_start"))
+    window_end = datetime.fromisoformat(metrics.pop("window_end"))
+    assert 89 <= (window_end - window_start).days <= 90
+    assert window_end >= datetime.fromisoformat(run["created_at"])
     assert metrics.pop("reviewer_population") == [reviewer_id]
     assert metrics.pop("exclusion_policy") == ["current assigned holdout versions"]
     assert metrics.pop("excluded_impressions") == 0
@@ -119,9 +124,10 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         "llm_cache_hits": 0,
         "llm_failures": 0,
         "mean_llm_latency_ms": None,
-        "known_estimated_cost_usd": 0.0,
+        "llm_calls_with_known_estimated_cost": 0,
+        "known_estimated_cost_usd": None,
         "llm_calls_with_known_provider_cost": 0,
-        "known_provider_cost_credits": 0.0,
+        "known_provider_cost_usd": None,
         "connectivity_failures": 0,
         "manual_recoveries": 0,
     }
@@ -136,13 +142,193 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
     )
     assert invalid_window.status_code == 400
 
+    monkeypatch.setattr(settings, "calibration_admin_usernames", [])
+    unauthorized_run = await test_app.get(
+        f"{API}/recommendation-measurement/runs/{run['id']}", headers=IDENTITY
+    )
+    unauthorized_response = await test_app.post(
+        f"{API}/recommendation-measurement/impressions/{impression_id}/responses",
+        headers=IDENTITY,
+        json={"interested": True},
+    )
+    unauthorized_event = await test_app.post(
+        f"{API}/recommendation-measurement/operational-events",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "event_type": "CONNECTIVITY_FAILURE"},
+    )
+    unauthorized_metrics = await test_app.get(
+        f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
+        headers=IDENTITY,
+    )
+    assert unauthorized_run.status_code == 403
+    assert unauthorized_response.status_code == 403
+    assert unauthorized_event.status_code == 403
+    assert unauthorized_metrics.status_code == 403
+
 
 @pytest.mark.asyncio
-async def test_feedback_requires_a_persisted_impression(test_app) -> None:
+async def test_feedback_requires_a_persisted_impression(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Feedback cannot exist independently of an impression."""
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
     response = await test_app.post(
         f"{API}/recommendation-measurement/impressions/missing/responses",
         headers=IDENTITY,
         json={"interested": True},
     )
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_run_requires_reviewer_assignment(test_app) -> None:
+    """An unassigned non-admin recorder cannot create another reviewer's run."""
+    reviewer_id, _ = await seed_recommendable_catalog(test_app)
+    response = await test_app.post(
+        f"{API}/recommendation-measurement/runs",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "limit": 1},
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_feedback_rejects_unknown_fields(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Misspelled feedback fields cannot create an empty append-only revision."""
+    reviewer_id, _ = await seed_recommendable_catalog(test_app)
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
+    run = await test_app.post(
+        f"{API}/recommendation-measurement/runs",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "limit": 1},
+    )
+    impression_id = run.json()["impressions"][0]["id"]
+    response = await test_app.post(
+        f"{API}/recommendation-measurement/impressions/{impression_id}/responses",
+        headers=IDENTITY,
+        json={"interest": True},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_assigned_recorder_can_create_run(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A recorder explicitly assigned through an enrollment receives access."""
+    reviewer_id, candidate_id = await seed_recommendable_catalog(test_app)
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["manager"])
+    manager_headers = {"X-Authentik-Username": "manager"}
+    program = await test_app.post(
+        f"{API}/calibration/programs",
+        headers=manager_headers,
+        json={"name": "Authorization", "version": "v1"},
+    )
+    program_id = program.json()["id"]
+    member = await test_app.post(
+        f"{API}/calibration/programs/{program_id}/members",
+        headers=manager_headers,
+        json={
+            "fragrance_id": candidate_id,
+            "role": "OTHER",
+            "identity_evidence": "verified test version",
+        },
+    )
+    assert member.status_code == 201
+    activated = await test_app.post(
+        f"{API}/calibration/programs/{program_id}/activate", headers=manager_headers
+    )
+    assert activated.status_code == 200
+    enrolled = await test_app.post(
+        f"{API}/calibration/programs/{program_id}/enroll",
+        headers=manager_headers,
+        json={
+            "reviewer_id": reviewer_id,
+            "recorder_usernames": ["recorder"],
+            "session_size": 1,
+        },
+    )
+    assert enrolled.status_code == 201
+
+    monkeypatch.setattr(settings, "calibration_admin_usernames", [])
+    response = await test_app.post(
+        f"{API}/recommendation-measurement/runs",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "limit": 1},
+    )
+    assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_feedback_rejects_outcome_recorded_before_impression(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Historical encounters cannot be relabeled as prospective outcomes."""
+    reviewer_id, candidate_id = await seed_recommendable_catalog(test_app)
+    historical = await test_app.post(
+        f"{API}/evaluations",
+        headers=IDENTITY,
+        json={
+            "fragrance_id": candidate_id,
+            "reviewer_id": reviewer_id,
+            "rating": 4,
+        },
+    )
+    assert historical.status_code == 201
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
+    created = await test_app.post(
+        f"{API}/recommendation-measurement/runs",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "limit": 4, "exclude_rated": False},
+    )
+    assert created.status_code == 201
+    impression_id = next(
+        item["id"]
+        for item in created.json()["impressions"]
+        if item["fragrance_id"] == candidate_id
+    )
+    response = await test_app.post(
+        f"{API}/recommendation-measurement/impressions/{impression_id}/responses",
+        headers=IDENTITY,
+        json={
+            "sampling_state": "SAMPLED",
+            "outcome_evaluation_id": historical.json()["id"],
+        },
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_concurrent_sqlite_feedback_never_leaks_database_error(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Concurrent append races produce unique revisions or an explicit conflict."""
+    reviewer_id, _ = await seed_recommendable_catalog(test_app)
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
+    created = await test_app.post(
+        f"{API}/recommendation-measurement/runs",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "limit": 1},
+    )
+    impression_id = created.json()["impressions"][0]["id"]
+
+    responses = await asyncio.gather(
+        *[
+            test_app.post(
+                f"{API}/recommendation-measurement/impressions/{impression_id}/responses",
+                headers=IDENTITY,
+                json={"interested": bool(index % 2)},
+            )
+            for index in range(4)
+        ]
+    )
+    assert {response.status_code for response in responses} <= {201, 409}
+    revisions = [
+        response.json()["revision"]
+        for response in responses
+        if response.status_code == 201
+    ]
+    assert revisions
+    assert len(revisions) == len(set(revisions))

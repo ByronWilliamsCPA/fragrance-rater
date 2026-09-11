@@ -24,6 +24,8 @@ from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
 from fragrance_rater.models.recommendation_measurement import LLMInvocation
 from fragrance_rater.services.llm_service import (
+    PROFILE_SUMMARY_PROMPT_VERSION,
+    RECOMMENDATION_PROMPT_VERSION,
     FragranceDetails,
     LLMService,
     get_llm_service,
@@ -238,7 +240,8 @@ async def get_profile_summary(
                     LLMInvocation(
                         reviewer_id=reviewer_id,
                         operation="PROFILE_SUMMARY",
-                        model=llm_response.model,
+                        model=llm_service.model,
+                        prompt_version=PROFILE_SUMMARY_PROMPT_VERSION,
                         latency_ms=round((perf_counter() - started) * 1000),
                         cache_hit=llm_response.cached,
                         succeeded=llm_response.error is None,
@@ -246,7 +249,7 @@ async def get_profile_summary(
                         prompt_tokens=llm_response.prompt_tokens,
                         completion_tokens=llm_response.completion_tokens,
                         total_tokens=llm_response.total_tokens,
-                        provider_cost_credits=llm_response.provider_cost_credits,
+                        provider_cost_usd=llm_response.provider_cost_usd,
                     )
                 )
                 await session.commit()
@@ -440,7 +443,8 @@ async def get_recommendation_explanation(
             LLMInvocation(
                 reviewer_id=reviewer_id,
                 operation="RECOMMENDATION_EXPLANATION",
-                model=llm_response.model,
+                model=llm_service.model,
+                prompt_version=RECOMMENDATION_PROMPT_VERSION,
                 latency_ms=round((perf_counter() - started) * 1000),
                 cache_hit=llm_response.cached,
                 succeeded=llm_response.error is None,
@@ -448,7 +452,7 @@ async def get_recommendation_explanation(
                 prompt_tokens=llm_response.prompt_tokens,
                 completion_tokens=llm_response.completion_tokens,
                 total_tokens=llm_response.total_tokens,
-                provider_cost_credits=llm_response.provider_cost_credits,
+                provider_cost_usd=llm_response.provider_cost_usd,
             )
         )
         await session.commit()

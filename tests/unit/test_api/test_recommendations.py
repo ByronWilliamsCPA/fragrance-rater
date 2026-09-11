@@ -3,9 +3,18 @@
 import math
 
 import pytest
+from sqlalchemy import select
 
 from fragrance_rater.core.config import settings
+from fragrance_rater.core.database import get_db
+from fragrance_rater.main import app
 from fragrance_rater.middleware import limiter
+from fragrance_rater.models.recommendation_measurement import LLMInvocation
+from fragrance_rater.services.llm_service import (
+    RECOMMENDATION_PROMPT_VERSION,
+    LLMResponse,
+    get_llm_service,
+)
 
 API_PREFIX = "/api/v1"
 
@@ -87,6 +96,83 @@ class TestRecommendationExplainAPI:
         assert data["fragrance_name"] == "Explain Fragrance 0"
         assert data["explanation"]
         assert data["model"]
+
+    async def test_explain_persists_attempted_provider_telemetry(
+        self, test_app, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A failed provider call retains attempted model, prompt, usage, and cost."""
+        monkeypatch.setattr(settings, "api_key", API_KEY)
+        reviewer = await test_app.post(
+            f"{API_PREFIX}/reviewers", json={"name": "Telemetry Tester"}
+        )
+        reviewer_id = reviewer.json()["id"]
+        fragrance_ids: list[str] = []
+        for index in range(3):
+            fragrance = await test_app.post(
+                f"{API_PREFIX}/fragrances",
+                json={
+                    "name": f"Telemetry Fragrance {index}",
+                    "brand": "Telemetry Brand",
+                    "concentration": "EDP",
+                    "gender_target": "Unisex",
+                    "primary_family": "woody",
+                    "subfamily": "aromatic",
+                },
+            )
+            fragrance_ids.append(fragrance.json()["id"])
+        for fragrance_id in fragrance_ids:
+            evaluation = await test_app.post(
+                f"{API_PREFIX}/evaluations",
+                json={
+                    "fragrance_id": fragrance_id,
+                    "reviewer_id": reviewer_id,
+                    "rating": 5,
+                },
+            )
+            assert evaluation.status_code == 201
+
+        class FailedProvider:
+            model = "provider/attempted-model"
+
+            @staticmethod
+            def is_available() -> bool:
+                return True
+
+            @staticmethod
+            async def generate_recommendation_explanation(**_kwargs) -> LLMResponse:
+                return LLMResponse(
+                    text="Deterministic fallback",
+                    model="fallback",
+                    error="provider failed",
+                    prompt_tokens=10,
+                    completion_tokens=2,
+                    total_tokens=12,
+                    provider_cost_usd=0.002,
+                )
+
+        app.dependency_overrides[get_llm_service] = FailedProvider
+        response = await test_app.get(
+            f"{API_PREFIX}/recommendations/{reviewer_id}/{fragrance_ids[0]}/explain",
+            headers=AUTH_HEADERS,
+        )
+        assert response.status_code == 200
+        assert response.json()["model"] == "fallback"
+
+        session_dependency = app.dependency_overrides[get_db]
+        sessions = session_dependency()
+        session = await anext(sessions)
+        try:
+            invocation = await session.scalar(select(LLMInvocation))
+            assert invocation is not None
+            assert invocation.model == "provider/attempted-model"
+            assert invocation.prompt_version == RECOMMENDATION_PROMPT_VERSION
+            assert invocation.succeeded is False
+            assert invocation.prompt_tokens == 10
+            assert invocation.completion_tokens == 2
+            assert invocation.total_tokens == 12
+            assert invocation.provider_cost_usd == 0.002
+        finally:
+            await sessions.aclose()
 
     async def test_explain_requires_api_key(
         self, test_app, monkeypatch: pytest.MonkeyPatch

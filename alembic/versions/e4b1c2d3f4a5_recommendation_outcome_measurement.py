@@ -143,6 +143,9 @@ def upgrade() -> None:
     op.create_index(
         "ix_llm_invocations_reviewer_id", "llm_invocations", ["reviewer_id"]
     )
+    op.create_index(
+        "ix_llm_invocations_impression_id", "llm_invocations", ["impression_id"]
+    )
     op.create_index("ix_llm_invocations_created_at", "llm_invocations", ["created_at"])
     op.create_table(
         "pilot_operational_events",

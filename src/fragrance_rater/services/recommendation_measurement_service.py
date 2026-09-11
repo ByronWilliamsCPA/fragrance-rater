@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.models.calibration import (
     CalibrationSession,
@@ -47,6 +48,7 @@ class RecommendationMeasurementService:
 
     ALGORITHM_VERSION = "affinity-v1"
     SCORE_TYPE = "uncalibrated-affinity"
+    DEFAULT_METRICS_WINDOW = timedelta(days=90)
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -99,6 +101,8 @@ class RecommendationMeasurementService:
                 "candidate_versions": [
                     {
                         "fragrance_id": candidate_by_id[candidate_id].id,
+                        "name": candidate_by_id[candidate_id].name,
+                        "brand": candidate_by_id[candidate_id].brand,
                         "version_key": candidate_by_id[candidate_id].version_key,
                         "data_source": candidate_by_id[candidate_id].data_source,
                         "external_id": candidate_by_id[candidate_id].external_id,
@@ -142,13 +146,7 @@ class RecommendationMeasurementService:
             .where(RecommendationImpression.run_id == run_id)
             .order_by(RecommendationImpression.rank)
         )
-        excluded = await PreferenceHistoryService(self.db).excluded_versions(
-            run.reviewer_id
-        )
-        rows = [
-            (row[0], row[1]) for row in result if row[0].fragrance_id not in excluded
-        ]
-        return run, rows
+        return run, [(row[0], row[1]) for row in result]
 
     async def append_response(
         self,
@@ -188,7 +186,15 @@ class RecommendationMeasurementService:
             **data.model_dump(),
         )
         self.db.add(revision)
-        await self.db.commit()
+        try:
+            await self.db.commit()
+        except IntegrityError as exc:
+            # PostgreSQL serializes on the locked impression. SQLite ignores
+            # FOR UPDATE, so its unique constraint is the concurrency guard;
+            # translate that race into a stable API conflict instead of 500.
+            await self.db.rollback()
+            message = "response revision conflicted with a concurrent append"
+            raise MeasurementConflictError(message) from exc
         await self.db.refresh(revision)
         return revision
 
@@ -199,6 +205,11 @@ class RecommendationMeasurementService:
         impression: RecommendationImpression,
     ) -> None:
         """Ensure linked raw outcomes belong to this reviewer and candidate."""
+        if (
+            data.outcome_evaluation_id or data.outcome_observation_id
+        ) and data.sampling_state != "SAMPLED":
+            message = "linked outcomes require sampling_state SAMPLED"
+            raise MeasurementConflictError(message)
         if data.outcome_evaluation_id:
             evaluation = await self.db.get(Evaluation, data.outcome_evaluation_id)
             if (
@@ -206,6 +217,7 @@ class RecommendationMeasurementService:
                 or evaluation.deleted_at is not None
                 or evaluation.reviewer_id != run.reviewer_id
                 or evaluation.fragrance_id != impression.fragrance_id
+                or self._naive_utc(evaluation.evaluated_at) < impression.shown_at
             ):
                 message = "ordinary outcome must be a live encounter for this reviewer and version"
                 raise MeasurementConflictError(message)
@@ -230,6 +242,7 @@ class RecommendationMeasurementService:
                 or membership.fragrance_id != impression.fragrance_id
                 or enrollment.reviewer_id != run.reviewer_id
                 or enrollment.revealed_at is None
+                or row[0].created_at < impression.shown_at
             ):
                 message = "controlled outcome must be revealed and match this reviewer and version"
                 raise MeasurementConflictError(message)
@@ -242,12 +255,12 @@ class RecommendationMeasurementService:
         window_end: datetime | None = None,
     ) -> MetricsView:
         """Calculate declared metrics from latest revisions with explicit denominators."""
+        end = self._naive_utc(window_end) if window_end else now_naive_utc()
         start = (
             self._naive_utc(window_start)
             if window_start
-            else datetime(1970, 1, 1, tzinfo=UTC).replace(tzinfo=None)
+            else end - self.DEFAULT_METRICS_WINDOW
         )
-        end = self._naive_utc(window_end) if window_end else now_naive_utc()
         if start >= end:
             message = "window_start must be before window_end"
             raise ValueError(message)
@@ -372,14 +385,29 @@ class RecommendationMeasurementService:
             mean_llm_latency_ms=(
                 sum(item.latency_ms for item in llm) / len(llm) if llm else None
             ),
-            known_estimated_cost_usd=sum(
-                item.estimated_cost_usd or 0.0 for item in llm
+            llm_calls_with_known_estimated_cost=sum(
+                item.estimated_cost_usd is not None for item in llm
+            ),
+            known_estimated_cost_usd=(
+                sum(
+                    item.estimated_cost_usd
+                    for item in llm
+                    if item.estimated_cost_usd is not None
+                )
+                if any(item.estimated_cost_usd is not None for item in llm)
+                else None
             ),
             llm_calls_with_known_provider_cost=sum(
-                item.provider_cost_credits is not None for item in llm
+                item.provider_cost_usd is not None for item in llm
             ),
-            known_provider_cost_credits=sum(
-                item.provider_cost_credits or 0.0 for item in llm
+            known_provider_cost_usd=(
+                sum(
+                    item.provider_cost_usd
+                    for item in llm
+                    if item.provider_cost_usd is not None
+                )
+                if any(item.provider_cost_usd is not None for item in llm)
+                else None
             ),
             connectivity_failures=operational_counts.get("CONNECTIVITY_FAILURE", 0),
             manual_recoveries=operational_counts.get("MANUAL_RECOVERY", 0),

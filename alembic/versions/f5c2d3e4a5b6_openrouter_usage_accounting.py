@@ -19,10 +19,20 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     """Add optional provider usage fields without inventing missing costs."""
+    op.add_column(
+        "llm_invocations",
+        sa.Column(
+            "prompt_version",
+            sa.String(length=100),
+            nullable=False,
+            server_default="legacy-v0",
+        ),
+    )
+    op.alter_column("llm_invocations", "prompt_version", server_default=None)
     op.add_column("llm_invocations", sa.Column("prompt_tokens", sa.Integer()))
     op.add_column("llm_invocations", sa.Column("completion_tokens", sa.Integer()))
     op.add_column("llm_invocations", sa.Column("total_tokens", sa.Integer()))
-    op.add_column("llm_invocations", sa.Column("provider_cost_credits", sa.Float()))
+    op.add_column("llm_invocations", sa.Column("provider_cost_usd", sa.Float()))
     op.create_check_constraint(
         "ck_llm_invocations_prompt_tokens_nonnegative",
         "llm_invocations",
@@ -41,7 +51,7 @@ def upgrade() -> None:
     op.create_check_constraint(
         "ck_llm_invocations_provider_cost_nonnegative",
         "llm_invocations",
-        "provider_cost_credits IS NULL OR provider_cost_credits >= 0",
+        "provider_cost_usd IS NULL OR provider_cost_usd >= 0",
     )
 
 
@@ -67,7 +77,8 @@ def downgrade() -> None:
         "llm_invocations",
         type_="check",
     )
-    op.drop_column("llm_invocations", "provider_cost_credits")
+    op.drop_column("llm_invocations", "provider_cost_usd")
     op.drop_column("llm_invocations", "total_tokens")
     op.drop_column("llm_invocations", "completion_tokens")
     op.drop_column("llm_invocations", "prompt_tokens")
+    op.drop_column("llm_invocations", "prompt_version")

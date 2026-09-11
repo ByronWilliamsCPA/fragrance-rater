@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import axios from 'axios'
 import './App.css'
 
-const api = axios.create({ baseURL: `${import.meta.env.VITE_API_URL || '/api'}/v1` })
+const apiRoot = import.meta.env.PROD ? import.meta.env.VITE_API_URL || '/api' : '/api'
+const api = axios.create({ baseURL: `${apiRoot.replace(/\/$/, '')}/v1` })
 type Assignment = { id: string; program_id: string; reviewer_id: string }
 type Observation = {
   id: string

@@ -69,11 +69,13 @@ services:
 
     networks:
       - fragrance_rater-network
-      - reverse-proxy
+      # This external network must contain only Traefik and this frontend.
+      # Do not reuse a shared proxy network with unrelated containers.
+      - authenticated-edge
 
     labels:
       traefik.enable: "true"
-      traefik.docker.network: ${TRAEFIK_NETWORK:?Set the external Traefik network name}
+      traefik.docker.network: ${FRAGRANCE_TRAEFIK_NETWORK:?Set the dedicated Traefik network name}
       traefik.http.routers.fragrance-rater.rule: Host(`${FRAGRANCE_HOST:?Set the production hostname}`)
       traefik.http.routers.fragrance-rater.entrypoints: websecure
       traefik.http.routers.fragrance-rater.tls: "true"
@@ -146,6 +148,6 @@ services:
 #    docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
 
 networks:
-  reverse-proxy:
+  authenticated-edge:
     external: true
-    name: ${TRAEFIK_NETWORK:?Set the external Traefik network name}
+    name: ${FRAGRANCE_TRAEFIK_NETWORK:?Set the dedicated Traefik network name}

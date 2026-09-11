@@ -1274,6 +1274,12 @@
               }
             }
           },
+          "404": {
+            "description": "Impression not found"
+          },
+          "409": {
+            "description": "Measurement conflict"
+          },
           "422": {
             "description": "Validation Error",
             "content": {
@@ -3567,17 +3573,35 @@
             ],
             "title": "Mean Llm Latency Ms"
           },
+          "llm_calls_with_known_estimated_cost": {
+            "type": "integer",
+            "title": "Llm Calls With Known Estimated Cost"
+          },
           "known_estimated_cost_usd": {
-            "type": "number",
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Known Estimated Cost Usd"
           },
           "llm_calls_with_known_provider_cost": {
             "type": "integer",
             "title": "Llm Calls With Known Provider Cost"
           },
-          "known_provider_cost_credits": {
-            "type": "number",
-            "title": "Known Provider Cost Credits"
+          "known_provider_cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Known Provider Cost Usd"
           },
           "connectivity_failures": {
             "type": "integer",
@@ -3619,9 +3643,10 @@
           "llm_cache_hits",
           "llm_failures",
           "mean_llm_latency_ms",
+          "llm_calls_with_known_estimated_cost",
           "known_estimated_cost_usd",
           "llm_calls_with_known_provider_cost",
-          "known_provider_cost_credits",
+          "known_provider_cost_usd",
           "connectivity_failures",
           "manual_recoveries"
         ],
@@ -4211,6 +4236,7 @@
             "title": "Would Buy"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "ResponseCreate",
         "description": "Complete latest feedback state; submission appends a revision."
@@ -4677,6 +4703,7 @@
             "title": "Recorded By"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "id",
@@ -4754,8 +4781,7 @@
           },
           "candidate_strategy": {
             "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
+            "const": "catalog-affinity",
             "title": "Candidate Strategy",
             "default": "catalog-affinity"
           }

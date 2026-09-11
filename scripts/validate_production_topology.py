@@ -22,6 +22,8 @@ def validate_topology(config: object) -> list[str]:
             continue
         if service.get("ports"):
             errors.append(f"service {name} publishes a host port")
+        if service.get("network_mode") == "host":
+            errors.append(f"service {name} uses host networking")
         if service.get("volumes") and name in {"app", "frontend"}:
             errors.append(f"service {name} retains a development source mount")
 
@@ -37,13 +39,29 @@ def validate_topology(config: object) -> list[str]:
     if frontend.get("environment", {}).get("VITE_API_URL") != "/api":
         errors.append("frontend must use the authenticated same-origin /api path")
     networks = frontend.get("networks", {})
-    if not {"fragrance_rater-network", "reverse-proxy"}.issubset(networks):
-        errors.append("frontend must join application and reverse-proxy networks")
+    if not {"fragrance_rater-network", "authenticated-edge"}.issubset(networks):
+        errors.append("frontend must join application and authenticated-edge networks")
+    for name in ("app", "db"):
+        private_networks = services.get(name, {}).get("networks", {})
+        if "authenticated-edge" in private_networks:
+            errors.append(
+                f"service {name} must not join the authenticated-edge network"
+            )
     labels = frontend.get("labels", {})
     if labels.get("traefik.enable") != "true":
         errors.append("frontend must enable Traefik routing")
-    if not labels.get("traefik.http.routers.fragrance-rater.middlewares"):
+    middleware_chain = labels.get(
+        "traefik.http.routers.fragrance-rater.middlewares", ""
+    )
+    middleware_tokens = {
+        token.strip() for token in str(middleware_chain).split(",") if token.strip()
+    }
+    if "authentik@file" not in middleware_tokens:
         errors.append("Traefik router must declare the Authentik middleware")
+    declared_networks = config.get("networks", {})
+    edge = declared_networks.get("authenticated-edge", {})
+    if not isinstance(edge, dict) or not edge.get("external"):
+        errors.append("authenticated-edge must be a dedicated external network")
     return errors
 
 

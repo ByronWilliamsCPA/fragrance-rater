@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RunCreate(BaseModel):
@@ -14,9 +14,7 @@ class RunCreate(BaseModel):
     reviewer_id: str
     limit: int = Field(default=10, ge=1, le=50)
     exclude_rated: bool = True
-    candidate_strategy: str = Field(
-        default="catalog-affinity", min_length=1, max_length=100
-    )
+    candidate_strategy: Literal["catalog-affinity"] = "catalog-affinity"
 
 
 class ImpressionView(BaseModel):
@@ -46,6 +44,8 @@ class RunView(BaseModel):
 class ResponseCreate(BaseModel):
     """Complete latest feedback state; submission appends a revision."""
 
+    model_config = ConfigDict(extra="forbid")
+
     interested: bool | None = None
     sampling_state: Literal["PLANNED", "ACQUIRED", "SAMPLED", "UNAVAILABLE"] | None = (
         None
@@ -64,6 +64,11 @@ class ResponseCreate(BaseModel):
             raise ValueError(message)
         if self.unavailable_reason and self.sampling_state != "UNAVAILABLE":
             message = "unavailable_reason requires sampling_state UNAVAILABLE"
+            raise ValueError(message)
+        if (
+            self.outcome_evaluation_id or self.outcome_observation_id
+        ) and self.sampling_state != "SAMPLED":
+            message = "linked outcomes require sampling_state SAMPLED"
             raise ValueError(message)
         return self
 
@@ -110,9 +115,10 @@ class MetricsView(BaseModel):
     llm_cache_hits: int
     llm_failures: int
     mean_llm_latency_ms: float | None
-    known_estimated_cost_usd: float
+    llm_calls_with_known_estimated_cost: int
+    known_estimated_cost_usd: float | None
     llm_calls_with_known_provider_cost: int
-    known_provider_cost_credits: float
+    known_provider_cost_usd: float | None
     connectivity_failures: int
     manual_recoveries: int
 

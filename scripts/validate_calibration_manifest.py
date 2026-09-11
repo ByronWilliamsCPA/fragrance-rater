@@ -64,13 +64,13 @@ def validate_manifest(document: object) -> list[str]:
         fragrance_id = entry.get("fragrance_id")
         membership_key = entry.get("membership_key")
         role = entry.get("role")
-        if fragrance_id in seen_ids and role != "HIDDEN_REPEAT":
-            errors.append(f"{prefix}.fragrance_id is duplicated")
         if isinstance(fragrance_id, str):
+            if fragrance_id in seen_ids and role != "HIDDEN_REPEAT":
+                errors.append(f"{prefix}.fragrance_id is duplicated")
             seen_ids.add(fragrance_id)
-        if membership_key in seen_memberships:
-            errors.append(f"{prefix}.membership_key is duplicated")
         if isinstance(membership_key, str):
+            if membership_key in seen_memberships:
+                errors.append(f"{prefix}.membership_key is duplicated")
             seen_memberships.add(membership_key)
         if str(entry.get("concentration", "")).strip().lower() == "unknown":
             errors.append(f"{prefix}.concentration cannot be unknown")
