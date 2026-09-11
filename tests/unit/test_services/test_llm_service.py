@@ -594,14 +594,22 @@ class TestCallOpenrouter:
             mock_settings.openrouter_model = "test-model"
             return LLMService()
 
-    async def test_success_returns_stripped_content(self):
-        """A 200 response with a valid completion body returns stripped text."""
+    async def test_success_returns_content_and_usage(self):
+        """A valid response retains provider-reported usage and cost."""
         service = self._make_service()
         request = httpx.Request("POST", "https://test.api/chat/completions")
         response = httpx.Response(
             200,
             request=request,
-            json={"choices": [{"message": {"content": "  Great choice!  "}}]},
+            json={
+                "choices": [{"message": {"content": "  Great choice!  "}}],
+                "usage": {
+                    "prompt_tokens": 120,
+                    "completion_tokens": 8,
+                    "total_tokens": 128,
+                    "cost": 0.00125,
+                },
+            },
         )
 
         with patch(
@@ -610,7 +618,53 @@ class TestCallOpenrouter:
         ):
             result = await service._call_openrouter("some prompt")
 
-        assert result == "Great choice!"
+        assert result.text == "Great choice!"
+        assert result.prompt_tokens == 120
+        assert result.completion_tokens == 8
+        assert result.total_tokens == 128
+        assert result.cost_credits == 0.00125
+
+    async def test_success_allows_missing_usage(self):
+        """A valid completion remains usable when a provider omits usage."""
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(
+            200,
+            request=request,
+            json={"choices": [{"message": {"content": "Great choice!"}}]},
+        )
+
+        with patch(
+            "fragrance_rater.services.llm_service.httpx.AsyncClient",
+            _mock_async_client(response=response),
+        ):
+            result = await service._call_openrouter("some prompt")
+
+        assert result.text == "Great choice!"
+        assert result.prompt_tokens is None
+        assert result.cost_credits is None
+
+    async def test_invalid_usage_raises_llm_service_error(self):
+        """Malformed accounting cannot be persisted as trusted usage."""
+        service = self._make_service()
+        request = httpx.Request("POST", "https://test.api/chat/completions")
+        response = httpx.Response(
+            200,
+            request=request,
+            json={
+                "choices": [{"message": {"content": "Great choice!"}}],
+                "usage": {"prompt_tokens": -1},
+            },
+        )
+
+        with (
+            patch(
+                "fragrance_rater.services.llm_service.httpx.AsyncClient",
+                _mock_async_client(response=response),
+            ),
+            pytest.raises(LLMServiceError, match="Invalid OpenRouter response"),
+        ):
+            await service._call_openrouter("some prompt")
 
     async def test_http_status_error_raises_llm_service_error(self):
         """A non-2xx response is translated to LLMServiceError with the status."""

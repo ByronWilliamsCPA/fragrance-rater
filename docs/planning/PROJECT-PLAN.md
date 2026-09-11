@@ -31,8 +31,9 @@ predicted rating.
 
 ## 3. Current-state ledger
 
-**Audited repository state:** branch `main`, commit
-`d597e025798078e2ebfeb1f74615551aafb66ee7` on 2026-09-11.
+**Audited repository baseline:** branch `main`, commit
+`d597e025798078e2ebfeb1f74615551aafb66ee7` on 2026-09-11. P-sprint changes after that baseline
+are retained in the linked P1 and P2 gate records.
 
 | Capability | State | Evidence or remaining limitation |
 | :--- | :--- | :--- |
@@ -42,12 +43,12 @@ predicted rating.
 | Parfumo capture | Partially implemented | Source snapshots and exact titles are preserved; representative live fixtures and full field coverage remain P1/D1 work |
 | Deterministic recommendations | Implemented | Weighted affinity with veto; score is uncalibrated |
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
-| OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache and deterministic fallback; cost and latency reporting remain P2 |
+| OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the P2 pilot |
 | Controlled calibration | Merged, not deployment-verified | Program, enrollment, hidden repeat/holdout, presentation, observation, locking, reveal, and checkpoint flows exist |
-| React product workflow | Implemented baseline | Calibration, ordinary ratings, and program setup exist; recommendation/profile/feedback product flow remains incomplete |
-| Recommendation interest feedback | Not implemented | No first-class impression/feedback/outcome schema, API, UI, or report |
+| React product workflow | Implemented baseline | Calibration, ordinary ratings, program setup, measured recommendations, and one-tap interest feedback exist |
+| Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
-| Live PostgreSQL calibration migration | Not verified | SQLite migration coverage and PostgreSQL SQL compilation exist; P1 requires a live backup-clone exercise |
+| Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |
 
 Status terms:
@@ -123,7 +124,7 @@ deploy on the real PostgreSQL and Authentik/Traefik topology.
 | :--- | :--- | :--- | :--- |
 | P1.1 | Exact baseline manifest | Every program member has verified brand, name, concentration/version key, source URL, verification evidence, and physical-sample confirmation; unresolved identities remain unassigned | Versioned manifest and verification report |
 | P1.2 | Production backup clone | Record current Alembic revision and row counts; restore a production backup to an isolated PostgreSQL instance | Redacted restore log and pre-upgrade inventory |
-| P1.3 | Live migration | Upgrade the clone through `c731b42e9a01`; preserve IDs, encounter counts, ratings, and timestamps; validate constraints and query plans | Migration log, before/after assertions, schema dump/hash |
+| P1.3 | Live migration | Upgrade the clone through the declared Alembic head; preserve IDs, encounter counts, ratings, and timestamps; validate constraints and query plans | Migration log, before/after assertions, schema dump/hash |
 | P1.4 | Concurrency | Concurrent ordinary encounter writes and controlled observation/lock attempts preserve all valid records and reject invalid state transitions deterministically | Automated PostgreSQL concurrency results |
 | P1.5 | Rollback/recovery | Demonstrate restore from the verified pre-upgrade backup; do not use lossy downgrade or migration stamping | Timed restore drill and recovery checklist |
 | P1.6 | Trust-boundary validation | Production requests traverse Authentik/Traefik; direct backend access from reachable networks cannot mutate data or expose calibration mappings | Deployed topology, port scan, bypass tests, role matrix |
@@ -195,7 +196,7 @@ algorithms or catalog statistics.
 - [x] A family evaluator can record interest on mobile without adding more than one interaction.
 - [ ] P2 establishes baseline values for interest, sampling conversion, post-sample liking,
   coverage, and variety.
-- [ ] LLM call count, latency, cache hit rate, failure rate, and estimated cost are measurable.
+- [x] LLM call count, latency, cache hit rate, failure rate, token usage, and provider-reported cost are measurable.
 - [ ] Home-connectivity failures and offline/manual recovery are recorded during the pilot.
 
 ## 8. Milestone D1: Source and vocabulary foundation

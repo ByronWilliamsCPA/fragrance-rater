@@ -82,6 +82,15 @@ class MetricsView(BaseModel):
     """Explicit counts and denominators for recommendation outcomes."""
 
     reviewer_id: str
+    window_start: datetime
+    window_end: datetime
+    reviewer_population: list[str]
+    exclusion_policy: list[str]
+    excluded_impressions: int
+    algorithm_versions: list[str]
+    candidate_strategies: list[str]
+    run_filters: list[dict[str, object]]
+    source_snapshots: list[dict[str, object]]
     eligible_impressions: int
     explicit_interest_responses: int
     positive_interest_responses: int
@@ -102,6 +111,8 @@ class MetricsView(BaseModel):
     llm_failures: int
     mean_llm_latency_ms: float | None
     known_estimated_cost_usd: float
+    llm_calls_with_known_provider_cost: int
+    known_provider_cost_credits: float
     connectivity_failures: int
     manual_recoveries: int
 

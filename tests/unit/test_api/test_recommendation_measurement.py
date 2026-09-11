@@ -87,7 +87,18 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         headers=IDENTITY,
     )
     assert report.status_code == 200
-    assert report.json() == {
+    metrics = report.json()
+    assert metrics.pop("window_start") == "1970-01-01T00:00:00"
+    assert metrics.pop("window_end") >= run["created_at"]
+    assert metrics.pop("reviewer_population") == [reviewer_id]
+    assert metrics.pop("exclusion_policy") == ["current assigned holdout versions"]
+    assert metrics.pop("excluded_impressions") == 0
+    assert metrics.pop("algorithm_versions") == ["affinity-v1"]
+    assert metrics.pop("candidate_strategies") == ["catalog-affinity"]
+    assert metrics.pop("run_filters") == [{"exclude_rated": True, "limit": 1}]
+    source_snapshots = metrics.pop("source_snapshots")
+    assert source_snapshots[0]["candidate_versions"][0]["fragrance_id"] == candidate_id
+    assert metrics == {
         "reviewer_id": reviewer_id,
         "eligible_impressions": 1,
         "explicit_interest_responses": 1,
@@ -109,9 +120,21 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         "llm_failures": 0,
         "mean_llm_latency_ms": None,
         "known_estimated_cost_usd": 0.0,
+        "llm_calls_with_known_provider_cost": 0,
+        "known_provider_cost_credits": 0.0,
         "connectivity_failures": 0,
         "manual_recoveries": 0,
     }
+
+    invalid_window = await test_app.get(
+        f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
+        headers=IDENTITY,
+        params={
+            "window_start": "2026-09-12T00:00:00Z",
+            "window_end": "2026-09-11T00:00:00Z",
+        },
+    )
+    assert invalid_window.status_code == 400
 
 
 @pytest.mark.asyncio

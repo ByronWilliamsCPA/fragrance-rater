@@ -1304,6 +1304,40 @@
               "type": "string",
               "title": "Reviewer Id"
             }
+          },
+          {
+            "name": "window_start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Window Start"
+            }
+          },
+          {
+            "name": "window_end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Window End"
+            }
           }
         ],
         "responses": {
@@ -3364,6 +3398,64 @@
             "type": "string",
             "title": "Reviewer Id"
           },
+          "window_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window Start"
+          },
+          "window_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Window End"
+          },
+          "reviewer_population": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reviewer Population"
+          },
+          "exclusion_policy": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exclusion Policy"
+          },
+          "excluded_impressions": {
+            "type": "integer",
+            "title": "Excluded Impressions"
+          },
+          "algorithm_versions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Algorithm Versions"
+          },
+          "candidate_strategies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candidate Strategies"
+          },
+          "run_filters": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Run Filters"
+          },
+          "source_snapshots": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Source Snapshots"
+          },
           "eligible_impressions": {
             "type": "integer",
             "title": "Eligible Impressions"
@@ -3479,6 +3571,14 @@
             "type": "number",
             "title": "Known Estimated Cost Usd"
           },
+          "llm_calls_with_known_provider_cost": {
+            "type": "integer",
+            "title": "Llm Calls With Known Provider Cost"
+          },
+          "known_provider_cost_credits": {
+            "type": "number",
+            "title": "Known Provider Cost Credits"
+          },
           "connectivity_failures": {
             "type": "integer",
             "title": "Connectivity Failures"
@@ -3491,6 +3591,15 @@
         "type": "object",
         "required": [
           "reviewer_id",
+          "window_start",
+          "window_end",
+          "reviewer_population",
+          "exclusion_policy",
+          "excluded_impressions",
+          "algorithm_versions",
+          "candidate_strategies",
+          "run_filters",
+          "source_snapshots",
           "eligible_impressions",
           "explicit_interest_responses",
           "positive_interest_responses",
@@ -3511,6 +3620,8 @@
           "llm_failures",
           "mean_llm_latency_ms",
           "known_estimated_cost_usd",
+          "llm_calls_with_known_provider_cost",
+          "known_provider_cost_credits",
           "connectivity_failures",
           "manual_recoveries"
         ],

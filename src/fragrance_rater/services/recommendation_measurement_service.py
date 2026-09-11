@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
@@ -30,6 +32,7 @@ from fragrance_rater.schemas.recommendation_measurement import (
 )
 from fragrance_rater.services.preference_history import PreferenceHistoryService
 from fragrance_rater.services.recommendation_service import RecommendationService
+from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -231,22 +234,43 @@ class RecommendationMeasurementService:
                 message = "controlled outcome must be revealed and match this reviewer and version"
                 raise MeasurementConflictError(message)
 
-    async def metrics(self, reviewer_id: str) -> MetricsView:
+    async def metrics(
+        self,
+        reviewer_id: str,
+        *,
+        window_start: datetime | None = None,
+        window_end: datetime | None = None,
+    ) -> MetricsView:
         """Calculate declared metrics from latest revisions with explicit denominators."""
+        start = (
+            self._naive_utc(window_start)
+            if window_start
+            else datetime(1970, 1, 1, tzinfo=UTC).replace(tzinfo=None)
+        )
+        end = self._naive_utc(window_end) if window_end else now_naive_utc()
+        if start >= end:
+            message = "window_start must be before window_end"
+            raise ValueError(message)
         result = await self.db.execute(
-            select(RecommendationImpression, Fragrance)
+            select(RecommendationImpression, Fragrance, RecommendationRun)
             .join(
                 RecommendationRun,
                 RecommendationRun.id == RecommendationImpression.run_id,
             )
             .join(Fragrance, Fragrance.id == RecommendationImpression.fragrance_id)
-            .where(RecommendationRun.reviewer_id == reviewer_id)
+            .where(
+                RecommendationRun.reviewer_id == reviewer_id,
+                RecommendationImpression.shown_at >= start,
+                RecommendationImpression.shown_at <= end,
+            )
         )
-        rows = [(row[0], row[1]) for row in result]
+        all_rows: list[
+            tuple[RecommendationImpression, Fragrance, RecommendationRun]
+        ] = [(row[0], row[1], row[2]) for row in result]
         excluded = await PreferenceHistoryService(self.db).excluded_versions(
             reviewer_id
         )
-        rows = [row for row in rows if row[0].fragrance_id not in excluded]
+        rows = [row for row in all_rows if row[0].fragrance_id not in excluded]
         impression_ids = [row[0].id for row in rows]
         revisions: dict[str, RecommendationResponseRevision] = {}
         if impression_ids:
@@ -255,6 +279,7 @@ class RecommendationMeasurementService:
                     select(RecommendationResponseRevision)
                     .where(
                         RecommendationResponseRevision.impression_id.in_(impression_ids)
+                        & (RecommendationResponseRevision.created_at <= end)
                     )
                     .order_by(
                         RecommendationResponseRevision.impression_id,
@@ -288,18 +313,36 @@ class RecommendationMeasurementService:
         buy = [item.would_buy for item in values if item.would_buy is not None]
         llm = list(
             await self.db.scalars(
-                select(LLMInvocation).where(LLMInvocation.reviewer_id == reviewer_id)
+                select(LLMInvocation).where(
+                    LLMInvocation.reviewer_id == reviewer_id,
+                    LLMInvocation.created_at >= start,
+                    LLMInvocation.created_at <= end,
+                )
             )
         )
         operational_result = await self.db.execute(
             select(PilotOperationalEvent.event_type, func.count())
-            .where(PilotOperationalEvent.reviewer_id == reviewer_id)
+            .where(
+                PilotOperationalEvent.reviewer_id == reviewer_id,
+                PilotOperationalEvent.occurred_at >= start,
+                PilotOperationalEvent.occurred_at <= end,
+            )
             .group_by(PilotOperationalEvent.event_type)
         )
         operational_counts = {str(row[0]): int(row[1]) for row in operational_result}
+        runs = {row[2].id: row[2] for row in rows}.values()
         eligible = len(rows)
         return MetricsView(
             reviewer_id=reviewer_id,
+            window_start=start,
+            window_end=end,
+            reviewer_population=[reviewer_id],
+            exclusion_policy=["current assigned holdout versions"],
+            excluded_impressions=len(all_rows) - eligible,
+            algorithm_versions=sorted({run.algorithm_version for run in runs}),
+            candidate_strategies=sorted({run.candidate_strategy for run in runs}),
+            run_filters=self._unique_json([run.filters for run in runs]),
+            source_snapshots=self._unique_json([run.source_snapshot for run in runs]),
             eligible_impressions=eligible,
             explicit_interest_responses=len(explicit),
             positive_interest_responses=sum(
@@ -319,7 +362,7 @@ class RecommendationMeasurementService:
             would_wear_responses=len(wear),
             would_buy_positive=sum(buy),
             would_buy_responses=len(buy),
-            unique_brands=len({fragrance.brand for _, fragrance in rows}),
+            unique_brands=len({fragrance.brand for _, fragrance, _run in rows}),
             unavailable_candidates=sum(
                 item.sampling_state == "UNAVAILABLE" for item in values
             ),
@@ -332,9 +375,28 @@ class RecommendationMeasurementService:
             known_estimated_cost_usd=sum(
                 item.estimated_cost_usd or 0.0 for item in llm
             ),
+            llm_calls_with_known_provider_cost=sum(
+                item.provider_cost_credits is not None for item in llm
+            ),
+            known_provider_cost_credits=sum(
+                item.provider_cost_credits or 0.0 for item in llm
+            ),
             connectivity_failures=operational_counts.get("CONNECTIVITY_FAILURE", 0),
             manual_recoveries=operational_counts.get("MANUAL_RECOVERY", 0),
         )
+
+    @staticmethod
+    def _naive_utc(value: datetime) -> datetime:
+        """Normalize an API timestamp for UTC-naive database columns."""
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(UTC).replace(tzinfo=None)
+
+    @staticmethod
+    def _unique_json(items: list[dict[str, object]]) -> list[dict[str, object]]:
+        """Return deterministic unique JSON objects for report provenance."""
+        unique = {json.dumps(item, sort_keys=True): item for item in items}
+        return [unique[key] for key in sorted(unique)]
 
     async def record_operational_event(
         self,

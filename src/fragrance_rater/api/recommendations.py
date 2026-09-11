@@ -243,6 +243,10 @@ async def get_profile_summary(
                         cache_hit=llm_response.cached,
                         succeeded=llm_response.error is None,
                         estimated_cost_usd=None,
+                        prompt_tokens=llm_response.prompt_tokens,
+                        completion_tokens=llm_response.completion_tokens,
+                        total_tokens=llm_response.total_tokens,
+                        provider_cost_credits=llm_response.provider_cost_credits,
                     )
                 )
                 await session.commit()
@@ -441,6 +445,10 @@ async def get_recommendation_explanation(
                 cache_hit=llm_response.cached,
                 succeeded=llm_response.error is None,
                 estimated_cost_usd=None,
+                prompt_tokens=llm_response.prompt_tokens,
+                completion_tokens=llm_response.completion_tokens,
+                total_tokens=llm_response.total_tokens,
+                provider_cost_credits=llm_response.provider_cost_credits,
             )
         )
         await session.commit()

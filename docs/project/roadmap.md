@@ -22,8 +22,8 @@ subject to the P1 deployment gate.
 | Milestone | Outcome | Status |
 | :--- | :--- | :--- |
 | P0 | Reconciled planning baseline | Ready for review |
-| P1 | Calibration deployment, migration, recovery, and security readiness | Planned |
-| P2 | Recommendation impression, feedback, sampling, and outcome measurement | Planned |
+| P1 | Calibration deployment, migration, recovery, and security readiness | Repository complete; deployment evidence pending |
+| P2 | Recommendation impression, feedback, sampling, and outcome measurement | Repository complete; P1 and pilot evidence pending |
 | D1 | Versioned source, alias, and taxonomy foundation | Planned |
 | D2 | Reproducible catalog statistics | Planned |
 | D3 | Disclosure-safe post-reveal exploration | Planned |

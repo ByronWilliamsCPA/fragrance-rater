@@ -11,8 +11,8 @@ the same pull request.
 | Milestone | Outcome | Status | Entry gate | Exit gate |
 | :--- | :--- | :--- | :--- | :--- |
 | P0 | Reconciled planning baseline | Ready for review | Calibration merged | Governing documents agree and P1/P2 are implementation-ready |
-| P1 | Calibration release readiness | Planned | P0 complete | Target PostgreSQL, recovery, proxy, disclosure, and operations evidence reviewed |
-| P2 | Recommendation outcome measurement | Planned | P1 complete | Impressions, feedback, sampling, outcomes, and baseline metrics usable |
+| P1 | Calibration release readiness | Repository controls complete; external evidence pending | P0 complete | Target PostgreSQL, recovery, proxy, disclosure, and operations evidence reviewed |
+| P2 | Recommendation outcome measurement | Repository implementation complete; P1 and pilot evidence pending | P1 complete | Impressions, feedback, sampling, outcomes, and baseline metrics usable |
 | D1 | Source and vocabulary foundation | Planned | P2 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
 | D3 | Post-reveal exploration | Planned | D2 and P1 complete | Accessible, disclosure-safe evidence-layer profiles accepted |
@@ -29,9 +29,9 @@ P0 → P1 → P2 → D1 → D2 ┬→ D3
 ## Immediate queue
 
 1. Complete P0 documentation validation and review.
-2. Decompose P1.1–P1.10 into sprint issues without weakening release-blocking invariants.
+2. Supply and review the exact physical baseline manifest and authorized parser fixtures.
 3. Run P1 against an isolated production backup clone and the target proxy topology.
-4. Implement and baseline P2 before any D1 source or vocabulary work.
+4. Run and retain the declared P2 family pilot before any D1 source or vocabulary work.
 
 ## Delivered historical scope
 

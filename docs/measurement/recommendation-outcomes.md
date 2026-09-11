@@ -29,7 +29,9 @@ and denominator counts alongside rates.
 
 The evaluator UI records interest or pass in one tap. Sampling state, outcome linking, wear, and
 buy can be added with later API revisions. Managers retrieve the report from
-`GET /api/v1/recommendation-measurement/reviewers/{reviewer_id}/metrics`.
+`GET /api/v1/recommendation-measurement/reviewers/{reviewer_id}/metrics`. Optional
+`window_start` and `window_end` query parameters bound the report; the response always states the
+effective window and frozen run provenance.
 
 ## Metric meanings
 
@@ -40,9 +42,9 @@ buy can be added with later API revisions. Managers retrieve the report from
 - Ordinary post-sample liking retains its original 1–5 scale.
 - Wear and buy have separate response and positive counts.
 - Variety currently reports unique houses; candidate count and unavailable count accompany it.
-- LLM telemetry records attempt count, latency, cache status, failure status, model, and a nullable
-  cost estimate. Cost stays unknown until a versioned model-price contract is configured; it is
-  never silently reported as zero.
+- LLM telemetry records attempt count, latency, cache status, failure status, model, token counts,
+  and OpenRouter's provider-reported cost in credits. Missing provider accounting remains null;
+  reports distinguish calls with known cost and never silently convert an unknown cost to zero.
 - Connectivity failures and manual recoveries are explicit pilot events.
 
 Every exported analysis must additionally state its time window, reviewer population, algorithm

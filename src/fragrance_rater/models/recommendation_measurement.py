@@ -111,6 +111,10 @@ class LLMInvocation(Base):
     __table_args__ = (
         CheckConstraint("latency_ms >= 0"),
         CheckConstraint("estimated_cost_usd IS NULL OR estimated_cost_usd >= 0"),
+        CheckConstraint("prompt_tokens IS NULL OR prompt_tokens >= 0"),
+        CheckConstraint("completion_tokens IS NULL OR completion_tokens >= 0"),
+        CheckConstraint("total_tokens IS NULL OR total_tokens >= 0"),
+        CheckConstraint("provider_cost_credits IS NULL OR provider_cost_credits >= 0"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     reviewer_id: Mapped[str] = mapped_column(
@@ -125,6 +129,10 @@ class LLMInvocation(Base):
     cache_hit: Mapped[bool] = mapped_column(Boolean)
     succeeded: Mapped[bool] = mapped_column(Boolean)
     estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    total_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider_cost_credits: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc, index=True)
 
 

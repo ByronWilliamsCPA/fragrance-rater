@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import datetime  # noqa: TC003 - FastAPI resolves this at runtime
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.api.calibration import actor, manager
@@ -111,10 +112,21 @@ async def append_response(
 
 
 @router.get("/reviewers/{reviewer_id}/metrics", response_model=MetricsView)
-async def metrics(reviewer_id: str, db: DB, identity: Identity) -> MetricsView:
+async def metrics(
+    reviewer_id: str,
+    db: DB,
+    identity: Identity,
+    window_start: Annotated[datetime | None, Query()] = None,
+    window_end: Annotated[datetime | None, Query()] = None,
+) -> MetricsView:
     """Return the admin metric contract with explicit counts and denominators."""
     manager(identity)
-    return await RecommendationMeasurementService(db).metrics(reviewer_id)
+    try:
+        return await RecommendationMeasurementService(db).metrics(
+            reviewer_id, window_start=window_start, window_end=window_end
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/operational-events", status_code=status.HTTP_201_CREATED)
