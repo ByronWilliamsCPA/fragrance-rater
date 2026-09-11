@@ -190,17 +190,18 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                   ))}
               </div>
             ))}
-            <button
+            <ConfirmAction
+              actionLabel="Finalize skin-test plan"
+              confirmLabel="Confirm final plan"
+              description="Finalizing prevents further changes to which samples receive a skin test."
               disabled={task.busy || enrollment.skin_plan_locked}
-              onClick={() =>
+              onConfirm={() =>
                 void task.run(async () => {
                   await api.post(`/calibration/enrollments/${enrollment.id}/lock-skin-plan`)
                   await refresh()
                 })
               }
-            >
-              Finalize skin-test plan
-            </button>
+            />
             <ConfirmAction
               actionLabel="Reveal completed baseline"
               confirmLabel="Confirm reveal"
@@ -326,20 +327,21 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                   </fieldset>
                 </form>
                 {!sample.identity && (
-                  <button
+                  <ConfirmAction
+                    actionLabel={`Lock ${stage.toLowerCase()} responses`}
+                    confirmLabel={`Confirm ${stage.toLowerCase()} lock`}
+                    description="Locking ends blind entry for this sample and stage. Review the saved observations before continuing."
                     disabled={
                       task.busy ||
                       (stage === 'BLOTTER' ? sample.blotter_locked : sample.skin_locked)
                     }
-                    onClick={() =>
+                    onConfirm={() =>
                       void task.run(async () => {
                         await api.post(`/calibration/presentations/${sample.id}/lock/${stage}`)
                         await refresh()
                       })
                     }
-                  >
-                    Lock {stage.toLowerCase()} responses
-                  </button>
+                  />
                 )}
                 <h3>Saved observations</h3>
                 {sample.observations.length ? (

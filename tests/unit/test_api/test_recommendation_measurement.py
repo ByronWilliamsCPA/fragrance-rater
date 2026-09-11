@@ -85,6 +85,14 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
     assert second.status_code == 201
     assert second.json()["revision"] == 2
 
+    reopened = await test_app.get(
+        f"{API}/recommendation-measurement/runs/{run['id']}", headers=IDENTITY
+    )
+    assert [
+        response["revision"]
+        for response in reopened.json()["impressions"][0]["responses"]
+    ] == [1, 2]
+
     report = await test_app.get(
         f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
         headers=IDENTITY,

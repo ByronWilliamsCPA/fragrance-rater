@@ -4,6 +4,7 @@ import { AppShell } from './components/AppShell'
 import { ErrorState, LoadingState } from './components/PageState'
 import { useAppData } from './hooks/useAppData'
 import { CalibrationPage } from './pages/CalibrationPage'
+import { HomePage } from './pages/HomePage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
@@ -34,6 +35,14 @@ function App() {
       route={route}
       navigate={navigate}
     >
+      {route === 'home' && (
+        <HomePage
+          assignments={appData.assignments}
+          programs={appData.programs}
+          reviewers={appData.reviewers}
+          navigate={navigate}
+        />
+      )}
       {route === 'calibration' && (
         <CalibrationPage
           assignments={appData.assignments}

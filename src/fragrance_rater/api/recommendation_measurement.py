@@ -61,6 +61,9 @@ async def run_view(service: RecommendationMeasurementService, run_id: str) -> Ru
         fragrance_id = item.get("fragrance_id")
         if isinstance(fragrance_id, str):
             snapshots[fragrance_id] = item
+    histories = await service.response_history(
+        {impression.id for impression, _ in rows}
+    )
     return RunView(
         id=run.id,
         reviewer_id=run.reviewer_id,
@@ -81,6 +84,9 @@ async def run_view(service: RecommendationMeasurementService, run_id: str) -> Ru
                 score_type=impression.score_type,
                 score_value=impression.score_value,
                 match_percent=int(impression.score_value * 100),
+                responses=[
+                    response_view(response) for response in histories[impression.id]
+                ],
             )
             for impression, fragrance in rows
         ],

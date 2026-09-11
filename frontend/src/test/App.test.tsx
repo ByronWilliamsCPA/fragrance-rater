@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from '../App'
-const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
-vi.mock('axios', () => ({ default: { create: () => ({ get, post }), isAxiosError: () => false } }))
+const { get, post, patch } = vi.hoisted(() => ({
+  get: vi.fn(),
+  post: vi.fn(),
+  patch: vi.fn(),
+}))
+vi.mock('axios', () => ({
+  default: { create: () => ({ get, post, patch }), isAxiosError: () => false },
+}))
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -46,7 +52,7 @@ const recommendationRun = {
 }
 beforeEach(() => {
   vi.clearAllMocks()
-  window.history.replaceState({}, '', '/')
+  window.history.replaceState({}, '', '/calibration')
   get.mockImplementation((path: string) => {
     const responses: Record<string, unknown> = {
       '/reviewers': [{ id: 'r', name: 'Evaluator' }],
@@ -61,8 +67,19 @@ beforeEach(() => {
       : Promise.reject(new Error(`Unexpected request: ${path}`))
   })
   post.mockResolvedValue({ data: { id: 'saved' } })
+  patch.mockResolvedValue({ data: { id: 'updated' } })
 })
 describe('Calibration participant workflow', () => {
+  it('shows assignment progress and a safe next action on the home page', async () => {
+    window.history.replaceState({}, '', '/')
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: 'Your scent journal' })).toBeInTheDocument()
+    expect(await screen.findByText('Continue blind sample A82F.')).toBeInTheDocument()
+    expect(screen.getByText(/0 of 1 blind screens locked/)).toBeInTheDocument()
+    expect(screen.queryByText('assignment')).not.toBeInTheDocument()
+  })
+
   it('shows the application and hides manager setup for an evaluator', async () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Fragrance Rater' })).toBeInTheDocument()
@@ -94,6 +111,41 @@ describe('Calibration participant workflow', () => {
     expect(screen.getByRole('main')).toHaveFocus()
     await screen.findByRole('option', { name: 'Evaluator' })
   })
+
+  it('corrects an ordinary encounter without exposing its identifier', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [],
+        '/evaluations': [
+          {
+            id: 'encounter-secret-id',
+            fragrance_id: 'f',
+            rating: 3,
+            notes: 'Original',
+            evaluated_at: '2026-09-11T12:00:00',
+          },
+        ],
+      }
+      return Promise.resolve({ data: responses[path] })
+    })
+    window.history.replaceState({}, '', '/ratings')
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+    fireEvent.click(await screen.findByRole('button', { name: 'Correct this encounter' }))
+    fireEvent.change(screen.getByLabelText('Corrected rating'), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save correction' }))
+
+    await waitFor(() =>
+      expect(patch).toHaveBeenCalledWith('/evaluations/encounter-secret-id', {
+        rating: 5,
+        notes: 'Original',
+      })
+    )
+    expect(screen.queryByText('encounter-secret-id')).not.toBeInTheDocument()
+  })
   it('records recommendation interest with one interaction', async () => {
     post.mockImplementation((path: string) => {
       if (path === '/recommendation-measurement/runs') {
@@ -109,7 +161,7 @@ describe('Calibration participant workflow', () => {
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith(
         '/recommendation-measurement/impressions/impression-1/responses',
-        { interested: true }
+        expect.objectContaining({ interested: true })
       )
     )
     expect(window.location.search).toBe('?recommendation_run=run-1')

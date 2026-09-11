@@ -3311,6 +3311,13 @@
           "match_percent": {
             "type": "integer",
             "title": "Match Percent"
+          },
+          "responses": {
+            "items": {
+              "$ref": "#/components/schemas/ResponseView"
+            },
+            "type": "array",
+            "title": "Responses"
           }
         },
         "type": "object",

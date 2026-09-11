@@ -18,6 +18,7 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
   const [catalogQuery, setCatalogQuery] = useState('')
   const [history, setHistory] = useState<Encounter[]>([])
   const [reviewerId, setReviewerId] = useState('')
+  const [editingId, setEditingId] = useState('')
   const historyGeneration = useRef(0)
   const task = useTask()
 
@@ -55,6 +56,17 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     setReviewerId(savedReviewerId)
     await loadHistory(savedReviewerId)
     task.setNotice('New encounter saved.')
+  }
+
+  async function correctEncounter(encounterId: string, form: HTMLFormElement) {
+    const values = Object.fromEntries(new FormData(form))
+    await api.patch(`/evaluations/${encounterId}`, {
+      rating: Number(values.rating),
+      notes: String(values.notes || '') || null,
+    })
+    setEditingId('')
+    await loadHistory(reviewerId)
+    task.setNotice('Correction saved; the encounter date and fragrance are unchanged.')
   }
 
   return (
@@ -145,6 +157,46 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
               · {encounter.rating}/5
             </strong>
             <p>{formatUtc(encounter.evaluated_at)}</p>
+            {encounter.notes && <p>{encounter.notes}</p>}
+            {editingId === encounter.id ? (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  const form = event.currentTarget
+                  void task.run(() => correctEncounter(encounter.id, form))
+                }}
+              >
+                <label>
+                  Corrected rating
+                  <input
+                    name="rating"
+                    type="number"
+                    min="1"
+                    max="5"
+                    defaultValue={encounter.rating}
+                    required
+                  />
+                </label>
+                <label>
+                  Corrected observations
+                  <textarea name="notes" defaultValue={encounter.notes ?? ''} />
+                </label>
+                <div className="button-row">
+                  <button disabled={task.busy}>Save correction</button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setEditingId('')}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button className="secondary" onClick={() => setEditingId(encounter.id)}>
+                Correct this encounter
+              </button>
+            )}
           </article>
         ))
       ) : (

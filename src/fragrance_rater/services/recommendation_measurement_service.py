@@ -148,6 +148,25 @@ class RecommendationMeasurementService:
         )
         return run, [(row[0], row[1]) for row in result]
 
+    async def response_history(
+        self, impression_ids: set[str]
+    ) -> dict[str, list[RecommendationResponseRevision]]:
+        """Load append-only feedback revisions grouped in revision order."""
+        histories = {impression_id: [] for impression_id in impression_ids}
+        if not impression_ids:
+            return histories
+        responses = await self.db.scalars(
+            select(RecommendationResponseRevision)
+            .where(RecommendationResponseRevision.impression_id.in_(impression_ids))
+            .order_by(
+                RecommendationResponseRevision.impression_id,
+                RecommendationResponseRevision.revision,
+            )
+        )
+        for response in responses:
+            histories[response.impression_id].append(response)
+        return histories
+
     async def append_response(
         self,
         impression_id: str,

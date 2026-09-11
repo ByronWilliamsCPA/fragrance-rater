@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type Route = 'calibration' | 'recommendations' | 'ratings' | 'programs'
+export type Route = 'home' | 'calibration' | 'recommendations' | 'ratings' | 'programs'
 
 export type NavigationItem = {
   route: Route
@@ -10,6 +10,7 @@ export type NavigationItem = {
 }
 
 export const navigationItems: NavigationItem[] = [
+  { route: 'home', label: 'Home', path: '/' },
   { route: 'calibration', label: 'Calibration', path: '/calibration' },
   { route: 'recommendations', label: 'Recommendations', path: '/recommendations' },
   { route: 'ratings', label: 'My Ratings', path: '/ratings' },
@@ -17,7 +18,7 @@ export const navigationItems: NavigationItem[] = [
 ]
 
 export function routeFromPath(pathname: string): Route {
-  return navigationItems.find((item) => item.path === pathname)?.route ?? 'calibration'
+  return navigationItems.find((item) => item.path === pathname)?.route ?? 'home'
 }
 
 export function pathFor(route: Route): string {
