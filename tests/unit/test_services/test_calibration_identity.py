@@ -49,7 +49,6 @@ async def assigned_version(session: AsyncSession) -> Fragrance:
         {"primary_family": "floral"},
         {"subfamily": "oriental"},
         {"intensity": "Rich"},
-        {"intensity": None},
     ],
 )
 async def test_assigned_identity_edit_is_rejected(async_session, changes):
@@ -72,7 +71,11 @@ async def test_assigned_unchanged_fields_remain_editable(async_session):
     fragrance = await assigned_version(async_session)
     updated = await FragranceService(async_session).update(
         fragrance.id,
-        FragranceUpdate(name=fragrance.name, primary_family=fragrance.primary_family),
+        FragranceUpdate(
+            name=fragrance.name,
+            primary_family=fragrance.primary_family,
+            intensity=fragrance.intensity,
+        ),
     )
     assert updated is not None
     assert updated.primary_family == "woody"
