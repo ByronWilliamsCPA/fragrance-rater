@@ -1,101 +1,166 @@
 # Project Vision & Scope: Fragrance Rater
 
-> **Status**: Active | **Version**: 1.0 | **Updated**: 2025-12-28
+> **Status**: Active | **Version**: 2.0 | **Updated**: 2026-09-11
 
-## TL;DR
+## Vision
 
-A personal fragrance evaluation and recommendation system for the Williams family (Byron, Veronica, Bayden, Ariannah). Users rate perfumes with simple 1-5 ratings and free-form notes; the system enriches entries with professional fragrance classification data and uses AI-powered preference analysis to predict which new fragrances each person would enjoy.
+Fragrance Rater helps the Williams family make better fragrance choices by preserving what
+each person actually experienced, connecting those observations to verified fragrance versions,
+and testing recommendation strategies prospectively.
 
-## Problem Statement
+The product succeeds when it reduces expensive trial and error while giving each evaluator a
+clear, trustworthy record of their preferences. Recommendation explanations and catalog
+visualizations support that outcome; they are not substitutes for measured experience.
 
-### Pain Point
+## Problem statement
 
-Selecting perfumes for family members is expensive trial-and-error because:
+Fragrance selection is difficult because preferences are personal, vocabulary is specialized,
+versions and concentrations are easily confused, and memory is unreliable across repeated
+encounters. Published notes describe a source's representation of a fragrance, not necessarily
+what an evaluator perceives. An appealing recommendation is also not proof that the person will
+like the fragrance after sampling it.
 
-- Personal scent preferences are highly individual and difficult to articulate
-- The fragrance industry uses specialized vocabulary (notes, accords, families) that consumers don't know
-- Without systematic tracking, patterns in what someone likes/dislikes remain invisible
-- Nuanced preferences are hard to remember (e.g., "Bayden likes citrus but specifically dislikes lemon")
+The system therefore preserves three kinds of evidence without conflating them:
 
-### Target Users
+1. Published catalog metadata and its source provenance.
+2. Ordinary and controlled observations recorded by an evaluator.
+3. Model interpretations, candidate scores, and explanations derived from frozen inputs.
 
-- **Primary**: Williams family (4 members) evaluating fragrances together
-- **Context**: In-store testing, home collection evaluation, gift selection
+## Users and contexts
 
-### Success Metrics
+- **Evaluators**: Byron, Veronica, Bayden, and Ariannah record ordinary encounters and controlled
+  observations.
+- **Recorders**: An authenticated family member may enter observations for more than one
+  evaluator during a shared session.
+- **Experiment managers**: Authorized users create controlled programs, verify exact versions,
+  manage mappings, freeze checkpoints, and reveal identities.
+- **Primary contexts**: Home evaluation, blind blotter and skin sessions, collection review,
+  in-store research through a secure home connection, and gift selection.
 
-- **Evaluations captured**: 0 → 50+ evaluations within first month
-- **Preference accuracy**: After 10+ evaluations, 80%+ of AI recommendations marked "interesting" by user (via thumbs-up/down on recommendation cards)
-- **Time to evaluate**: < 30 seconds per rating entry
+## Product outcomes
 
-## Solution Overview
+### Primary outcome
 
-### Core Value
+Increase the proportion of sampled recommendations that evaluators actually like, would wear,
+or would consider buying, compared with a declared baseline strategy.
 
-Track fragrance ratings from multiple family members, automatically enrich with professional classification data, and use AI to explain preferences and predict new fragrance matches.
+### Supporting outcomes
 
-### Key Capabilities (MVP)
+- Capture encounters in under 30 seconds for the ordinary workflow.
+- Preserve every ordinary encounter and controlled observation with its original scale,
+  timestamp, provenance, and authorship.
+- Explain preference patterns without presenting affinity scores as probabilities or inferred
+  ingredient composition.
+- Broaden useful discovery while maintaining catalog coverage and variety.
+- Keep blind identities and holdout outcomes from leaking into participant views, caches,
+  profiles, explanations, or training inputs.
+- Operate on the home server without requiring enrichment or LLM services for core capture and
+  deterministic scoring.
 
-1. **Multi-user evaluation entry**: Each family member rates fragrances 1-5 with optional notes
-2. **Automatic data enrichment**: Pulls notes, accords, and family classification from external sources
-3. **Preference profiling**: Learns which notes/accords each person likes or dislikes
-4. **AI-powered recommendations**: LLM generates explanations and suggests new fragrances
+## Success measures
 
-## Scope Definition
+All reported metrics must include the eligible population, numerator, denominator, time window,
+model version, candidate strategy, and source snapshot where applicable.
 
-### In Scope (MVP)
+| Measure | Initial target | Interpretation |
+| :--- | :--- | :--- |
+| Ordinary adoption | At least 50 encounters in the first active month | Usage signal, reported per evaluator |
+| Entry usability | Median ordinary entry time under 30 seconds | Measured task time, not anecdotal recall |
+| Recommendation interest | At least 80% positive among explicit interest responses after 10+ contributing versions | Funnel metric, not predictive accuracy |
+| Sampling conversion | Baseline established during P2 | Fraction of shown recommendations actually sampled |
+| Post-sample liking | Improvement over a frozen baseline strategy | Primary recommendation outcome |
+| Would-wear / would-buy | Reported separately from liking | Practical decision outcomes |
+| Catalog coverage and variety | Baseline and thresholds established before D4 | Guard against repetitive or narrow recommendations |
+| Blind integrity | Zero unauthorized identity or holdout disclosures | Release-blocking invariant |
+| Score latency | Recommendation scores under 500 ms p95 on the target deployment | Excludes optional LLM explanation latency |
 
-- **Evaluation CRUD**: Create, read, update, delete ratings for any family member
-- **User selection**: Simple dropdown to switch between pre-seeded family profiles (no authentication)
-- **Fragrance lookup**: Search local DB with tiered data acquisition:
-  1. **Bulk seed**: One-time Kaggle dataset import for baseline offline data
-  2. **Manual fallback**: Copy-paste notes from Fragrantica when fragrance not found
-  3. **API enrichment**: Fragella API to enhance manually-entered fragrances (preserves scarce API calls)
-- **Preference profiles**: Show liked/disliked notes per user with confidence scores
-- **Basic recommendations**: Match score calculation with AI-generated explanations
-- **Recommendation feedback**: Thumbs-up/down on recommendations to measure accuracy
-- **Simple web UI**: Mobile-friendly React frontend for in-store use (requires home network connection)
+The former “80% accuracy” statement is retained only as an interest target. A calibrated liking
+claim requires prospective predictions, frozen inputs, held-out outcomes, a declared loss or
+classification rule, and uncertainty reporting.
 
-### Out of Scope
+## Scope
 
-- **User authentication**: Family-only use, no login required initially
-- **Price tracking**: No retail/shopping integrations
-- **Barcode scanning**: Manual fragrance search only
-- **Social features**: No sharing or public profiles
-- **Advanced ML**: Simple weighted scoring first; collaborative filtering deferred
+### Current product baseline
 
-### Deferred to Phase 2+
+- Canonical fragrance-version catalog with source evidence.
+- Reviewer, fragrance, and ordinary encounter CRUD.
+- Retained dated 1–5 ordinary ratings.
+- Deterministic note, accord, and family affinity recommendations.
+- Optional OpenRouter explanations with deterministic fallback.
+- Kaggle import and Parfumo source capture.
+- Controlled programs with hidden repeats and holdouts, randomized presentations, blotter and
+  skin observations, locking, reveal, and post-reveal append-only observations.
+- Shared preference history, holdout exclusion, and frozen model checkpoints.
+- React interface for ordinary encounters, controlled capture, and program setup.
 
-- **Natural language processing** of free-form notes
-- **Collection/wishlist management**
-- **Retailer availability integration**
-- **Mobile native app**
+### Planned before discovery work
+
+- Production-grade migration, concurrency, backup/restore, and proxy-boundary validation (P1).
+- Recommendation impression, interest, sampling, and outcome measurement with reproducible
+  reporting (P2).
+
+### Planned discovery work
+
+- Versioned note aliases and taxonomy mappings with authorized source snapshots (D1).
+- Reproducible catalog frequency and association statistics (D2).
+- Accessible post-reveal source/perception/model profiles (D3).
+- Candidate generation from published-note similarity and controlled contrasts (D4).
+- Prospective comparison of candidate strategies with frozen experimental inputs (D5).
+
+### Out of scope through D5
+
+- Public accounts or social sharing.
+- Retail price and availability integrations beyond manually recorded sample availability.
+- Barcode scanning and native mobile applications.
+- Claims about chemical formulation or ingredient percentages from published-note ranks.
+- Collaborative filtering that depends on a large external user population.
+- Automated active learning or calibrated confidence claims before prospective evidence supports
+  them.
+- Automatic import of data or code without documented reuse rights.
+
+## Product principles
+
+1. **Preserve raw evidence.** Corrections append or retain revision history; modeling policy is
+   separate from storage policy.
+2. **Resolve exact versions.** Concentrations and materially different versions remain distinct;
+   unknown values remain unknown.
+3. **Keep evidence layers visible.** Published notes, evaluator perception, and model
+   interpretation are labeled separately.
+4. **Protect blind evaluation.** Every endpoint, cache, export, and derived summary applies the
+   same disclosure policy.
+5. **Evaluate prospectively.** Freeze candidate choices and model inputs before holdout outcomes.
+6. **Use honest labels.** Match percentages are affinity scores until calibration is demonstrated.
+7. **Prefer reproducibility.** Record algorithm versions, filters, denominators, taxonomy
+   versions, source hashes, and exclusions.
+8. **Keep core operation local.** Capture, history, and deterministic scores continue when
+   external enrichment and LLM services are unavailable.
 
 ## Constraints
 
-### Technical
+- Single primary developer and four family evaluators.
+- Self-hosted Docker Compose deployment on Unraid with PostgreSQL.
+- React/TypeScript frontend and FastAPI/SQLAlchemy backend.
+- Minimal recurring cost and low operational burden.
+- Authentik/Traefik is the production trust boundary; the backend must not be directly reachable.
+- Small-sample results require transparent denominators and uncertainty rather than broad claims.
 
-- **Platform**: Self-hosted Docker Compose on Unraid server
-- **Language**: Python 3.12 (backend), React/TypeScript (frontend)
-- **Database**: PostgreSQL (structured fragrance data)
-- **Performance**: API response < 500ms, UI usable on mobile
+## Assumptions and validation gates
 
-### Business
+| Assumption | Validation | Gate |
+| :--- | :--- | :--- |
+| The merged calibration migration preserves production history | Restore a production backup clone, upgrade it, validate counts/IDs, and exercise concurrent writes | P1 |
+| Authentik/Traefik prevents direct mutation and mapping access | Test supported routes and direct backend bypass from the deployed network | P1 |
+| Family members will use recommendation feedback consistently | Instrument impressions and outcomes; review missing-response rates | P2 |
+| Interest predicts useful sampling | Compare interest with subsequent blind liking and wear/buy outcomes | P2/D5 |
+| Authorized source material is sufficient for D1/D2 | Record license/permission evidence and coverage before adoption | D1 |
+| Alias and taxonomy choices improve retrieval without erasing raw labels | Version mappings and test collisions, ambiguous terms, and coverage | D1/D2 |
+| Candidate discovery improves outcomes over existing affinity scoring | Freeze strategies and compare prospectively | D5 |
+| Home connectivity supports intended use | Measure failures during the pilot; preserve printable/export workflows | P2 |
 
-- **Budget**: Minimal - prefer free data sources (Kaggle, scraping) over paid APIs
-- **Resources**: Single developer (Byron), family beta testers
-- **Maintenance**: Low-touch after initial build
-- **Connectivity**: Requires connection to home LAN (Unraid server); true offline/PWA deferred to Phase 2
+## Related documents
 
-## Assumptions to Validate
-
-- [ ] Kaggle fragrance datasets have adequate note/accord data for bulk seed
-- [ ] OpenRouter LLM costs acceptable for recommendation explanations (~$0.01-0.05 per recommendation)
-- [ ] Family members will consistently use the system after initial novelty
-- [ ] Home LAN connectivity sufficient for in-store use (VPN or mobile hotspot)
-
-## Related Documents
-
+- [Authoritative Project Plan](PROJECT-PLAN.md)
+- [Technical Specification](tech-spec.md)
+- [Execution Roadmap](roadmap.md)
 - [Architecture Decisions](adr/README.md)
-- [Technical Spec](tech-spec.md)
-- [Roadmap](roadmap.md)
+- [Controlled Calibration V1](../calibration-v1.md)

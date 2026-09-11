@@ -1,348 +1,262 @@
-# Technical Implementation Spec: Fragrance Rater
+# Technical Specification: Fragrance Rater
 
-> **Status**: Draft
-> **Version**: 1.0 | **Updated**: 2025-12-28
+> **Status**: Active baseline | **Version**: 2.0 | **Updated**: 2026-09-11
 
-## TL;DR
+## Purpose and authority
 
-A Docker Compose stack (React + FastAPI + PostgreSQL) for personal fragrance tracking. Uses tiered data acquisition (Kaggle → manual → API), weighted affinity scoring for recommendations, and OpenRouter LLM for natural language explanations. Deployed self-hosted on Unraid.
+This specification describes the architecture present after the controlled-calibration merge and
+the contracts required through D5. Detailed controlled-workflow rules live in
+[Controlled Calibration V1](../calibration-v1.md). Delivery status and gates live in the
+[Project Plan](PROJECT-PLAN.md). ADRs govern decisions that are expensive to reverse.
 
-## Technology Stack
+Generated OpenAPI is the route-level implementation reference. This document defines system
+boundaries and invariants rather than duplicating every request field.
 
-### Core
+## Runtime architecture
 
-- **Language**: Python 3.12 (backend), TypeScript 5.x (frontend)
-- **Package Manager**: UV (backend), npm (frontend)
-- **Frameworks**: FastAPI 0.109+, React 18+, Vite 5+
+| Layer | Technology | Responsibility |
+| :--- | :--- | :--- |
+| Frontend | React 19, TypeScript, Vite | Ordinary capture, calibration capture, program setup, planned recommendation/profile flows |
+| API | FastAPI, Python | Validation, access policy, workflow orchestration, scoring, import |
+| Data | PostgreSQL 16, SQLAlchemy 2, Alembic | Catalog, evidence history, controlled programs, checkpoints |
+| Authentication edge | Authentik forward-auth through Traefik | Verified production identity and access boundary |
+| Optional external services | OpenRouter and authorized metadata sources | Explanations and catalog enrichment |
 
-### Code Quality
+Docker Compose remains the deployment unit on Unraid. Core capture, history, and deterministic
+recommendations must continue when optional services are unavailable.
 
-- **Linter**: Ruff (backend), ESLint (frontend)
-- **Type Checker**: BasedPyright (backend), TypeScript strict (frontend)
-- **Formatter**: Ruff (88 chars), Prettier (frontend)
-- **Testing**: pytest (backend), Vitest (frontend)
+## Deployment trust boundary
 
-### Data Layer
-
-- **Database**: PostgreSQL 16 - See [ADR-001](adr/adr-001-initial-architecture.md)
-- **ORM**: SQLAlchemy 2.0 with async support
-- **Migrations**: Alembic
-
-### Infrastructure
-
-- **Container**: Docker Compose
-- **CI/CD**: GitHub Actions
-- **Deployment**: Unraid Community Applications
-
-## Architecture
-
-### Pattern
-
-Monolithic Docker Compose stack - See [ADR-001](adr/adr-001-initial-architecture.md)
-
-### Component Diagram
+Production traffic must follow:
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                    DOCKER COMPOSE STACK                          │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌─────────────┐    ┌──────────────────┐    ┌────────────────┐  │
-│  │   React     │    │     FastAPI      │    │   PostgreSQL   │  │
-│  │  Frontend   │◄──►│     Backend      │◄──►│    Database    │  │
-│  │   :3000     │    │      :8000       │    │     :5432      │  │
-│  └─────────────┘    └────────┬─────────┘    └────────────────┘  │
-│                              │                                   │
-│         ┌────────────────────┼────────────────────┐             │
-│         ▼                    ▼                    ▼             │
-│   ┌──────────┐        ┌──────────┐        ┌──────────────┐      │
-│   │ Fragella │        │  Kaggle  │        │  OpenRouter  │      │
-│   │   API    │        │   CSV    │        │     LLM      │      │
-│   └──────────┘        └──────────┘        └──────────────┘      │
-└─────────────────────────────────────────────────────────────────┘
+Client → TLS/Traefik → Authentik forward-auth → frontend/API → PostgreSQL
 ```
 
-### Component Responsibilities
+Requirements:
 
-| Component | Purpose | Key Functions |
-|-----------|---------|---------------|
-| Frontend | User interface | Evaluation entry, profile view, recommendations |
-| Backend | Business logic | CRUD operations, scoring, LLM orchestration |
-| Database | Persistence | Fragrances, notes, evaluations, user profiles |
-| Fragella | Data enrichment | Note/accord metadata for manual entries |
-| OpenRouter | AI explanations | Natural language recommendation reasons |
+- `AUTHENTIK_REQUIRED=true` in production.
+- The backend is not reachable through a host port or network path that bypasses Traefik.
+- Forwarded identity headers are trusted only from the authenticated proxy path.
+- Manager access comes from `CALIBRATION_ADMIN_USERNAMES`; an empty list grants no manager.
+- `reviewer_id` identifies whose experience is recorded. `recorded_by` identifies the
+  authenticated person entering it; they are intentionally not one-to-one.
+- Mapping and checkpoint management routes require manager authorization.
+- Participant disclosure is enforced server-side and reused by history and derived surfaces.
+- Production topology and bypass behavior are tested in P1.
 
-## Data Model
+## Data domains
 
-### Core Entities
+### Canonical catalog
 
-```python
-# Fragrance - core entity with classification data
-class Fragrance(Base):
-    __tablename__ = "fragrances"
+`Fragrance` is the canonical version record through D5. Brand, display name, concentration, and
+version key distinguish versions. Unknown concentration remains unknown. Once assigned to a
+controlled program, identity fields are immutable.
 
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    name: Mapped[str] = mapped_column(String(255), index=True)
-    brand: Mapped[str] = mapped_column(String(255), index=True)
-    concentration: Mapped[str] = mapped_column(String(50))  # EDT, EDP, Parfum
-    launch_year: Mapped[int | None]
-    gender_target: Mapped[str] = mapped_column(String(20))  # Masculine, Feminine, Unisex
+`Note`, `FragranceNote`, and `FragranceAccord` represent normalized catalog features while
+preserving source-specific evidence separately. Parent product/house modeling and inventory
+management are outside current scope.
 
-    # Classification (Michael Edwards Wheel)
-    primary_family: Mapped[str] = mapped_column(String(50))  # Fresh, Floral, Amber, Woody
-    subfamily: Mapped[str] = mapped_column(String(50))
-    intensity: Mapped[str | None] = mapped_column(String(20))  # Fresh, Crisp, Classical, Rich
+### Ordinary evidence
 
-    # Data provenance
-    data_source: Mapped[str] = mapped_column(String(20))  # manual, kaggle, fragella
-    external_id: Mapped[str | None] = mapped_column(String(100))
+Each `Evaluation` POST creates a dated encounter on the original 1–5 scale. PATCH corrects one
+encounter. DELETE soft-deletes one encounter. Storage retains repeated encounters; recommendation
+policy selects contributions separately.
 
-    # Timestamps
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
+### Controlled evidence
 
-    # Relationships
-    notes: Mapped[list["FragranceNote"]] = relationship(back_populates="fragrance")
-    accords: Mapped[list["FragranceAccord"]] = relationship(back_populates="fragrance")
-    evaluations: Mapped[list["Evaluation"]] = relationship(back_populates="fragrance")
+The controlled domain contains:
 
+- `Program` and immutable activated `Membership` definitions.
+- `Enrollment`, randomized `CalibrationSession`, and coded `Presentation` records.
+- Append-only `Observation` records with original 0–5 and 0–10 scales.
+- Hidden repeats, baseline members, and holdouts.
+- Stage locks, skin-plan finalization, reveal state, and post-reveal observations.
+- `ModelCheckpoint` records containing frozen manifests and supplied predictions.
 
-# Note - individual scent component
-class Note(Base):
-    __tablename__ = "notes"
+Unanswered values are NULL. Answered zero is data. Non-detection has intensity zero and no liking
+score.
 
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
-    category: Mapped[str] = mapped_column(String(50))  # Citrus, Floral, Wood, etc.
-    subcategory: Mapped[str | None] = mapped_column(String(50))
+### Source evidence
 
+`SourceSnapshot` records append raw/parsed evidence, retrieval time, verification state, and
+source identity. Source refresh may add evidence but must not rewrite evaluator observations or
+assigned canonical identity. `Perfumer` and `VersionPerfumer` preserve multiple attributions.
 
-# FragranceNote - junction table with note position
-class FragranceNote(Base):
-    __tablename__ = "fragrance_notes"
+D1 adds versioned alias and taxonomy mapping entities. These mappings must never replace raw
+source labels or evaluator wording.
 
-    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"), primary_key=True)
-    note_id: Mapped[UUID] = mapped_column(ForeignKey("notes.id"), primary_key=True)
-    position: Mapped[str] = mapped_column(String(10))  # top, heart, base
+### Recommendation measurement
 
-    fragrance: Mapped["Fragrance"] = relationship(back_populates="notes")
-    note: Mapped["Note"] = relationship()
+P2 adds first-class recommendation runs, impressions, interest responses, sampling states, and
+links to subsequent outcomes. A persisted impression is required before feedback. Outcome links
+reference existing observations rather than copying or rewriting them.
 
+Required provenance includes algorithm version, candidate strategy, rank, score type, source
+snapshot, frozen input manifest, timestamp, and recorder.
 
-# FragranceAccord - accord with intensity weight
-class FragranceAccord(Base):
-    __tablename__ = "fragrance_accords"
+## Evidence and disclosure invariants
 
-    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"), primary_key=True)
-    accord_type: Mapped[str] = mapped_column(String(50), primary_key=True)
-    intensity: Mapped[float] = mapped_column(Float)  # 0.0 to 1.0
+- Ordinary, controlled, source, and model evidence retain separate provenance.
+- Raw rating scales remain unchanged.
+- The latest eligible ordinary encounter contributes at most once per version to the current
+  `affinity-v1` profile.
+- The latest eligible controlled observation prefers skin over blotter and maps liking to
+  affinity with `(liking - 5) / 2.5`.
+- When both ordinary and eligible controlled evidence exist, their affinities are averaged so a
+  version still contributes once.
+- Holdout versions are excluded from training across ordinary and controlled workflows.
+- Hidden repeats and post-reveal observations do not become baseline training rows.
+- Controlled evidence enters ordinary summaries only after reveal.
+- Participant routes do not disclose fragrance identity, role, repeat link, selection evidence,
+  or mapping before policy allows.
+- A version revealed in another program is marked previously revealed rather than represented as
+  naive.
 
+## Recommendation architecture
 
-# Reviewer - family member profile
-class Reviewer(Base):
-    __tablename__ = "reviewers"
+The deterministic scoring service:
 
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    name: Mapped[str] = mapped_column(String(100), unique=True)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
+1. builds the eligible per-version preference history;
+2. aggregates note, accord, family, and subfamily affinity;
+3. applies a strong-dislike veto;
+4. calculates a weighted raw affinity; and
+5. transforms it to a bounded display score.
 
-    evaluations: Mapped[list["Evaluation"]] = relationship(back_populates="reviewer")
+The display percentage is an affinity score. It is not a probability, confidence score, expected
+0–10 rating, or evidence of statistical calibration.
 
+OpenRouter generates optional explanations after deterministic scoring. Failure returns a local
+fallback. Cache entries must be invalidated when reviewer evidence changes and must not bypass
+blind disclosure. P2 measures model name/version, prompt version, calls, latency, failures, cache
+hits, and estimated cost.
 
-# Evaluation - a reviewer's rating of a fragrance
-class Evaluation(Base):
-    __tablename__ = "evaluations"
+D4 adds candidate retrieval as a stage before evaluator-specific selection. Similarity, novelty,
+uncertainty, availability, and cost remain separate quantities.
 
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    fragrance_id: Mapped[UUID] = mapped_column(ForeignKey("fragrances.id"))
-    reviewer_id: Mapped[UUID] = mapped_column(ForeignKey("reviewers.id"))
-    rating: Mapped[int] = mapped_column(Integer)  # 1-5
-    notes: Mapped[str | None] = mapped_column(Text)  # Free-form observations
+## API surface
 
-    # Optional structured feedback
-    longevity_rating: Mapped[int | None]
-    sillage_rating: Mapped[int | None]
+The current generated API includes:
 
-    evaluated_at: Mapped[datetime] = mapped_column(default=func.now())
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
+| Domain | Routes |
+| :--- | :--- |
+| Health | `/health/live`, `/health/ready`, `/health/startup` |
+| Fragrances | List/get/create/update/delete under `/api/v1/fragrances` |
+| Reviewers | List/get/create/delete/seed under `/api/v1/reviewers` |
+| Evaluations | List/get/create/update/delete under `/api/v1/evaluations` |
+| Recommendations | List, profile, and explanation under `/api/v1/recommendations` |
+| Import | Kaggle import under `/api/v1/import/kaggle` |
+| Calibration programs | Create/list, add members, activate, and enroll |
+| Calibration enrollments | List/get, mapping, skin-plan lock, reveal, and checkpoints |
+| Calibration presentations | Blind/post-reveal observations, stage lock, and skin planning |
+| Shared history | `/api/v1/calibration/history/{reviewer_id}` |
 
-    fragrance: Mapped["Fragrance"] = relationship(back_populates="evaluations")
-    reviewer: Mapped["Reviewer"] = relationship(back_populates="evaluations")
+The unversioned compatibility routes are legacy surfaces and must be inventoried before removal.
+P2 adds versioned recommendation measurement routes. All route changes update generated OpenAPI in
+the same pull request.
+
+## D1 source and vocabulary contract
+
+Every source or vocabulary snapshot records:
+
+- stable source identifier and revision;
+- retrieval timestamp;
+- content hash;
+- license or explicit permission evidence;
+- raw label and source-specific classification;
+- parser/mapping version;
+- verification state and reviewer;
+- exclusions or transformation parameters.
+
+Alias mappings are many-to-one only after review. Mapped duplicates count once per fragrance for
+statistics. Chemically or perceptually distinct terms are not merged merely because their names
+are similar.
+
+## D2 statistical contract
+
+For a declared eligible population of size `N`, note totals `nA`, `nB`, and pair count
+`nAB`:
+
+```text
+expected_pair_count = nA * nB / N
+lift = nAB * N / (nA * nB)
+partner_share = nAB / nA
 ```
 
-### Relationships
+All counts and `N` come from the same filtered, alias-resolved, within-fragrance-deduplicated
+snapshot. Undefined denominators return an explicit undefined result. Results report support and
+the versioned support/shrinkage policy.
 
-- Fragrance → Notes: Many-to-many (via FragranceNote with position)
-- Fragrance → Accords: One-to-many (accord types with intensity)
-- Fragrance → Evaluations: One-to-many
-- Reviewer → Evaluations: One-to-many
+## Performance and reliability budgets
 
-### Database Indexing Strategy
+| Behavior | Target |
+| :--- | :--- |
+| Ordinary CRUD API | Under 200 ms p95 on target deployment |
+| Recommendation scores | Under 500 ms p95, excluding LLM |
+| Calibration save/lock | Under 500 ms p95 under expected family concurrency |
+| Frontend initial load | Under 2 seconds on the supported home/mobile path |
+| Blind disclosure | Zero unauthorized fields or derivable mappings |
+| Data loss | Zero accepted ordinary or controlled observations lost during upgrade |
+| External failure | Core capture/history/scoring remains available |
 
-Critical indexes for recommendation performance (<500ms target):
+D2 and D3 must define artifact-size and visualization budgets before implementation.
 
-```sql
--- Evaluations: Fast lookup of user's rated fragrances
-CREATE INDEX idx_evaluations_reviewer ON evaluations(reviewer_id);
-CREATE INDEX idx_evaluations_reviewer_fragrance ON evaluations(reviewer_id, fragrance_id);
+## Migration and recovery
 
--- FragranceNote: Fast lookup of notes for scoring
-CREATE INDEX idx_fragrance_notes_fragrance ON fragrance_notes(fragrance_id);
-CREATE INDEX idx_fragrance_notes_note ON fragrance_notes(note_id);
+- Back up and record the live revision and row inventory before schema changes.
+- Test upgrades on an isolated PostgreSQL restore before production.
+- Preserve IDs, timestamps, scales, authorship, and source provenance.
+- Rehearse restore; do not rely on a lossy downgrade.
+- Backfills are idempotent, support dry-run collision reports, and record mapping/source versions.
+- Frozen programs, source snapshots, checkpoints, and outcome records are immutable except through
+  explicit revision workflows.
 
--- FragranceAccord: Fast lookup of accords for scoring
-CREATE INDEX idx_fragrance_accords_fragrance ON fragrance_accords(fragrance_id);
+## Testing strategy
 
--- Fragrances: Fast search by name/brand
-CREATE INDEX idx_fragrances_name ON fragrances(name);
-CREATE INDEX idx_fragrances_brand ON fragrances(brand);
-CREATE INDEX idx_fragrances_name_brand ON fragrances(name, brand);
-```
+### Required layers
 
-### Query Optimization Notes
+- Unit tests for validation, scoring, mapping, and state transitions.
+- API integration tests for authorization and error contracts.
+- PostgreSQL tests for migrations, constraints, transaction behavior, and concurrent writes.
+- Frontend component tests plus end-to-end ordinary, calibration, recommendation, and feedback
+  journeys.
+- Property/fixture tests for alias collisions, sparse pairs, filtered denominators, exact versions,
+  duplicate notes, unknown values, and minimal-note fragrances.
+- Deployed security tests for proxy bypass, role enforcement, and mapping disclosure.
+- Accessibility, keyboard, mobile, and optional-service failure tests.
 
-The recommendation algorithm queries notes and accords separately to preserve domain semantics (notes are ingredients, accords are perceptual descriptors). This is intentional per the concept document's data model. For MVP scale (~1000 fragrances, 4 users), separate queries with proper indexing will meet performance targets. Consider denormalization only if scaling beyond 10K fragrances.
+### Blind disclosure matrix
 
-## API Specification
+Every change affecting data access checks catalog search, ordinary history, controlled history,
+profiles, recommendation lists, explanations, caches, errors, logs, exports, and new analytical
+views.
 
-### Endpoints
+### Supported environment
 
-| Method | Path | Purpose | Auth |
-|--------|------|---------|------|
-| GET | `/api/v1/fragrances` | List/search fragrances | No |
-| GET | `/api/v1/fragrances/{id}` | Get fragrance details | No |
-| POST | `/api/v1/fragrances` | Create fragrance (manual) | No |
-| POST | `/api/v1/fragrances/lookup` | Search & import from external | No |
-| GET | `/api/v1/reviewers` | List reviewers | No |
-| POST | `/api/v1/reviewers` | Create reviewer | No |
-| GET | `/api/v1/evaluations` | List evaluations (filterable) | No |
-| POST | `/api/v1/evaluations` | Create evaluation | No |
-| GET | `/api/v1/recommendations/{reviewer_id}` | Get recommendations | No |
-| GET | `/api/v1/recommendations/{reviewer_id}/profile` | Get preference profile | No |
-| POST | `/api/v1/recommendations/{reviewer_id}/feedback` | Thumbs up/down | No |
-| POST | `/api/v1/import/kaggle` | Upload Kaggle CSV | No |
-| POST | `/api/v1/import/seed-reviewers` | Create default family reviewers | No |
+Release verification uses Python 3.12 and PostgreSQL 16. Tests under other supported Python
+versions remain useful, but do not replace the target-environment gate.
 
-### Request/Response Examples
+## Observability
 
-```json
-// POST /api/v1/evaluations
-{
-  "fragrance_id": "550e8400-e29b-41d4-a716-446655440000",
-  "reviewer_id": "550e8400-e29b-41d4-a716-446655440001",
-  "rating": 4,
-  "notes": "Nice citrus opening, fades too quickly"
-}
+P1 defines operational logging, health checks, backup status, migration evidence, and security
+events. P2 adds recommendation runs, response coverage, outcome linkage, LLM calls/cost, cache
+behavior, and external-service latency/failures. Logs must exclude secrets, private response
+bodies, blind mappings, and holdout identity.
 
-// GET /api/v1/recommendations/{reviewer_id}
-{
-  "recommendations": [
-    {
-      "fragrance": { "id": "...", "name": "Terre d'Hermès", "brand": "Hermès" },
-      "match_score": 0.89,
-      "vetoed": false,
-      "explanation": "Strong citrus notes align with your preferences...",
-      "explanation_loading": false
-    }
-  ],
-  "profile_summary": "Prefers citrus-forward fresh scents with woody bases",
-  "evaluation_count": 12
-}
-```
+## Documentation synchronization
 
-## CLI Specification
+Each implementation pull request updates:
 
-### Commands
+- generated OpenAPI for route/schema changes;
+- the project-plan status and evidence link;
+- user and operations guidance;
+- the governing ADR when a durable decision changes; and
+- calibration or measurement protocols when workflow semantics change.
 
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `fragrance-rater import kaggle` | Import Kaggle CSV | `fragrance-rater import kaggle data.csv` |
-| `fragrance-rater seed-reviewers` | Create family profiles | `fragrance-rater seed-reviewers` |
-| `fragrance-rater profile <name>` | Show user's preference profile | `fragrance-rater profile Bayden` |
-
-### Arguments
-
-- `--db-url`: Database connection string (default: from env)
-- `--dry-run`: Preview without writing (import commands)
-
-## Security
-
-### Authentication
-
-**None for MVP** - Family-only use on home network. User selection via dropdown.
-
-### Authorization
-
-**None for MVP** - All endpoints public. All users can see all data.
-
-### Data Protection
-
-- **At Rest**: PostgreSQL default (no encryption needed for personal data)
-- **In Transit**: HTTP on LAN; HTTPS via reverse proxy for remote access (future)
-- **Sensitive Data**: API keys stored in environment variables, not committed
-
-### Future Considerations
-
-- Add simple PIN per user if privacy between family members needed
-- Add Nginx reverse proxy with TLS for remote access
-
-## Error Handling
-
-### Strategy
-
-Fail fast with descriptive errors. API returns structured error responses.
-
-### Error Codes
-
-| Code | HTTP Status | Meaning | User Action |
-|------|-------------|---------|-------------|
-| `FRAGRANCE_NOT_FOUND` | 404 | Fragrance ID doesn't exist | Check ID or create new |
-| `REVIEWER_NOT_FOUND` | 404 | Reviewer ID doesn't exist | Use seed-reviewers |
-| `INSUFFICIENT_EVALUATIONS` | 400 | <3 evaluations for recommendations | Rate more fragrances |
-| `EXTERNAL_API_ERROR` | 502 | Fragella/OpenRouter unavailable | Retry or use manual entry |
-| `VALIDATION_ERROR` | 422 | Invalid request data | Fix input per error details |
-
-### Logging
-
-- **Format**: Structured JSON (structlog)
-- **Levels**: DEBUG, INFO, WARNING, ERROR
-- **Sensitive**: Never log API keys or full request bodies
-
-## Performance Requirements
-
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| API response time (CRUD) | < 200ms p95 | FastAPI middleware timing |
-| API response time (recommendations) | < 500ms p95 (scores only) | FastAPI middleware timing |
-| LLM explanation load | < 3s | Frontend loading state |
-| Database queries | < 50ms | SQLAlchemy query timing |
-| Frontend initial load | < 2s | Lighthouse |
-
-## Testing Strategy
-
-### Coverage Target
-
-- Minimum: 80%
-- Critical paths (recommendations, evaluations): 100%
-
-### Test Types
-
-- **Unit**: Services, scoring algorithm, data transformations
-- **Integration**: API endpoints with test database, Kaggle import
-- **E2E**: Evaluation → Recommendation flow (Playwright, deferred to Phase 3)
-
-### Test Commands
-
-```bash
-# Backend
-uv run pytest tests/ -v --cov=src --cov-report=html
-
-# Frontend
-npm run test
-npm run test:coverage
-```
-
-## Related Documents
+## Related documents
 
 - [Project Vision](project-vision.md)
-- [Architecture Decisions](adr/README.md)
-- [Development Roadmap](roadmap.md)
+- [Authoritative Project Plan](PROJECT-PLAN.md)
+- [Execution Roadmap](roadmap.md)
+- [ADR Index](adr/README.md)
+- [Controlled Calibration V1](../calibration-v1.md)

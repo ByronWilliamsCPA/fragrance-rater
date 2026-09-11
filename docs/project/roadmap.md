@@ -3,62 +3,39 @@ title: "Roadmap"
 schema_type: common
 status: published
 owner: core-maintainer
-purpose: "Development roadmap for Fragrance Rater."
+purpose: "Summarize the active Fragrance Rater delivery milestones."
 tags:
   - project_management
   - roadmap
 ---
 
-Development roadmap for Fragrance Rater.
+The [authoritative project plan](../planning/PROJECT-PLAN.md) owns scope, status, dependencies,
+acceptance criteria, risk, and evidence. This page is a short navigation aid.
 
-## Current Version
+## Current version
 
-**v0.1.0** - Initial release
+**v0.1.0** is the initial release line. Controlled calibration is merged in `main` but remains
+subject to the P1 deployment gate.
 
-## Planned Features
+## Active sequence
 
-### Phase 1: Foundation
+| Milestone | Outcome | Status |
+| :--- | :--- | :--- |
+| P0 | Reconciled planning baseline | Ready for review |
+| P1 | Calibration deployment, migration, recovery, and security readiness | Planned |
+| P2 | Recommendation impression, feedback, sampling, and outcome measurement | Planned |
+| D1 | Versioned source, alias, and taxonomy foundation | Planned |
+| D2 | Reproducible catalog statistics | Planned |
+| D3 | Disclosure-safe post-reveal exploration | Planned |
+| D4 | Candidate discovery pilot | Planned |
+| D5 | Prospective comparison and strategy decision | Planned |
 
-- [x] Core project structure
-- [x] Type-safe configuration
-- [x] Structured logging
-- [x] CLI interface
-- [x] Test infrastructure
+D1 cannot begin until P0, P1, and P2 are complete.
 
-### Phase 2: Enhancement
-
-- [ ] Integrate controlled calibration and retained ordinary encounter history
-- [ ] Verify baseline versions and complete migration/deployment gates
-- [ ] Add versioned note aliases and source provenance
-- [ ] Build reproducible note statistics and post-reveal exploration
-- [ ] Pilot candidate discovery with prospective validation
-- [ ] Performance optimizations
-- [ ] Extended documentation
-
-### Phase 3: Production Ready
-
-- [ ] Stability improvements
-- [ ] Security hardening
-- [ ] Production deployment guides
-
-## Release Schedule
-
-Releases follow [Semantic Versioning](https://semver.org/):
-
-- **Major** (x.0.0): Breaking changes
-- **Minor** (0.x.0): New features
-- **Patch** (0.0.x): Bug fixes
-
-## Contributing
-
-See the [Contributing Guide](../development/contributing.md) to help shape the roadmap.
-
-## Detailed Planning
-
-For detailed project planning documents, see:
+## Planning documents
 
 - [Project Vision](../planning/project-vision.md)
-- [Technical Spec](../planning/tech-spec.md)
-- [Development Roadmap](../planning/roadmap.md)
-
-See the [current project plan](../planning/PROJECT-PLAN.md#7-follow-up-explore-and-candidate-discovery) for dependencies and acceptance criteria, and the [Scent chords analysis](../research/scent-chords-analysis.md) for evidence. These items are planned, not a claim of deployed functionality.
+- [Authoritative Project Plan](../planning/PROJECT-PLAN.md)
+- [Technical Specification](../planning/tech-spec.md)
+- [Execution Roadmap](../planning/roadmap.md)
+- [Architecture Decisions](../planning/adr/README.md)

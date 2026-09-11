@@ -1,11 +1,23 @@
 # ADR-002: Data Source Strategy - Tiered Acquisition
 
-> **Status**: Accepted
+> **Status**: Accepted baseline; source-provenance portions amended by ADR-006
+>
 > **Date**: 2025-12-28
 
 ## TL;DR
 
-Use a tiered data acquisition strategy: Kaggle bulk seed → manual fallback → Fragella API enrichment, ensuring the app works offline with minimal API dependency.
+Use a local-first tiered data strategy: verified local catalog → manual entry/source link →
+authorized source snapshot or refresh. Kaggle and Parfumo are current implemented source paths;
+any additional provider must pass provenance and reuse-rights review.
+
+## 2026 amendment
+
+The tiered, local-first principle remains accepted. Fragella was not adopted as the operational
+enrichment dependency; the implemented integration captures Parfumo source evidence. Future
+sources must satisfy ADR-006 provenance, exact-version, and reuse-rights requirements. The
+current priority is local catalog → manual verified entry/source link → authorized source
+snapshot or refresh. A source is never allowed to overwrite evaluator evidence or assigned
+version identity.
 
 ## Context
 
@@ -192,4 +204,6 @@ async def create_fragrance(
 
 - [ADR-001](./adr-001-initial-architecture.md): Overall architecture
 - [ADR-003](./adr-003-llm-integration.md): LLM uses this data for recommendations
-- [Tech Spec Data Model](../tech-spec.md#data-model): Entity definitions
+- [ADR-006](./adr-006-version-identity-and-source-provenance.md): Current identity,
+  provenance, rights, alias, and taxonomy policy
+- [Tech Spec Data Domains](../tech-spec.md#data-domains): Current entity boundaries

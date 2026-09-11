@@ -1,6 +1,7 @@
 # ADR-001: Initial Architecture - Docker Compose Monolith
 
-> **Status**: Accepted
+> **Status**: Accepted; authentication portions superseded by ADR-008
+>
 > **Date**: 2025-12-28
 
 ## TL;DR
@@ -110,7 +111,7 @@ The architecture determines development complexity, operational burden, and futu
 
 ### Directory Structure
 
-```
+```text
 /home/byron/dev/fragrance_rater/
 ├── backend/              # FastAPI application
 │   ├── app/
@@ -150,4 +151,5 @@ The architecture determines development complexity, operational burden, and futu
 
 - [ADR-002](./adr-002-data-source-strategy.md): Data acquisition approach
 - [ADR-003](./adr-003-llm-integration.md): LLM integration for recommendations
+- [ADR-008](./adr-008-authentication-and-production-boundary.md): Production trust boundary
 - [Tech Spec](../tech-spec.md): Detailed implementation specifications

@@ -1,8 +1,8 @@
-# Ignore template baselines, agent skills, and planning docs not owned by the project
+# Ignore template baselines, agent skills, and planning templates not owned by the project
 .claude/**
 .standards/**
 docs/superpowers/**
-docs/planning/**
+docs/planning/project-plan-template.md
 CHANGELOG.md
 
 # Pre-existing root/docs content written before the markdownlint gate was

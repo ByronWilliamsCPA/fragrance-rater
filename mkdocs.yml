@@ -175,8 +175,9 @@ nav:
       - Technical Spec: planning/tech-spec.md
       - Development Roadmap: planning/roadmap.md
       - Project Plan: planning/PROJECT-PLAN.md
+      - P0 Planning Baseline: planning/gates/p0.md
+      - Controlled Calibration V1: calibration-v1.md
       - Scent chords Analysis: research/scent-chords-analysis.md
-      - Plan Template: planning/project-plan-template.md
 
   - Architecture Decisions:
       - Overview: planning/adr/README.md
@@ -184,6 +185,11 @@ nav:
       - ADR-002 Data Source Strategy: planning/adr/adr-002-data-source-strategy.md
       - ADR-003 LLM Integration: planning/adr/adr-003-llm-integration.md
       - ADR-004 Recommendation Algorithm: planning/adr/adr-004-recommendation-algorithm.md
+      - ADR-005 Controlled Calibration: planning/adr/adr-005-controlled-calibration.md
+      - ADR-006 Version Identity and Provenance: planning/adr/adr-006-version-identity-and-source-provenance.md
+      - ADR-007 Preference Evidence: planning/adr/adr-007-preference-evidence-and-score-semantics.md
+      - ADR-008 Authentication Boundary: planning/adr/adr-008-authentication-and-production-boundary.md
+      - ADR-009 Prospective Evaluation: planning/adr/adr-009-prospective-evaluation-and-checkpoints.md
       - ADR Template: ADRs/adr-template.md
 
   - Reference:

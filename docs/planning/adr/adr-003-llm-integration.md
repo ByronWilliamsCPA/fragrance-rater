@@ -1,6 +1,7 @@
 # ADR-003: LLM Integration - OpenRouter for Recommendations
 
-> **Status**: Accepted
+> **Status**: Accepted; cache implementation updated in Technical Specification v2
+>
 > **Date**: 2025-12-28
 
 ## TL;DR
@@ -104,14 +105,14 @@ LLM integration significantly impacts user experience and operational costs. Ove
 ### LLM Usage Patterns
 
 | Use Case | Model Tier | Estimated Cost |
-|----------|------------|----------------|
+| --- | --- | --- |
 | Recommendation explanation | Cheap (Haiku/GPT-4o-mini) | ~$0.001/call |
 | Profile summary | Cheap | ~$0.002/call |
 | Fragrance comparison | Medium | ~$0.01/call |
 
 ### Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                   Recommendation Flow                        │
 ├─────────────────────────────────────────────────────────────┤
@@ -160,7 +161,8 @@ If there are notes they typically dislike, acknowledge this as a potential conce
 ### Components Affected
 
 1. **LLMService**: OpenRouter client with model selection
-2. **ExplanationCache**: Redis or PostgreSQL cache for generated text
+2. **ExplanationCache**: Bounded in-process cache for generated text in the current
+   single-process deployment; a shared durable cache requires a later operational decision
 3. **RecommendationService**: Combines algorithmic scores with LLM explanations
 4. **Frontend**: Shows scores immediately, loads explanations async
 
@@ -187,4 +189,4 @@ If there are notes they typically dislike, acknowledge this as a potential conce
 
 - [ADR-001](./adr-001-initial-architecture.md): Overall architecture
 - [ADR-002](./adr-002-data-source-strategy.md): Fragrance data for prompts
-- [Tech Spec API](../tech-spec.md#api-specification): Recommendation endpoints
+- [Tech Spec API](../tech-spec.md#api-surface): Recommendation endpoints
