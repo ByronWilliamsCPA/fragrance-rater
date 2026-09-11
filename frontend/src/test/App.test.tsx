@@ -39,6 +39,7 @@ const enrollment = {
 const recommendationRun = {
   id: 'run-1',
   reviewer_id: 'r',
+  created_at: '2026-09-11T12:00:00Z',
   impressions: [
     {
       id: 'impression-1',
@@ -47,6 +48,7 @@ const recommendationRun = {
       fragrance_brand: 'House',
       rank: 1,
       match_percent: 78,
+      responses: [],
     },
   ],
 }
@@ -80,6 +82,34 @@ describe('Calibration participant workflow', () => {
     expect(screen.queryByText('assignment')).not.toBeInTheDocument()
   })
 
+  it('retries assignment progress without reloading the application', async () => {
+    let progressUnavailable = true
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+        '/calibration/enrollments/assignment': enrollment,
+      }
+      if (path === '/calibration/enrollments/assignment' && progressUnavailable) {
+        return Promise.reject(new Error('offline'))
+      }
+      return Promise.resolve({ data: responses[path] })
+    })
+    window.history.replaceState({}, '', '/')
+    render(<App />)
+
+    expect(
+      await screen.findByText('Request failed. Check your connection and try again.')
+    ).toBeInTheDocument()
+    progressUnavailable = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry assignment progress' }))
+
+    expect(await screen.findByText('Continue blind sample A82F.')).toBeInTheDocument()
+    expect(screen.queryByText('Request failed. Check your connection and try again.')).toBeNull()
+  })
+
   it('shows the application and hides manager setup for an evaluator', async () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Fragrance Rater' })).toBeInTheDocument()
@@ -102,6 +132,18 @@ describe('Calibration participant workflow', () => {
         expect.objectContaining({ detected: false, intensity: 0, liking: null })
       )
     )
+  })
+  it('explains reveal eligibility before allowing identity disclosure', async () => {
+    render(<App />)
+    await screen.findByRole('option', { name: 'Evaluator · Baseline' })
+    fireEvent.change(screen.getByLabelText('Evaluator and program'), {
+      target: { value: 'assignment' },
+    })
+
+    expect(
+      await screen.findByText('1 blind blotter screen still needs to be locked.')
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reveal completed baseline' })).toBeDisabled()
   })
   it('offers the form for recording a new ordinary encounter', async () => {
     render(<App />)
@@ -165,6 +207,93 @@ describe('Calibration participant workflow', () => {
       )
     )
     expect(window.location.search).toBe('?recommendation_run=run-1')
+  })
+  it('records a recommendation follow-up without asking for identifiers', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [],
+        '/calibration/history/r': [
+          {
+            id: 'historical-encounter',
+            workflow: 'ORDINARY',
+            fragrance_id: 'f-1',
+            observed_at: '2026-09-10T12:00:00Z',
+          },
+          {
+            id: 'encounter-1',
+            workflow: 'ORDINARY',
+            fragrance_id: 'f-1',
+            observed_at: '2026-09-12T12:00:00Z',
+          },
+        ],
+      }
+      return Promise.resolve({ data: responses[path] })
+    })
+    post.mockImplementation((path: string, data: Record<string, unknown>) => {
+      if (path === '/recommendation-measurement/runs')
+        return Promise.resolve({ data: recommendationRun })
+      return Promise.resolve({
+        data: {
+          id: 'response-1',
+          impression_id: 'impression-1',
+          revision: 1,
+          created_at: '2026-09-12T12:01:00Z',
+          ...data,
+        },
+      })
+    })
+
+    window.history.replaceState({}, '', '/recommendations')
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Update sampling and outcome' }))
+    fireEvent.change(await screen.findByLabelText('Sampling status'), {
+      target: { value: 'SAMPLED' },
+    })
+    fireEvent.change(screen.getByLabelText('Link a later matching encounter'), {
+      target: { value: 'ORDINARY:encounter-1' },
+    })
+    expect(
+      screen
+        .getByLabelText('Link a later matching encounter')
+        .querySelector('option[value="ORDINARY:historical-encounter"]')
+    ).toBeNull()
+    fireEvent.change(screen.getByLabelText('Would wear'), { target: { value: 'yes' } })
+    fireEvent.change(screen.getByLabelText('Would buy'), { target: { value: 'no' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save follow-up' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/recommendation-measurement/impressions/impression-1/responses',
+        expect.objectContaining({
+          sampling_state: 'SAMPLED',
+          outcome_evaluation_id: 'encounter-1',
+          would_wear: true,
+          would_buy: false,
+        })
+      )
+    )
+    expect(screen.queryByText('encounter-1')).not.toBeInTheDocument()
+  })
+
+  it('falls back to a score-based recommendation explanation', async () => {
+    post.mockImplementation((path: string) =>
+      path === '/recommendation-measurement/runs'
+        ? Promise.resolve({ data: recommendationRun })
+        : Promise.resolve({ data: { revision: 1 } })
+    )
+    window.history.replaceState({}, '', '/recommendations')
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Why this recommendation?' }))
+
+    expect(await screen.findByText(/78% affinity score/)).toBeInTheDocument()
+    expect(screen.getByText(/optional service is unavailable/)).toBeInTheDocument()
   })
   it('restores a saved recommendation run without creating another exposure', async () => {
     window.history.replaceState({}, '', '/recommendations?recommendation_run=run-1')

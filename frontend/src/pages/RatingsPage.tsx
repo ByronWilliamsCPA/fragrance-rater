@@ -183,11 +183,7 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
                 </label>
                 <div className="button-row">
                   <button disabled={task.busy}>Save correction</button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => setEditingId('')}
-                  >
+                  <button type="button" className="secondary" onClick={() => setEditingId('')}>
                     Cancel
                   </button>
                 </div>

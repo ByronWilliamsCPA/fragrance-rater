@@ -45,7 +45,8 @@ The frontend keeps navigation and network policy separate from feature workflows
   state.
 - `src/components/` contains the application shell and reusable loading, retry, feedback, empty,
   and confirmation states.
-- `src/pages/` contains calibration, ratings, recommendations, and manager setup workflows.
+- `src/pages/` contains participant home, calibration, ratings, recommendations, and manager setup
+  workflows.
 
 The frontend capability model controls which navigation and actions are presented. It is not an
 authorization boundary; FastAPI continues to enforce manager and recorder access for every

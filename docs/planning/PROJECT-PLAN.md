@@ -235,7 +235,7 @@ follow-up task through a guided interface without API tools or raw identifiers.
 
 **Owner:** Core maintainer
 
-**Status:** Implementation in progress
+**Status:** Implementation complete; review pending
 **Depends on:** P3
 **Evidence:** [P4 Participant Experience Gate](gates/p4.md)
 

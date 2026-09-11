@@ -29,6 +29,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
   const [recommendationRun, setRecommendationRun] = useState<RecommendationRun | null>(null)
   const [followUpId, setFollowUpId] = useState('')
   const [outcomes, setOutcomes] = useState<HistoryItem[]>([])
+  const [explanations, setExplanations] = useState<Record<string, string>>({})
   const hydrationGeneration = useRef(0)
   const task = useTask()
   const setError = task.setError
@@ -131,6 +132,21 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
     }
   }
 
+  async function explain(item: RecommendationImpression) {
+    try {
+      const response = await api.get<{ explanation: string }>(
+        `/recommendations/${reviewerId}/${item.fragrance_id}/explain`
+      )
+      setExplanations((current) => ({ ...current, [item.id]: response.data.explanation }))
+    } catch {
+      setExplanations((current) => ({
+        ...current,
+        [item.id]: `${item.fragrance_name} has a ${item.match_percent}% affinity score from your recorded preference history. The optional personalized explanation service is unavailable, but your recommendations and responses still work.`,
+      }))
+      task.setNotice('Showing a score-based explanation while the optional service is unavailable.')
+    }
+  }
+
   async function saveFollowUp(item: RecommendationImpression, form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
     const samplingState = String(values.sampling_state || '') || null
@@ -173,6 +189,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
             setRecommendationRun(null)
             setFollowUpId('')
             setOutcomes([])
+            setExplanations({})
             persistRunId(null)
           }}
         >
@@ -204,10 +221,18 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
             <article className="recommendation-card" key={item.id}>
               {(() => {
                 const latest = latestResponse(item)
-                const eligibleOutcomes = outcomes.filter(
-                  (outcome) =>
-                    (outcome.fragrance_id || outcome.identity?.fragrance_id) === item.fragrance_id
-                )
+                const eligibleOutcomes = outcomes.filter((outcome) => {
+                  const observedAt = outcome.observed_at || outcome.created_at
+                  return (
+                    (outcome.fragrance_id || outcome.identity?.fragrance_id) ===
+                      item.fragrance_id &&
+                    Boolean(
+                      observedAt &&
+                      recommendationRun.created_at &&
+                      new Date(observedAt) >= new Date(recommendationRun.created_at)
+                    )
+                  )
+                })
                 return (
                   <>
                     <div className="eyebrow">CHOICE {item.rank}</div>
@@ -215,6 +240,14 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                     <p>
                       {item.fragrance_brand} · {item.match_percent}% affinity
                     </p>
+                    <button
+                      className="secondary"
+                      disabled={task.busy}
+                      onClick={() => void task.run(() => explain(item))}
+                    >
+                      Why this recommendation?
+                    </button>
+                    {explanations[item.id] && <p>{explanations[item.id]}</p>}
                     <div
                       className="interest-actions"
                       aria-label={`Interest in ${item.fragrance_name}`}

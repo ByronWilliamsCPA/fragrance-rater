@@ -26,6 +26,7 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [loading, setLoading] = useState(assignments.length > 0)
   const [error, setError] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
 
   useEffect(() => {
     let current = true
@@ -35,6 +36,7 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
       return
     }
     setLoading(true)
+    setError('')
     void Promise.all(
       assignments.map((assignment) =>
         api.get<Enrollment>(`/calibration/enrollments/${assignment.id}`)
@@ -52,7 +54,7 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
     return () => {
       current = false
     }
-  }, [assignments])
+  }, [assignments, reloadKey])
 
   return (
     <section>
@@ -65,6 +67,15 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
       </div>
       <p>Continue current work or record an ordinary fragrance encounter.</p>
       <FeedbackBanner error={error} />
+      {error && (
+        <button
+          className="secondary"
+          disabled={loading}
+          onClick={() => setReloadKey((key) => key + 1)}
+        >
+          Retry assignment progress
+        </button>
+      )}
       <div className="button-row">
         <button onClick={() => navigate('ratings')}>Record an encounter</button>
         <button className="secondary" onClick={() => navigate('recommendations')}>

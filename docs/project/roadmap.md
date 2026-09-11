@@ -25,7 +25,7 @@ subject to the P1 deployment gate.
 | P1 | Calibration deployment, migration, recovery, and security readiness | Repository complete; external evidence pending through P6 |
 | P2 | Recommendation impression, feedback, sampling, and outcome measurement foundation | Complete |
 | P3 | Role-aware routed product foundation | Complete |
-| P4 | Complete participant interface | Implementation in progress |
+| P4 | Complete participant interface | Implementation complete; review pending |
 | P5 | Complete manager, reporting, and operations interface | Planned |
 | P6 | Deployed synthetic rehearsal and pilot-readiness decision | Planned |
 | F1 | Initial family pilot with actual perfumes | Planned after P6 |
