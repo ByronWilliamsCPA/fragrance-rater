@@ -343,6 +343,7 @@ async def get_recommendation_explanation(
     top_notes: list[str] = []
     heart_notes: list[str] = []
     base_notes: list[str] = []
+    unpositioned_notes: list[str] = []
     for fn in fragrance.notes:
         if fn.position == "top":
             top_notes.append(fn.note.name)
@@ -350,6 +351,8 @@ async def get_recommendation_explanation(
             heart_notes.append(fn.note.name)
         elif fn.position == "base":
             base_notes.append(fn.note.name)
+        elif fn.position == "flat":
+            unpositioned_notes.append(fn.note.name)
 
     fragrance_details = FragranceDetails(
         name=fragrance.name,
@@ -359,6 +362,7 @@ async def get_recommendation_explanation(
         top_notes=top_notes,
         heart_notes=heart_notes,
         base_notes=base_notes,
+        unpositioned_notes=unpositioned_notes,
         accords=[a.accord_type for a in fragrance.accords],
     )
 

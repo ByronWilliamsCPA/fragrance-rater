@@ -51,7 +51,7 @@ MIN_EVALUATIONS = 3
 
 @dataclass
 class UserProfile:
-    """User preference profile built from evaluations."""
+    """User profile whose count is distinct contributing fragrance versions."""
 
     reviewer_id: str
     note_affinities: dict[str, float] = field(default_factory=dict)
@@ -93,7 +93,8 @@ class ReviewerProfileSummary(TypedDict):
     """Reviewer preference summary prepared for display.
 
     Attributes:
-        evaluation_count (int): Number of evaluations behind the profile.
+        evaluation_count (int): Number of distinct fragrance versions contributing
+            ordinary or revealed controlled evidence to the profile.
         top_liked_notes (list[tuple[str, float]]): Highest-affinity notes.
         top_disliked_notes (list[tuple[str, float]]): Lowest-affinity notes.
         top_accords (list[tuple[str, float]]): Highest-affinity accords.
@@ -195,7 +196,9 @@ class RecommendationService:
         accord_affinities: dict[str, float] = defaultdict(float)
         family_affinities: dict[str, float] = defaultdict(float)
 
-        contributions = await self._contributions(reviewer_id, evaluations)
+        contributions = await self._contributions(
+            reviewer_id, evaluations, history, excluded
+        )
         for fragrance, weights in contributions.values():
             weight = sum(weights) / len(weights)
 
@@ -240,10 +243,13 @@ class RecommendationService:
         )
 
     async def _contributions(
-        self, reviewer_id: str, evaluations: list[Evaluation]
+        self,
+        reviewer_id: str,
+        evaluations: list[Evaluation],
+        history: PreferenceHistoryService,
+        excluded: set[str],
     ) -> dict[str, tuple[Fragrance, list[float]]]:
         """Average available workflow evidence once per canonical version."""
-        history = PreferenceHistoryService(self.session)
         contributions: dict[str, tuple[Fragrance, list[float]]] = {
             e.fragrance_id: (e.fragrance, [RATING_WEIGHTS.get(e.rating, 0.0)])
             for e in evaluations
@@ -259,7 +265,9 @@ class RecommendationService:
             )
         )
         if revealed_programs:
-            manifest = await history.training_manifest(reviewer_id)
+            manifest = await history.training_manifest(
+                reviewer_id, excluded=excluded, ordinary=evaluations
+            )
             controlled: dict[str, dict[str, object]] = {}
             for row in manifest:
                 if (

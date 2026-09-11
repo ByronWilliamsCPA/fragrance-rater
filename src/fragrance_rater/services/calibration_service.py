@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NoReturn
 
 from fastapi import HTTPException
 from sqlalchemy import or_, select
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     )
 
 
-def reject(message: str, status: int = 409) -> None:
+def reject(message: str, status: int = 409) -> NoReturn:
     """Raise a public domain error without disclosing hidden identity."""
     raise HTTPException(status_code=status, detail=message)
 
@@ -325,8 +325,39 @@ class CalibrationService:
 
     async def participant_view(self, enrollment: Enrollment) -> dict[str, object]:
         """Build an allowlisted payload; never serialize hidden ORM rows."""
+        presentations = await self.presentations(enrollment.id)
+        membership_ids = {obj.membership_id for obj in presentations}
+        members = {
+            member.id: member
+            for member in await self.db.scalars(
+                select(Membership).where(Membership.id.in_(membership_ids))
+            )
+        }
+        presentation_ids = {obj.id for obj in presentations}
+        observations_by_presentation: dict[str, list[Observation]] = {
+            presentation_id: [] for presentation_id in presentation_ids
+        }
+        for observation in await self.db.scalars(
+            select(Observation)
+            .where(Observation.presentation_id.in_(presentation_ids))
+            .order_by(Observation.created_at, Observation.id)
+        ):
+            observations_by_presentation[observation.presentation_id].append(
+                observation
+            )
+        fragrance_ids = {member.fragrance_id for member in members.values()}
+        fragrances = (
+            {
+                fragrance.id: fragrance
+                for fragrance in await self.db.scalars(
+                    select(Fragrance).where(Fragrance.id.in_(fragrance_ids))
+                )
+            }
+            if enrollment.revealed_at
+            else {}
+        )
         result: list[dict[str, object]] = []
-        for obj in await self.presentations(enrollment.id):
+        for obj in presentations:
             row: dict[str, object] = {
                 "id": obj.id,
                 "session_id": obj.session_id,
@@ -336,13 +367,7 @@ class CalibrationService:
                 "blotter_locked": obj.blotter_locked_at is not None,
                 "skin_locked": obj.skin_locked_at is not None,
             }
-            observations = list(
-                await self.db.scalars(
-                    select(Observation)
-                    .where(Observation.presentation_id == obj.id)
-                    .order_by(Observation.created_at, Observation.id)
-                )
-            )
+            observations = observations_by_presentation[obj.id]
             row["observations"] = [
                 {
                     "id": o.id,
@@ -352,14 +377,12 @@ class CalibrationService:
                 }
                 for o in observations
             ]
-            member = await self.db.get(Membership, obj.membership_id)
-            assert member is not None
+            member = members[obj.membership_id]
             # Holdout identities stay concealed until their own blind response is locked.
             if enrollment.revealed_at and (
                 member.role != "HOLDOUT" or obj.blotter_locked_at
             ):
-                fragrance = await self.db.get(Fragrance, member.fragrance_id)
-                assert fragrance is not None
+                fragrance = fragrances[member.fragrance_id]
                 row["identity"] = {
                     "fragrance_id": fragrance.id,
                     "name": fragrance.name,

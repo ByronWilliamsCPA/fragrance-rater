@@ -4,6 +4,7 @@ Tests the Parfumo.com web scraping functionality with mocked HTTP responses.
 """
 
 import threading
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -21,6 +22,7 @@ from fragrance_rater.services.parfumo_scraper import (
     ScrapedFragrance,
     SearchResult,
 )
+from fragrance_rater.utils.timestamps import now_naive_utc
 
 # Sample HTML for testing
 SAMPLE_PERFUME_PAGE = """
@@ -880,6 +882,16 @@ class TestParfumoScraperAsyncOffload:
         assert all(worker != event_loop_thread for worker in worker_threads)
 
 
+def test_version_key_hashes_the_full_url_after_bounded_readable_prefix():
+    """Long URLs with the same truncated tail prefix retain distinct identities."""
+    prefix = "x" * 190
+    first = ParfumoScraper._version_key(f"https://parfumo.com/Perfumes/a/{prefix}-one")
+    second = ParfumoScraper._version_key(f"https://parfumo.com/Perfumes/b/{prefix}-two")
+    assert first != second
+    assert len(first) <= 200
+    assert len(second) <= 200
+
+
 @pytest.mark.asyncio
 async def test_source_snapshots_preserve_collaborators_flat_notes_and_unknown_concentration(
     async_session,
@@ -914,6 +926,11 @@ async def test_source_snapshots_preserve_collaborators_flat_notes_and_unknown_co
         )
     )
     assert names == {"First Nose", "Second Nose"}
+    first_snapshot = await async_session.scalar(
+        select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
+    )
+    assert first_snapshot is not None
+    first_snapshot.retrieved_at = now_naive_utc() - timedelta(minutes=1)
     reviewer = Reviewer(id="source-reviewer", name="Source Reviewer")
     async_session.add(reviewer)
     await async_session.flush()
@@ -929,6 +946,14 @@ async def test_source_snapshots_preserve_collaborators_flat_notes_and_unknown_co
     scraped.rating_count = 45
     scraped.flat_notes = ["Rose"]
     await scraper._update_fragrance(fragrance, scraped)
+    latest_snapshot = next(
+        snapshot
+        for snapshot in await async_session.scalars(
+            select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
+        )
+        if snapshot.payload["rating_count"] == 45
+    )
+    latest_snapshot.retrieved_at = now_naive_utc()
     snapshots = list(
         await async_session.scalars(
             select(SourceSnapshot)

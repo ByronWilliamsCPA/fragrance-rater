@@ -2672,6 +2672,7 @@
             "enum": [
               "top",
               "heart",
+              "flat",
               "base"
             ],
             "title": "Position"

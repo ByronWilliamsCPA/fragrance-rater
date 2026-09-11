@@ -109,3 +109,20 @@ async def test_assigned_version_cannot_be_deleted(async_session):
     assert error.value.status_code == 409
     await async_session.refresh(fragrance)
     assert fragrance.deleted_at is None
+
+
+@pytest.mark.asyncio
+async def test_update_does_not_revive_version_deleted_while_waiting_for_lock(
+    async_session, monkeypatch
+):
+    """A delete committed before the update lock is observed after refresh."""
+    fragrance = await assigned_version(async_session)
+    service = FragranceService(async_session)
+
+    async def mark_deleted(_obj):
+        fragrance.deleted_at = fragrance.created_at
+
+    monkeypatch.setattr(async_session, "refresh", mark_deleted)
+    updated = await service.update(fragrance.id, FragranceUpdate(name="New name"))
+    assert updated is None
+    assert fragrance.name == "Assigned scent"

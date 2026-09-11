@@ -49,7 +49,7 @@ class Membership(Base):
         ForeignKey("calibration_programs.id", ondelete="RESTRICT"), index=True
     )
     fragrance_id: Mapped[str] = mapped_column(
-        ForeignKey("fragrances.id", ondelete="RESTRICT")
+        ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
     )
     role: Mapped[str] = mapped_column(String(30))
     repeat_of_id: Mapped[str | None] = mapped_column(

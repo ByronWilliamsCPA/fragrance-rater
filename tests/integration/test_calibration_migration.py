@@ -77,6 +77,11 @@ def test_upgrade_preserves_existing_ids_and_allows_dated_encounters():
             connection.execute(text("SELECT COUNT(*) FROM evaluations")).scalar() == 2
         )
         assert "calibration_observations" in inspect(connection).get_table_names()
+        membership_indexes = {
+            index["name"]
+            for index in inspect(connection).get_indexes("calibration_memberships")
+        }
+        assert "ix_calibration_memberships_fragrance_id" in membership_indexes
         assert (
             connection.execute(
                 text("SELECT version_key FROM fragrances WHERE id='f'")

@@ -196,6 +196,8 @@ class FragranceService:
                 .with_for_update()
             )
             await self.session.refresh(fragrance)
+            if fragrance.deleted_at is not None:
+                return None
             identity_changed = any(
                 getattr(fragrance, field) != update_data[field]
                 for field in identity_fields.intersection(update_data)

@@ -6,6 +6,7 @@ their declarative ``Base``; importing it registers every table on
 """
 
 from fragrance_rater.core.database import Base
+from fragrance_rater.models import calibration as calibration
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
     Fragrance,
@@ -24,6 +25,3 @@ __all__ = [
     "Note",
     "Reviewer",
 ]
-
-# Register controlled tables for Alembic and test metadata.
-from fragrance_rater.models import calibration as calibration

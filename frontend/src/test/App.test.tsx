@@ -24,20 +24,19 @@ const enrollment = {
 }
 beforeEach(() => {
   vi.clearAllMocks()
-  get.mockImplementation((path: string) =>
-    Promise.resolve({
-      data:
-        path === '/reviewers'
-          ? [{ id: 'r', name: 'Evaluator' }]
-          : path === '/calibration/programs'
-            ? [{ id: 'p', name: 'Baseline', version: '1' }]
-            : path === '/calibration/access'
-              ? { manager: false }
-              : path === '/calibration/enrollments'
-                ? [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }]
-                : enrollment,
-    })
-  )
+  get.mockImplementation((path: string) => {
+    const responses: Record<string, unknown> = {
+      '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+      '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
+      '/calibration/access': { manager: false },
+      '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+      '/calibration/enrollments/assignment': enrollment,
+      '/evaluations': [],
+    }
+    return path in responses
+      ? Promise.resolve({ data: responses[path] })
+      : Promise.reject(new Error(`Unexpected request: ${path}`))
+  })
   post.mockResolvedValue({ data: { id: 'saved' } })
 })
 describe('Calibration participant workflow', () => {
@@ -63,7 +62,7 @@ describe('Calibration participant workflow', () => {
       )
     )
   })
-  it('offers new ordinary encounters without replacing history', async () => {
+  it('offers the form for recording a new ordinary encounter', async () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'My Ratings' }))
     expect(screen.getByRole('button', { name: 'Save new encounter' })).toBeInTheDocument()

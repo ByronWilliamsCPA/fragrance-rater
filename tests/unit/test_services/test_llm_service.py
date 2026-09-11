@@ -34,11 +34,13 @@ class TestFragranceDetails:
             top_notes=["bergamot", "lemon"],
             heart_notes=["lavender"],
             base_notes=["cedar", "musk"],
+            unpositioned_notes=["orris"],
             accords=["fresh", "woody"],
         )
         assert details.name == "Test Fragrance"
         assert len(details.top_notes) == 2
         assert "cedar" in details.base_notes
+        assert details.unpositioned_notes == ["orris"]
 
     def test_default_empty_lists(self):
         """Test default empty lists."""
@@ -51,6 +53,7 @@ class TestFragranceDetails:
         assert details.top_notes == []
         assert details.heart_notes == []
         assert details.base_notes == []
+        assert details.unpositioned_notes == []
         assert details.accords == []
 
 

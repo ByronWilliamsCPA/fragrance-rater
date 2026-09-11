@@ -39,10 +39,9 @@ class PreferenceHistoryService:
             )
         )
 
-    async def training_manifest(self, reviewer_id: str) -> list[dict[str, object]]:
-        """Freeze raw response values and source features; no scale conflation."""
-        excluded = await self.excluded_versions(reviewer_id)
-        ordinary = list(
+    async def _ordinary(self, reviewer_id: str) -> list[Evaluation]:
+        """Load live ordinary encounters newest first."""
+        return list(
             await self.db.scalars(
                 select(Evaluation)
                 .where(
@@ -55,6 +54,23 @@ class PreferenceHistoryService:
                     Evaluation.id.desc(),
                 )
             )
+        )
+
+    async def training_manifest(
+        self,
+        reviewer_id: str,
+        *,
+        excluded: set[str] | None = None,
+        ordinary: list[Evaluation] | None = None,
+    ) -> list[dict[str, object]]:
+        """Freeze raw response values and source features; no scale conflation."""
+        excluded = (
+            excluded
+            if excluded is not None
+            else await self.excluded_versions(reviewer_id)
+        )
+        ordinary = (
+            ordinary if ordinary is not None else await self._ordinary(reviewer_id)
         )
         rows: list[dict[str, object]] = []
         seen: set[str] = set()
@@ -124,18 +140,21 @@ class PreferenceHistoryService:
                     "observed_at": observation.created_at.isoformat(),
                 }
             )
-        result: list[dict[str, object]] = []
-        for row in rows:
-            fragrance = await self.db.scalar(
+        fragrance_ids = {str(row["fragrance_id"]) for row in rows}
+        fragrances = {
+            fragrance.id: fragrance
+            for fragrance in await self.db.scalars(
                 select(Fragrance)
-                .where(
-                    Fragrance.id == row["fragrance_id"], Fragrance.deleted_at.is_(None)
-                )
+                .where(Fragrance.id.in_(fragrance_ids), Fragrance.deleted_at.is_(None))
                 .options(
                     selectinload(Fragrance.notes).selectinload(FragranceNote.note),
                     selectinload(Fragrance.accords),
                 )
             )
+        }
+        result: list[dict[str, object]] = []
+        for row in rows:
+            fragrance = fragrances.get(str(row["fragrance_id"]))
             if fragrance is None:
                 continue
             row["source_features"] = {

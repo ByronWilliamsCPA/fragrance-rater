@@ -228,6 +228,11 @@ class Settings(BaseSettings):
         description="Enable/disable LLM features",
     )
 
+    calibration_admin_usernames: list[str] = Field(
+        default_factory=list,
+        description="Verified Authentik usernames allowed to manage calibration",
+    )
+
     # Authentik forward-auth (Critical finding 2)
     # #CRITICAL: security: this app is deployed behind Authentik/Traefik
     # forward-auth; when True, mutating requests that lack a verified
@@ -238,8 +243,6 @@ class Settings(BaseSettings):
     # Settings() is instantiated (rate_limit_enabled is a separate,
     # test-only-disableable toggle but is left at its True default in tests;
     # see the comment above os.environ["AUTHENTIK_REQUIRED"] in conftest.py).
-    calibration_admin_usernames: list[str] = Field(default_factory=list)
-
     authentik_required: bool = Field(
         default=True,
         description=(

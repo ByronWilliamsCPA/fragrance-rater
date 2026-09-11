@@ -186,6 +186,14 @@ async def test_persisted_checkpoint_survives_response_and_source_changes(history
     service.db.add(response)
     await service.db.flush()
     manifest = await service.training_manifest("owner")
+    assert manifest[0]["source_features"] == {
+        "version_key": "legacy",
+        "concentration": "EDP",
+        "primary_family": "woody",
+        "subfamily": "",
+        "notes": [],
+        "accords": [],
+    }
     frozen_json = json.dumps(manifest, sort_keys=True)
     checkpoint = ModelCheckpoint(
         enrollment_id=enrollment.id,

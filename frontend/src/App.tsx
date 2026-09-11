@@ -43,6 +43,14 @@ const dimensions = [
   'discomfort',
 ]
 
+function formatUtc(value: string) {
+  const timestamp = /(Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`
+  return new Date(timestamp).toLocaleString(undefined, {
+    timeZone: 'UTC',
+    timeZoneName: 'short',
+  })
+}
+
 function App() {
   const [page, setPage] = useState('Calibration')
   const [catalog, setCatalog] = useState<(Person & { brand: string; concentration: string })[]>([])
@@ -514,7 +522,7 @@ function App() {
                   {catalog.find((f) => f.id === h.fragrance_id)?.name || 'Saved fragrance'} ·{' '}
                   {h.rating}/5
                 </strong>
-                <p>{h.evaluated_at} UTC</p>
+                <p>{formatUtc(h.evaluated_at)}</p>
               </article>
             ))}
           </section>
@@ -631,6 +639,7 @@ function App() {
               <label>
                 Evaluator
                 <select name="reviewer_id" required>
+                  <option value="">Choose evaluator</option>
                   {reviewers.map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}

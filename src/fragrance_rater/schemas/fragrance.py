@@ -34,7 +34,7 @@ class FragranceNoteCreate(BaseModel):
 
     note_name: str = Field(..., min_length=1, max_length=100)
     note_category: str = Field(..., min_length=1, max_length=50)
-    position: Literal["top", "heart", "base"]
+    position: Literal["top", "heart", "flat", "base"]
 
 
 class FragranceNoteResponse(BaseModel):

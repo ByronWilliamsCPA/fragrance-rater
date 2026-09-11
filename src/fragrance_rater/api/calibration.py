@@ -1,6 +1,6 @@
 """Calibration endpoints with separate manager and recorder authorization."""
 
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -63,19 +63,14 @@ async def access(identity: Identity) -> dict[str, object]:
 async def programs(db: DB, identity: Identity) -> list[dict[str, object]]:
     """List protocol descriptions without membership or blind mappings."""
     username, admin = actor(identity)
-    stmt = select(Program)
+    result = list(await db.scalars(select(Program)))
+    allowed: set[str] = set()
     if not admin:
-        stmt = stmt.join(Enrollment).where(Enrollment.recorder_usernames.is_not(None))
-    result = list((await db.scalars(stmt)).unique())
-    allowed = (
-        set(await db.scalars(select(Enrollment.program_id)))
-        if admin
-        else {
+        allowed = {
             e.program_id
             for e in await db.scalars(select(Enrollment))
             if username in e.recorder_usernames
         }
-    )
     return [
         {"id": p.id, "name": p.name, "version": p.version, "status": p.status}
         for p in result
@@ -351,7 +346,8 @@ async def history(
         view = await service.participant_view(enrollment)
         presentations = view["presentations"]
         assert isinstance(presentations, list)
-        for presentation in presentations:
+        for presentation in cast("list[dict[str, Any]]", presentations):
+            observations = cast("list[dict[str, Any]]", presentation["observations"])
             result.extend(
                 {
                     **observation,
@@ -361,6 +357,6 @@ async def history(
                     "blind_code": presentation["blind_code"],
                     "identity": presentation.get("identity"),
                 }
-                for observation in presentation["observations"]
+                for observation in observations
             )
     return result

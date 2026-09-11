@@ -95,6 +95,12 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(
+        op.f("ix_calibration_memberships_fragrance_id"),
+        "calibration_memberships",
+        ["fragrance_id"],
+        unique=False,
+    )
+    op.create_index(
         op.f("ix_calibration_memberships_program_id"),
         "calibration_memberships",
         ["program_id"],

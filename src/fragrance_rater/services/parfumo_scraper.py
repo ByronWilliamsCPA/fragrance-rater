@@ -10,6 +10,7 @@ Parfumo uses Cloudflare protection - be respectful of their resources.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import re
 import time
@@ -785,9 +786,13 @@ class ParfumoScraper:
 
         # Check if fragrance already exists
         # Critical finding 2: soft-delete filter.
-        stmt = select(Fragrance).where(
-            Fragrance.parfumo_url == scraped.url,
-            Fragrance.deleted_at.is_(None),
+        stmt = (
+            select(Fragrance)
+            .where(
+                Fragrance.parfumo_url == scraped.url,
+                Fragrance.deleted_at.is_(None),
+            )
+            .order_by(Fragrance.created_at, Fragrance.id)
         )
         result = await self.db.execute(stmt)
         existing = result.scalars().first()
@@ -823,9 +828,13 @@ class ParfumoScraper:
 
         # Check if exists
         # Critical finding 2: soft-delete filter.
-        stmt = select(Fragrance).where(
-            Fragrance.parfumo_url == scraped.url,
-            Fragrance.deleted_at.is_(None),
+        stmt = (
+            select(Fragrance)
+            .where(
+                Fragrance.parfumo_url == scraped.url,
+                Fragrance.deleted_at.is_(None),
+            )
+            .order_by(Fragrance.created_at, Fragrance.id)
         )
         result = await self.db.execute(stmt)
         existing = result.scalars().first()
@@ -873,7 +882,7 @@ class ParfumoScraper:
             name=name,
             brand=brand,
             concentration=scraped.concentration or "Unknown",
-            version_key="parfumo:" + scraped.url.rsplit("/", 1)[-1][:190],
+            version_key=self._version_key(scraped.url),
             gender_target=gender_map.get(scraped.gender or "", "Unisex"),
             launch_year=scraped.year,
             primary_family=self._infer_family(scraped),
@@ -905,6 +914,15 @@ class ParfumoScraper:
 
         await self.db.commit()
         return fragrance.id
+
+    @staticmethod
+    def _version_key(url: str) -> str:
+        """Build a readable, bounded key with full-URL collision resistance."""
+        url_tail = url.rsplit("/", 1)[-1]
+        url_digest = hashlib.sha256(url.encode(), usedforsecurity=False).hexdigest()[
+            :16
+        ]
+        return f"parfumo:{url_tail[:174]}:{url_digest}"
 
     async def _update_fragrance(
         self,
@@ -951,18 +969,36 @@ class ParfumoScraper:
                 select(Perfumer).where(Perfumer.name == name)
             )
             if perfumer is None:
-                perfumer = Perfumer(name=name)
-                self.db.add(perfumer)
-                await self.db.flush()
+                try:
+                    async with self.db.begin_nested():
+                        perfumer = Perfumer(name=name)
+                        self.db.add(perfumer)
+                        await self.db.flush()
+                except IntegrityError:
+                    perfumer = await self.db.scalar(
+                        select(Perfumer).where(Perfumer.name == name)
+                    )
+            if perfumer is None:
+                msg = f"Perfumer {name!r} was not readable after insert conflict"
+                raise RuntimeError(msg)
             link = await self.db.get(VersionPerfumer, (fragrance_id, perfumer.id))
             if link is None:
-                self.db.add(
-                    VersionPerfumer(
-                        fragrance_id=fragrance_id,
-                        perfumer_id=perfumer.id,
-                        source_url=scraped.url,
+                try:
+                    async with self.db.begin_nested():
+                        self.db.add(
+                            VersionPerfumer(
+                                fragrance_id=fragrance_id,
+                                perfumer_id=perfumer.id,
+                                source_url=scraped.url,
+                            )
+                        )
+                        await self.db.flush()
+                except IntegrityError:
+                    logger.info(
+                        "Perfumer attribution already exists: fragrance_id=%s perfumer=%r",
+                        fragrance_id,
+                        name,
                     )
-                )
         await self.db.flush()
 
     async def _add_notes(self, fragrance_id: str, scraped: ScrapedFragrance) -> None:
@@ -1069,7 +1105,12 @@ class ParfumoScraper:
                     return family
 
         # Check all notes
-        all_notes = scraped.top_notes + scraped.heart_notes + scraped.base_notes
+        all_notes = (
+            scraped.top_notes
+            + scraped.heart_notes
+            + scraped.flat_notes
+            + scraped.base_notes
+        )
         all_notes_lower = [n.lower() for n in all_notes]
 
         for family, keywords in families.items():
