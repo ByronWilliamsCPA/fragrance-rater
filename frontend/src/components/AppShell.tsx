@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode } from 'react'
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import type { Access, Capabilities } from '../api/types'
 import { navigationItems, type Route } from '../routing/routes'
 
@@ -11,11 +11,18 @@ type AppShellProps = {
 }
 
 export function AppShell({ access, capabilities, route, navigate, children }: AppShellProps) {
+  const mainContent = useRef<HTMLElement>(null)
+  const previousRoute = useRef(route)
   const role = capabilities.canManagePrograms
     ? 'Manager'
     : capabilities.canRecordCalibration
       ? 'Recorder'
       : 'Participant'
+
+  useEffect(() => {
+    if (previousRoute.current !== route) mainContent.current?.focus()
+    previousRoute.current = route
+  }, [route])
 
   function follow(event: MouseEvent<HTMLAnchorElement>, destination: Route) {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
@@ -54,7 +61,7 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
             </a>
           ))}
       </nav>
-      <main id="main-content" tabIndex={-1}>
+      <main ref={mainContent} id="main-content" tabIndex={-1}>
         {children}
       </main>
       <footer>Ordinary encounters and controlled observations share one preference history.</footer>

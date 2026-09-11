@@ -91,6 +91,7 @@ describe('Calibration participant workflow', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'My Ratings' }))
     expect(screen.getByRole('button', { name: 'Save new encounter' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/ratings')
+    expect(screen.getByRole('main')).toHaveFocus()
     await screen.findByRole('option', { name: 'Evaluator' })
   })
   it('records recommendation interest with one interaction', async () => {

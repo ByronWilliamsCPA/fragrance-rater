@@ -20,6 +20,10 @@ export function requestErrorMessage(error: unknown): string {
 
   const detail: unknown = error.response?.data?.detail
   if (typeof detail === 'string' && detail.trim()) return detail
+  if (typeof detail === 'object' && detail !== null && 'message' in detail) {
+    const message = (detail as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) return message
+  }
   if (!error.response)
     return 'The service could not be reached. Check your connection and try again.'
   if (error.response.status === 401)
