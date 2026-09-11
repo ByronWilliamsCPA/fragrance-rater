@@ -1,6 +1,19 @@
 # Development Roadmap: Fragrance Rater
 
-> **Status**: Active | **Updated**: 2025-12-28
+> **Status**: Historical phase outline; follow-up sequencing updated 2026-09-11
+
+## Current follow-up sequence
+
+The [Project Plan](PROJECT-PLAN.md#7-follow-up-explore-and-candidate-discovery) is authoritative
+for the new discovery work: D0 calibration integration → D1 source/vocabulary foundation →
+D2 reproducible statistics → D3 post-reveal exploration and D4 candidate pilot → D5 prospective
+evaluation. These are planned gates, not shipped features. The
+[Scent chords reference](../research/scent-chords-analysis.md) records the supporting analysis.
+
+The original checklist below predates the current backend and is retained as historical scope;
+its “Pending” labels must not be read as an implementation audit. Fragella references describe
+the original proposal; the implemented source integration is Parfumo. Consult current code and
+the updated Project Plan before scheduling work from this checklist.
 
 ## TL;DR
 

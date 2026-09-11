@@ -175,6 +175,7 @@ nav:
       - Technical Spec: planning/tech-spec.md
       - Development Roadmap: planning/roadmap.md
       - Project Plan: planning/PROJECT-PLAN.md
+      - Scent chords Analysis: research/scent-chords-analysis.md
       - Plan Template: planning/project-plan-template.md
 
   - Architecture Decisions:
