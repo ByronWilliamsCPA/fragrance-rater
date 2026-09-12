@@ -447,6 +447,8 @@ class TestImportParfumoSearchCommand:
         mock_result.name = "Aventus"
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
+        mock_result.concentration = "Eau de Parfum"
+        mock_result.year = 2010
 
         with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             mock_scraper = MagicMock()
@@ -461,6 +463,8 @@ class TestImportParfumoSearchCommand:
             assert "Found 1 result" in result.output
             assert "Aventus" in result.output
             assert "Creed" in result.output
+            assert "Eau de Parfum" in result.output
+            assert "2010" in result.output
 
     @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_import_first(self, mock_session_maker: MagicMock) -> None:
@@ -474,6 +478,8 @@ class TestImportParfumoSearchCommand:
         mock_result.name = "Aventus"
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
+        mock_result.concentration = "Eau de Parfum"
+        mock_result.year = 2010
 
         with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             # Use MagicMock for sync methods, AsyncMock for async
@@ -490,8 +496,131 @@ class TestImportParfumoSearchCommand:
             )
 
             assert result.exit_code == 0
-            assert "Importing first result" in result.output
+            assert "Importing result 1" in result.output
             assert "Imported with ID: fragrance-456" in result.output
+
+    @patch("fragrance_rater.cli.async_session_maker")
+    def test_parfumo_search_select(self, mock_session_maker: MagicMock) -> None:
+        """Should import the chosen result with --select N."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        # MagicMock's constructor `name=` kwarg sets the mock's own repr,
+        # not an attribute, so `.name` is set explicitly afterward instead.
+        first = MagicMock()
+        first.name = "Aimez-Moi"
+        first.brand = "Caron"
+        first.url = "https://parfumo.com/aimez-moi-1996"
+        first.concentration = "Eau de Toilette"
+        first.year = 1996
+        second = MagicMock()
+        second.name = "Aimez-Moi"
+        second.brand = "Caron"
+        second.url = "https://parfumo.com/aimez-moi-comme-je-suis"
+        second.concentration = None
+        second.year = 2020
+
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
+            mock_scraper = MagicMock()
+            mock_scraper.search.return_value = [first, second]
+            mock_scraper.import_from_url = AsyncMock(return_value="fragrance-789")
+            mock_scraper.close = MagicMock()
+            mock_scraper_class.return_value = mock_scraper
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli,
+                ["import-data", "parfumo-search", "Aimez-Moi Caron", "--select", "2"],
+            )
+
+            assert result.exit_code == 0
+            assert "Multiple results share a name" in result.output
+            assert "Importing result 2" in result.output
+            assert "Imported with ID: fragrance-789" in result.output
+            mock_scraper.import_from_url.assert_awaited_once_with(second.url)
+
+    @patch("fragrance_rater.cli.async_session_maker")
+    def test_parfumo_search_select_out_of_range(
+        self, mock_session_maker: MagicMock
+    ) -> None:
+        """--select N outside 1..result_count must report the valid
+        range and exit non-zero rather than importing the wrong result
+        or raising an unhandled IndexError."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        first = MagicMock()
+        first.name = "Aimez-Moi"
+        first.brand = "Caron"
+        first.url = "https://parfumo.com/aimez-moi-1996"
+        first.concentration = "Eau de Toilette"
+        first.year = 1996
+
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
+            mock_scraper = MagicMock()
+            mock_scraper.search.return_value = [first]
+            mock_scraper.import_from_url = AsyncMock()
+            mock_scraper.close = MagicMock()
+            mock_scraper_class.return_value = mock_scraper
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli,
+                ["import-data", "parfumo-search", "Aimez-Moi Caron", "--select", "5"],
+            )
+
+            assert result.exit_code == 1
+            assert "--select 5 is out of range (1-1)" in result.output
+            mock_scraper.import_from_url.assert_not_awaited()
+
+    @patch("fragrance_rater.cli.async_session_maker")
+    def test_parfumo_search_import_first_refused_when_ambiguous(
+        self, mock_session_maker: MagicMock
+    ) -> None:
+        """--import-first must refuse rather than silently pick a
+        release when multiple results share a name (Critical finding:
+        see docs/planning/evidence/
+        baseline-v3.1-parfumo-source-resolution.md's Caron Aimez-Moi
+        case, where an automated "first result" pick would have chosen
+        an unrelated fragrance)."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        first = MagicMock()
+        first.name = "Aimez-Moi"
+        first.brand = "Caron"
+        first.url = "https://parfumo.com/aimez-moi-1996"
+        first.concentration = "Eau de Toilette"
+        first.year = 1996
+        second = MagicMock()
+        second.name = "Aimez-Moi"
+        second.brand = "Caron"
+        second.url = "https://parfumo.com/aimez-moi-comme-je-suis"
+        second.concentration = None
+        second.year = 2020
+
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
+            mock_scraper = MagicMock()
+            mock_scraper.search.return_value = [first, second]
+            mock_scraper.import_from_url = AsyncMock()
+            mock_scraper.close = MagicMock()
+            mock_scraper_class.return_value = mock_scraper
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli,
+                ["import-data", "parfumo-search", "Aimez-Moi Caron", "--import-first"],
+            )
+
+            assert result.exit_code == 1
+            assert "Refusing --import-first" in result.output
+            mock_scraper.import_from_url.assert_not_awaited()
 
     @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_offloads_blocking_search_to_thread(
@@ -513,6 +642,8 @@ class TestImportParfumoSearchCommand:
         mock_result.name = "Aventus"
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
+        mock_result.concentration = "Eau de Parfum"
+        mock_result.year = 2010
 
         def blocking_search(query: str, limit: int = 10) -> list[MagicMock]:
             # Simulates the real search()'s blocking network call.
@@ -531,3 +662,99 @@ class TestImportParfumoSearchCommand:
             assert result.exit_code == 0
             assert "Found 1 result" in result.output
             assert "Aventus" in result.output
+
+
+class TestImportFragellaLookupCommand:
+    """Tests for import-data fragella-lookup - a reference-only lookup
+    that never creates/updates a Fragrance record."""
+
+    def test_no_results(self) -> None:
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.search = AsyncMock(return_value=[])
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["import-data", "fragella-lookup", "Nonexistent Scent"]
+            )
+
+            assert result.exit_code == 0
+            assert "No results found" in result.output
+
+    def test_displays_results_without_importing(self) -> None:
+        mock_result = MagicMock()
+        mock_result.name = "Aimez-Moi"
+        mock_result.brand = "Caron"
+        mock_result.year = 1996
+        mock_result.oil_type = "Eau de Toilette"
+        mock_result.confidence = "medium"
+        mock_result.general_notes = ["Violet", "Iris"]
+        mock_result.top_notes = ["Violet"]
+        mock_result.middle_notes = ["Iris"]
+        mock_result.base_notes = ["Musk"]
+
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.search = AsyncMock(return_value=[mock_result])
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["import-data", "fragella-lookup", "Aimez-Moi Caron"]
+            )
+
+            assert result.exit_code == 0
+            assert "reference only, not imported" in result.output
+            assert "Aimez-Moi" in result.output
+            assert "Caron" in result.output
+            assert "1996" in result.output
+
+    def test_reports_a_fragella_error_and_exits_non_zero(self) -> None:
+        from fragrance_rater.services.fragella_client import FragellaError
+
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.search = AsyncMock(
+                side_effect=FragellaError("FRAGELLA_API_KEY is not configured")
+            )
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["import-data", "fragella-lookup", "Aimez-Moi Caron"]
+            )
+
+            assert result.exit_code == 1
+            assert "Fragella lookup failed" in result.output
+
+
+class TestImportFragellaUsageCommand:
+    """Tests for import-data fragella-usage."""
+
+    def test_prints_the_usage_body(self) -> None:
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.usage = AsyncMock(
+                return_value={"plan": "free", "usage": {"requests_remaining": 17}}
+            )
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["import-data", "fragella-usage"])
+
+            assert result.exit_code == 0
+            assert "requests_remaining" in result.output
+            assert "17" in result.output
+
+    def test_reports_failure_when_usage_is_unavailable(self) -> None:
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.usage = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["import-data", "fragella-usage"])
+
+            assert result.exit_code == 1
+            assert "Could not retrieve Fragella usage" in result.output

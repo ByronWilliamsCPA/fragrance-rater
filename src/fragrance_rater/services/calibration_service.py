@@ -15,10 +15,12 @@ from fragrance_rater.models.calibration import (
     Observation,
     Presentation,
     Program,
+    SourceSnapshot,
 )
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.services.llm_service import get_llm_service
+from fragrance_rater.utils.gtin import normalize_gtin
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -94,6 +96,65 @@ class CalibrationService:
         assert obj is not None
         return obj
 
+    async def _check_gtin_against_source_evidence(
+        self, fragrance_id: str, gtin: str
+    ) -> None:
+        """Reject an operator-entered GTIN that contradicts scraped source evidence.
+
+        # #CRITICAL: data-integrity: this is the actual gap-closing
+        # mechanism a barcode is meant to provide - if the physical
+        # bottle's scanned GTIN does not match a GTIN already recorded in
+        # any of this fragrance's source snapshots (e.g. its Parfumo
+        # page), that is a strong, mechanical signal the wrong catalog
+        # version is about to be assigned, independent of any text-based
+        # ambiguity. Silently accepting the operator's value in that case
+        # would defeat the entire point of capturing a barcode.
+        # `ParfumoScraper._save_source` appends a new snapshot on every
+        # re-scrape rather than updating one in place, so a fragrance can
+        # accumulate several snapshots over time - checking only the
+        # newest would miss a conflict an older refresh recorded but a
+        # later, GTIN-less refresh silently dropped. Absence of a
+        # recorded source GTIN in a given snapshot is not evidence of
+        # anything (many pages simply do not publish one - see
+        # `ParfumoScraper._extract_gtin`) and is not treated as a
+        # conflict.
+        # #VERIFY: covered by a test asserting a mismatched GTIN is
+        # rejected and a matching or absent one is accepted, including
+        # when the conflict is on an older, non-latest snapshot.
+
+        Args:
+            fragrance_id (str): Catalog version being assigned.
+            gtin (str): The operator-entered, already check-digit-valid GTIN.
+        """
+        snapshots = await self.db.scalars(
+            select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
+        )
+        normalized_gtin = normalize_gtin(gtin)
+        for snapshot in snapshots:
+            source_gtin = snapshot.payload.get("gtin")
+            if not isinstance(source_gtin, str) or not source_gtin:
+                continue
+            # Normalize both sides to GTIN-14 (zero-padded) before
+            # comparing: a UPC-A (GTIN-12) and the EAN-13/GTIN-14
+            # encoding of the exact same product are different-length
+            # strings for the identical item, and a raw string compare
+            # would reject a legitimate match as a false conflict. Only
+            # normalize a source value that is itself all-ASCII digits;
+            # anything else falls back to the raw compare rather than
+            # risk padding non-numeric scraped text into a misleading
+            # match.
+            normalized_source = (
+                normalize_gtin(source_gtin)
+                if source_gtin.isascii() and source_gtin.isdigit()
+                else source_gtin
+            )
+            if normalized_source != normalized_gtin:
+                reject(
+                    "Entered GTIN does not match this fragrance's recorded "
+                    "source evidence - re-check the physical bottle and the "
+                    "catalog entry before assigning it"
+                )
+
     async def add_member(self, program_id: str, data: MembershipInput) -> Membership:
         """Require explicit version evidence and consistent hidden-repeat linkage."""
         program = await self.program(program_id)
@@ -134,8 +195,18 @@ class CalibrationService:
             x.role == "HOLDOUT" for x in existing
         ):
             reject("Holdout version cannot also be a training member")
+        if data.gtin is not None:
+            await self._check_gtin_against_source_evidence(data.fragrance_id, data.gtin)
         selection = dict(data.selection)
+        # `selection` is a client-controlled free-form dict; never let a
+        # raw "gtin" key inside it stand in for the validated, cross-
+        # checked top-level `data.gtin` field, or both the check-digit
+        # validation and the source-evidence conflict check above can be
+        # bypassed by putting the value under "selection" instead.
+        selection.pop("gtin", None)
         selection["identity_evidence"] = data.identity_evidence
+        if data.gtin is not None:
+            selection["gtin"] = data.gtin
         member = Membership(
             program_id=program_id,
             fragrance_id=data.fragrance_id,

@@ -1,6 +1,7 @@
 """Controlled workflow integrity and blind-response regression tests."""
 
 import json
+from datetime import timedelta
 from unittest.mock import patch
 
 import pytest
@@ -9,7 +10,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import select
 
-from fragrance_rater.models.calibration import Observation, Program
+from fragrance_rater.models.calibration import Observation, Program, SourceSnapshot
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.calibration import (
@@ -151,6 +152,176 @@ async def test_holdout_cannot_also_be_training_member(protocol):
                     identity_evidence="Verified",
                 ),
             )
+
+
+@pytest.mark.asyncio
+async def test_add_member_accepts_gtin_matching_source_evidence(protocol):
+    """A physically-scanned GTIN that agrees with this fragrance's own
+    recorded source evidence (e.g. a Parfumo scrape) is accepted and
+    retained on the membership."""
+    service, program, *_ = protocol
+    service.db.add(
+        SourceSnapshot(
+            fragrance_id="secret-version-2",
+            source_url="https://example.test/secret-version-2",
+            payload={"gtin": "3508440005953"},
+        )
+    )
+    await service.db.flush()
+
+    member = await service.add_member(
+        program.id,
+        MembershipInput(
+            fragrance_id="secret-version-2",
+            role="UNIVERSAL_BASELINE",
+            identity_evidence="Barcode matches recorded source evidence",
+            gtin="3508440005953",
+        ),
+    )
+    assert member.selection["gtin"] == "3508440005953"
+
+
+@pytest.mark.asyncio
+async def test_add_member_rejects_gtin_mismatching_source_evidence(protocol):
+    """Regression test for the actual gap-closing mechanism a barcode is
+    meant to provide: a scanned GTIN that contradicts this fragrance's
+    recorded source evidence must block assignment, not just be stored
+    alongside the conflict."""
+    service, program, *_ = protocol
+    service.db.add(
+        SourceSnapshot(
+            fragrance_id="secret-version-2",
+            source_url="https://example.test/secret-version-2",
+            payload={"gtin": "3508440005953"},
+        )
+    )
+    await service.db.flush()
+
+    with pytest.raises(HTTPException, match="does not match"):
+        await service.add_member(
+            program.id,
+            MembershipInput(
+                fragrance_id="secret-version-2",
+                role="UNIVERSAL_BASELINE",
+                identity_evidence="Barcode from the bottle",
+                gtin="036000291452",
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_add_member_ignores_a_raw_gtin_smuggled_via_selection(protocol):
+    """`selection` is a client-controlled free-form dict; a raw "gtin" key
+    placed there (with the validated top-level `gtin` field omitted) must
+    not bypass check-digit validation or the source-evidence conflict
+    check - the persisted selection must never carry an unvalidated gtin."""
+    service, program, *_ = protocol
+    service.db.add(
+        SourceSnapshot(
+            fragrance_id="secret-version-2",
+            source_url="https://example.test/secret-version-2",
+            payload={"gtin": "3508440005953"},
+        )
+    )
+    await service.db.flush()
+
+    member = await service.add_member(
+        program.id,
+        MembershipInput(
+            fragrance_id="secret-version-2",
+            role="UNIVERSAL_BASELINE",
+            identity_evidence="Barcode matches recorded source evidence",
+            selection={"gtin": "not-a-real-gtin-and-conflicts"},
+        ),
+    )
+    assert "gtin" not in member.selection
+
+
+@pytest.mark.asyncio
+async def test_add_member_accepts_a_gtin_14_matching_gtin_13_source_evidence(
+    protocol,
+):
+    """A UPC-A/EAN-13 GTIN recorded as source evidence and its zero-padded
+    GTIN-14 form are the identical product under GS1's own comparison
+    rule; a raw string compare would reject this pairing as a false
+    conflict since the two forms are different lengths."""
+    service, program, *_ = protocol
+    service.db.add(
+        SourceSnapshot(
+            fragrance_id="secret-version-2",
+            source_url="https://example.test/secret-version-2",
+            payload={"gtin": "3508440005953"},
+        )
+    )
+    await service.db.flush()
+
+    member = await service.add_member(
+        program.id,
+        MembershipInput(
+            fragrance_id="secret-version-2",
+            role="UNIVERSAL_BASELINE",
+            identity_evidence="Barcode matches recorded source evidence",
+            gtin="03508440005953",
+        ),
+    )
+    assert member.selection["gtin"] == "03508440005953"
+
+
+@pytest.mark.asyncio
+async def test_add_member_rejects_gtin_conflicting_with_an_older_snapshot(protocol):
+    """A fragrance can accumulate multiple SourceSnapshot rows over time
+    (ParfumoScraper._save_source appends rather than updates in place).
+    A conflict recorded in an older snapshot must still block assignment
+    even when the newest refresh's payload omits a GTIN entirely - only
+    checking the latest snapshot would let a stale-but-genuine conflict
+    silently slip through."""
+    service, program, *_ = protocol
+    service.db.add(
+        SourceSnapshot(
+            fragrance_id="secret-version-2",
+            source_url="https://example.test/secret-version-2/older",
+            payload={"gtin": "3508440005953"},
+            retrieved_at=now_naive_utc() - timedelta(days=30),
+        )
+    )
+    service.db.add(
+        SourceSnapshot(
+            fragrance_id="secret-version-2",
+            source_url="https://example.test/secret-version-2/newer",
+            payload={"name": "Aimez-Moi"},
+            retrieved_at=now_naive_utc(),
+        )
+    )
+    await service.db.flush()
+
+    with pytest.raises(HTTPException, match="does not match"):
+        await service.add_member(
+            program.id,
+            MembershipInput(
+                fragrance_id="secret-version-2",
+                role="UNIVERSAL_BASELINE",
+                identity_evidence="Barcode from the bottle",
+                gtin="036000291452",
+            ),
+        )
+
+
+@pytest.mark.asyncio
+async def test_add_member_accepts_gtin_with_no_recorded_source_evidence(protocol):
+    """Absence of recorded source evidence is not itself a conflict - many
+    scraped pages simply never publish a gtin (see ParfumoScraper.
+    _extract_gtin)."""
+    service, program, *_ = protocol
+    member = await service.add_member(
+        program.id,
+        MembershipInput(
+            fragrance_id="secret-version-2",
+            role="UNIVERSAL_BASELINE",
+            identity_evidence="Barcode from the bottle, no source snapshot on file",
+            gtin="036000291452",
+        ),
+    )
+    assert member.selection["gtin"] == "036000291452"
 
 
 @pytest.mark.asyncio

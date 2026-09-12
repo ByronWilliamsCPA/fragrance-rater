@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +12,7 @@ from fragrance_rater.core.database import get_db
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
+    FragellaLookup,
     Membership,
     ModelCheckpoint,
     Observation,
@@ -31,6 +32,8 @@ from fragrance_rater.schemas.calibration import (
 )
 from fragrance_rater.services.calibration_service import CalibrationService, reject
 from fragrance_rater.services.evaluation_service import EvaluationService
+from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
+from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
 from fragrance_rater.services.preference_history import PreferenceHistoryService
 from fragrance_rater.utils.timestamps import now_naive_utc
 
@@ -108,6 +111,30 @@ async def add_member(
     return {"id": obj.id}
 
 
+def _serialize_fragella_lookup(
+    lookup: FragellaLookup | None,
+) -> dict[str, object] | None:
+    """Build the manager-facing summary of a fragella_lookups row.
+
+    Args:
+        lookup (FragellaLookup | None): The row to serialize, or None.
+
+    Returns:
+        dict[str, object] | None: None when `lookup` is None (never
+            checked yet), so the frontend can distinguish "not checked"
+            from "checked, found nothing."
+    """
+    if lookup is None:
+        return None
+    return {
+        "checked_at": lookup.queried_at.isoformat(),
+        "query": lookup.query,
+        "status": lookup.status,
+        "error_message": lookup.error_message,
+        "results": lookup.results,
+    }
+
+
 @router.get("/programs/{program_id}/members")
 async def members(
     program_id: str, db: DB, identity: Identity
@@ -120,6 +147,9 @@ async def members(
             .where(Membership.program_id == program_id)
             .order_by(Membership.group_name, Membership.id)
         )
+    )
+    latest_fragella = await FragellaLookupService(db).latest_by_fragrance(
+        [item.fragrance_id for item in items]
     )
     result: list[dict[str, object]] = []
     for item in items:
@@ -137,6 +167,9 @@ async def members(
                 "repeat_of_id": item.repeat_of_id,
                 "group_name": item.group_name,
                 "identity_evidence": item.selection.get("identity_evidence"),
+                "fragella": _serialize_fragella_lookup(
+                    latest_fragella.get(item.fragrance_id)
+                ),
             }
         )
     return sorted(
@@ -147,6 +180,68 @@ async def members(
             str(row["fragrance_name"]),
         ),
     )
+
+
+@router.post("/programs/{program_id}/members/{membership_id}/fragella-lookup")
+async def fragella_lookup(
+    program_id: str,
+    membership_id: str,
+    db: DB,
+    identity: Identity,
+    query: Annotated[str | None, Query(max_length=500)] = None,
+) -> dict[str, object]:
+    """Run (or re-run) a Fragella reference lookup for one membership.
+
+    Manual and manager-only: the account's 20-request/month quota is
+    spent only when a manager deliberately asks, never automatically.
+    Records the attempt (success or error) so the manager view can show
+    which fragrances still have not been checked without spending
+    another request to find out. Never writes into `Fragrance` fields
+    or membership evidence - see ADR-002's 2026-09-13 amendment.
+    """
+    # #ASSUME: data-integrity: `query` is a raw query-string parameter,
+    # not a Pydantic-validated body field; `max_length` above rejects an
+    # overlong value with a clean 400 before it can spend a Fragella
+    # request and then fail at flush() against FragellaLookup.query's
+    # String(500) column. A NUL byte is separately rejected here since
+    # it is valid in a Python str but not in a Postgres text column,
+    # which would otherwise surface as an unhandled 500 at flush() too.
+    if query is not None and "\x00" in query:
+        reject("query must not contain a NUL byte", 400)
+    manager_name = manager(identity)
+    member = await db.get(Membership, membership_id)
+    if member is None or member.program_id != program_id:
+        reject("Membership not found", 404)
+    assert member is not None
+    fragrance = await db.get(Fragrance, member.fragrance_id)
+    if fragrance is None:
+        reject("Catalog version not found", 404)
+    assert fragrance is not None
+    lookup = await FragellaLookupService(db).run_lookup(
+        fragrance, manager_name, query=query
+    )
+    result = _serialize_fragella_lookup(lookup)
+    assert result is not None
+    return result
+
+
+@router.get("/fragella/usage")
+async def fragella_usage(identity: Identity) -> dict[str, object]:
+    """Report the Fragella account's remaining monthly quota.
+
+    Manager-only; fetched on demand from the manager UI rather than
+    automatically before every lookup, since whether checking usage
+    itself counts against the same quota is undocumented (see
+    fragella_client.py's module docstring).
+    """
+    manager(identity)
+    try:
+        usage = await FragellaClient().usage()
+    except FragellaError:
+        usage = None
+    if usage is None:
+        reject("Could not retrieve Fragella usage", 502)
+    return usage
 
 
 @router.post("/programs/{program_id}/activate")

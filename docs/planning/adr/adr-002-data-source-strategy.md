@@ -19,6 +19,32 @@ current priority is local catalog → manual verified entry/source link → auth
 snapshot or refresh. A source is never allowed to overwrite evaluator evidence or assigned
 version identity.
 
+## 2026-09-12 amendment: Fragella as a capped reference lookup, not a source
+
+Fragella's rejection above was as a *primary* source (its 20 requests/month free tier is far too
+small for routine enrichment). This amendment authorizes a narrower, still-declined-as-a-source
+use: `fragella_client.py` and the `import-data fragella-lookup`/`fragella-usage` CLI commands are
+an operator-invoked, quota-capped reference lookup for the same class of gap the V3.1
+baseline/holdout resolution hit by hand (see
+docs/planning/evidence/baseline-v3.1-parfumo-source-resolution.md) - a same-name ambiguity
+Parfumo's own search left open, or a concentration/year Parfumo does not publish.
+
+This does not become a "Fragella-derived corpus" or a stored data source, and does not require
+its own reuse-rights review the way one would: nothing `FragellaClient` returns is written into
+the `Fragrance` catalog or a `SourceSnapshot`. A `fragella_lookups` row does retain the attempt
+(query, status, and result payload) as a lookup-log record so a manager can see which fragrances
+still have not been checked without spending another request to find out, but that row is never
+adopted into `Fragrance` or `SourceSnapshot` and never written into a membership's identity
+evidence - the same role a manual Fragrantica/Basenotes lookup already plays per this ADR's
+original mitigation ("UI provides copy-paste from Fragrantica"). Adopting Fragella data as a
+stored, provenance-bearing source remains gated behind the reuse-rights review this ADR and
+ADR-006 require, unchanged.
+
+The integration itself is built from Fragella's published API documentation, not a live
+authenticated response (no API key was available while building it) - see
+`fragella_client.py`'s module docstring for the explicit caveat and the smoke-test this ADR
+expects before it is relied on for a real gap-filling decision.
+
 ## Context
 
 ### Problem

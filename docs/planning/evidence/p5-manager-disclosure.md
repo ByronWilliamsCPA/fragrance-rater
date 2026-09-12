@@ -17,6 +17,7 @@ usability measures.
 | Surface | Manager result | Recorder/participant result | Cache and disclosure control | Evidence |
 | :--- | :--- | :--- | :--- | :--- |
 | Program membership | Exact version, role, repeat, group, and verification evidence | `403` | `private, no-store`; identity header in `Vary` | Calibration API lifecycle test |
+| Fragella reference lookup (run/re-run) and quota check | Runs a lookup for one membership and returns reference-only results, or the account's remaining monthly quota | `403`; the account's Fragella API key is never sent to or readable by a participant/recorder | `private, no-store` on the GET quota check; the POST lookup only ever runs on explicit manager action, never automatically | Calibration API tests (`test_fragella_lookup_*`, `test_fragella_usage_*`) |
 | Enrollment list | All enrollments with names, progress, blockers, and recorder grants | Manager overview is `403`; shared participant list returns assigned rows only | Every identity-dependent list is `private, no-store`; identity header in `Vary` | Calibration API lifecycle test |
 | Mapping and labels | Blind code to exact version and experimental role | `403`; mapping is absent from participant payloads | `private, no-store`; labels render only on the manager route | API authorization and frontend manager workflow tests |
 | Checkpoints and metrics | Frozen model evidence and explicit metric contract | `403` | `private, no-store`; exported JSON is initiated by an authorized manager from the current response | Measurement API test |

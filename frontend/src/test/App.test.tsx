@@ -533,6 +533,175 @@ describe('Calibration participant workflow', () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith('/calibration/programs/p/activate'))
   })
 
+  it('includes a scanned GTIN when adding a catalog version to a draft', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'draft' }],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/programs/p/members': [],
+        '/fragrances': [
+          {
+            id: 'fragrance-secret',
+            name: 'Oak Study',
+            brand: 'Family House',
+            concentration: 'EDP',
+            version_key: 'oak-2026',
+          },
+        ],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
+    // Selecting a program kicks off its own task.run() to load members;
+    // the search form's button stays disabled (shared task.busy state)
+    // until that settles, so wait for it before interacting further.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Search catalog' })).not.toBeDisabled()
+    )
+
+    fireEvent.change(screen.getByLabelText('Find catalog version'), {
+      target: { value: 'Oak Study' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Search catalog' }))
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /Family House/ })).toBeInTheDocument()
+    )
+
+    fireEvent.change(screen.getByLabelText('Exact catalog version'), {
+      target: { value: 'fragrance-secret' },
+    })
+    fireEvent.change(screen.getByLabelText('Version verification evidence'), {
+      target: { value: 'Bottle and batch checked' },
+    })
+    fireEvent.change(screen.getByLabelText('GTIN barcode (optional)'), {
+      target: { value: '3508440005953' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add version' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/calibration/programs/p/members', {
+        fragrance_id: 'fragrance-secret',
+        role: 'UNIVERSAL_BASELINE',
+        repeat_of_id: null,
+        group_name: 'Baseline',
+        identity_evidence: 'Bottle and batch checked',
+        gtin: '3508440005953',
+      })
+    )
+  })
+
+  it('runs a manual Fragella check and shows an already-checked result as reference only', async () => {
+    const uncheckedMember = {
+      id: 'member-unchecked',
+      fragrance_id: 'fragrance-unchecked',
+      fragrance_name: 'Aimez-Moi',
+      fragrance_brand: 'Caron',
+      concentration: 'EDT',
+      version_key: 'aimez-moi-1996',
+      role: 'UNIVERSAL_BASELINE',
+      repeat_of_id: null,
+      group_name: 'Baseline',
+      identity_evidence: 'Bottle and batch checked',
+      fragella: null,
+    }
+    const checkedMember = {
+      ...uncheckedMember,
+      id: 'member-checked',
+      fragrance_id: 'fragrance-checked',
+      fragrance_name: 'Fougere Royale',
+      identity_evidence: 'Bottle and batch checked',
+      fragella: {
+        checked_at: '2026-09-13T10:00:00Z',
+        query: 'Houbigant Fougere Royale',
+        status: 'success',
+        error_message: null,
+        results: [
+          {
+            id: 'fougere-royale-2010',
+            name: 'Fougere Royale',
+            brand: 'Houbigant',
+            year: 2010,
+            oil_type: 'Eau de Parfum',
+            gender: null,
+            general_notes: [],
+            top_notes: [],
+            middle_notes: [],
+            base_notes: [],
+            confidence: 'medium',
+          },
+        ],
+      },
+    }
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'draft' }],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/programs/p/members': [uncheckedMember, checkedMember],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+    post.mockResolvedValue({
+      data: { checked_at: '2026-09-13T10:05:00Z', status: 'success', results: [] },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
+
+    // Already-checked membership: shows the recorded result, never edits
+    // fragrance fields, and offers only a confirmed re-check.
+    expect(await screen.findByText(/Fragella checked/)).toBeInTheDocument()
+    expect(screen.getByText(/Houbigant/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Re-check Fragella' })).toBeInTheDocument()
+
+    // Re-check, then cancel: no request is spent, and the action reverts
+    // to its unconfirmed state.
+    fireEvent.click(screen.getByRole('button', { name: 'Re-check Fragella' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(post).not.toHaveBeenCalledWith(
+      '/calibration/programs/p/members/member-checked/fragella-lookup'
+    )
+    expect(screen.getByRole('button', { name: 'Re-check Fragella' })).toBeInTheDocument()
+
+    // Re-check, then confirm: the request is spent against this
+    // membership's own path.
+    fireEvent.click(screen.getByRole('button', { name: 'Re-check Fragella' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Spend another monthly request' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/calibration/programs/p/members/member-checked/fragella-lookup'
+      )
+    )
+
+    // Never-checked membership: the first check spends the same scarce
+    // monthly quota as a re-check, so it is gated behind the same
+    // explicit confirmation step, not run on the first click.
+    fireEvent.click(screen.getByRole('button', { name: 'Run Fragella check' }))
+    expect(post).not.toHaveBeenCalledWith(
+      '/calibration/programs/p/members/member-unchecked/fragella-lookup'
+    )
+    const confirmCheck = screen.getByRole('button', { name: 'Spend a monthly request' })
+    expect(confirmCheck).toHaveFocus()
+    fireEvent.click(confirmCheck)
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/calibration/programs/p/members/member-unchecked/fragella-lookup'
+      )
+    )
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/programs/p/members'))
+  })
+
   it('operates the pilot with human-readable manager data', async () => {
     get.mockImplementation((path: string) => {
       const responses: Record<string, unknown> = {

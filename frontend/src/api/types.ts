@@ -97,6 +97,35 @@ export type Program = Person & {
   status: string
 }
 
+export type FragellaResult = {
+  id: string
+  name: string
+  brand: string
+  year: number | null
+  oil_type: string | null
+  gender: string | null
+  general_notes: string[]
+  top_notes: string[]
+  middle_notes: string[]
+  base_notes: string[]
+  confidence: string | null
+}
+
+export type FragellaLookupSummary = {
+  checked_at: string
+  query: string
+  status: 'success' | 'error'
+  error_message: string | null
+  results: FragellaResult[]
+}
+
+export type FragellaUsage = {
+  plan?: string
+  billing_period?: { start?: string; end?: string }
+  limit?: { total_effective_limit?: number }
+  usage?: { requests_made?: number; requests_remaining?: number }
+}
+
 export type ProgramMember = {
   id: string
   fragrance_id: string
@@ -108,6 +137,7 @@ export type ProgramMember = {
   repeat_of_id: string | null
   group_name: string
   identity_evidence: string | null
+  fragella: FragellaLookupSummary | null
 }
 
 export type ManagerEnrollment = {

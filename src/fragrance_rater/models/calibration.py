@@ -271,6 +271,46 @@ class SourceSnapshot(Base):
     payload: Mapped[dict[str, object]] = mapped_column(JSON)
 
 
+class FragellaLookup(Base):
+    """A Fragella reference-lookup attempt for a fragrance.
+
+    # #ASSUME: data-integrity: distinct from SourceSnapshot - this is not
+    # adopted source evidence (see ADR-002's 2026-09-13 amendment).
+    # `results` is read-only reference data a manager can compare against
+    # while verifying identity; nothing here is ever written back into
+    # `Fragrance` fields or copied into a membership's
+    # `identity_evidence`/`verification_evidence` automatically. Recorded
+    # so a manager can see which fragrances still have not been checked
+    # ("fill holes") without re-spending one of the account's 20
+    # monthly requests just to find out.
+    # #VERIFY: no code path other than FragellaLookupService writes a
+    # Fragrance column or Membership.selection from a FragellaLookup row.
+    """
+
+    __tablename__ = "fragella_lookups"
+    # #ASSUME: data-integrity: `status` has exactly two legal values today
+    # (FragellaLookupService.run_lookup only ever writes "error" or
+    # "success"); a bare String(20) column upheld the invariant that
+    # `status` moves in lockstep with `error_message`/`results` only by
+    # programmer discipline in that one write path, so a future write path
+    # could otherwise leave e.g. status="success" with a stale
+    # error_message. A CHECK constraint moves that enforcement to the
+    # schema, matching the existing IN(...) precedent on
+    # PilotOperationalEvent.event_type.
+    # #VERIFY: covered by a test asserting a third value fails at flush().
+    __table_args__ = (CheckConstraint("status IN ('error', 'success')"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    fragrance_id: Mapped[str] = mapped_column(
+        ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
+    )
+    queried_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
+    query: Mapped[str] = mapped_column(String(500))
+    requested_by: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    results: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+
+
 class Perfumer(Base):
     """Named source contributor."""
 

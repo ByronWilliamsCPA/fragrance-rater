@@ -42,7 +42,13 @@ also need a named recorder header; no anonymous manager bypass exists.
 
 Use Program setup to create a draft, add exact catalog version IDs with verification evidence,
 link hidden repeats to their baseline membership IDs, activate the definition, and enroll
-reviewers with explicit recorder usernames. One recorder can record for several evaluators.
+reviewers with explicit recorder usernames. Membership additionally accepts an optional `gtin`
+(the physical bottle's barcode): when the fragrance's own recorded source evidence (e.g. a
+Parfumo scrape) already carries a `gtin`, a conflicting entered value is rejected outright rather
+than stored alongside the disagreement - see `fragrance_rater.utils.gtin` and
+`CalibrationService._check_gtin_against_source_evidence`. A barcode match is stronger identity
+evidence than any text-based source comparison; its absence is not itself a problem, since many
+sources never publish one. One recorder can record for several evaluators.
 Program activation freezes membership; enrollment independently randomizes codes and order.
 Repeats are interleaved with baseline stimuli with separation where the number of stimuli
 permits it. Small diagnostic/test definitions may have insufficient stimuli for the usual

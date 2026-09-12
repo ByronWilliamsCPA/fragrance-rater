@@ -30,6 +30,13 @@ human-readable verification evidence, physical-sample confirmation, role, and re
 relationship. A hidden repeat uses the exact fragrance UUID and version key of its referenced
 original. An unresolved version is left out of the program rather than guessed.
 
+Record the physical bottle's barcode as `gtin` when it has one - the strongest identity signal
+available, since it is assigned per exact SKU by the manufacturer rather than inferred from text.
+It is optional (a decant or some indie houses carry no scannable barcode), but when present it
+must be a real, check-digit-valid GTIN-8/12/13/14; the same validator (`fragrance_rater.utils.
+gtin`) enforces this both here and in the live Program setup API, where a scanned GTIN that
+contradicts the fragrance's own recorded source evidence is rejected outright.
+
 Validate the completed file:
 
 ```bash
