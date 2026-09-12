@@ -15,8 +15,8 @@ the same pull request.
 | P2 | Recommendation measurement foundation | Complete | P0 complete | Impressions, feedback, sampling, outcomes, events, and provenance-complete metrics implemented |
 | P3 | Product UX foundation | Complete | P0 and P2 complete | Routed shell and accessibility baseline accepted |
 | P4 | Participant experience | Complete | P3 complete | Participant workflows require no IDs or API tools |
-| P5 | Manager and operations experience | Review pending | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
-| P6 | Integrated pilot readiness | Planned | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
+| P5 | Manager and operations experience | Complete | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
+| P6 | Integrated pilot readiness | In progress; external execution pending | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
 | F1 | Initial family perfume pilot | Planned | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
 | D1 | Source and vocabulary foundation | Planned | F1 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
@@ -35,10 +35,10 @@ P0 ┬→ P1 ----------------------------------------------┐
 
 ## Immediate queue
 
-1. Review and merge the P5 manager, reporting, and operations workflows implemented with synthetic data.
-2. Continue non-UI P1 evidence: physical manifest, authorized fixtures, backup clone, migration,
+1. Use the P6 runbook and retained-evidence templates against the final release candidate.
+2. Complete P1 evidence: physical manifest, authorized fixtures, backup clone, migration,
    concurrency, and recovery.
-3. Run P6 on the final deployed UI and close all remaining P1 evidence.
+3. Run the authenticated device, synthetic workflow, quality, and operations rehearsals.
 4. Begin F1 with actual pilot perfumes only after the P6 go decision.
 
 ## Delivered historical scope

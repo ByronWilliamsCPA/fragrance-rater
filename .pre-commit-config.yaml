@@ -123,7 +123,11 @@ repos:
     hooks:
       - id: bandit-full
         name: Bandit Security Scan (full src/)
-        entry: uv run bandit -c pyproject.toml -r src/ -ll -q
+        # scripts/validate_p6_readiness.py is named explicitly (not the whole
+        # scripts/ tree) because it gates the P6 pilot go/no-go decision and
+        # the changed-file bandit hook above excludes scripts/ entirely; other
+        # scripts are not yet in scope for this check.
+        entry: uv run bandit -c pyproject.toml -r src/ scripts/validate_p6_readiness.py -ll -q
         language: system
         pass_filenames: false
         stages: [pre-push]
@@ -140,7 +144,10 @@ repos:
     hooks:
       - id: basedpyright
         name: BasedPyright type checker
-        entry: uv run --no-sync basedpyright src/
+        # scripts/validate_p6_readiness.py is named explicitly for the same
+        # reason as the bandit-full hook above: it gates a release decision
+        # and was otherwise checked by nothing in this repo.
+        entry: uv run --no-sync basedpyright src/ scripts/validate_p6_readiness.py
         language: system
         pass_filenames: false
         stages: [pre-commit]

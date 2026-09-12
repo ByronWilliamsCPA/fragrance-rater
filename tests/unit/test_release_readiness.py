@@ -107,6 +107,204 @@ def test_manifest_reports_non_string_identifiers_without_crashing() -> None:
     assert "entries[0].fragrance_id must be non-empty text" in errors
 
 
+def valid_p6_readiness() -> dict[str, Any]:
+    """Return a complete machine-readable P6 go record."""
+    return {
+        "release": {
+            "commit": "a" * 40,
+            "app_image_digest": f"sha256:{'b' * 64}",
+            "frontend_image_digest": f"sha256:{'c' * 64}",
+            "deployment_reference": "private:release-candidate",
+            "remote_ci_passed": True,
+        },
+        "gates": {f"P6.{index}": "pass" for index in range(1, 7)},
+        "artifacts": {
+            "p1_gate": "private:p1",
+            "device_matrix": "private:devices",
+            "synthetic_rehearsal": "private:rehearsal",
+            "redacted_export_manifest": "private:export",
+            "quality_report": "private:quality",
+            "operations_drill": "private:operations",
+            "signed_decision": "private:decision",
+        },
+        "known_limitations": [],
+        "decision": {
+            "value": "go",
+            "decided_by": "core maintainer",
+            "decided_at": "2026-09-12T04:00:00Z",
+        },
+    }
+
+
+def test_p6_readiness_accepts_a_complete_go_record() -> None:
+    """All gates, evidence references, and immutable release fields close P6."""
+    validator = load_script("validate_p6_readiness")
+    assert validator.validate_readiness(valid_p6_readiness()) == []
+
+
+def test_p6_readiness_rejects_pending_evidence_and_decision() -> None:
+    """A partially filled template cannot authorize actual perfume testing."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["release"]["remote_ci_passed"] = False
+    document["gates"]["P6.4"] = "pending"
+    document["artifacts"]["quality_report"] = "replace-with-private-reference"
+    document["decision"]["value"] = "no-go"
+    errors = validator.validate_readiness(document)
+    assert "release.remote_ci_passed must be true" in errors
+    assert "gates.P6.4 must be pass" in errors
+    assert (
+        "artifacts.quality_report must use the private:<opaque-reference> format"
+        in errors
+    )
+    assert "decision.value must be go to close P6" in errors
+
+
+def valid_limitation() -> dict[str, Any]:
+    """Return a complete, well-formed, non-blocking known limitation."""
+    return {
+        "id": "P6-L1",
+        "summary": "Participant disclosure failure",
+        "affected_role": "participant",
+        "workflow": "onboarding",
+        "likelihood": "low",
+        "impact": "minor UI confusion",
+        "workaround": "manager clarifies verbally",
+        "owner": "core maintainer",
+        "blocking": False,
+        "disposition": "Accepted for F1",
+    }
+
+
+def test_p6_readiness_rejects_blocking_limitations_and_non_utc_decision() -> None:
+    """Blocking limitations and local timestamps keep the gate open."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["known_limitations"] = [{**valid_limitation(), "blocking": True}]
+    document["decision"]["decided_at"] = "2026-09-12T04:00:00-07:00"
+    errors = validator.validate_readiness(document)
+    assert "known_limitations[0] remains release blocking" in errors
+    assert (
+        "decision.decided_at must be an ISO 8601 UTC timestamp (Z or +00:00 only)"
+        in errors
+    )
+
+
+def test_p6_readiness_accepts_a_well_formed_non_blocking_limitation() -> None:
+    """A fully completed, already-resolved limitation does not block P6."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["known_limitations"] = [valid_limitation()]
+    assert validator.validate_readiness(document) == []
+
+
+def test_p6_readiness_rejects_incomplete_limitation_fields() -> None:
+    """Every required limitation field is checked, not just id/summary/disposition."""
+    validator = load_script("validate_p6_readiness")
+    validator_module = validator
+    limitation = {**valid_limitation(), "affected_role": "pending", "owner": ""}
+    errors = validator_module.validate_limitations([limitation])
+    assert "known_limitations[0].affected_role must be completed text" in errors
+    assert "known_limitations[0].owner must be completed text" in errors
+
+
+def test_completed_text_accepts_legitimate_prose_containing_pending() -> None:
+    """A substring match would wrongly reject prose that contains 'pending'."""
+    validator = load_script("validate_p6_readiness")
+    assert validator.completed_text("no longer depending on the LLM provider") is True
+
+
+@pytest.mark.parametrize("junk", ["TBD", "N/A", "TODO", "x", "-", "?", "  fixme  "])
+def test_completed_text_rejects_obvious_non_completions(junk: str) -> None:
+    """Short junk tokens are not template placeholders but are not real data."""
+    validator = load_script("validate_p6_readiness")
+    assert validator.completed_text(junk) is False
+
+
+def test_decided_at_accepts_fractional_seconds_regardless_of_digit_count() -> None:
+    """A 2-digit fraction was rejected on 3.10 and accepted on 3.11+.
+
+    The validator now defines its own grammar (padding the fraction to six
+    digits before the one canonical form is parsed), so this is accepted
+    deterministically instead of depending on which CPython runs it.
+    """
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["decision"]["decided_at"] = "2026-09-12T04:00:00.12Z"
+    assert validator.validate_readiness(document) == []
+
+
+@pytest.mark.parametrize(
+    "timestamp",
+    [
+        "2026-09-12T04:00:00+0000",  # offset missing the required colon
+        "20260912T040000Z",  # basic format, no date/time separators
+        "2026-09-12 04:00:00Z",  # space date-time separator, not RFC 3339
+    ],
+)
+def test_decided_at_rejects_non_canonical_variants(timestamp: str) -> None:
+    """Variants outside the validator's own grammar are rejected consistently.
+
+    `datetime.fromisoformat` accepts both of these on Python 3.11+ (and
+    rejects them on 3.10); the validator's own grammar rejects both on every
+    supported interpreter instead of inheriting that version-dependent
+    leniency.
+    """
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["decision"]["decided_at"] = timestamp
+    errors = validator.validate_readiness(document)
+    assert any(error.startswith("decision.decided_at") for error in errors)
+
+
+def test_decided_at_rejects_offset_unknown() -> None:
+    """RFC 3339 '-00:00' means offset unknown, not attributable UTC."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["decision"]["decided_at"] = "2026-09-12T04:00:00-00:00"
+    errors = validator.validate_readiness(document)
+    assert any(error.startswith("decision.decided_at") for error in errors)
+
+
+def test_decided_at_accepts_lowercase_z() -> None:
+    """RFC 3339 permits a lowercase 'z' designator."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["decision"]["decided_at"] = "2026-09-12t04:00:00z"
+    assert validator.validate_readiness(document) == []
+
+
+def test_gate_value_normalizes_like_every_other_text_field() -> None:
+    """Gate values should not require exact-match 'pass' unlike other fields."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["gates"]["P6.1"] = " Pass "
+    assert validator.validate_readiness(document) == []
+
+
+def test_private_reference_rejects_a_public_url() -> None:
+    """A public URL is not a private evidence reference."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["release"]["deployment_reference"] = "https://example.com/release"
+    errors = validator.validate_readiness(document)
+    assert (
+        "release.deployment_reference must use the private:<opaque-reference> format"
+        in errors
+    )
+
+
+def test_main_reports_exit_code_two_for_non_utf8_input(tmp_path: Path) -> None:
+    """A non-UTF-8 record fails the documented I/O contract, not a traceback."""
+    validator = load_script("validate_p6_readiness")
+    record = tmp_path / "bad_encoding.json"
+    record.write_bytes(b"\xff\xfe{}")
+    argv = ["validate_p6_readiness.py", str(record)]
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr("sys.argv", argv)
+        assert validator.main() == 2
+
+
 def valid_topology() -> dict[str, Any]:
     """Return the minimum valid rendered production topology."""
     return {

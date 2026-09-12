@@ -26,8 +26,8 @@ subject to the P1 deployment gate.
 | P2 | Recommendation impression, feedback, sampling, and outcome measurement foundation | Complete |
 | P3 | Role-aware routed product foundation | Complete |
 | P4 | Complete participant interface | Complete |
-| P5 | Complete manager, reporting, and operations interface | Implementation complete; review pending |
-| P6 | Deployed synthetic rehearsal and pilot-readiness decision | Planned |
+| P5 | Complete manager, reporting, and operations interface | Complete |
+| P6 | Deployed synthetic rehearsal and pilot-readiness decision | In progress; external execution pending |
 | F1 | Initial family pilot with actual perfumes | Planned after P6 |
 | D1 | Versioned source, alias, and taxonomy foundation | Planned |
 | D2 | Reproducible catalog statistics | Planned |

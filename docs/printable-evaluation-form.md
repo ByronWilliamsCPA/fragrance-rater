@@ -1,233 +1,137 @@
 ---
-title: "Fragrance Evaluation Form"
+title: "Printable evaluation and outage form"
 schema_type: common
 status: published
 owner: core-maintainer
-purpose: "Printable form for recording fragrance evaluations offline, for later entry via the CLI or API."
+purpose: "Provide a disclosure-safe paper record for ordinary and blind fragrance observations during an approved outage."
 tags:
   - guide
   - evaluation
+  - deployment
 ---
 
-> **Instructions**: Use this form to record fragrance evaluations when offline.
-> Enter data via CLI: `fragrance-rater import-data manual evaluations.csv`
-> Or via API: `POST /api/v1/evaluations`
+Print one copy for each sample and stage. Use this form only when the manager has declared an
+application outage during an approved synthetic rehearsal or pilot. Stop electronic submissions
+until the manager announces recovery.
 
----
+For a blind session, write only the physical blind code. Do not write the fragrance identity,
+experimental role, repeat relationship, holdout status, or mapping anywhere on this form. Keep
+completed forms with the assigned recorder and store them as private evidence.
 
-## Session Info
+## Session and record
 
-| Field | Value |
+| Field | Entry |
 | --- | --- |
-| **Date** | __________________ |
-| **Reviewer** | ☐ Byron  ☐ Veronica  ☐ Bayden  ☐ Ariannah |
-| **Location** | __________________ |
+| Paper record ID | _______________________________________________ |
+| Data classification | ☐ Synthetic rehearsal ☐ Approved family pilot |
+| Workflow | ☐ Ordinary rating ☐ Blind controlled session |
+| Program or session private reference | _______________________________________________ |
+| Assigned evaluator reference | _______________________________________________ |
+| Recorder initials | __________________ |
+| Local date and time | __________________ |
+| Time zone | __________________ |
 
----
+## Sample and stage
 
-## Evaluation 1
+Complete the row that applies to the selected workflow.
 
-| Field | Value |
+| Field | Entry |
 | --- | --- |
-| **Fragrance Name** | __________________________________ |
-| **Brand** | __________________________________ |
-| **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
+| Blind session: physical blind code | _______________________________________________ |
+| Ordinary rating: exact fragrance version (leave blank for a pre-reveal blind stage) | _______________________________________________ |
+| Blind stage | ☐ Blotter ☐ Skin ☐ Post-reveal |
+| Elapsed minutes from application | __________________ |
+| Observation local date and time | __________________ |
 
-### Evaluation 1: Ratings (circle one)
+For a pre-reveal blind stage, leave the ordinary fragrance-version row blank. For an ordinary
+rating, leave the blind code, blind stage, and elapsed-minutes rows blank unless the application
+workflow requires an elapsed observation.
 
-| Category | Rating |
+## Core observation
+
+For an ordinary rating, circle the applicable number in the **Ordinary rating** row and leave the
+remaining rows blank. For a blind
+controlled session, complete the fields shown for the selected stage in the application. A zero
+is a real response. If **Detected** is **No**, record intensity as `0` and leave liking blank.
+
+| Measure | Response |
 | --- | --- |
-| **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
-| **Longevity** | 1  2  3  4  5  (or N/A) |
-| **Sillage** | 1  2  3  4  5  (or N/A) |
+| Ordinary rating | 1 2 3 4 5 |
+| Detected | Yes / No |
+| Intensity | 0 1 2 3 4 5 |
+| Liking | 0 1 2 3 4 5 6 7 8 9 10 / N/A |
+| Confidence | 0 1 2 3 4 5 / N/A |
+| Projection | 0 1 2 3 4 5 / N/A |
+| Longevity in minutes | __________________ / N/A |
 
-### Evaluation 1: Notes Detected
+## Perceived attributes
 
-| Position | Notes (comma-separated) |
+Circle one value or mark `N/A`. Record only what the evaluator perceives.
+
+| Attribute | Response |
 | --- | --- |
-| **Top** | __________________________________ |
-| **Heart** | __________________________________ |
-| **Base** | __________________________________ |
+| Sweetness | 0 1 2 3 4 5 / N/A |
+| Freshness | 0 1 2 3 4 5 / N/A |
+| Density | 0 1 2 3 4 5 / N/A |
+| Familiarity | 0 1 2 3 4 5 / N/A |
+| Dryness | 0 1 2 3 4 5 / N/A |
+| Clean or soapy | 0 1 2 3 4 5 / N/A |
+| Earthy or rooty | 0 1 2 3 4 5 / N/A |
+| Bodily or animalic | 0 1 2 3 4 5 / N/A |
+| Discomfort | 0 1 2 3 4 5 / N/A |
 
-### Evaluation 1: Comments
+## Optional outcome ratings
+
+Complete only fields shown for this workflow and stage in the application.
+
+| Measure | Response |
+| --- | --- |
+| Opening liking | 0 1 2 3 4 5 6 7 8 9 10 / N/A |
+| Drydown liking | 0 1 2 3 4 5 6 7 8 9 10 / N/A |
+| Would wear | 0 1 2 3 4 5 6 7 8 9 10 / N/A |
+| Would buy | 0 1 2 3 4 5 6 7 8 9 10 / N/A |
+| Artistic appreciation | 0 1 2 3 4 5 6 7 8 9 10 / N/A |
+
+## Perceived notes and comments
+
+Do not copy a note list or concealed identity. Do not record passwords, medical details,
+hostnames, tokens, or unrelated personal information.
 
 ```text
-_______________________________________________
-_______________________________________________
-_______________________________________________
+Perceived notes: _____________________________________________________________
+Likes: ______________________________________________________________________
+Dislikes: ___________________________________________________________________
+Reminds me of: ______________________________________________________________
+Comments or ordinary-rating observations:
+______________________________________________________________________________
+______________________________________________________________________________
 ```
 
----
+## Reconciliation after recovery
 
-## Evaluation 2
+The recorder enters this observation through the authenticated application after service
+recovery. Before entry, verify that no saved electronic response already represents this paper
+record. Never use a direct API, database, or unauthenticated route as an outage shortcut.
 
-| Field | Value |
+| Check | Entry |
 | --- | --- |
-| **Fragrance Name** | __________________________________ |
-| **Brand** | __________________________________ |
-| **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
+| Evaluator or participant initials | __________________ |
+| Recorder initials | __________________ |
+| Duplicate check completed | ☐ Yes |
+| Entered by | _______________________________________________ |
+| Entry UTC date and time | _______________________________________________ |
+| Application response private reference | _______________________________________________ |
+| Paper-to-application comparison | ☐ Exact ☐ Corrected with explanation below |
+| Verified by and UTC date/time | _______________________________________________ |
 
-### Evaluation 2: Ratings (circle one)
-
-| Category | Rating |
-| --- | --- |
-| **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
-| **Longevity** | 1  2  3  4  5  (or N/A) |
-| **Sillage** | 1  2  3  4  5  (or N/A) |
-
-### Evaluation 2: Notes Detected
-
-| Position | Notes (comma-separated) |
-| --- | --- |
-| **Top** | __________________________________ |
-| **Heart** | __________________________________ |
-| **Base** | __________________________________ |
-
-### Evaluation 2: Comments
+Correction or recovery explanation:
 
 ```text
-_______________________________________________
-_______________________________________________
-_______________________________________________
+______________________________________________________________________________
+______________________________________________________________________________
+______________________________________________________________________________
 ```
 
----
-
-## Evaluation 3
-
-| Field | Value |
-| --- | --- |
-| **Fragrance Name** | __________________________________ |
-| **Brand** | __________________________________ |
-| **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
-
-### Evaluation 3: Ratings (circle one)
-
-| Category | Rating |
-| --- | --- |
-| **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
-| **Longevity** | 1  2  3  4  5  (or N/A) |
-| **Sillage** | 1  2  3  4  5  (or N/A) |
-
-### Evaluation 3: Notes Detected
-
-| Position | Notes (comma-separated) |
-| --- | --- |
-| **Top** | __________________________________ |
-| **Heart** | __________________________________ |
-| **Base** | __________________________________ |
-
-### Evaluation 3: Comments
-
-```text
-_______________________________________________
-_______________________________________________
-_______________________________________________
-```
-
----
-
-## Evaluation 4
-
-| Field | Value |
-| --- | --- |
-| **Fragrance Name** | __________________________________ |
-| **Brand** | __________________________________ |
-| **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
-
-### Evaluation 4: Ratings (circle one)
-
-| Category | Rating |
-| --- | --- |
-| **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
-| **Longevity** | 1  2  3  4  5  (or N/A) |
-| **Sillage** | 1  2  3  4  5  (or N/A) |
-
-### Evaluation 4: Notes Detected
-
-| Position | Notes (comma-separated) |
-| --- | --- |
-| **Top** | __________________________________ |
-| **Heart** | __________________________________ |
-| **Base** | __________________________________ |
-
-### Evaluation 4: Comments
-
-```text
-_______________________________________________
-_______________________________________________
-_______________________________________________
-```
-
----
-
-## Evaluation 5
-
-| Field | Value |
-| --- | --- |
-| **Fragrance Name** | __________________________________ |
-| **Brand** | __________________________________ |
-| **Concentration** | ☐ EDT  ☐ EDP  ☐ Parfum  ☐ Other: _______ |
-
-### Evaluation 5: Ratings (circle one)
-
-| Category | Rating |
-| --- | --- |
-| **Overall** | 1 ⭐  2 ⭐  3 ⭐  4 ⭐  5 ⭐ |
-| **Longevity** | 1  2  3  4  5  (or N/A) |
-| **Sillage** | 1  2  3  4  5  (or N/A) |
-
-### Evaluation 5: Notes Detected
-
-| Position | Notes (comma-separated) |
-| --- | --- |
-| **Top** | __________________________________ |
-| **Heart** | __________________________________ |
-| **Base** | __________________________________ |
-
-### Evaluation 5: Comments
-
-```text
-_______________________________________________
-_______________________________________________
-_______________________________________________
-```
-
----
-
-## Quick Reference: Rating Guide
-
-| Rating | Meaning | When to Use |
-| --- | --- | --- |
-| **5** ⭐ | Excellent | Would buy, signature scent material |
-| **4** ⭐ | Good | Enjoyable, would wear regularly |
-| **3** ⭐ | Neutral | Neither like nor dislike |
-| **2** ⭐ | Poor | Not enjoyable, wouldn't choose |
-| **1** ⭐ | Bad | Actively dislike, can't wear |
-
-## Quick Reference: Common Notes
-
-| Category | Common Notes |
-| --- | --- |
-| **Citrus** | Bergamot, Lemon, Orange, Grapefruit, Lime |
-| **Floral** | Rose, Jasmine, Lavender, Iris, Violet |
-| **Woody** | Cedar, Sandalwood, Oud, Vetiver, Pine |
-| **Spicy** | Pepper, Cardamom, Cinnamon, Nutmeg, Clove |
-| **Sweet** | Vanilla, Tonka, Caramel, Honey, Praline |
-| **Fresh** | Mint, Cucumber, Green Tea, Marine, Ozone |
-| **Amber** | Amber, Incense, Benzoin, Labdanum |
-| **Musk** | White Musk, Skin Musk, Ambroxan |
-
----
-
-## Data Entry Format (CSV)
-
-When entering data, use this CSV format:
-
-```csv
-reviewer,fragrance_name,brand,concentration,rating,longevity,sillage,notes
-Byron,Sauvage,Dior,EDT,4,4,5,"Fresh and spicy, great projection"
-Veronica,Coco Mademoiselle,Chanel,EDP,5,5,4,"Love the orange and patchouli"
-```
-
-**Print multiple copies as needed.**
+The recorder signs the paper record after reconciliation and stores it under the pilot evidence
+retention rules. Record the outage and recovery in **Pilot operations** without copying private
+observations or blind mappings into operational notes.

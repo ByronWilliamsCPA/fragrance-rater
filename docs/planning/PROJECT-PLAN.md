@@ -32,8 +32,8 @@ predicted rating.
 ## 3. Current-state ledger
 
 **Audited repository baseline:** branch `main`, merge commit
-`7f0884fb3fd5a5faa5178952ae4ef1f08792d010` on 2026-09-11. P0-P2 implementation and review
-evidence are retained in the linked gate records and PR #70.
+`1c9bc2af9b3bf948c0ddda5b863fc8faae71e056` on 2026-09-12. P0-P5 implementation and review
+evidence are retained in the linked gate records and PRs #70-#74.
 
 | Capability | State | Evidence or remaining limitation |
 | :--- | :--- | :--- |
@@ -45,7 +45,7 @@ evidence are retained in the linked gate records and PR #70.
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
 | OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the F1 pilot |
 | Controlled calibration | Merged, not deployment-verified | Program, enrollment, hidden repeat/holdout, presentation, observation, locking, reveal, and checkpoint flows exist |
-| React product workflow | P4 complete; P5 review pending | Participant workflows are merged; manager and operations workflows await review before the P6 rehearsal |
+| React product workflow | P5 complete | Participant, manager, reporting, and operations workflows are merged; deployed rehearsal remains P6 work |
 | Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
 | Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
@@ -261,7 +261,7 @@ without direct database changes or ad hoc API calls.
 
 **Owner:** Core maintainer
 
-**Status:** Implementation complete; review pending
+**Status:** Complete
 **Depends on:** P3 and P4
 **Evidence:** [P5 Manager and Operations Experience Gate](gates/p5.md)
 
@@ -290,7 +290,7 @@ before any family member evaluates an actual pilot perfume.
 
 **Owner:** Core maintainer
 
-**Status:** Planned
+**Status:** In progress; repository rehearsal kit prepared, external execution pending
 **Depends on:** P1 repository controls, P2, and P5
 **Evidence:** [P6 Integrated Pilot Readiness Gate](gates/p6.md)
 
