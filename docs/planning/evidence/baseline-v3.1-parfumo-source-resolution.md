@@ -81,10 +81,10 @@ own stated value, still to be confirmed against the physical bottle per P1.1 (`p
 | H01 | Dior Homme Intense (2011) | Dior | Eau de Parfum (not published; single release for this year) | 2011 | <https://www.parfumo.com/Perfumes/Dior/Dior_Homme_Intense_2011> |
 | H02 | Oud Wood | Tom Ford | Eau de Parfum (confirmed) | 2007 | <https://www.parfumo.com/Perfumes/Tom_Ford/Oud_Wood_Eau_de_Parfum> |
 | H03 | Vétiver Extraordinaire | Editions de Parfums Frédéric Malle | Eau de Parfum (not published; single release) | 2002 | <https://www.parfumo.com/Perfumes/Editions_de_Parfum_Frederic_Malle/Vetiver_Extraordinaire> |
-| H04 | LAVS | Filippo Sorcinelli (see note) | Not published anywhere on the page | 2013 | <https://www.parfumo.com/Perfumes/Filippo_Sorcinelli/lavs> |
+| H04 | LAVS | Unum or Filippo Sorcinelli (brand string is a pending product-owner decision, see note) | Not published anywhere on the page | 2013 | <https://www.parfumo.com/Perfumes/Filippo_Sorcinelli/lavs> |
 | H05 | Naxos | Xerjoff | Not stated by the source document or published by Parfumo | 2015 | <https://www.parfumo.com/Perfumes/Xerjoff/naxos> |
 | H06 | Black Orchid | Tom Ford | Eau de Parfum (confirmed) | 2006 | <https://www.parfumo.com/Perfumes/Tom_Ford/Black_Orchid_Eau_de_Parfum> |
-| H07 | **Unresolved** - see note | Caron | - | - | - |
+| H07 | Aimez-Moi | Caron | Eau de Toilette (confirmed; see Supplemental source exploration) | 1996 | <https://www.parfumo.com/Perfumes/Caron/Aimez_Moi_Eau_de_Toilette> |
 | H08 | Osmanthe Yunnan | Hermès | Not published anywhere on the page | 2005 | <https://www.parfumo.com/Perfumes/Hermes/osmanthe-yunnan> |
 | H09 | Bornéo 1834 | Serge Lutens | Not published anywhere on the page | 2005 | <https://www.parfumo.com/Perfumes/Serge_Lutens/Borneo_1834> |
 | H10 | Kenzo Jungle / Jungle L'Éléphant | Kenzo | Eau de Parfum (corroborated by independent retailer listings; see Supplemental source exploration) | 1996 | <https://www.parfumo.com/Perfumes/Kenzo/Kenzo_Jungle_Jungle_L_Elephant> |
