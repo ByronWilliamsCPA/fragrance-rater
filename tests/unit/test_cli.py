@@ -540,6 +540,42 @@ class TestImportParfumoSearchCommand:
             mock_scraper.import_from_url.assert_awaited_once_with(second.url)
 
     @patch("fragrance_rater.cli.async_session_maker")
+    def test_parfumo_search_select_out_of_range(
+        self, mock_session_maker: MagicMock
+    ) -> None:
+        """--select N outside 1..result_count must report the valid
+        range and exit non-zero rather than importing the wrong result
+        or raising an unhandled IndexError."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        first = MagicMock()
+        first.name = "Aimez-Moi"
+        first.brand = "Caron"
+        first.url = "https://parfumo.com/aimez-moi-1996"
+        first.concentration = "Eau de Toilette"
+        first.year = 1996
+
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
+            mock_scraper = MagicMock()
+            mock_scraper.search.return_value = [first]
+            mock_scraper.import_from_url = AsyncMock()
+            mock_scraper.close = MagicMock()
+            mock_scraper_class.return_value = mock_scraper
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli,
+                ["import-data", "parfumo-search", "Aimez-Moi Caron", "--select", "5"],
+            )
+
+            assert result.exit_code == 1
+            assert "--select 5 is out of range (1-1)" in result.output
+            mock_scraper.import_from_url.assert_not_awaited()
+
+    @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_import_first_refused_when_ambiguous(
         self, mock_session_maker: MagicMock
     ) -> None:
