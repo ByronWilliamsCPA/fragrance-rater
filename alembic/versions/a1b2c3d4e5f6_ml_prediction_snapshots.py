@@ -1,34 +1,36 @@
-"""Type controlled-observation fields and add ML prediction snapshots.
+"""Type controlled-observation fields.
 
 Revision ID: a1b2c3d4e5f6
 Revises: f5c2d3e4a5b6
 Create Date: 2026-09-12
 
 Supports refining recommendation/liking projections with real ML testing:
+`calibration_observations.responses` flattened validated fields
+(`would_wear`, `would_buy`, opening/drydown liking, sensory dimensions,
+`perceived_notes`, free-text `likes`/`dislikes`/`reminds_me_of`/`comments`)
+into one untyped JSON column. That buried ML-relevant features/labels where
+they could not be indexed, constrained, or queried, and the frozen training
+manifest in `preference_history.py` could only forward the blob onward
+unparsed. This migration adds one typed, individually bounded column per
+field, backfills every existing row from its `responses` value, and retires
+that column. Per the current-state ledger, live PostgreSQL calibration data
+is fresh-schema verified only (no deployed pilot history exists yet to
+lose); the backfill step still runs so any populated dev/staging rows
+survive. Any legacy value that would violate a new column's range (the old
+JSON column was never database-constrained, only validated by the API
+boundary at write time) is quarantined as NULL with a logged warning naming
+the row and field, rather than silently dropped or aborting the whole
+migration.
 
-- `calibration_observations.responses` flattened validated fields
-  (`would_wear`, `would_buy`, opening/drydown liking, sensory dimensions,
-  `perceived_notes`, free-text `likes`/`dislikes`/`reminds_me_of`/
-  `comments`) into one untyped JSON column. That buried ML-relevant
-  features/labels where they could not be indexed, constrained, or
-  queried, and the frozen training manifest in `preference_history.py`
-  could only forward the blob onward unparsed. This migration adds one
-  typed, individually bounded column per field, backfills every existing
-  row from its `responses` value, and retires that column. Per the
-  current-state ledger, live PostgreSQL calibration data is fresh-schema
-  verified only (no deployed pilot history exists yet to lose); the
-  backfill step still runs so any populated dev/staging rows survive. Any
-  legacy value that would violate a new column's range (the old JSON
-  column was never database-constrained, only validated by the API
-  boundary at write time) is quarantined as NULL with a printed warning
-  naming the row and field, rather than silently dropped or aborting the
-  whole migration.
-- Adds `prediction_snapshots`: an immutable, model-agnostic record of a
-  predicted rating for one evaluator/fragrance pair, frozen before the
-  real outcome is known, with a one-time append-only outcome link so
-  prediction error can be measured honestly (ADR-009).
+The new, wholly unrelated `prediction_snapshots` table (an immutable,
+model-agnostic record of a predicted rating, see ADR-009) is created by the
+following revision, 72fe56efd128, which depends on this one because its
+outcome-observation foreign key targets `calibration_observations.id`.
 """
 
+import logging
+import math
+from collections import Counter
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -39,6 +41,8 @@ revision: str = "a1b2c3d4e5f6"
 down_revision: str | None = "f5c2d3e4a5b6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+logger = logging.getLogger(__name__)
 
 # One (column, SQLAlchemy type) pair per `responses` key being promoted,
 # reused by both the ADD COLUMN loop and the backfill loop below.
@@ -88,6 +92,15 @@ def _quarantine(name: str, value: object) -> tuple[object | None, str | None]:
     warning identifying the discarded value, rather than either silently
     dropping it with no record or letting an out-of-range legacy value abort
     the whole migration when the CHECK constraint is added afterward.
+
+    # #CRITICAL: data-integrity: this dispatches on `_RULES[name]`, which
+    # assumes every entry in `_PROMOTED_COLUMNS` has a matching `_RULES`
+    # key; a mismatch raises `KeyError` and aborts the migration outright
+    # instead of quarantining just the offending field.
+    # #VERIFY: `_RULES` is built from `_SCORED_0_5`, `_SCORED_0_10`,
+    # `_TEXT_COLUMNS`, and `_JSON_COLUMNS` by construction, so this holds as
+    # long as no column is added to `_PROMOTED_COLUMNS` without a
+    # corresponding rule; keep the two declarations adjacent.
     """
     if value is None:
         return None, None
@@ -107,9 +120,28 @@ def _quarantine(name: str, value: object) -> tuple[object | None, str | None]:
 def _quarantine_range(
     name: str, value: object, low: int, high: int | None
 ) -> tuple[object | None, str | None]:
-    """Quarantine a scalar outside `[low, high]` (or `>= low` when `high` is None)."""
+    """Quarantine a scalar outside `[low, high]` (or `>= low` when `high` is None).
+
+    # #CRITICAL: data-integrity: the legacy `responses` JSON column was
+    # never constrained at the database level, so a stored numeric value
+    # may be a non-finite float (`inf`, `-inf`, `nan`) or an in-range float
+    # that is not exactly integral (e.g. `4.7`). Passing either straight to
+    # `int()` is unsafe: `int(float("inf"))` raises an unhandled
+    # `OverflowError` that would crash the migration, and `int(4.7) == 4`
+    # would silently fabricate/truncate a value this migration's own
+    # docstring promises never to fabricate or clamp.
+    # #VERIFY: both cases are checked and routed through the same
+    # quarantine-as-NULL path below, before any value ever reaches `int()`.
+    """
     numeric = isinstance(value, int | float) and not isinstance(value, bool)
+    if numeric and isinstance(value, float) and not math.isfinite(value):
+        return None, f"{name}={value!r} is not a finite number"
     in_range = numeric and low <= value and (high is None or value <= high)  # pyright: ignore[reportOperatorIssue]
+    if in_range and isinstance(value, float) and value != int(value):
+        return (
+            None,
+            f"{name}={value!r} is not an integer (legacy float would truncate)",
+        )
     if in_range:
         return int(value), None  # pyright: ignore[reportArgumentType]
     bound = f"{low}-{high}" if high is not None else f">= {low}"
@@ -117,7 +149,15 @@ def _quarantine_range(
 
 
 def _quarantine_notes(name: str, value: object) -> tuple[object | None, str | None]:
-    """Quarantine a `perceived_notes`-shaped value: a list of strings, or None."""
+    """Quarantine a `perceived_notes`-shaped value: a list of strings, or None.
+
+    # #EDGE: data-integrity: a legacy value could be a list containing
+    # non-string items (numbers, nested objects) from an older, looser API
+    # contract; such a list is quarantined wholesale rather than partially
+    # salvaged.
+    # #VERIFY: if partial salvage is ever wanted, filter `value` to its
+    # string items instead of discarding the whole list.
+    """
     if isinstance(value, list) and all(isinstance(item, str) for item in value):
         return value, None
     return None, f"{name}={value!r} is not a list of strings"
@@ -134,18 +174,44 @@ def _add_typed_columns() -> None:
             "calibration_observations", sa.Column(name, sa.Text(), nullable=True)
         )
     for name in _JSON_COLUMNS:
+        # #CRITICAL: data-integrity: `none_as_null=True` makes a Python
+        # `None` write as SQL NULL instead of the JSON literal `"null"`.
+        # Without it, a quarantined (never-set) value would fail the
+        # `perceived_notes IS NULL OR ...` CHECK constraint added below in
+        # `_add_range_constraints`, since the column would hold the text
+        # "null" rather than actual SQL NULL. Keep in sync with the
+        # matching `sa.column(name, sa.JSON(none_as_null=True))` in
+        # `_backfill_and_drop_responses` and the ORM column definition in
+        # `src/fragrance_rater/models/calibration.py`.
+        # #VERIFY: any future JSON column added to `_JSON_COLUMNS` needs
+        # the same flag for the same reason.
         op.add_column(
-            "calibration_observations", sa.Column(name, sa.JSON(), nullable=True)
+            "calibration_observations",
+            sa.Column(name, sa.JSON(none_as_null=True), nullable=True),
         )
 
 
-def _backfill_and_drop_responses() -> None:
+def _backfill_and_drop_responses() -> Counter[str]:
     """Backfill typed columns from `responses`, quarantining bad legacy values, then drop it.
 
     Runs before the range constraints are created below, so a quarantined
-    legacy value (left NULL, with a printed warning) never aborts the
+    legacy value (left NULL, with a logged warning) never aborts the
     migration outright; the constraints then apply only to data already
     known to satisfy them.
+
+    Returns a per-column count of quarantined values so `upgrade()` can log
+    one summary line; see `_quarantined_values`.
+
+    # #CRITICAL: concurrency: this reads every row with a single `SELECT`
+    # into memory, then issues per-row `UPDATE`s, without taking any lock
+    # on `calibration_observations`. A row inserted or updated by a
+    # concurrent writer after the `SELECT` but before `op.drop_column`
+    # below would never be visited by this backfill loop, and its
+    # `responses` data would be silently lost when the column is dropped.
+    # #VERIFY: run this migration only with application writers stopped
+    # (a maintenance window), which the deployment runbook already
+    # requires for schema migrations; do not rely on this function alone
+    # for correctness under concurrent writes.
     """
     connection = op.get_bind()
     observations = sa.table(
@@ -154,13 +220,18 @@ def _backfill_and_drop_responses() -> None:
         sa.column("responses", sa.JSON()),
         *(sa.column(name, sa.Integer()) for name in _INTEGER_COLUMNS),
         *(sa.column(name, sa.Text()) for name in _TEXT_COLUMNS),
-        *(sa.column(name, sa.JSON()) for name in _JSON_COLUMNS),
+        # `none_as_null=True`: see the matching note in `_add_typed_columns`.
+        # Without it, `.update().values(**values)` below would write a
+        # quarantined `None` as the JSON literal `"null"`, not SQL NULL.
+        *(sa.column(name, sa.JSON(none_as_null=True)) for name in _JSON_COLUMNS),
     )
     rows = connection.execute(
         sa.select(observations.c.id, observations.c.responses)
     ).fetchall()
+    quarantine_counts: Counter[str] = Counter()
     for row in rows:
-        values = _quarantined_values(row.id, row.responses)
+        values, quarantined = _quarantined_values(row.id, row.responses)
+        quarantine_counts.update(quarantined)
         if values:
             connection.execute(
                 observations.update()
@@ -168,142 +239,114 @@ def _backfill_and_drop_responses() -> None:
                 .values(**values)
             )
     op.drop_column("calibration_observations", "responses")
+    return quarantine_counts
 
 
-def _quarantined_values(row_id: str, responses: object) -> dict[str, object]:
-    """Return the subset of `responses` safe to write, warning on the rest."""
+def _quarantined_values(
+    row_id: str, responses: object
+) -> tuple[dict[str, object], list[str]]:
+    """Return `(values_safe_to_write, quarantined_column_names)` for one row.
+
+    Every quarantined value is logged individually (via the standard
+    `logging` module, not `print`, so it survives a CI pipeline that
+    discards stdout) and its column name is returned so the caller can
+    aggregate a total count across all rows for one end-of-migration
+    summary line.
+
+    # #CRITICAL: data-integrity: assumes `responses` deserializes to plain
+    # JSON-native Python types (`dict`, `list`, `str`, `int`, `float`,
+    # `bool`, `None`); a driver that instead surfaces e.g. `decimal.Decimal`
+    # for numeric JSON values would fail the `isinstance(value, int | float)`
+    # checks in `_quarantine_range` and be quarantined as out-of-range
+    # rather than converted, which is safe (no data is fabricated) but
+    # worth knowing about if the quarantine counts look unexpectedly high.
+    # #VERIFY: confirm the target database's JSON deserialization (here,
+    # SQLAlchemy's `sa.JSON()` type) returns native types before relying on
+    # quarantine counts as a signal of genuinely bad legacy data.
+    """
     if not isinstance(responses, dict):
-        print(  # noqa: T201 - migration output, not application logging
-            f"WARNING: calibration_observations.id={row_id} has a non-object "
-            f"responses value ({responses!r}); leaving all promoted columns NULL"
+        logger.warning(
+            "calibration_observations.id=%s has a non-object responses value "
+            "(%r); leaving all promoted columns NULL",
+            row_id,
+            responses,
         )
-        return {}
+        return {}, list(_PROMOTED_COLUMNS)
     values: dict[str, object] = {}
+    quarantined: list[str] = []
     for name in _PROMOTED_COLUMNS:
         if name not in responses:
             continue
         validated, warning = _quarantine(name, responses[name])
         if warning:
-            print(  # noqa: T201 - migration output, not application logging
-                f"WARNING: calibration_observations.id={row_id} quarantined "
-                f"{warning}; leaving {name} NULL"
+            logger.warning(
+                "calibration_observations.id=%s quarantined %s; leaving %s NULL",
+                row_id,
+                warning,
+                name,
             )
+            quarantined.append(name)
         if validated is not None:
             values[name] = validated
-    return values
+    return values, quarantined
 
 
 def _add_range_constraints() -> None:
-    """Add the CHECK constraints the typed columns above are meant to enforce."""
-    for name in _SCORED_0_5:
-        op.create_check_constraint(
-            f"ck_calibration_observations_{name}_range",
-            "calibration_observations",
-            f"{name} IS NULL OR ({name} >= 0 AND {name} <= 5)",
+    """Add the CHECK constraints the typed columns above are meant to enforce.
+
+    Uses `op.batch_alter_table` rather than bare `op.create_check_constraint`:
+    SQLite (used by this migration's own integration test, see
+    tests/integration/test_ml_prediction_snapshots_migration.py) cannot ALTER
+    an already-created table to add a CHECK constraint directly. Batch mode
+    recreates the table under the hood on SQLite to work around that, and is
+    a transparent passthrough to plain `ALTER TABLE ... ADD CONSTRAINT` on
+    PostgreSQL, so production behavior is unchanged.
+    """
+    with op.batch_alter_table("calibration_observations") as batch_op:
+        for name in _SCORED_0_5:
+            batch_op.create_check_constraint(
+                f"ck_calibration_observations_{name}_range",
+                f"{name} IS NULL OR ({name} >= 0 AND {name} <= 5)",
+            )
+        for name in _SCORED_0_10:
+            batch_op.create_check_constraint(
+                f"ck_calibration_observations_{name}_range",
+                f"{name} IS NULL OR ({name} >= 0 AND {name} <= 10)",
+            )
+        batch_op.create_check_constraint(
+            "ck_calibration_observations_projection_range",
+            "projection IS NULL OR (projection >= 0 AND projection <= 5)",
         )
-    for name in _SCORED_0_10:
-        op.create_check_constraint(
-            f"ck_calibration_observations_{name}_range",
-            "calibration_observations",
-            f"{name} IS NULL OR ({name} >= 0 AND {name} <= 10)",
+        batch_op.create_check_constraint(
+            "ck_calibration_observations_longevity_minutes_nonnegative",
+            "longevity_minutes IS NULL OR longevity_minutes >= 0",
         )
-    op.create_check_constraint(
-        "ck_calibration_observations_projection_range",
-        "calibration_observations",
-        "projection IS NULL OR (projection >= 0 AND projection <= 5)",
-    )
-    op.create_check_constraint(
-        "ck_calibration_observations_longevity_minutes_nonnegative",
-        "calibration_observations",
-        "longevity_minutes IS NULL OR longevity_minutes >= 0",
-    )
+        # `perceived_notes` is plain `JSON`, not `JSONB` (see
+        # `_add_typed_columns` above), so `jsonb_typeof` does not apply;
+        # `json_typeof` (PostgreSQL) and `json_type` (SQLite) also aren't
+        # the same function name across the two engines this repo runs
+        # against (PostgreSQL in production per ADR-001, SQLite in this
+        # migration's own test and the rest of the unit suite). Casting to
+        # text and checking the (whitespace-trimmed) leading character is
+        # portable to both and is exact for any valid JSON array.
+        batch_op.create_check_constraint(
+            "ck_calibration_observations_perceived_notes_is_array",
+            "perceived_notes IS NULL OR ltrim(CAST(perceived_notes AS TEXT)) LIKE '[%'",
+        )
 
 
 def upgrade() -> None:
-    """Promote responses JSON fields to typed columns; add prediction snapshots."""
+    """Promote responses JSON fields to typed columns."""
     _add_typed_columns()
-    _backfill_and_drop_responses()
+    quarantine_counts = _backfill_and_drop_responses()
     _add_range_constraints()
-    _create_prediction_snapshots_table()
-
-
-def _create_prediction_snapshots_table() -> None:
-    """Create `prediction_snapshots` and its indexes."""
-    op.create_table(
-        "prediction_snapshots",
-        sa.Column("id", sa.String(length=36), nullable=False),
-        sa.Column("reviewer_id", sa.String(length=36), nullable=False),
-        sa.Column("fragrance_id", sa.String(length=36), nullable=False),
-        sa.Column("checkpoint_id", sa.String(length=36), nullable=True),
-        sa.Column("model_id", sa.String(length=100), nullable=False),
-        sa.Column("model_version", sa.String(length=100), nullable=False),
-        sa.Column("feature_snapshot_version", sa.String(length=100), nullable=True),
-        sa.Column(
-            "predicted_scale",
-            sa.String(length=20),
-            nullable=False,
-            server_default="0-10",
-        ),
-        sa.Column("predicted_rating", sa.Float(), nullable=True),
-        sa.Column("uncertainty", sa.Float(), nullable=True),
-        sa.Column("percentile_rank", sa.Float(), nullable=True),
-        sa.Column("scenario", sa.String(length=100), nullable=True),
-        sa.Column("input_manifest", sa.JSON(), nullable=False),
-        sa.Column("explanation", sa.JSON(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("recorded_by", sa.String(length=255), nullable=True),
-        sa.Column("outcome_evaluation_id", sa.String(length=36), nullable=True),
-        sa.Column("outcome_observation_id", sa.String(length=36), nullable=True),
-        sa.Column("outcome_linked_at", sa.DateTime(), nullable=True),
-        sa.Column("outcome_recorded_by", sa.String(length=255), nullable=True),
-        sa.CheckConstraint("uncertainty IS NULL OR uncertainty >= 0"),
-        sa.CheckConstraint(
-            "percentile_rank IS NULL OR (percentile_rank >= 0 AND percentile_rank <= 100)"
-        ),
-        sa.CheckConstraint(
-            "NOT (outcome_evaluation_id IS NOT NULL AND outcome_observation_id IS NOT NULL)"
-        ),
-        sa.ForeignKeyConstraint(
-            ["checkpoint_id"], ["calibration_checkpoints.id"], ondelete="RESTRICT"
-        ),
-        sa.ForeignKeyConstraint(
-            ["fragrance_id"], ["fragrances.id"], ondelete="RESTRICT"
-        ),
-        sa.ForeignKeyConstraint(
-            ["outcome_evaluation_id"], ["evaluations.id"], ondelete="RESTRICT"
-        ),
-        sa.ForeignKeyConstraint(
-            ["outcome_observation_id"],
-            ["calibration_observations.id"],
-            ondelete="RESTRICT",
-        ),
-        sa.ForeignKeyConstraint(["reviewer_id"], ["reviewers.id"], ondelete="RESTRICT"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(
-        op.f("ix_prediction_snapshots_reviewer_id"),
-        "prediction_snapshots",
-        ["reviewer_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_prediction_snapshots_fragrance_id"),
-        "prediction_snapshots",
-        ["fragrance_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_prediction_snapshots_checkpoint_id"),
-        "prediction_snapshots",
-        ["checkpoint_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_prediction_snapshots_created_at"),
-        "prediction_snapshots",
-        ["created_at"],
-        unique=False,
-    )
+    if quarantine_counts:
+        logger.warning(
+            "Quarantined %d values across %d columns during backfill; see "
+            "prior warnings for detail",
+            sum(quarantine_counts.values()),
+            len(quarantine_counts),
+        )
 
 
 def downgrade() -> None:
