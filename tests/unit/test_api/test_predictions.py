@@ -162,7 +162,8 @@ async def test_create_predict_link_outcome_and_list(test_app):
             "fragrance_id": fragrance_id,
             "model_id": "gbm-liking-v0",
             "model_version": "2026-09-12",
-            "predicted_rating": 7.5,
+            "predicted_rating": 4.0,
+            "predicted_scale": "1-5",
             "uncertainty": 1.2,
             "input_manifest": [{"feature": "sweetness", "value": 3}],
         },
@@ -170,8 +171,8 @@ async def test_create_predict_link_outcome_and_list(test_app):
     )
     assert created.status_code == 201
     prediction = created.json()
-    assert prediction["predicted_rating"] == 7.5
-    assert prediction["predicted_scale"] == "0-10"
+    assert prediction["predicted_rating"] == 4.0
+    assert prediction["predicted_scale"] == "1-5"
     assert prediction["outcome_linked_at"] is None
 
     evaluation = await test_app.post(
@@ -191,11 +192,29 @@ async def test_create_predict_link_outcome_and_list(test_app):
     assert linked.json()["outcome_linked_at"] is not None
     assert linked.json()["outcome_recorded_by"] == "manager"
     # The frozen prediction itself is unchanged by linking an outcome.
-    assert linked.json()["predicted_rating"] == 7.5
+    assert linked.json()["predicted_rating"] == 4.0
 
-    conflict = await test_app.post(
+    # Retrying with the exact same outcome id already linked is a no-op
+    # success (idempotent retry), not a conflict.
+    retried = await test_app.post(
         f"{PREFIX}/{prediction['id']}/outcome",
         json={"outcome_evaluation_id": evaluation.json()["id"]},
+        headers=MANAGER,
+    )
+    assert retried.status_code == 200
+    assert retried.json()["outcome_linked_at"] == linked.json()["outcome_linked_at"]
+    assert retried.json()["outcome_recorded_by"] == "manager"
+
+    # A genuinely different outcome, however, is a real conflict.
+    other_evaluation = await test_app.post(
+        "/api/v1/evaluations",
+        json={"fragrance_id": fragrance_id, "reviewer_id": reviewer_id, "rating": 5},
+        headers=MANAGER,
+    )
+    assert other_evaluation.status_code == 201
+    conflict = await test_app.post(
+        f"{PREFIX}/{prediction['id']}/outcome",
+        json={"outcome_evaluation_id": other_evaluation.json()["id"]},
         headers=MANAGER,
     )
     assert conflict.status_code == 409

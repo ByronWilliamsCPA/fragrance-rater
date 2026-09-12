@@ -16,15 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fragrance_rater.api.calibration import manager
 from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
 from fragrance_rater.core.database import get_db
+from fragrance_rater.core.exceptions import BusinessLogicError, ResourceNotFoundError
 from fragrance_rater.schemas.prediction import (
     PredictionCreate,
     PredictionOutcomeInput,
     PredictionView,
 )
-from fragrance_rater.services.prediction_service import (
-    PredictionConflictError,
-    PredictionService,
-)
+from fragrance_rater.services.prediction_service import PredictionService
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
 DB = Annotated[AsyncSession, Depends(get_db)]
@@ -47,9 +45,9 @@ async def create_prediction(
     username = manager(identity)
     try:
         snapshot = await PredictionService(db).create(data, recorded_by=username)
-    except LookupError as exc:
+    except ResourceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PredictionConflictError as exc:
+    except BusinessLogicError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return PredictionView.model_validate(snapshot, from_attributes=True)
 
@@ -59,7 +57,17 @@ async def create_prediction(
     response_model=PredictionView,
     responses={
         404: {"description": "Prediction not found"},
-        409: {"description": "Prediction already has a linked outcome"},
+        409: {
+            "description": (
+                "Prediction already has a different linked outcome, or the "
+                "supplied outcome cannot honestly test this prediction "
+                "(wrong reviewer/fragrance, recorded before the prediction, "
+                "a soft-deleted reviewer/fragrance, or a predicted_scale "
+                "mismatched to the outcome's scale). Retrying with the same "
+                "outcome id(s) already linked is a no-op success, not a "
+                "conflict."
+            )
+        },
     },
 )
 async def link_outcome(
@@ -71,9 +79,9 @@ async def link_outcome(
         snapshot = await PredictionService(db).link_outcome(
             prediction_id, data, recorded_by=username
         )
-    except LookupError as exc:
+    except ResourceNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except PredictionConflictError as exc:
+    except BusinessLogicError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return PredictionView.model_validate(snapshot, from_attributes=True)
 
