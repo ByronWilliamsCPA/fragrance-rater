@@ -77,6 +77,15 @@ class TestFragellaClientSearch:
             await client.search("Ai")
         assert exc_info.value.code is FragellaErrorCode.QUERY_TOO_SHORT
 
+    async def test_rejects_a_non_https_base_url(self):
+        """The x-api-key header must never go out over plaintext HTTP
+        (CWE-319), regardless of a misconfigured or constructor-provided
+        base_url."""
+        client = FragellaClient(api_key="test-key", base_url="http://api.fragella.test")
+        with pytest.raises(FragellaError, match="must use HTTPS") as exc_info:
+            await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.INSECURE_BASE_URL
+
     async def test_parses_a_bare_list_response(self):
         client = _client()
         mock_response = _mock_response(200, SAMPLE_SEARCH_RESPONSE)

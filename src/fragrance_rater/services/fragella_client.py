@@ -54,6 +54,7 @@ class FragellaErrorCode(Enum):
     """
 
     NOT_CONFIGURED = "not_configured"
+    INSECURE_BASE_URL = "insecure_base_url"
     QUERY_TOO_SHORT = "query_too_short"
     QUOTA_EXHAUSTED = "quota_exhausted"
     AUTH_REJECTED = "auth_rejected"
@@ -134,6 +135,14 @@ class FragellaClient:
         if not self.api_key:
             msg = "FRAGELLA_API_KEY is not configured"
             raise FragellaError(msg, code=FragellaErrorCode.NOT_CONFIGURED)
+        # #CRITICAL: security: a configured or constructor-provided base_url
+        # of any scheme would otherwise carry the x-api-key header in
+        # cleartext over plain HTTP (CWE-319). Both callers of this method
+        # (search, usage) send that header immediately afterward.
+        # #VERIFY: covered by a test asserting an http:// base_url raises.
+        if not self.base_url.startswith("https://"):
+            msg = f"Fragella base URL must use HTTPS, got: {self.base_url!r}"
+            raise FragellaError(msg, code=FragellaErrorCode.INSECURE_BASE_URL)
         return self.api_key
 
     async def search(self, query: str, limit: int = 5) -> list[FragellaResult]:
