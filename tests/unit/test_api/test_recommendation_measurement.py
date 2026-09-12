@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -215,9 +215,18 @@ async def test_operational_events_drive_manager_pilot_status(
     """Failure and recovery events deterministically drive manager status."""
     reviewer_id, _ = await seed_recommendable_catalog(test_app)
     monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
+    fixed_time = datetime(
+        # datetime.UTC is unavailable on supported Python 3.10.
+        2026,
+        9,
+        12,
+        3,
+        0,
+        tzinfo=timezone.utc,  # noqa: UP017
+    ).replace(tzinfo=None)
     monkeypatch.setattr(
         "fragrance_rater.services.recommendation_measurement_service.now_naive_utc",
-        lambda: datetime(2026, 9, 12, 3, 0, tzinfo=UTC).replace(tzinfo=None),
+        lambda: fixed_time,
     )
 
     initial_status = await test_app.get(
