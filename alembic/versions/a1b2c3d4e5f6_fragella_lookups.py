@@ -15,7 +15,14 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Add the fragella_lookups table; no existing table is touched."""
+    """Add the fragella_lookups table.
+
+    No existing column or row is modified, but the new `fragrance_id`
+    foreign key's `ondelete="RESTRICT"` does change `fragrances`' delete
+    behavior: deleting a fragrance that any fragella_lookups row still
+    references will now fail with a foreign key violation instead of
+    succeeding.
+    """
     op.create_table(
         "fragella_lookups",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -30,6 +37,7 @@ def upgrade() -> None:
             ["fragrance_id"], ["fragrances.id"], ondelete="RESTRICT"
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.CheckConstraint("status IN ('error', 'success')"),
     )
     op.create_index(
         "ix_fragella_lookups_fragrance_id",

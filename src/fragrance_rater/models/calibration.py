@@ -183,6 +183,17 @@ class FragellaLookup(Base):
     """
 
     __tablename__ = "fragella_lookups"
+    # #ASSUME: data-integrity: `status` has exactly two legal values today
+    # (FragellaLookupService.run_lookup only ever writes "error" or
+    # "success"); a bare String(20) column upheld the invariant that
+    # `status` moves in lockstep with `error_message`/`results` only by
+    # programmer discipline in that one write path, so a future write path
+    # could otherwise leave e.g. status="success" with a stale
+    # error_message. A CHECK constraint moves that enforcement to the
+    # schema, matching the existing IN(...) precedent on
+    # PilotOperationalEvent.event_type.
+    # #VERIFY: covered by a test asserting a third value fails at flush().
+    __table_args__ = (CheckConstraint("status IN ('error', 'success')"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     fragrance_id: Mapped[str] = mapped_column(
         ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
