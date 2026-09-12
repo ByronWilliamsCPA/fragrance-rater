@@ -624,3 +624,99 @@ class TestImportParfumoSearchCommand:
             assert result.exit_code == 0
             assert "Found 1 result" in result.output
             assert "Aventus" in result.output
+
+
+class TestImportFragellaLookupCommand:
+    """Tests for import-data fragella-lookup - a reference-only lookup
+    that never creates/updates a Fragrance record."""
+
+    def test_no_results(self) -> None:
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.search = AsyncMock(return_value=[])
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["import-data", "fragella-lookup", "Nonexistent Scent"]
+            )
+
+            assert result.exit_code == 0
+            assert "No results found" in result.output
+
+    def test_displays_results_without_importing(self) -> None:
+        mock_result = MagicMock()
+        mock_result.name = "Aimez-Moi"
+        mock_result.brand = "Caron"
+        mock_result.year = 1996
+        mock_result.oil_type = "Eau de Toilette"
+        mock_result.confidence = "medium"
+        mock_result.general_notes = ["Violet", "Iris"]
+        mock_result.top_notes = ["Violet"]
+        mock_result.middle_notes = ["Iris"]
+        mock_result.base_notes = ["Musk"]
+
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.search = AsyncMock(return_value=[mock_result])
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["import-data", "fragella-lookup", "Aimez-Moi Caron"]
+            )
+
+            assert result.exit_code == 0
+            assert "reference only, not imported" in result.output
+            assert "Aimez-Moi" in result.output
+            assert "Caron" in result.output
+            assert "1996" in result.output
+
+    def test_reports_a_fragella_error_and_exits_non_zero(self) -> None:
+        from fragrance_rater.services.fragella_client import FragellaError
+
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.search = AsyncMock(
+                side_effect=FragellaError("FRAGELLA_API_KEY is not configured")
+            )
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["import-data", "fragella-lookup", "Aimez-Moi Caron"]
+            )
+
+            assert result.exit_code == 1
+            assert "Fragella lookup failed" in result.output
+
+
+class TestImportFragellaUsageCommand:
+    """Tests for import-data fragella-usage."""
+
+    def test_prints_the_usage_body(self) -> None:
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.usage = AsyncMock(
+                return_value={"plan": "free", "usage": {"requests_remaining": 17}}
+            )
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["import-data", "fragella-usage"])
+
+            assert result.exit_code == 0
+            assert "requests_remaining" in result.output
+            assert "17" in result.output
+
+    def test_reports_failure_when_usage_is_unavailable(self) -> None:
+        with patch("fragrance_rater.cli.FragellaClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.usage = AsyncMock(return_value=None)
+            mock_client_class.return_value = mock_client
+
+            runner = CliRunner()
+            result = runner.invoke(cli, ["import-data", "fragella-usage"])
+
+            assert result.exit_code == 1
+            assert "Could not retrieve Fragella usage" in result.output

@@ -76,6 +76,11 @@ class Settings(BaseSettings):
         openrouter_model (str): Default model to use for LLM calls.
         openrouter_base_url (str): OpenRouter API base URL.
         llm_enabled (bool): Enable/disable LLM features.
+        fragella_api_key (str): Fragella API key. Empty disables the
+            fragella-* CLI commands (see ``fragella_client.py``); Fragella
+            is a rate-limited (20 req/month free tier), operator-invoked
+            reference lookup, never a primary or auto-imported source.
+        fragella_base_url (str): Fragella API base URL.
         calibration_admin_usernames (list[str]): Verified Authentik usernames
             permitted to administer controlled calibration programs. Empty by
             default, which denies calibration administration.
@@ -226,6 +231,20 @@ class Settings(BaseSettings):
     llm_enabled: bool = Field(
         default=True,
         description="Enable/disable LLM features",
+    )
+
+    # Fragella (ADR-002): a rate-limited (20 req/month on the free tier),
+    # operator-invoked reference lookup used only to help resolve identity
+    # ambiguity Parfumo alone leaves open (see docs/planning/adr/
+    # adr-002-data-source-strategy.md's 2026 amendment) - never a primary
+    # source, and never auto-imported into the catalog.
+    fragella_api_key: str = Field(
+        default="",
+        description="Fragella API key (x-api-key header); empty disables fragella-* CLI commands",
+    )
+    fragella_base_url: str = Field(
+        default="https://api.fragella.com/api/v1",
+        description="Fragella API base URL",
     )
 
     calibration_admin_usernames: list[str] = Field(

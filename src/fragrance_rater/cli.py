@@ -5,6 +5,7 @@ with structured logging integration.
 """
 
 import asyncio
+import json
 import sys
 from collections.abc import Coroutine
 from dataclasses import dataclass
@@ -17,6 +18,7 @@ from structlog.stdlib import BoundLogger
 
 from fragrance_rater.core.config import settings
 from fragrance_rater.core.database import async_session_maker
+from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.kaggle_importer import KaggleImporter
 from fragrance_rater.services.parfumo_scraper import ParfumoScraper, SearchResult
 from fragrance_rater.services.reviewer_service import ReviewerService
@@ -314,6 +316,18 @@ def _select_search_result(
     default=5,
     help="Maximum search results to show",
 )
+# #CRITICAL: data-integrity: concentration and release year are printed
+# for every result, not just name/brand, because they are often the only
+# thing distinguishing two real, different fragrances that share a name
+# (see ParfumoScraper.search()'s docstring and docs/planning/evidence/
+# baseline-v3.1-parfumo-source-resolution.md's Caron Aimez-Moi finding).
+# --import-first is refused outright when more than one result shares a
+# name, forcing --select (or a plain 'import-data parfumo-url <URL>') so
+# an operator makes that call deliberately rather than the tool guessing.
+# This is a plain comment, not part of the docstring below, because Click
+# renders the entire docstring verbatim as `--help` output.
+# #VERIFY: covered by a test asserting --import-first exits non-zero on
+# an ambiguous (same-name, different-concentration) result set.
 def import_parfumo_search(
     query: str,
     import_first: bool,
@@ -323,24 +337,6 @@ def import_parfumo_search(
     """Search Parfumo and optionally import a fragrance.
 
     QUERY: Search terms (fragrance name, brand, or both).
-
-    # #CRITICAL: data-integrity: concentration and release year are
-    # printed for every result, not just name/brand, because they are
-    # often the only thing distinguishing two real, different fragrances
-    # that share a name (see ParfumoScraper.search()'s docstring and
-    # docs/planning/evidence/baseline-v3.1-parfumo-source-resolution.md's
-    # Caron Aimez-Moi finding). --import-first is refused outright when
-    # more than one result shares a name, forcing --select (or a plain
-    # 'import-data parfumo-url <URL>') so an operator makes that call
-    # deliberately rather than the tool guessing.
-    # #VERIFY: covered by a test asserting --import-first exits non-zero
-    # on an ambiguous (same-name, different-concentration) result set.
-
-    Args:
-        query (str): Search terms (fragrance name, brand, or both).
-        import_first (bool): Import the first search result automatically.
-        select_index (int | None): 1-indexed result to import, if given.
-        limit (int): Maximum number of search results to display.
 
     Examples:
         fragrance-rater import-data parfumo-search "Aventus Creed"
@@ -408,6 +404,105 @@ def import_parfumo_search(
         logger.info("Parfumo search completed", query=query)
     except Exception as e:
         logger.exception("Parfumo search failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@import_data.command(name="fragella-lookup")
+@click.argument("query", type=str)
+@click.option(
+    "--limit",
+    "-n",
+    type=int,
+    default=5,
+    help="Maximum results to show (1-10).",
+)
+# #CRITICAL: data-integrity: this only prints what Fragella returns - it
+# never creates or updates a Fragrance record. Fragella is a rate-limited
+# (20 requests/month free tier), operator-invoked decision-support lookup
+# for exactly the class of gap Parfumo alone sometimes leaves open (a
+# same-name ambiguity, a concentration Parfumo doesn't publish) - not an
+# adopted catalog data source; see docs/planning/adr/
+# adr-002-data-source-strategy.md's 2026 amendment and
+# fragella_client.py's module docstring. Given the tiny monthly quota,
+# use this deliberately (after Parfumo search already leaves a question
+# open), not as a routine first step. Kept as a plain comment, not part
+# of the docstring, because Click renders the whole docstring as
+# `--help` output.
+def import_fragella_lookup(query: str, limit: int) -> None:
+    """Look up Fragella as a reference to help resolve identity ambiguity.
+
+    QUERY: Fragrance or brand name, at least 3 characters.
+
+    Examples:
+        fragrance-rater import-data fragella-lookup "Aimez-Moi Caron"
+    """
+
+    async def do_lookup() -> None:
+        client = FragellaClient()
+        try:
+            results = await client.search(query, limit=limit)
+        except FragellaError as exc:
+            click.echo(f"Fragella lookup failed: {exc}", err=True)
+            sys.exit(1)
+
+        if not results:
+            click.echo("No results found.")
+            return
+
+        click.echo(
+            f"\nFound {len(results)} result(s) (reference only, not imported):\n"
+        )
+        for i, result in enumerate(results, 1):
+            click.echo(f"  {i}. {result.name}")
+            click.echo(f"     Brand: {result.brand}")
+            click.echo(f"     Year: {result.year or 'unknown'}")
+            click.echo(f"     Oil type: {result.oil_type or 'unknown'}")
+            click.echo(f"     Confidence: {result.confidence or 'unknown'}")
+            if result.general_notes:
+                click.echo(f"     Notes: {', '.join(result.general_notes)}")
+            if result.top_notes or result.middle_notes or result.base_notes:
+                click.echo(
+                    f"     Top: {', '.join(result.top_notes) or '-'} | "
+                    f"Middle: {', '.join(result.middle_notes) or '-'} | "
+                    f"Base: {', '.join(result.base_notes) or '-'}"
+                )
+            click.echo("")
+
+    try:
+        run_async(do_lookup())
+        logger.info("Fragella lookup completed", query=query)
+    except SystemExit:
+        raise
+    except Exception as e:
+        logger.exception("Fragella lookup failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@import_data.command(name="fragella-usage")
+def import_fragella_usage() -> None:
+    """Check the Fragella account's remaining monthly quota.
+
+    Call this deliberately, not before every lookup - whether it counts
+    against the 20/month free-tier budget itself is not documented (see
+    fragella_client.py's module docstring).
+    """
+
+    async def do_usage() -> None:
+        client = FragellaClient()
+        usage = await client.usage()
+        if usage is None:
+            click.echo("Could not retrieve Fragella usage.", err=True)
+            sys.exit(1)
+        click.echo(json.dumps(usage, indent=2))
+
+    try:
+        run_async(do_usage())
+    except SystemExit:
+        raise
+    except Exception as e:
+        logger.exception("Fragella usage check failed", error=str(e))
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
