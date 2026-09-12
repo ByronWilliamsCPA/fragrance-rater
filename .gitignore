@@ -297,3 +297,10 @@ tmp_cleanup/.tmp-*
 
 # Compliance reports (generated; never committed)
 docs/compliance-reports/
+
+# Completed P6 readiness records contain real evidence references (image
+# digests, deployment identifiers) and must live in the private evidence
+# directory per docs/deployment/p6-pilot-readiness.md, never in this repo.
+# Only the template is tracked.
+data/pilot/p6-readiness*.json
+!data/pilot/p6-readiness.template.json
