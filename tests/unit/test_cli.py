@@ -463,6 +463,8 @@ class TestImportParfumoSearchCommand:
             assert "Found 1 result" in result.output
             assert "Aventus" in result.output
             assert "Creed" in result.output
+            assert "Eau de Parfum" in result.output
+            assert "2010" in result.output
 
     @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_import_first(self, mock_session_maker: MagicMock) -> None:
