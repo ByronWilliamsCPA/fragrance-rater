@@ -591,3 +591,5 @@ Production backups, secrets, raw private responses, and blind mappings must not 
 - [ADR Index](adr/README.md)
 - [Controlled Calibration V1](../calibration-v1.md)
 - [Scent Chords Analysis](../research/scent-chords-analysis.md)
+- [Data Model Gap Analysis](data-model-gap-analysis.md) (preference learning, scenario modeling,
+  and future ML; captured as ADR-010, partially implemented)

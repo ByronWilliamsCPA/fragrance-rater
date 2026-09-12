@@ -75,7 +75,18 @@ The controlled domain contains:
 - `ModelCheckpoint` records containing frozen manifests and supplied predictions.
 
 Unanswered values are NULL. Answered zero is data. Non-detection has intensity zero and no liking
-score.
+score. Structured perception fields (sensory dimensions, temporal liking, `would_wear`/
+`would_buy`, perceived notes, free-text comments) are typed columns on `Observation`, not an
+untyped blob, so they are directly usable as ML features and labels
+(see [ADR-010](adr/adr-010-preference-learning-and-scenario-data-model.md)).
+
+### ML prediction snapshots
+
+`PredictionSnapshot` freezes one model's predicted rating for one evaluator/fragrance pair before
+the real outcome is known (model/version, feature-manifest, predicted value, uncertainty), and
+records at most one later append-only link to the `Evaluation` or `Observation` that tests it.
+The frozen prediction is never recomputed in place. Manager-gated routes live under
+`/api/v1/predictions`.
 
 ### Source evidence
 
@@ -155,6 +166,7 @@ The current generated API includes:
 | Calibration enrollments | List/get, mapping, skin-plan lock, reveal, and checkpoints |
 | Calibration presentations | Blind/post-reveal observations, stage lock, and skin planning |
 | Shared history | `/api/v1/calibration/history/{reviewer_id}` |
+| Predictions | Create, link outcome, and list under `/api/v1/predictions` (manager-gated) |
 
 The unversioned compatibility routes are legacy surfaces and must be inventoried before removal.
 P2 adds versioned recommendation measurement routes. All route changes update generated OpenAPI in
@@ -265,3 +277,4 @@ Each implementation pull request updates:
 - [Execution Roadmap](roadmap.md)
 - [ADR Index](adr/README.md)
 - [Controlled Calibration V1](../calibration-v1.md)
+- [Data Model Gap Analysis](data-model-gap-analysis.md)

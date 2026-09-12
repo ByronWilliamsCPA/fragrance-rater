@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -19,6 +19,51 @@ from fragrance_rater.models.fragrance import Fragrance, FragranceNote
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+
+class ObservationFeatures(TypedDict):
+    """Named, typed ML feature values frozen into a controlled manifest row.
+
+    Every entry mirrors a bounded, numeric/boolean ``Observation`` column
+    (see its ``CheckConstraint``-enforced ranges in
+    ``models/calibration.py``) except ``perceived_notes``, which is
+    intentionally an unbounded list of free-text labels kept here rather
+    than in ``notes_text``: downstream consumers treat it as a queryable
+    per-observation feature (see
+    ``test_controlled_manifest_exposes_typed_features_not_a_responses_blob``),
+    not as prose to be read.
+    """
+
+    detected: bool | None
+    intensity: int | None
+    elapsed_minutes: int
+    confidence: int | None
+    sweetness: int | None
+    freshness: int | None
+    density: int | None
+    familiarity: int | None
+    dryness: int | None
+    clean_soapy: int | None
+    earthy_rooty: int | None
+    bodily_animalic: int | None
+    discomfort: int | None
+    opening_liking: int | None
+    drydown_liking: int | None
+    would_wear: int | None
+    would_buy: int | None
+    artistic_appreciation: int | None
+    projection: int | None
+    longevity_minutes: int | None
+    perceived_notes: list[str] | None
+
+
+class ObservationNotesText(TypedDict):
+    """Raw free-text fields frozen into a controlled manifest row."""
+
+    likes: str | None
+    dislikes: str | None
+    reminds_me_of: str | None
+    comments: str | None
 
 
 class PreferenceHistoryService:
@@ -125,6 +170,45 @@ class PreferenceHistoryService:
             selected.add(key)
             if observation.liking is None:
                 continue
+            # Named, typed ML features (previously one opaque `responses`
+            # JSON blob), per the facts/derived/inference and published-vs-
+            # perceived distinctions in
+            # docs/planning/data-model-gap-analysis.md. Most entries are
+            # bounded, typed values; `perceived_notes` is the deliberate
+            # exception, kept here as free-text labels rather than in
+            # `notes_text` (see `ObservationFeatures`'s docstring). Backed by
+            # a TypedDict so a future key rename/removal is caught by
+            # basedpyright rather than silently drifting in the frozen
+            # manifest.
+            features: ObservationFeatures = {
+                "detected": observation.detected,
+                "intensity": observation.intensity,
+                "elapsed_minutes": observation.elapsed_minutes,
+                "confidence": observation.confidence,
+                "sweetness": observation.sweetness,
+                "freshness": observation.freshness,
+                "density": observation.density,
+                "familiarity": observation.familiarity,
+                "dryness": observation.dryness,
+                "clean_soapy": observation.clean_soapy,
+                "earthy_rooty": observation.earthy_rooty,
+                "bodily_animalic": observation.bodily_animalic,
+                "discomfort": observation.discomfort,
+                "opening_liking": observation.opening_liking,
+                "drydown_liking": observation.drydown_liking,
+                "would_wear": observation.would_wear,
+                "would_buy": observation.would_buy,
+                "artistic_appreciation": observation.artistic_appreciation,
+                "projection": observation.projection,
+                "longevity_minutes": observation.longevity_minutes,
+                "perceived_notes": observation.perceived_notes,
+            }
+            notes_text: ObservationNotesText = {
+                "likes": observation.likes,
+                "dislikes": observation.dislikes,
+                "reminds_me_of": observation.reminds_me_of,
+                "comments": observation.comments,
+            }
             rows.append(
                 {
                     "id": observation.id,
@@ -136,7 +220,8 @@ class PreferenceHistoryService:
                     "program_id": enrollment.program_id,
                     "scale": "0-10",
                     "rating": observation.liking,
-                    "responses": observation.responses,
+                    "features": features,
+                    "notes_text": notes_text,
                     "observed_at": observation.created_at.isoformat(),
                 }
             )

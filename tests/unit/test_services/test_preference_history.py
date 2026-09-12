@@ -87,10 +87,37 @@ def observation(presentation, *, liking=8, phase="PRE_REVEAL", created_at=None):
         detected=liking is not None,
         intensity=3 if liking is not None else 0,
         liking=liking,
-        responses={"perceived_notes": ["pencil"], "liking": liking},
+        perceived_notes=["pencil"],
         recorded_by="recorder",
         created_at=created_at or now_naive_utc(),
     )
+
+
+@pytest.mark.asyncio
+async def test_controlled_manifest_exposes_typed_features_not_a_responses_blob(
+    history_data,
+):
+    service, _, presentations = history_data
+    service.db.add(observation(presentations["UNIVERSAL_BASELINE"], liking=9))
+    await service.db.flush()
+    manifest = await service.training_manifest("owner")
+    assert len(manifest) == 1
+    row = manifest[0]
+    assert "responses" not in row
+    assert row["features"]["perceived_notes"] == ["pencil"]
+    assert row["features"]["would_wear"] is None
+    # detected/intensity/elapsed_minutes predate this PR as typed Observation
+    # columns; they must still reach the manifest, not disappear now that
+    # `responses` is gone.
+    assert row["features"]["detected"] is True
+    assert row["features"]["intensity"] == 3
+    assert row["features"]["elapsed_minutes"] == 0
+    assert row["notes_text"] == {
+        "likes": None,
+        "dislikes": None,
+        "reminds_me_of": None,
+        "comments": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -203,7 +230,7 @@ async def test_persisted_checkpoint_survives_response_and_source_changes(history
     )
     service.db.add(checkpoint)
     await service.db.flush()
-    response.responses = {"perceived_notes": ["changed"], "liking": 2}
+    response.perceived_notes = ["changed"]
     response.liking = 2
     fragrance = await service.db.get(Fragrance, "baseline")
     fragrance.primary_family = "citrus"
