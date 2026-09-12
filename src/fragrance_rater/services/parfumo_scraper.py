@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import quote_plus, urlsplit
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
@@ -66,6 +66,35 @@ class ScrapedFragrance:
     perfumer: str | None = None
     concentration: str | None = None
     image_url: str | None = None
+    # #ASSUME: external-resources: metrics/metric_vote_counts hold the
+    # per-dimension community ratings (scent, longevity, sillage, bottle,
+    # value_for_money) shown alongside the single overall score
+    # _extract_rating already captures. Verified against live pages
+    # (Creed Aventus, Chanel Bleu de Chanel, 2026-09-12): each dimension is
+    # its own `.barfiller_element.rating-details[data-type]` block: see
+    # `_extract_metrics`.
+    # #VERIFY: covered by fixtures modeling that block structure and by a
+    # missing-block fixture asserting both dicts stay empty rather than
+    # guessing a value.
+    metrics: dict[str, float] = field(default_factory=dict)
+    metric_vote_counts: dict[str, int] = field(default_factory=dict)
+    # #ASSUME: data-integrity: production_status is None unless the page's
+    # description sentence uses one of the two phrasings Parfumo's own
+    # copy uses ("still in production" / "no longer in production" /
+    # "discontinued"). Anything else - a redesigned sentence, a language
+    # other than English - stays unknown rather than guessed, matching the
+    # "unknown concentration stays unknown" invariant applied to status.
+    # #VERIFY: covered by in-production, discontinued, and
+    # absent-description fixtures.
+    production_status: str | None = None
+    # #EDGE: external-resources: this is populated only from the sidebar
+    # "Also liked" recommendations, which use real `<a href>` anchors.
+    # Parfumo's in-page "Smells similar" widget (`#sim_wrapper .sim_item`)
+    # is rendered with `data-p_id`/`data-s_id` attributes and no href, so
+    # it cannot be resolved to a fragrance URL from static HTML; it is
+    # intentionally not scraped here rather than emitting a URL-less
+    # entry that looks navigable but is not.
+    similar_fragrances: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -118,6 +147,18 @@ class ParfumoScraper:
     ALLOWED_HOSTS: ClassVar[frozenset[str]] = frozenset(
         {"parfumo.com", "www.parfumo.com"}
     )
+
+    # Maps a rating block's `data-type` attribute to the canonical metric
+    # key used in ScrapedFragrance.metrics/metric_vote_counts. Confirmed
+    # against live perfume pages on 2026-09-12 (see `_extract_metrics`);
+    # an unrecognized data-type is skipped rather than guessed.
+    METRIC_TYPE_LABELS: ClassVar[dict[str, str]] = {
+        "scent": "scent",
+        "durability": "longevity",
+        "sillage": "sillage",
+        "bottle": "bottle",
+        "pricing": "value_for_money",
+    }
 
     # Delay between requests (seconds) - be respectful
     REQUEST_DELAY = 3.0
@@ -409,6 +450,9 @@ class ParfumoScraper:
             self._extract_notes(soup, data)
             self._extract_accords(soup, data)
             self._extract_rating(soup, data)
+            self._extract_metrics(soup, data)
+            data.production_status = self._extract_production_status(soup)
+            self._extract_similar_fragrances(soup, data)
             data.gender = self._extract_gender(soup)
             data.year = self._extract_year(soup)
             data.perfumer = self._extract_perfumer(soup)
@@ -498,6 +542,22 @@ class ParfumoScraper:
     def _extract_rating(self, soup: BeautifulSoup, data: ScrapedFragrance) -> None:
         """Extract the community rating and vote count.
 
+        # #CRITICAL: data-integrity: the live block (verified against
+        # Creed Aventus and Chanel Bleu de Chanel, 2026-09-12) nests the
+        # score and vote count in their own child elements
+        # (`.text-lg.bold` / `.text-2xs.upper`) alongside other label
+        # text, e.g. "Scent" + "8.4" + "8586 Ratings" as sibling text
+        # nodes. Reading `rating_elem.get_text(strip=True)` on the whole
+        # block concatenates them with no separator ("Scent8.48586
+        # Ratings"), so the plain digit regex below can fuse the score
+        # and count into one bogus number ("8.48586"). The scoped
+        # `.text-lg.bold`/`.text-2xs.upper` lookup is tried first; the
+        # flatter whole-block regex remains only as a fallback for markup
+        # that has no such scoped elements (e.g. a single flat text node).
+        # #VERIFY: covered by a fixture using the real nested block shape
+        # (asserting the correct, non-fused rating) and by the original
+        # flat-text fixture (asserting the fallback still parses it).
+
         Args:
             soup (BeautifulSoup): Parsed HTML.
             data (ScrapedFragrance): ScrapedFragrance to populate.
@@ -505,25 +565,187 @@ class ParfumoScraper:
         # Parfumo specific, e.g. "Scent8.35 Ratings" in .barfiller_element
         rating_elem = soup.select_one(".barfiller_element.rating-details")
         if rating_elem:
-            rating_text = rating_elem.get_text(strip=True)
-            match = re.search(r"(\d+\.?\d*)", rating_text)
-            if match:
-                data.rating = float(match.group(1))
-
-            count_match = re.search(r"(\d+)\s*Rating", rating_text)
-            if count_match:
-                data.rating_count = int(count_match.group(1))
+            self._extract_scoped_rating(rating_elem, data)
+            if data.rating is None:
+                self._extract_flat_rating(rating_elem, data)
 
         if data.rating:
             return
 
         # Fallback rating extraction
-        rating_elem = soup.select_one(".rating-value, [itemprop='ratingValue'], .score")
-        if rating_elem:
-            match = re.search(r"(\d+\.?\d*)", rating_elem.get_text(strip=True))
+        fallback_elem = soup.select_one(
+            ".rating-value, [itemprop='ratingValue'], .score"
+        )
+        if fallback_elem:
+            match = re.search(r"(\d+\.?\d*)", fallback_elem.get_text(strip=True))
             if match:
                 rating = float(match.group(1))
                 data.rating = rating / 10 if rating > 10 else rating
+
+    @staticmethod
+    def _extract_scoped_rating(rating_elem: Tag, data: ScrapedFragrance) -> None:
+        """Read the score/count from their own scoped child elements.
+
+        Preferred over `_extract_flat_rating` because it can't fuse the
+        score and vote count together (see `_extract_rating`'s docstring).
+        """
+        score_elem = rating_elem.select_one(".text-lg.bold")
+        if score_elem:
+            match = re.search(r"(\d+\.?\d*)", score_elem.get_text(strip=True))
+            if match:
+                data.rating = float(match.group(1))
+
+        count_elem = rating_elem.select_one(".text-2xs.upper")
+        if count_elem:
+            count_text = count_elem.get_text(strip=True).replace(",", "")
+            count_match = re.search(r"(\d+)", count_text)
+            if count_match:
+                data.rating_count = int(count_match.group(1))
+
+    @staticmethod
+    def _extract_flat_rating(rating_elem: Tag, data: ScrapedFragrance) -> None:
+        """Fall back to the whole block's concatenated text.
+
+        Only used when `_extract_scoped_rating` found no scoped score
+        element, i.e. markup with a single flat text node such as
+        "Scent8.55 Ratings" and no nested `.text-lg.bold`/`.text-2xs.upper`
+        children.
+        """
+        rating_text = rating_elem.get_text(strip=True)
+        match = re.search(r"(\d+\.?\d*)", rating_text)
+        if match:
+            data.rating = float(match.group(1))
+
+        count_match = re.search(r"(\d+)\s*Rating", rating_text)
+        if count_match:
+            data.rating_count = int(count_match.group(1))
+
+    def _extract_metrics(self, soup: BeautifulSoup, data: ScrapedFragrance) -> None:
+        """Extract the per-dimension community ratings.
+
+        The overall score `_extract_rating` reads (Scent) is one of
+        several sibling `.barfiller_element.rating-details` blocks, each
+        tagged with a `data-type` attribute (scent/durability/sillage/
+        bottle/pricing per `METRIC_TYPE_LABELS`) and carrying its own
+        average score (`.text-lg.bold`) and vote count (`.text-2xs.upper`,
+        e.g. "8586 Ratings"). An unrecognized or malformed block is
+        skipped rather than guessed.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+            data (ScrapedFragrance): ScrapedFragrance to populate.
+        """
+        for block in soup.select(".barfiller_element.rating-details[data-type]"):
+            raw_type = block.get("data-type")
+            if not isinstance(raw_type, str):
+                continue
+            label = self.METRIC_TYPE_LABELS.get(raw_type.lower())
+            if not label:
+                continue
+
+            score_elem = block.select_one(".text-lg.bold")
+            if score_elem:
+                match = re.search(r"(\d+\.?\d*)", score_elem.get_text(strip=True))
+                if match:
+                    data.metrics[label] = float(match.group(1))
+
+            count_elem = block.select_one(".text-2xs.upper")
+            if count_elem:
+                count_text = count_elem.get_text(strip=True).replace(",", "")
+                count_match = re.search(r"(\d+)", count_text)
+                if count_match:
+                    data.metric_vote_counts[label] = int(count_match.group(1))
+
+    def _extract_production_status(self, soup: BeautifulSoup) -> str | None:
+        """Infer production status from the page's descriptive sentence.
+
+        Parfumo does not expose production status as a discrete field; it
+        appears as a plain-language sentence inside the perfume
+        description (e.g. "It is still in production." or "It is no
+        longer in production."). Only those recognized phrasings are
+        mapped; anything else - a redesigned sentence, a different
+        language - returns None rather than guessing, matching this
+        project's "unknown stays unknown" policy for scraped facts.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+
+        Returns:
+            str | None: "in_production", "discontinued", or None if the
+                description is missing or uses unrecognized phrasing.
+        """
+        description = soup.select_one("[itemprop='description']")
+        if description is None:
+            return None
+
+        # #EDGE: external-resources: collapse internal whitespace (line
+        # wraps/indentation in the source HTML around the sentence) before
+        # matching, so a phrase split across a source line break - "no
+        # longer in\n    production" - still matches as one phrase.
+        raw_text = description.get_text(" ", strip=True)
+        text = " ".join(raw_text.split()).lower()
+        if "no longer in production" in text or "discontinued" in text:
+            return "discontinued"
+        if "still in production" in text:
+            return "in_production"
+        return None
+
+    def _extract_similar_fragrances(
+        self, soup: BeautifulSoup, data: ScrapedFragrance
+    ) -> None:
+        """Extract the sidebar "Also liked" recommendations.
+
+        The in-page "Smells similar" widget (`#sim_wrapper .sim_item`) is
+        driven entirely by `data-p_id`/`data-s_id` attributes with no
+        navigable `href`, so it cannot be resolved to a fragrance URL from
+        static HTML and is intentionally not read here (see the
+        `similar_fragrances` field docstring). The sidebar "Also liked"
+        list uses real anchors instead, so it is the source used.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+            data (ScrapedFragrance): ScrapedFragrance to populate.
+        """
+        heading = soup.find(
+            lambda tag: (
+                tag.name in {"div", "h2", "h3"}
+                and len(tag.get_text(strip=True)) < 40
+                and tag.get_text(strip=True).lower() == "also liked"
+            )
+        )
+        if heading is None:
+            return
+
+        # The links live a couple of siblings past the heading (a
+        # "Users who like ... often also like" caption sits between them
+        # on the live layout); scan forward rather than assuming an exact
+        # sibling offset so a minor layout shift doesn't silently break
+        # extraction.
+        container = None
+        for sibling in heading.find_next_siblings(name=True, limit=4):
+            if sibling.select_one("a[href*='/Perfumes/'] img[alt]"):
+                container = sibling
+                break
+        if container is None:
+            return
+
+        for link in container.select("a[href*='/Perfumes/']")[:12]:
+            href = link.get("href")
+            img = link.select_one("img[alt]")
+            if not isinstance(href, str) or not href or img is None:
+                continue
+            alt = img.get("alt")
+            if not isinstance(alt, str) or not alt.strip():
+                continue
+
+            name, _, brand = alt.partition(" by ")
+            name = name.strip()
+            if not name:
+                continue
+            entry = {"name": name, "url": href}
+            if brand.strip():
+                entry["brand"] = brand.strip()
+            data.similar_fragrances.append(entry)
 
     def _extract_gender(self, soup: BeautifulSoup) -> str | None:
         """Infer the target gender from the page text.

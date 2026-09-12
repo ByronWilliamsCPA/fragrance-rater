@@ -1,8 +1,29 @@
 """Unit tests for ParfumoScraper.
 
 Tests the Parfumo.com web scraping functionality with mocked HTTP responses.
+
+Fixture provenance (P1.9): every SAMPLE_* HTML constant in this module is
+hand-authored, synthetic markup - none of it is a stored or redistributed
+copy of a live Parfumo page, and every brand/fragrance/reviewer name is a
+fictitious placeholder ("Test Brand", "Sibling Brand", ...). The CSS
+classes, `data-*` attributes, and element nesting they use (e.g.
+`.p_name_h1`/`.p_brand_name`, `.pyramid_block.nb_t/.nb_m/.nb_b`,
+`.barfiller_element.rating-details[data-type]`, the sidebar "Also liked"
+list, and the `.p_con` concentration-popup trigger) were confirmed by
+fetching two live, publicly reachable perfume pages once each on
+2026-09-12 to inspect their structure (a single ordinary page load per
+URL, the same access any visitor's browser performs - not stored,
+committed, or redistributed here) and are otherwise written independently
+to model that structure with placeholder content. Where the live pages
+turned out to load data only via client-side AJAX (concentration variants
+behind `getConcentrationsPopup()`; the `#sim_wrapper .sim_item` "Smells
+similar" widget, which carries no `href`), the parser intentionally does
+not fabricate an extraction for it, and a fixture documents that gap
+instead of a fake success path - see
+`TestParfumoScraperConcentrationVariantLimitation`.
 """
 
+import dataclasses
 import threading
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
@@ -69,6 +90,124 @@ SAMPLE_SEARCH_RESULTS = """
         <a href="/Perfumes/creed/green-irish-tweed">Green Irish Tweed by Creed</a>
         <a href="/Perfumes/montale/intense-cafe">Intense Cafe by Montale</a>
     </div>
+</body>
+</html>
+"""
+
+# P1.9 fixture: the real per-dimension rating blocks (scent/durability/
+# sillage/bottle/pricing), an "in production" status sentence, and the
+# sidebar "Also liked" recommendation list. See the module docstring for
+# fixture provenance.
+SAMPLE_PERFUME_PAGE_METRICS_AND_STATUS = """
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Metrics Fragrance by Metrics Brand » Parfumo</title></head>
+<body>
+    <h1 class="p_name_h1">
+        Metrics Fragrance
+        <span class="p_brand_name nobold">Metrics Brand2023</span>
+    </h1>
+
+    <span itemprop="description">A popular perfume by Metrics Brand for men,
+    released in 2023. The scent is fresh-woody. It is still in production.</span>
+
+    <div class="flex flex-wrap">
+        <div class="barfiller_element rating-details pointer" data-type="scent">
+            <div class="text-xs upper blue">Scent</div>
+            <div class="w-100 nowrap">
+                <span class="pr-0-5 text-lg bold blue">8.4</span><span class="lightgrey text-2xs upper">1,200 Ratings</span>
+            </div>
+        </div>
+        <div class="barfiller_element rating-details pointer" data-type="durability">
+            <div class="text-xs upper pink">Longevity</div>
+            <div class="w-100 nowrap">
+                <span class="pr-0-5 text-lg bold pink">7.3</span><span class="lightgrey text-2xs upper">1100 Ratings</span>
+            </div>
+        </div>
+        <div class="barfiller_element rating-details pointer" data-type="sillage">
+            <div class="text-xs upper purple">Sillage</div>
+            <div class="w-100 nowrap">
+                <span class="pr-0-5 text-lg bold purple">6.9</span><span class="lightgrey text-2xs upper">1050 Ratings</span>
+            </div>
+        </div>
+        <div class="barfiller_element rating-details pointer" data-type="bottle">
+            <div class="text-xs upper green">Bottle</div>
+            <div class="w-100 nowrap">
+                <span class="pr-0-5 text-lg bold green">7.7</span><span class="lightgrey text-2xs upper">900 Ratings</span>
+            </div>
+        </div>
+        <div class="barfiller_element rating-details pointer" data-type="pricing">
+            <div class="text-xs upper grey">Value for money</div>
+            <div class="w-100 nowrap">
+                <span class="pr-0-5 text-lg bold grey">5.5</span><span class="lightgrey text-2xs upper">800 Ratings</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-lg bold mb-0-5">Also liked</div>
+    <div class="text-sm lightgrey mb-1">Users who like <strong>Metrics Fragrance</strong> often also like</div>
+    <div class="mb-2">
+        <a href="https://www.parfumo.com/Perfumes/Sibling_Brand/sibling-scent"><img alt="Sibling Scent by Sibling Brand" class="p_pic_sidebar"></a>
+        <a href="https://www.parfumo.com/Perfumes/Rival_Brand/rival-scent"><img alt="Rival Scent by Rival Brand" class="p_pic_sidebar"></a>
+    </div>
+</body>
+</html>
+"""
+
+# P1.9 fixture: a discontinued fragrance, the alternate status phrasing.
+SAMPLE_PERFUME_PAGE_DISCONTINUED = """
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Retired Fragrance by Retired Brand » Parfumo</title></head>
+<body>
+    <h1 class="p_name_h1">
+        Retired Fragrance
+        <span class="p_brand_name nobold">Retired Brand2005</span>
+    </h1>
+
+    <span itemprop="description">A perfume by Retired Brand for women,
+    released in 2005. The scent is powdery-floral. It is no longer in
+    production.</span>
+</body>
+</html>
+"""
+
+# P1.9 fixture: a page missing every optional section (no rating blocks,
+# no description, no "Also liked" sidebar, no perfumer/notes) - every new
+# field must default to empty/None rather than raising or guessing.
+SAMPLE_PERFUME_PAGE_MISSING_SECTIONS = """
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Sparse Fragrance by Sparse Brand » Parfumo</title></head>
+<body>
+    <h1 class="p_name_h1">
+        Sparse Fragrance
+        <span class="p_brand_name nobold">Sparse Brand</span>
+    </h1>
+</body>
+</html>
+"""
+
+# P1.9 fixture: the concentration-variant trigger (`.p_con`) that on the
+# live site opens an AJAX-populated popup (`getConcentrationsPopup()`)
+# rather than rendering related versions into the static page. No related-
+# version data exists in this fixture on purpose - see
+# TestParfumoScraperConcentrationVariantLimitation.
+SAMPLE_PERFUME_PAGE_CONCENTRATION_TRIGGER = """
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Layered Fragrance by Layered Brand » Parfumo</title></head>
+<body>
+    <h1 class="p_name_h1">
+        Layered Fragrance
+        <span class="p_brand_name nobold">Layered Brand2010</span>
+        <span class="p_con label_a pointer upper">Eau de Parfum
+            <i class="fa fa-angle-down grey" aria-hidden="true"></i>
+        </span>
+    </h1>
+    <script>
+        $('.p_con').click(function(){getConcentrationsPopup(1234, 0, 'x');});
+    </script>
 </body>
 </html>
 """
@@ -454,6 +593,25 @@ def _new_scraper() -> ParfumoScraper:
     scraper._last_request_time = 0
     scraper._client = None
     return scraper
+
+
+def _scrape_fixture(html: str) -> ScrapedFragrance:
+    """Scrape a synthetic fixture page through the full mocked HTTP path."""
+    scraper = _new_scraper()
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.text = html
+
+    with patch.object(scraper, "_get_client") as mock_client:
+        client = MagicMock()
+        client.get.return_value = mock_response
+        mock_client.return_value = client
+        result = scraper.scrape_perfume_page(
+            "https://parfumo.com/Perfumes/test/fixture"
+        )
+
+    assert result is not None
+    return result
 
 
 class TestParfumoScraperHostAllowlist:
@@ -995,3 +1153,112 @@ def test_unstructured_notes_remain_flat_during_extraction():
     assert scraped.top_notes == []
     assert scraped.heart_notes == []
     assert scraped.base_notes == []
+
+
+class TestParfumoScraperMetrics:
+    """P1.9: per-dimension rating extraction (scent/longevity/sillage/bottle/
+    value_for_money), verified against the real `.barfiller_element.rating-
+    details[data-type]` block shape (see module docstring for provenance)."""
+
+    def test_extracts_all_five_metrics(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_METRICS_AND_STATUS)
+        assert result.metrics == {
+            "scent": 8.4,
+            "longevity": 7.3,
+            "sillage": 6.9,
+            "bottle": 7.7,
+            "value_for_money": 5.5,
+        }
+
+    def test_extracts_metric_vote_counts_and_strips_thousands_separators(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_METRICS_AND_STATUS)
+        assert result.metric_vote_counts == {
+            "scent": 1200,
+            "longevity": 1100,
+            "sillage": 1050,
+            "bottle": 900,
+            "value_for_money": 800,
+        }
+
+    def test_overall_rating_is_not_fused_with_the_nested_vote_count(self):
+        """Regression test for the nested-markup finding in _extract_rating:
+        reading the whole block's concatenated text ("Scent" + "8.4" +
+        "1,200 Ratings") without a separator previously fused the score and
+        count into a bogus "8.41200"-shaped number. The scoped score/count
+        elements must be read instead."""
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_METRICS_AND_STATUS)
+        assert result.rating == pytest.approx(8.4)
+        assert result.rating_count == 1200
+
+    def test_original_flat_text_fixture_still_falls_back_correctly(self):
+        """The pre-existing flat-text fixture (no scoped score/count
+        elements) must still resolve through the fallback path."""
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE)
+        assert result.rating == pytest.approx(8.55)
+
+    def test_missing_metric_blocks_leave_both_dicts_empty(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_MISSING_SECTIONS)
+        assert result.metrics == {}
+        assert result.metric_vote_counts == {}
+
+
+class TestParfumoScraperProductionStatus:
+    """P1.9: production status is inferred from Parfumo's own description
+    sentence; anything unrecognized stays None rather than guessed."""
+
+    def test_still_in_production(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_METRICS_AND_STATUS)
+        assert result.production_status == "in_production"
+
+    def test_no_longer_in_production_reads_as_discontinued(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_DISCONTINUED)
+        assert result.production_status == "discontinued"
+
+    def test_missing_description_stays_unknown(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_MISSING_SECTIONS)
+        assert result.production_status is None
+
+
+class TestParfumoScraperSimilarFragrances:
+    """P1.9: the sidebar "Also liked" list is the only similar-fragrance
+    source with real, navigable hrefs (see module docstring)."""
+
+    def test_extracts_also_liked_sidebar_entries(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_METRICS_AND_STATUS)
+        assert result.similar_fragrances == [
+            {
+                "name": "Sibling Scent",
+                "brand": "Sibling Brand",
+                "url": "https://www.parfumo.com/Perfumes/Sibling_Brand/sibling-scent",
+            },
+            {
+                "name": "Rival Scent",
+                "brand": "Rival Brand",
+                "url": "https://www.parfumo.com/Perfumes/Rival_Brand/rival-scent",
+            },
+        ]
+
+    def test_missing_also_liked_section_stays_empty(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_MISSING_SECTIONS)
+        assert result.similar_fragrances == []
+
+
+class TestParfumoScraperConcentrationVariantLimitation:
+    """P1.9: on the live site, other concentrations of the same fragrance
+    (related versions) are populated by a client-side AJAX popup
+    (`getConcentrationsPopup()`), not rendered into the static page the
+    `.p_con` trigger sits on. ScrapedFragrance intentionally carries no
+    `related_versions` field until a follow-up implements that endpoint;
+    these tests document the gap rather than silently doing nothing, so a
+    future change replaces this test deliberately instead of by accident.
+    """
+
+    def test_concentration_still_parses_from_the_title(self):
+        """What the static page *does* offer (the concentration named in
+        the title) is still extracted normally."""
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_CONCENTRATION_TRIGGER)
+        assert result.concentration == "EDP"
+
+    def test_no_related_version_field_is_fabricated(self):
+        field_names = {f.name for f in dataclasses.fields(ScrapedFragrance)}
+        assert "related_versions" not in field_names

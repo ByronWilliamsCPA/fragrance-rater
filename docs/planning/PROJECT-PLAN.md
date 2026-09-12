@@ -1,6 +1,6 @@
 # Fragrance Rater: Authoritative Project Plan
 
-> **Version**: 2.1 | **Status**: Active | **Updated**: 2026-09-11
+> **Version**: 2.1 | **Status**: Active | **Updated**: 2026-09-12
 
 ## 1. Planning authority
 
@@ -40,7 +40,7 @@ evidence are retained in the linked gate records and PR #70.
 | Docker Compose, FastAPI, PostgreSQL, React | Implemented | Development and production Compose files exist; production network exposure needs P1 validation |
 | Fragrance, reviewer, and ordinary evaluation CRUD | Implemented | Ordinary POST retains dated encounters; update and soft delete operate on one encounter |
 | Kaggle import | Implemented | Production dataset quality and rights remain source-specific |
-| Parfumo capture | Partially implemented | Source snapshots and exact titles are preserved; representative live fixtures and full field coverage remain P1/D1 work |
+| Parfumo capture | Partially implemented | Source snapshots and exact titles are preserved; P1.9 added authorized representative fixtures and parser coverage for requested metrics, production status, similar fragrances, missing fields, and unknown concentration; concentration-variant ("related version") data is confirmed AJAX-only on the live site and is intentionally not fabricated |
 | Deterministic recommendations | Implemented | Weighted affinity with veto; score is uncalibrated |
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
 | OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the F1 pilot |
