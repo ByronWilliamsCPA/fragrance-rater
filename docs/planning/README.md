@@ -12,6 +12,7 @@ This directory contains the governing documents for Fragrance Rater.
 | [Execution Roadmap](roadmap.md) | Provides a compact mirror of project-plan milestones |
 | [ADR Index](adr/README.md) | Records durable architectural and policy decisions |
 | [Controlled Calibration V1](../calibration-v1.md) | Defines the implemented controlled workflow and its deployment constraints |
+| [Plan vs. Implementation Review, 2026-09-12](reviews/2026-09-12-plan-vs-implementation-review.md) | Independent, dated comparison of plan claims against retained evidence and code |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
 behavior but does not silently supersede an accepted ADR.

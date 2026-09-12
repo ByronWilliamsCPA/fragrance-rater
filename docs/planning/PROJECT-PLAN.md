@@ -591,3 +591,4 @@ Production backups, secrets, raw private responses, and blind mappings must not 
 - [ADR Index](adr/README.md)
 - [Controlled Calibration V1](../calibration-v1.md)
 - [Scent Chords Analysis](../research/scent-chords-analysis.md)
+- [Plan vs. Implementation Review, 2026-09-12](reviews/2026-09-12-plan-vs-implementation-review.md)
