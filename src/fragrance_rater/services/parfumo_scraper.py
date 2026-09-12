@@ -439,12 +439,16 @@ class ParfumoScraper:
 
         Args:
             query (str): Search query (name, brand, or both).
-            limit (int): Maximum results to return.
+            limit (int): Maximum results to return. A non-positive value
+                returns an empty list without making a request.
 
         Returns:
             list[SearchResult]: List of search results, in Parfumo's own
                 "popular" ranking order (not a relevance guarantee).
         """
+        if limit <= 0:
+            return []
+
         soup = self._make_request(
             self.LIVESEARCH_URL, data={"q": query, "o": "popular", "iwear": "0"}
         )
@@ -453,11 +457,11 @@ class ParfumoScraper:
 
         results: list[SearchResult] = []
         for item in soup.select(".ls-perfume-item"):
+            if len(results) >= limit:
+                break
             result = self._parse_livesearch_item(item)
             if result is not None and not any(r.url == result.url for r in results):
                 results.append(result)
-            if len(results) >= limit:
-                break
 
         return results
 

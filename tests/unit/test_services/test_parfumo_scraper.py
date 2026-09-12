@@ -550,6 +550,18 @@ class TestParfumoScraperSearch:
 
         assert len(results) == 1
 
+    def test_search_returns_nothing_for_a_non_positive_limit(self):
+        """limit=0 (or negative) must return zero results, not one -
+        the loop previously appended a result before checking the limit,
+        so limit=0 returned one result instead of honoring the maximum."""
+        scraper = _new_scraper()
+
+        with patch.object(scraper, "_get_client") as mock_client:
+            results = scraper.search("test", limit=0)
+
+        assert results == []
+        mock_client.assert_not_called()
+
     def test_search_handles_no_results(self):
         """Test search handles empty results."""
         scraper = _new_scraper()
