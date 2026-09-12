@@ -91,6 +91,28 @@ def test_a_non_numeric_predicted_scale_skips_range_validation() -> None:
 
 
 def test_oneof_constraint_is_published_in_the_generated_schema() -> None:
+    """Each of the two `oneOf` branches must require its own outcome id field and
+    exclude the other, matching `require_exactly_one_outcome` exactly; a bug that
+    swaps, duplicates, or empties a branch must fail this test."""
     schema = PredictionOutcomeInput.model_json_schema()
     assert "oneOf" in schema
-    assert len(schema["oneOf"]) == 2
+    branches = schema["oneOf"]
+    assert len(branches) == 2
+    evaluation_branch = next(
+        branch
+        for branch in branches
+        if branch.get("required") == ["outcome_evaluation_id"]
+    )
+    observation_branch = next(
+        branch
+        for branch in branches
+        if branch.get("required") == ["outcome_observation_id"]
+    )
+    # The two branches found above must actually be distinct objects, not
+    # the same branch matched twice (which would happen if one was empty).
+    assert evaluation_branch is not observation_branch
+    assert evaluation_branch["not"] == {"required": ["outcome_observation_id"]}
+    assert observation_branch["not"] == {"required": ["outcome_evaluation_id"]}
+    # The top-level schema must not also carry a blanket "required" that
+    # would make both ids independently mandatory alongside the oneOf.
+    assert "required" not in schema

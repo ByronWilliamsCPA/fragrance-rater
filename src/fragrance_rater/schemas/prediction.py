@@ -124,8 +124,9 @@ class PredictionView(BaseModel):
     """Serialized, (mostly) immutable prediction snapshot.
 
     Every field is set once at creation except ``outcome_evaluation_id``,
-    ``outcome_observation_id``, and ``outcome_linked_at``, which start NULL
-    and are set exactly once by a later, separate outcome-link call.
+    ``outcome_observation_id``, ``outcome_linked_at``, and
+    ``outcome_recorded_by``, which start NULL and are set exactly once by a
+    later, separate outcome-link call.
     """
 
     id: str
