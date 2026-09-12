@@ -34,6 +34,7 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-007](./adr-007-preference-evidence-and-score-semantics.md) | Preference Evidence and Score Semantics | Accepted | 2026-09-11 |
 | [ADR-008](./adr-008-authentication-and-production-boundary.md) | Authentication and Production Trust Boundary | Accepted | 2026-09-11 |
 | [ADR-009](./adr-009-prospective-evaluation-and-checkpoints.md) | Prospective Evaluation and Frozen Checkpoints | Accepted | 2026-09-11 |
+| [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md) | Preference-Learning and Scenario Data Model | Proposed | 2026-09-12 |
 
 ## Creating ADRs
 

@@ -63,3 +63,4 @@ record.
 - [Technical Specification](tech-spec.md)
 - [ADR Index](adr/README.md)
 - [Controlled Calibration V1](../calibration-v1.md)
+- [Data Model Gap Analysis](data-model-gap-analysis.md)

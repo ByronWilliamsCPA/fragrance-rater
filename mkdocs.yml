@@ -187,6 +187,7 @@ nav:
       - F1 Initial Family Pilot Gate: planning/gates/f1.md
       - Controlled Calibration V1: calibration-v1.md
       - Scent chords Analysis: research/scent-chords-analysis.md
+      - Data Model Gap Analysis: planning/data-model-gap-analysis.md
 
   - Deployment:
       - P1 Release Readiness: deployment/p1-release-readiness.md
@@ -205,6 +206,7 @@ nav:
       - ADR-007 Preference Evidence: planning/adr/adr-007-preference-evidence-and-score-semantics.md
       - ADR-008 Authentication Boundary: planning/adr/adr-008-authentication-and-production-boundary.md
       - ADR-009 Prospective Evaluation: planning/adr/adr-009-prospective-evaluation-and-checkpoints.md
+      - ADR-010 Preference-Learning Data Model: planning/adr/adr-010-preference-learning-and-scenario-data-model.md
       - ADR Template: ADRs/adr-template.md
 
   - Reference:

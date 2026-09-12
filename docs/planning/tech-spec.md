@@ -265,3 +265,4 @@ Each implementation pull request updates:
 - [Execution Roadmap](roadmap.md)
 - [ADR Index](adr/README.md)
 - [Controlled Calibration V1](../calibration-v1.md)
+- [Data Model Gap Analysis](data-model-gap-analysis.md)

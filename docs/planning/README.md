@@ -12,6 +12,7 @@ This directory contains the governing documents for Fragrance Rater.
 | [Execution Roadmap](roadmap.md) | Provides a compact mirror of project-plan milestones |
 | [ADR Index](adr/README.md) | Records durable architectural and policy decisions |
 | [Controlled Calibration V1](../calibration-v1.md) | Defines the implemented controlled workflow and its deployment constraints |
+| [Data Model Gap Analysis](data-model-gap-analysis.md) | Reviews the schema against preference-learning, scenario, and future-ML requirements; proposed as ADR-010 |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
 behavior but does not silently supersede an accepted ADR.
