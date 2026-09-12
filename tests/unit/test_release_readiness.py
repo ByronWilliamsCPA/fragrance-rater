@@ -239,6 +239,7 @@ def test_decided_at_accepts_fractional_seconds_regardless_of_digit_count() -> No
     [
         "2026-09-12T04:00:00+0000",  # offset missing the required colon
         "20260912T040000Z",  # basic format, no date/time separators
+        "2026-09-12 04:00:00Z",  # space date-time separator, not RFC 3339
     ],
 )
 def test_decided_at_rejects_non_canonical_variants(timestamp: str) -> None:

@@ -29,7 +29,7 @@ PRIVATE_REFERENCE = re.compile(r"private:[A-Za-z0-9](?:[A-Za-z0-9._/-]*[A-Za-z0-
 # deliberately excluded here rather than accepted as a zero offset.
 _TIMESTAMP = re.compile(
     r"(?P<date>\d{4}-\d{2}-\d{2})"
-    r"[Tt ]"
+    r"[Tt]"
     r"(?P<time>\d{2}:\d{2}:\d{2}(?:\.\d+)?)"
     r"(?P<offset>Z|z|\+00:00)"
 )
