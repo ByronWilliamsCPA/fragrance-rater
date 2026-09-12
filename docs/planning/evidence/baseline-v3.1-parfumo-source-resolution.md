@@ -31,9 +31,11 @@ here instead, followed by fetching each chosen candidate's own page and reading 
 / `span.p_brand_name` / `span.p_con` / `[itemprop='description']`, the same structural elements
 `ParfumoScraper` already parses.
 
-This is a real defect in `ParfumoScraper.search()`/`search_and_import()` against the live site,
-separate from this baseline-resolution task; it is noted here for a follow-up fix rather than
-addressed in this pass.
+This was a real defect in `ParfumoScraper.search()`/`search_and_import()` against the live site,
+separate from this baseline-resolution task. It has since been fixed within this same change:
+`search()` now POSTs to the same `/action/livesearch/livesearch.php` endpoint used manually here
+and parses its `.ls-perfume-item` cards, with regression tests covering the livesearch response
+shape (see `tests/unit/test_services/test_parfumo_scraper.py`).
 
 ## Resolved entries
 
@@ -152,9 +154,9 @@ Findings:
   document itself left the concentration open on) with no structured field to cross-check;
   whatever concentration is used is still subject to physical-bottle confirmation like every
   other entry, per P1.1's `physical_sample_confirmed` requirement.
-- **`ParfumoScraper.search()`/`search_and_import()` do not work against the live site today**
-  (see **Method**, above) - a separate defect from this resolution pass, noted here for
-  prioritization rather than fixed in it.
+- **`ParfumoScraper.search()`/`search_and_import()` did not work against the live site** (see
+  **Method**, above) - a separate defect from this resolution pass, since fixed within this same
+  change.
 - **Whether to formalize a supplemental-source policy.** This pass used `WebSearch` for a handful
   of one-off reference lookups, which fits within ADR-002's existing scraping-risk assessment of
   Fragrantica/Basenotes without needing a new decision. If supplemental-source lookups become a
