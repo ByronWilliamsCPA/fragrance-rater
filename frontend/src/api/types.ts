@@ -62,6 +62,8 @@ export type Prediction = {
   uncertainty: number | null
   percentile_rank: number | null
   scenario: string | null
+  input_manifest: Record<string, unknown>[]
+  explanation: Record<string, unknown> | null
   created_at: string
   recorded_by: string | null
   outcome_evaluation_id: string | null

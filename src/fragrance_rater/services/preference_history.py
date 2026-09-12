@@ -142,6 +142,9 @@ class PreferenceHistoryService:
                     # perceived distinctions in
                     # docs/planning/data-model-gap-analysis.md.
                     "features": {
+                        "detected": observation.detected,
+                        "intensity": observation.intensity,
+                        "elapsed_minutes": observation.elapsed_minutes,
                         "confidence": observation.confidence,
                         "sweetness": observation.sweetness,
                         "freshness": observation.freshness,

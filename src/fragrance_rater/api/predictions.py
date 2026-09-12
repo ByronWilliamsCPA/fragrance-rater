@@ -31,7 +31,15 @@ DB = Annotated[AsyncSession, Depends(get_db)]
 Identity = Annotated[AuthenticatedIdentity, Depends(get_current_identity)]
 
 
-@router.post("", response_model=PredictionView, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=PredictionView,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        404: {"description": "Reviewer, fragrance, or checkpoint not found"},
+        409: {"description": "Checkpoint belongs to a different reviewer"},
+    },
+)
 async def create_prediction(
     data: PredictionCreate, db: DB, identity: Identity
 ) -> PredictionView:
@@ -41,13 +49,18 @@ async def create_prediction(
         snapshot = await PredictionService(db).create(data, recorded_by=username)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PredictionConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return PredictionView.model_validate(snapshot, from_attributes=True)
 
 
 @router.post(
     "/{prediction_id}/outcome",
     response_model=PredictionView,
-    responses={409: {"description": "Prediction already has a linked outcome"}},
+    responses={
+        404: {"description": "Prediction not found"},
+        409: {"description": "Prediction already has a linked outcome"},
+    },
 )
 async def link_outcome(
     prediction_id: str, data: PredictionOutcomeInput, db: DB, identity: Identity

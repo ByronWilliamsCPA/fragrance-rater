@@ -60,10 +60,24 @@ class PredictionService:
             message = "fragrance not found"
             raise LookupError(message)
         if data.checkpoint_id is not None:
-            checkpoint = await self.db.get(ModelCheckpoint, data.checkpoint_id)
-            if checkpoint is None:
+            # Join through Enrollment rather than a plain existence check so a
+            # checkpoint frozen for a *different* reviewer's calibration
+            # program can't be attached, which would make the snapshot's own
+            # provenance internally inconsistent (predicting for reviewer A
+            # while citing reviewer B's frozen inputs).
+            checkpoint_reviewer_id = await self.db.scalar(
+                select(Enrollment.reviewer_id)
+                .join(ModelCheckpoint, ModelCheckpoint.enrollment_id == Enrollment.id)
+                .where(ModelCheckpoint.id == data.checkpoint_id)
+            )
+            if checkpoint_reviewer_id is None:
                 message = "checkpoint not found"
                 raise LookupError(message)
+            if checkpoint_reviewer_id != data.reviewer_id:
+                message = (
+                    "checkpoint belongs to a different reviewer than this prediction"
+                )
+                raise PredictionConflictError(message)
         snapshot = PredictionSnapshot(recorded_by=recorded_by, **data.model_dump())
         self.db.add(snapshot)
         await self.db.flush()

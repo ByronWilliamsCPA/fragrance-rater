@@ -77,9 +77,17 @@ Extend, rather than replace, the existing catalog/encounter/experiment/measureme
   `selection_objective` taxonomy, and embedding storage until the milestone or concrete
   consumer that needs each one actually exists.
 
-Every change is additive: new nullable columns and new tables, backfilled from existing data
-where reasonably inferable and left null where not, per the same migration discipline ADR-006
-already established for source/vocabulary changes.
+Every change is additive at the row/history level: no existing encounter, evaluation, or
+calibration observation is discarded, and uncertain or absent legacy values are left NULL rather
+than fabricated. This does **not** mean every column survives unchanged forever: the implemented
+slice below retires the `calibration_observations.responses` column once its data has been
+backfilled into typed columns (a one-time, reviewed structural change), not a permanent
+dual-write. New tables and columns are otherwise additive, backfilled from existing data where
+reasonably inferable and left null where not, per the same migration discipline ADR-006 already
+established for source/vocabulary changes. Because this changes the table's shape, `downgrade()`
+on the implementing migration intentionally refuses (raises) rather than attempting a lossy
+in-place reversal; rollback is by restoring a pre-upgrade backup, consistent with every other
+migration in this repository that touches encounter or calibration history (e.g. `c731b42e9a01`).
 
 ## Consequences
 
@@ -97,16 +105,25 @@ already established for source/vocabulary changes.
 
 ## Validation
 
-- Tests cover: repeated encounters retained, hidden-repeat/holdout exclusion from training,
-  independent EDT/EDP evaluation, published-vs-perceived accord/note separation, multi-select
-  season/occasion storage, hypothetical-suitability-vs-actual-wear-context separation,
-  checkpoint immutability across later model updates, no-overwrite on correction, raw-comment
-  preservation, NULL-vs-zero missingness, and stable vocabulary codes across label changes. See
-  [Data Model Gap Analysis §8](../data-model-gap-analysis.md#8-testing-requirements) for the
-  complete list.
-- Each migration step is reviewed against the Project Plan's existing "Definition of Done"
-  (§19): PostgreSQL-tested where constraints or concurrency are involved, generated OpenAPI and
-  documentation updated in the same pull request, and no destructive change to existing rows.
+**Implemented and tested** (the slice described in "Implementation status" above): repeated
+encounters retained, typed-observation round-trip through `observe()`/`participant_view()`,
+checkpoint immutability across later model/source changes, no-overwrite on correction,
+raw-comment preservation, NULL-vs-zero missingness for the typed observation fields, prediction
+snapshots frozen independently of their later outcome link, one-time outcome linking (reject a
+second link, a mismatched reviewer/fragrance, or an outcome recorded before the prediction), and
+migration backfill correctness against a real PostgreSQL 16 instance (fresh install, full
+upgrade chain, and backfill of a seeded pre-migration row).
+
+**Recommended, not yet implemented**, for the remaining Decision items above (multi-select
+season/occasion storage, hypothetical-suitability-vs-actual-wear-context separation,
+published-vs-perceived accord/note separation, stable vocabulary codes across label changes,
+independent EDT/EDP evaluation as a regression fixture): see
+[Data Model Gap Analysis §8](../data-model-gap-analysis.md#8-testing-requirements) for the
+complete recommended list, to be implemented alongside each corresponding schema change.
+
+Each migration step is reviewed against the Project Plan's existing "Definition of Done" (§19):
+PostgreSQL-tested where constraints or concurrency are involved, generated OpenAPI and
+documentation updated in the same pull request, and no destructive change to existing rows.
 
 ## Related
 

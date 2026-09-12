@@ -9,6 +9,7 @@ from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
     Membership,
+    ModelCheckpoint,
     Observation,
     Presentation,
     Program,
@@ -75,6 +76,68 @@ async def test_create_rejects_unknown_checkpoint(scenario):
                 reviewer_id="owner",
                 fragrance_id="target",
                 checkpoint_id="ghost-checkpoint",
+                model_id="m",
+                model_version="v1",
+            ),
+            recorded_by=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_create_accepts_a_checkpoint_belonging_to_the_same_reviewer(scenario):
+    service = scenario
+    program = Program(name="Checkpoint owner match", version="1")
+    service.db.add(program)
+    await service.db.flush()
+    enrollment = Enrollment(
+        program_id=program.id, reviewer_id="owner", recorder_usernames=["rec"]
+    )
+    service.db.add(enrollment)
+    await service.db.flush()
+    checkpoint = ModelCheckpoint(
+        enrollment_id=enrollment.id, algorithm_version="v1", manifest=[], predictions=[]
+    )
+    service.db.add(checkpoint)
+    await service.db.flush()
+    snapshot = await service.create(
+        PredictionCreate(
+            reviewer_id="owner",
+            fragrance_id="target",
+            checkpoint_id=checkpoint.id,
+            model_id="m",
+            model_version="v1",
+        ),
+        recorded_by=None,
+    )
+    assert snapshot.checkpoint_id == checkpoint.id
+
+
+@pytest.mark.asyncio
+async def test_create_rejects_a_checkpoint_belonging_to_a_different_reviewer(scenario):
+    service = scenario
+    service.db.add(Reviewer(id="someone-else", name="Someone Else"))
+    program = Program(name="Checkpoint owner mismatch", version="1")
+    service.db.add(program)
+    await service.db.flush()
+    other_enrollment = Enrollment(
+        program_id=program.id, reviewer_id="someone-else", recorder_usernames=["rec"]
+    )
+    service.db.add(other_enrollment)
+    await service.db.flush()
+    other_checkpoint = ModelCheckpoint(
+        enrollment_id=other_enrollment.id,
+        algorithm_version="v1",
+        manifest=[],
+        predictions=[],
+    )
+    service.db.add(other_checkpoint)
+    await service.db.flush()
+    with pytest.raises(PredictionConflictError, match="different reviewer"):
+        await service.create(
+            PredictionCreate(
+                reviewer_id="owner",
+                fragrance_id="target",
+                checkpoint_id=other_checkpoint.id,
                 model_id="m",
                 model_version="v1",
             ),

@@ -14,7 +14,7 @@ class PredictionCreate(BaseModel):
 
     reviewer_id: str = Field(..., min_length=1)
     fragrance_id: str = Field(..., min_length=1)
-    checkpoint_id: str | None = None
+    checkpoint_id: str | None = Field(default=None, min_length=1)
     model_id: str = Field(..., min_length=1, max_length=100)
     model_version: str = Field(..., min_length=1, max_length=100)
     feature_snapshot_version: str | None = Field(default=None, max_length=100)
@@ -28,12 +28,26 @@ class PredictionCreate(BaseModel):
 
 
 class PredictionOutcomeInput(BaseModel):
-    """Link a frozen prediction to the observation that later confirmed or refuted it."""
+    """Link a frozen prediction to the observation that later confirmed or refuted it.
+
+    Exactly one of ``outcome_evaluation_id`` (an ordinary encounter) or
+    ``outcome_observation_id`` (a controlled observation) is required; the
+    other must be omitted or explicitly null. Both empty (`{}`) and both set
+    are rejected. This is deliberately two plain optional fields rather than
+    a discriminated union so the request stays a flat, simple shape; the
+    generated OpenAPI schema will show both properties as optional even
+    though a request choosing zero or two of them still returns 422 here.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
-    outcome_evaluation_id: str | None = None
-    outcome_observation_id: str | None = None
+    # `min_length=1` matters as much as the model_validator below: without
+    # it, an empty string is falsy (satisfying the XOR check below the same
+    # way `None` would) but is still a non-NULL value once persisted, which
+    # would violate PredictionSnapshot's "at most one outcome id set" CHECK
+    # constraint at flush time instead of failing cleanly here as a 422.
+    outcome_evaluation_id: str | None = Field(default=None, min_length=1)
+    outcome_observation_id: str | None = Field(default=None, min_length=1)
 
     @model_validator(mode="after")
     def require_exactly_one_outcome(self) -> PredictionOutcomeInput:

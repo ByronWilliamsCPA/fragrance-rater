@@ -14,14 +14,18 @@ schema, or route at the time it was written. Where this analysis recommends a du
 it is captured as [ADR-010](adr/adr-010-preference-learning-and-scenario-data-model.md).
 
 > **2026-09-12 update**: the product owner asked to begin ML testing against recommendation/
-> liking projections. Two P0 items below — promoting `calibration_observations.responses` to
-> typed columns (§6 steps 1-3, Risk 1) and adding a `PredictionSnapshot` entity (§4, §XXXVII) —
-> are now **implemented** (migration `a1b2c3d4e5f6`; see ADR-010's implementation-status note for
-> exact scope). Every other recommendation in this document, including the remaining P0 items
-> (brand/accord lookup tables, sample provenance, `training_eligibility`, full `perceived_notes`
-> normalization, familiarity as a controlled code), remains unimplemented and still requires
-> core-maintainer review before it proceeds, per [ADR governance](adr/README.md) and the
-> [Project Plan](PROJECT-PLAN.md) change-control rules.
+> liking projections. Two things below are now **implemented** (migration `a1b2c3d4e5f6`; see
+> ADR-010's implementation-status note for exact scope): promoting the scalar/text
+> `calibration_observations.responses` fields to typed columns (§6 Step 1, Risk 1) — including
+> quarantining, rather than fabricating or crashing on, any legacy value that predates a new
+> column's bound — and adding a `PredictionSnapshot` entity (§4, §XXXVII). §6 Steps 2 and 3
+> (familiarity as a controlled code; normalizing `perceived_notes` against `Note`) were part of
+> the same original recommendation but are **not** implemented — `familiarity` keeps its
+> original ambiguous numeric scale and `perceived_notes` ships as a typed JSON array of free
+> text, not yet normalized. Every other recommendation in this document, including the remaining
+> P0 items (brand/accord lookup tables, sample provenance, `training_eligibility`), remains
+> unimplemented and still requires core-maintainer review before it proceeds, per
+> [ADR governance](adr/README.md) and the [Project Plan](PROJECT-PLAN.md) change-control rules.
 
 **Priority labels in this document (P0/P1/P2) are the review's own prioritization scale**
 ("required before baseline" / "required before adaptive ML" / "safe to defer") **and are
@@ -339,20 +343,29 @@ backfill, then tighten constraints only where safe.
 
 **Sequence (P0 — before controlled baseline data collection scales up under milestone P1/F1):**
 
-- **Step 1 — Add typed columns to `calibration_observations`** for `confidence`, `sweetness`,
-  `freshness`, `density`, `familiarity` (superseded by the new code below, see step 2),
-  `dryness`, `clean_soapy`, `earthy_rooty`, `bodily_animalic`, `discomfort`, `opening_liking`,
-  `drydown_liking`, `would_wear`, `would_buy`, `artistic_appreciation`, `projection`,
-  `longevity_minutes`, `likes` (Text), `dislikes` (Text), `reminds_me_of` (Text), `comments`
-  (Text). Keep `responses` (JSON) as-is for one deprecation window as an audit copy; stop
-  writing new fields into it once the typed columns exist. Backfill existing rows from
-  `responses` with a dry-run/collision-report script (idempotent, matching the D1 backfill
-  pattern already required in ADR-006). `perceived_notes` gets its own step (3) because it
-  needs a join table, not a scalar column.
-- **Step 2 — Add a `familiarity` controlled-code column** to both `calibration_observations`
+- **Step 1 — IMPLEMENTED (migration `a1b2c3d4e5f6`) — Add typed columns to
+  `calibration_observations`** for `confidence`, `sweetness`, `freshness`, `density`,
+  `familiarity` (kept as the original numeric scale here; superseded by the new controlled code
+  proposed in step 2 below, which remains unimplemented), `dryness`, `clean_soapy`,
+  `earthy_rooty`, `bodily_animalic`, `discomfort`, `opening_liking`, `drydown_liking`,
+  `would_wear`, `would_buy`, `artistic_appreciation`, `projection`, `longevity_minutes`, `likes`
+  (Text), `dislikes` (Text), `reminds_me_of` (Text), `comments` (Text). As actually shipped, the
+  legacy `responses` (JSON) column is **not** kept as an audit copy: every existing row is
+  backfilled from it into the new typed columns (validating each value against its column's
+  bound first and leaving an individual field NULL with a printed warning naming the row and
+  field, rather than aborting the whole migration, if a legacy value predates that bound — e.g.
+  from a since-tightened API validator), and the column is dropped in the same migration. This
+  was judged safe because no accumulated production history exists yet to preserve a dual-write
+  window for (see the current-state ledger); do the same backfill-then-drop only when that same
+  condition holds for a future migration. `perceived_notes` gets its own step (3) because it
+  needs a join table, not a scalar column; it currently ships as a typed JSON array of free-text
+  labels (also part of Step 1's implemented migration), not yet normalized.
+- **Step 2 — NOT IMPLEMENTED — Add a `familiarity` controlled-code column** to both
+  `calibration_observations`
   (replacing the ambiguous int, after backfill/mapping) and `evaluations` (new, nullable, NULL =
   not asked). Add the `familiarity_states` lookup table.
-- **Step 3 — Normalize `perceived_notes`** into a new `observation_perceived_notes` junction
+- **Step 3 — NOT IMPLEMENTED — Normalize `perceived_notes`** into a new
+  `observation_perceived_notes` junction
   table against the existing `notes` table, keeping a nullable `raw_label` text column per row
   for any perceived term that does not match the controlled vocabulary (never silently dropped).
 - **Step 4 — Add `brands` lookup table** + nullable `Fragrance.brand_id` FK. Backfill by grouping

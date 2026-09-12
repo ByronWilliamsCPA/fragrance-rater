@@ -106,6 +106,12 @@ async def test_controlled_manifest_exposes_typed_features_not_a_responses_blob(
     assert "responses" not in row
     assert row["features"]["perceived_notes"] == ["pencil"]
     assert row["features"]["would_wear"] is None
+    # detected/intensity/elapsed_minutes predate this PR as typed Observation
+    # columns; they must still reach the manifest, not disappear now that
+    # `responses` is gone.
+    assert row["features"]["detected"] is True
+    assert row["features"]["intensity"] == 3
+    assert row["features"]["elapsed_minutes"] == 0
     assert row["notes_text"] == {
         "likes": None,
         "dislikes": None,
