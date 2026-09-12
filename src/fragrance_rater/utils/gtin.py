@@ -58,9 +58,32 @@ def is_valid_gtin(value: object) -> bool:
             computed from the rest; False otherwise (never raises on
             malformed input).
     """
-    if not isinstance(value, str) or not value.isdigit():
+    # #ASSUME: data-integrity: str.isdigit() accepts non-ASCII digit
+    # characters (e.g. superscript "²"), which int() then rejects,
+    # so isascii() must gate isdigit() to keep the "never raises"
+    # contract this function documents.
+    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
         return False
     if len(value) not in VALID_GTIN_LENGTHS:
         return False
     body, check_digit = value[:-1], int(value[-1])
     return _gs1_check_digit(body) == check_digit
+
+
+def normalize_gtin(value: str) -> str:
+    """Normalize a GTIN-8/12/13/14 to its canonical GTIN-14 form.
+
+    # #ASSUME: data-integrity: GS1's own guidance for comparing GTINs of
+    # different declared lengths is to left-pad with zeros to 14 digits,
+    # so a UPC-A (GTIN-12) and the EAN-13/GTIN-14 encoding of the exact
+    # same product compare equal instead of as a false mismatch. Callers
+    # should validate with `is_valid_gtin` first; this does not validate
+    # `value` itself.
+
+    Args:
+        value (str): An all-digit GTIN-8/12/13/14.
+
+    Returns:
+        str: `value` left-padded with zeros to 14 digits.
+    """
+    return value.zfill(14)

@@ -7,7 +7,7 @@ work) - not invented numbers, since the whole point is validating
 against the real GS1 algorithm.
 """
 
-from fragrance_rater.utils.gtin import is_valid_gtin
+from fragrance_rater.utils.gtin import is_valid_gtin, normalize_gtin
 
 
 class TestIsValidGtin:
@@ -45,3 +45,29 @@ class TestIsValidGtin:
     def test_rejects_none_and_non_string_input(self):
         assert is_valid_gtin(None) is False
         assert is_valid_gtin(3508440005953) is False
+
+    def test_rejects_non_ascii_digit_characters_without_raising(self):
+        """str.isdigit() accepts non-ASCII digits (e.g. superscript "²"),
+        which int() then rejects; this must return False, not raise, to
+        honor the documented "never raises" contract."""
+        assert is_valid_gtin("350844000595²") is False
+        assert is_valid_gtin("²5084400059530") is False
+
+
+class TestNormalizeGtin:
+    def test_pads_shorter_forms_to_gtin_14(self):
+        assert normalize_gtin("96385074") == "00000096385074"
+        assert normalize_gtin("036000291452") == "00036000291452"
+        assert normalize_gtin("3508440005953") == "03508440005953"
+
+    def test_leaves_a_gtin_14_unchanged(self):
+        assert normalize_gtin("13508440005950") == "13508440005950"
+
+    def test_a_gtin_13_and_its_zero_padded_gtin_14_form_normalize_equal(self):
+        """This is the exact relationship a UPC-A/EAN-13 recorded as source
+        evidence has to the same product's GTIN-14 form: GS1's own
+        comparison rule is to left-pad with zeros, so these must compare
+        equal despite being different-length strings."""
+        gtin13 = "3508440005953"
+        gtin14 = normalize_gtin(gtin13)
+        assert normalize_gtin(gtin13) == normalize_gtin(gtin14)
