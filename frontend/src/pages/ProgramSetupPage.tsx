@@ -114,6 +114,7 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
       repeat_of_id: values.repeat_of_id || null,
       group_name: values.group_name,
       identity_evidence: values.identity_evidence,
+      gtin: values.gtin || null,
     })
     const response = await api.get<ProgramMember[]>(`/calibration/programs/${programId}/members`)
     setMembers(response.data)
@@ -338,6 +339,15 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                     Version verification evidence
                     <textarea name="identity_evidence" required />
                   </label>
+                  <label>
+                    GTIN barcode (optional)
+                    <input
+                      name="gtin"
+                      placeholder="Scanned barcode, 8-14 digits"
+                      minLength={8}
+                      maxLength={14}
+                    />
+                  </label>
                   <button disabled={task.busy || catalog.length === 0}>Add version</button>
                 </form>
               )}
@@ -406,13 +416,13 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                             />
                           </>
                         ) : (
-                          <button
-                            className="secondary"
+                          <ConfirmAction
+                            actionLabel="Run Fragella check"
+                            confirmLabel="Spend a monthly request"
+                            description="This uses one of the account's 20 monthly Fragella requests - only run this if Parfumo left a genuine gap (a same-name ambiguity, or a concentration/year Parfumo didn't publish)."
                             disabled={task.busy}
-                            onClick={() => void task.run(() => runFragellaLookup(item.id))}
-                          >
-                            Run Fragella check
-                          </button>
+                            onConfirm={() => void task.run(() => runFragellaLookup(item.id))}
+                          />
                         )}
                       </div>
                     </li>

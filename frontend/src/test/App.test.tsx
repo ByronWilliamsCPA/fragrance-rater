@@ -533,6 +533,68 @@ describe('Calibration participant workflow', () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith('/calibration/programs/p/activate'))
   })
 
+  it('includes a scanned GTIN when adding a catalog version to a draft', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'draft' }],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/programs/p/members': [],
+        '/fragrances': [
+          {
+            id: 'fragrance-secret',
+            name: 'Oak Study',
+            brand: 'Family House',
+            concentration: 'EDP',
+            version_key: 'oak-2026',
+          },
+        ],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
+    // Selecting a program kicks off its own task.run() to load members;
+    // the search form's button stays disabled (shared task.busy state)
+    // until that settles, so wait for it before interacting further.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Search catalog' })).not.toBeDisabled()
+    )
+
+    fireEvent.change(screen.getByLabelText('Find catalog version'), {
+      target: { value: 'Oak Study' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Search catalog' }))
+    await waitFor(() => expect(screen.getByRole('option', { name: /Family House/ })).toBeInTheDocument())
+
+    fireEvent.change(screen.getByLabelText('Exact catalog version'), {
+      target: { value: 'fragrance-secret' },
+    })
+    fireEvent.change(screen.getByLabelText('Version verification evidence'), {
+      target: { value: 'Bottle and batch checked' },
+    })
+    fireEvent.change(screen.getByLabelText('GTIN barcode (optional)'), {
+      target: { value: '3508440005953' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Add version' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/calibration/programs/p/members', {
+        fragrance_id: 'fragrance-secret',
+        role: 'UNIVERSAL_BASELINE',
+        repeat_of_id: null,
+        group_name: 'Baseline',
+        identity_evidence: 'Bottle and batch checked',
+        gtin: '3508440005953',
+      })
+    )
+  })
+
   it('runs a manual Fragella check and shows an already-checked result as reference only', async () => {
     const uncheckedMember = {
       id: 'member-unchecked',
@@ -601,9 +663,16 @@ describe('Calibration participant workflow', () => {
     expect(screen.getByText(/Houbigant/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Re-check Fragella' })).toBeInTheDocument()
 
-    // Never-checked membership: a single click runs the lookup - no
-    // confirmation needed for a first check.
+    // Never-checked membership: the first check spends the same scarce
+    // monthly quota as a re-check, so it is gated behind the same
+    // explicit confirmation step, not run on the first click.
     fireEvent.click(screen.getByRole('button', { name: 'Run Fragella check' }))
+    expect(post).not.toHaveBeenCalledWith(
+      '/calibration/programs/p/members/member-unchecked/fragella-lookup'
+    )
+    const confirmCheck = screen.getByRole('button', { name: 'Spend a monthly request' })
+    expect(confirmCheck).toHaveFocus()
+    fireEvent.click(confirmCheck)
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith(
         '/calibration/programs/p/members/member-unchecked/fragella-lookup'
