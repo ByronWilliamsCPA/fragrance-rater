@@ -1417,6 +1417,59 @@
       }
     },
     "/api/v1/recommendation-measurement/operational-events": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Operational Events",
+        "description": "List recent pilot failures and recoveries for manager follow-up.",
+        "operationId": "operational_events_api_v1_recommendation_measurement_operational_events_get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Reviewer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Operational Events Api V1 Recommendation Measurement Operational Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "recommendations"
@@ -1425,14 +1478,14 @@
         "description": "Record a pilot connectivity failure or subsequent manual recovery.",
         "operationId": "operational_event_api_v1_recommendation_measurement_operational_events_post",
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OperationalEventCreate"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -1440,8 +1493,8 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "type": "object",
+                  "additionalProperties": true,
                   "title": "Response Operational Event Api V1 Recommendation Measurement Operational Events Post"
                 }
               }
@@ -1453,6 +1506,30 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recommendation-measurement/operational-status": {
+      "get": {
+        "tags": [
+          "recommendations"
+        ],
+        "summary": "Operational Status",
+        "description": "Report unresolved pilot connectivity incidents without infrastructure detail.",
+        "operationId": "operational_status_api_v1_recommendation_measurement_operational_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Operational Status Api V1 Recommendation Measurement Operational Status Get"
                 }
               }
             }
@@ -1838,6 +1915,33 @@
                   },
                   "type": "array",
                   "title": "Response Enrollments Api V1 Calibration Enrollments Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/manager/enrollments": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Manager Enrollments",
+        "description": "Summarize evaluator progress and reveal readiness for pilot operations.",
+        "operationId": "manager_enrollments_api_v1_calibration_manager_enrollments_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response Manager Enrollments Api V1 Calibration Manager Enrollments Get"
                 }
               }
             }
@@ -2400,6 +2504,149 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/predictions": {
+      "post": {
+        "tags": [
+          "predictions"
+        ],
+        "summary": "Create Prediction",
+        "description": "Freeze a model's predicted rating before the real outcome is known.",
+        "operationId": "create_prediction_api_v1_predictions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "predictions"
+        ],
+        "summary": "List Predictions",
+        "description": "List every prediction snapshot for one evaluator, newest first.",
+        "operationId": "list_predictions_api_v1_predictions_get",
+        "parameters": [
+          {
+            "name": "reviewer_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Reviewer Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PredictionView"
+                  },
+                  "title": "Response List Predictions Api V1 Predictions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/predictions/{prediction_id}/outcome": {
+      "post": {
+        "tags": [
+          "predictions"
+        ],
+        "summary": "Link Outcome",
+        "description": "Append the one real outcome a frozen prediction is measured against.",
+        "operationId": "link_outcome_api_v1_predictions__prediction_id__outcome_post",
+        "parameters": [
+          {
+            "name": "prediction_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Prediction Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PredictionOutcomeInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionView"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Prediction already has a linked outcome"
           },
           "422": {
             "description": "Validation Error",
@@ -3034,6 +3281,10 @@
             "type": "string",
             "title": "Concentration"
           },
+          "version_key": {
+            "type": "string",
+            "title": "Version Key"
+          },
           "launch_year": {
             "anyOf": [
               {
@@ -3114,6 +3365,7 @@
           "name",
           "brand",
           "concentration",
+          "version_key",
           "launch_year",
           "gender_target",
           "primary_family",
@@ -3782,6 +4034,370 @@
         ],
         "title": "OperationalEventCreate",
         "description": "Pilot connectivity or manual-recovery observation."
+      },
+      "PredictionCreate": {
+        "properties": {
+          "reviewer_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Reviewer Id"
+          },
+          "fragrance_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Fragrance Id"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          },
+          "model_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Model Id"
+          },
+          "model_version": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Model Version"
+          },
+          "feature_snapshot_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Snapshot Version"
+          },
+          "predicted_scale": {
+            "type": "string",
+            "maxLength": 20,
+            "minLength": 1,
+            "title": "Predicted Scale",
+            "default": "0-10"
+          },
+          "predicted_rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted Rating"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty"
+          },
+          "percentile_rank": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentile Rank"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "input_manifest": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Input Manifest"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reviewer_id",
+          "fragrance_id",
+          "model_id",
+          "model_version"
+        ],
+        "title": "PredictionCreate",
+        "description": "Freeze one model's predicted rating before the real outcome exists."
+      },
+      "PredictionOutcomeInput": {
+        "properties": {
+          "outcome_evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Evaluation Id"
+          },
+          "outcome_observation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Observation Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PredictionOutcomeInput",
+        "description": "Link a frozen prediction to the observation that later confirmed or refuted it."
+      },
+      "PredictionView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "reviewer_id": {
+            "type": "string",
+            "title": "Reviewer Id"
+          },
+          "fragrance_id": {
+            "type": "string",
+            "title": "Fragrance Id"
+          },
+          "checkpoint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoint Id"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "model_version": {
+            "type": "string",
+            "title": "Model Version"
+          },
+          "feature_snapshot_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Snapshot Version"
+          },
+          "predicted_scale": {
+            "type": "string",
+            "title": "Predicted Scale"
+          },
+          "predicted_rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicted Rating"
+          },
+          "uncertainty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uncertainty"
+          },
+          "percentile_rank": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percentile Rank"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "input_manifest": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Input Manifest"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "recorded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recorded By"
+          },
+          "outcome_evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Evaluation Id"
+          },
+          "outcome_observation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Observation Id"
+          },
+          "outcome_linked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Linked At"
+          },
+          "outcome_recorded_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Recorded By"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reviewer_id",
+          "fragrance_id",
+          "checkpoint_id",
+          "model_id",
+          "model_version",
+          "feature_snapshot_version",
+          "predicted_scale",
+          "predicted_rating",
+          "uncertainty",
+          "percentile_rank",
+          "scenario",
+          "input_manifest",
+          "explanation",
+          "created_at",
+          "recorded_by",
+          "outcome_evaluation_id",
+          "outcome_observation_id",
+          "outcome_linked_at",
+          "outcome_recorded_by"
+        ],
+        "title": "PredictionView",
+        "description": "Serialized, (mostly) immutable prediction snapshot.\n\nEvery field is set once at creation except ``outcome_evaluation_id``,\n``outcome_observation_id``, and ``outcome_linked_at``, which start NULL\nand are set exactly once by a later, separate outcome-link call."
       },
       "ProfileSummaryResponse": {
         "properties": {

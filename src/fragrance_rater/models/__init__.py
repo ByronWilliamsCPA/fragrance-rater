@@ -14,6 +14,7 @@ from fragrance_rater.models.fragrance import (
     FragranceNote,
     Note,
 )
+from fragrance_rater.models.prediction import PredictionSnapshot
 from fragrance_rater.models.recommendation_measurement import (
     LLMInvocation,
     PilotOperationalEvent,
@@ -32,6 +33,7 @@ __all__ = [
     "LLMInvocation",
     "Note",
     "PilotOperationalEvent",
+    "PredictionSnapshot",
     "RecommendationImpression",
     "RecommendationResponseRevision",
     "RecommendationRun",

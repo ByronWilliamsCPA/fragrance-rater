@@ -253,9 +253,62 @@ async def test_non_detection_and_unanswered_are_preserved_separately(protocol):
     assert response.detected is False
     assert response.intensity == 0
     assert response.liking is None
-    assert response.responses["perceived_notes"] == []
-    assert blank.responses["perceived_notes"] is None
+    assert response.perceived_notes == []
+    assert blank.perceived_notes is None
     await service.lock_stage(presentation.id, "BLOTTER", "family-recorder", admin=False)
+
+
+@pytest.mark.asyncio
+async def test_structured_response_fields_round_trip_as_typed_columns(protocol):
+    """Every promoted `responses` field is a real, queryable column (not JSON)."""
+    service, *_ = protocol
+    enrollment = await enroll(protocol)
+    presentation = (await service.presentations(enrollment.id))[0]
+    submitted = await service.observe(
+        presentation.id,
+        ResponseInput(
+            stage="BLOTTER",
+            detected=True,
+            intensity=3,
+            liking=7,
+            confidence=4,
+            sweetness=2,
+            opening_liking=8,
+            drydown_liking=6,
+            would_wear=9,
+            would_buy=7,
+            projection=3,
+            longevity_minutes=180,
+            perceived_notes=["bergamot", "cedar"],
+            likes="bright citrus opening",
+            comments="very nice",
+        ),
+        "family-recorder",
+        admin=False,
+    )
+    # Real typed attributes, not keys inside a JSON blob.
+    assert submitted.confidence == 4
+    assert submitted.sweetness == 2
+    assert submitted.opening_liking == 8
+    assert submitted.drydown_liking == 6
+    assert submitted.would_wear == 9
+    assert submitted.would_buy == 7
+    assert submitted.projection == 3
+    assert submitted.longevity_minutes == 180
+    assert submitted.perceived_notes == ["bergamot", "cedar"]
+    assert submitted.likes == "bright citrus opening"
+    assert submitted.comments == "very nice"
+    assert not hasattr(submitted, "responses")
+
+    # The same values reach the participant-facing serialized view.
+    view = await service.participant_view(enrollment)
+    row = next(row for row in view["presentations"] if row["id"] == presentation.id)
+    payload = row["observations"][0]
+    assert payload["confidence"] == 4
+    assert payload["would_wear"] == 9
+    assert payload["would_buy"] == 7
+    assert payload["perceived_notes"] == ["bergamot", "cedar"]
+    assert payload["comments"] == "very nice"
 
 
 @pytest.mark.asyncio

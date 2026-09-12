@@ -36,6 +36,48 @@ def reject(message: str, status: int = 409) -> NoReturn:
     raise HTTPException(status_code=status, detail=message)
 
 
+def observation_payload(o: Observation) -> dict[str, object]:
+    """Serialize one submitted observation's typed fields for a participant view.
+
+    Field set matches what the previous ``**o.responses`` spread exposed
+    (every ``ResponseInput`` field, plus ``id``/``phase``/``created_at``),
+    so this is a like-for-like replacement of the JSON-blob spread with
+    named, typed columns — no API/frontend contract change.
+    """
+    return {
+        "id": o.id,
+        "phase": o.phase,
+        "created_at": o.created_at.isoformat(),
+        "stage": o.stage,
+        "elapsed_minutes": o.elapsed_minutes,
+        "detected": o.detected,
+        "intensity": o.intensity,
+        "liking": o.liking,
+        "confidence": o.confidence,
+        "sweetness": o.sweetness,
+        "freshness": o.freshness,
+        "density": o.density,
+        "familiarity": o.familiarity,
+        "dryness": o.dryness,
+        "clean_soapy": o.clean_soapy,
+        "earthy_rooty": o.earthy_rooty,
+        "bodily_animalic": o.bodily_animalic,
+        "discomfort": o.discomfort,
+        "opening_liking": o.opening_liking,
+        "drydown_liking": o.drydown_liking,
+        "would_wear": o.would_wear,
+        "would_buy": o.would_buy,
+        "artistic_appreciation": o.artistic_appreciation,
+        "projection": o.projection,
+        "longevity_minutes": o.longevity_minutes,
+        "perceived_notes": o.perceived_notes,
+        "likes": o.likes,
+        "dislikes": o.dislikes,
+        "reminds_me_of": o.reminds_me_of,
+        "comments": o.comments,
+    }
+
+
 class CalibrationService:
     """Serialize all mutations on an evaluator's enrollment row."""
 
@@ -259,6 +301,12 @@ class CalibrationService:
             if post_reveal
             else ("PREVIOUSLY_REVEALED" if prior_exposure else "PRE_REVEAL")
         )
+        # `data` already carries one field per typed Observation column below
+        # it (see the Observation docstring), so the remaining perceptual/
+        # temporal/free-text fields are splatted rather than repeated here.
+        typed_fields = data.model_dump(
+            exclude={"stage", "elapsed_minutes", "detected", "intensity", "liking"}
+        )
         observation = Observation(
             presentation_id=obj.id,
             stage=data.stage,
@@ -267,8 +315,8 @@ class CalibrationService:
             detected=data.detected,
             intensity=data.intensity,
             liking=data.liking,
-            responses=data.model_dump(mode="json"),
             recorded_by=username,
+            **typed_fields,
         )
         self.db.add(observation)
         await self.db.flush()
@@ -393,15 +441,7 @@ class CalibrationService:
                 "skin_locked": obj.skin_locked_at is not None,
             }
             observations = observations_by_presentation[obj.id]
-            row["observations"] = [
-                {
-                    "id": o.id,
-                    "phase": o.phase,
-                    "created_at": o.created_at.isoformat(),
-                    **o.responses,
-                }
-                for o in observations
-            ]
+            row["observations"] = [observation_payload(o) for o in observations]
             member = members[obj.membership_id]
             # Holdout identities stay concealed until their own blind response is locked.
             if enrollment.revealed_at and (

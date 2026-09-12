@@ -1,8 +1,33 @@
 # ADR-010: Preference-Learning and Scenario Data Model
 
-> **Status**: Proposed
+> **Status**: Partially implemented (approved by product owner for the ML-testing slice below);
+> the scenario/pairwise/behavioral-event portions remain Proposed
 >
-> **Date**: 2026-09-12
+> **Date**: 2026-09-12 | **Updated**: 2026-09-12
+
+## Implementation status
+
+The product owner asked to begin ML testing against recommendation/liking projections and
+approved implementing, in one pass, the two changes this needed most:
+
+- **Typed controlled-observation fields** (first bullet of the Decision below): implemented in
+  migration `a1b2c3d4e5f6`. `calibration_observations.responses` is retired; `confidence`,
+  `sweetness`, `freshness`, `density`, `familiarity`, `dryness`, `clean_soapy`, `earthy_rooty`,
+  `bodily_animalic`, `discomfort`, `opening_liking`, `drydown_liking`, `would_wear`, `would_buy`,
+  `artistic_appreciation`, `projection`, `longevity_minutes`, `perceived_notes`, `likes`,
+  `dislikes`, `reminds_me_of`, and `comments` are now typed, individually bounded columns.
+  `PreferenceHistoryService.training_manifest()` exposes them as a named `features` dict (plus a
+  separate `notes_text` dict for free text) instead of one opaque blob.
+- **`PredictionSnapshot`**: implemented as a new model, migration, service
+  (`PredictionService`), and manager-gated API (`/api/v1/predictions`). A model's predicted
+  rating is frozen before the real outcome exists and linked to exactly one later `Evaluation`
+  or `Observation` outcome, without ever recomputing the frozen prediction.
+
+Everything else in the Decision below (brand/accord lookup tables, familiarity as a controlled
+code rather than a raw int, `perceived_notes` normalized against `Note`, sample-provenance
+columns, the full scenario/context domain, `PairwiseComparison`, `BehavioralEvent`,
+`ClassificationSystem`) remains Proposed and unimplemented; see the gap analysis for the
+still-open sequence.
 
 ## Context
 

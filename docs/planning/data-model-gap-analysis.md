@@ -9,11 +9,19 @@
 > requirement set for canonical identity, controlled evaluation, scenario/context modeling,
 > pairwise preference, behavioral outcomes, and future ML/recommendation work.
 
-This document is analysis and a proposed plan. It does not itself change any model, migration,
-schema, or route. Nothing here is "accepted" until a core maintainer reviews it, per
-[ADR governance](adr/README.md) and the [Project Plan](PROJECT-PLAN.md) change-control rules.
-Where this analysis recommends a durable decision, it is captured as
-[ADR-010 (Proposed)](adr/adr-010-preference-learning-and-scenario-data-model.md).
+This document is analysis and a proposed plan; it did not itself change any model, migration,
+schema, or route at the time it was written. Where this analysis recommends a durable decision,
+it is captured as [ADR-010](adr/adr-010-preference-learning-and-scenario-data-model.md).
+
+> **2026-09-12 update**: the product owner asked to begin ML testing against recommendation/
+> liking projections. Two P0 items below — promoting `calibration_observations.responses` to
+> typed columns (§6 steps 1-3, Risk 1) and adding a `PredictionSnapshot` entity (§4, §XXXVII) —
+> are now **implemented** (migration `a1b2c3d4e5f6`; see ADR-010's implementation-status note for
+> exact scope). Every other recommendation in this document, including the remaining P0 items
+> (brand/accord lookup tables, sample provenance, `training_eligibility`, full `perceived_notes`
+> normalization, familiarity as a controlled code), remains unimplemented and still requires
+> core-maintainer review before it proceeds, per [ADR governance](adr/README.md) and the
+> [Project Plan](PROJECT-PLAN.md) change-control rules.
 
 **Priority labels in this document (P0/P1/P2) are the review's own prioritization scale**
 ("required before baseline" / "required before adaptive ML" / "safe to defer") **and are

@@ -136,7 +136,37 @@ class PreferenceHistoryService:
                     "program_id": enrollment.program_id,
                     "scale": "0-10",
                     "rating": observation.liking,
-                    "responses": observation.responses,
+                    # Named, typed ML features (previously one opaque
+                    # `responses` JSON blob) kept separate from free text,
+                    # per the facts/derived/inference and published-vs-
+                    # perceived distinctions in
+                    # docs/planning/data-model-gap-analysis.md.
+                    "features": {
+                        "confidence": observation.confidence,
+                        "sweetness": observation.sweetness,
+                        "freshness": observation.freshness,
+                        "density": observation.density,
+                        "familiarity": observation.familiarity,
+                        "dryness": observation.dryness,
+                        "clean_soapy": observation.clean_soapy,
+                        "earthy_rooty": observation.earthy_rooty,
+                        "bodily_animalic": observation.bodily_animalic,
+                        "discomfort": observation.discomfort,
+                        "opening_liking": observation.opening_liking,
+                        "drydown_liking": observation.drydown_liking,
+                        "would_wear": observation.would_wear,
+                        "would_buy": observation.would_buy,
+                        "artistic_appreciation": observation.artistic_appreciation,
+                        "projection": observation.projection,
+                        "longevity_minutes": observation.longevity_minutes,
+                        "perceived_notes": observation.perceived_notes,
+                    },
+                    "notes_text": {
+                        "likes": observation.likes,
+                        "dislikes": observation.dislikes,
+                        "reminds_me_of": observation.reminds_me_of,
+                        "comments": observation.comments,
+                    },
                     "observed_at": observation.created_at.isoformat(),
                 }
             )

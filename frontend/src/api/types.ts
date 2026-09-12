@@ -22,8 +22,52 @@ export type Observation = {
   phase: string
   stage: string
   elapsed_minutes: number
+  detected?: boolean | null
+  intensity?: number | null
   liking: number | null
+  confidence?: number | null
+  sweetness?: number | null
+  freshness?: number | null
+  density?: number | null
+  familiarity?: number | null
+  dryness?: number | null
+  clean_soapy?: number | null
+  earthy_rooty?: number | null
+  bodily_animalic?: number | null
+  discomfort?: number | null
+  opening_liking?: number | null
+  drydown_liking?: number | null
+  would_wear?: number | null
+  would_buy?: number | null
+  artistic_appreciation?: number | null
+  projection?: number | null
+  longevity_minutes?: number | null
+  perceived_notes?: string[] | null
+  likes?: string | null
+  dislikes?: string | null
+  reminds_me_of?: string | null
   comments: string | null
+}
+
+export type Prediction = {
+  id: string
+  reviewer_id: string
+  fragrance_id: string
+  checkpoint_id: string | null
+  model_id: string
+  model_version: string
+  feature_snapshot_version: string | null
+  predicted_scale: string
+  predicted_rating: number | null
+  uncertainty: number | null
+  percentile_rank: number | null
+  scenario: string | null
+  created_at: string
+  recorded_by: string | null
+  outcome_evaluation_id: string | null
+  outcome_observation_id: string | null
+  outcome_linked_at: string | null
+  outcome_recorded_by: string | null
 }
 
 export type Sample = {
