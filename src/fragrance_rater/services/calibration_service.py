@@ -42,7 +42,7 @@ def observation_payload(o: Observation) -> dict[str, object]:
     Field set matches what the previous ``**o.responses`` spread exposed
     (every ``ResponseInput`` field, plus ``id``/``phase``/``created_at``),
     so this is a like-for-like replacement of the JSON-blob spread with
-    named, typed columns — no API/frontend contract change.
+    named, typed columns: no API/frontend contract change.
     """
     return {
         "id": o.id,
