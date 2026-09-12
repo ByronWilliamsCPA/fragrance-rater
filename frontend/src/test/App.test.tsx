@@ -570,7 +570,9 @@ describe('Calibration participant workflow', () => {
       target: { value: 'Oak Study' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Search catalog' }))
-    await waitFor(() => expect(screen.getByRole('option', { name: /Family House/ })).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByRole('option', { name: /Family House/ })).toBeInTheDocument()
+    )
 
     fireEvent.change(screen.getByLabelText('Exact catalog version'), {
       target: { value: 'fragrance-secret' },
@@ -662,6 +664,25 @@ describe('Calibration participant workflow', () => {
     expect(await screen.findByText(/Fragella checked/)).toBeInTheDocument()
     expect(screen.getByText(/Houbigant/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Re-check Fragella' })).toBeInTheDocument()
+
+    // Re-check, then cancel: no request is spent, and the action reverts
+    // to its unconfirmed state.
+    fireEvent.click(screen.getByRole('button', { name: 'Re-check Fragella' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(post).not.toHaveBeenCalledWith(
+      '/calibration/programs/p/members/member-checked/fragella-lookup'
+    )
+    expect(screen.getByRole('button', { name: 'Re-check Fragella' })).toBeInTheDocument()
+
+    // Re-check, then confirm: the request is spent against this
+    // membership's own path.
+    fireEvent.click(screen.getByRole('button', { name: 'Re-check Fragella' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Spend another monthly request' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/calibration/programs/p/members/member-checked/fragella-lookup'
+      )
+    )
 
     // Never-checked membership: the first check spends the same scarce
     // monthly quota as a re-check, so it is gated behind the same
