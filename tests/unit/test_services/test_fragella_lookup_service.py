@@ -135,6 +135,23 @@ class TestRunLookup:
 
         client.search.assert_awaited_once_with("custom query")
 
+    async def test_truncates_an_overlong_fallback_query(self, async_session):
+        """`brand`/`name` are each String(255), so a maximally long
+        fragrance's fallback query ("`brand` `name`") can reach 511
+        characters, over FragellaLookup.query's own String(500) column.
+        Persisting an untruncated fallback would spend a Fragella request
+        and then fail at flush() with nothing recorded."""
+        fragrance = await _make_fragrance(
+            async_session, brand="B" * 255, name="N" * 255
+        )
+        client = _mock_client(return_value=[])
+        service = FragellaLookupService(async_session, client=client)
+
+        lookup = await service.run_lookup(fragrance, requested_by="manager")
+
+        assert len(lookup.query) == 500
+        client.search.assert_awaited_once_with(lookup.query)
+
 
 @pytest.mark.asyncio
 class TestLatestByFragrance:

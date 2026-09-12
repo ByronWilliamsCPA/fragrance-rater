@@ -58,6 +58,15 @@ class FragellaLookupService:
             FragellaLookup: The persisted attempt, success or error.
         """
         search_query = query or f"{fragrance.brand} {fragrance.name}"
+        # #CRITICAL: data-integrity: the API route enforces max_length=500
+        # on a caller-supplied `query`, but this brand+name fallback is
+        # not bounded - `name`/`brand` are each String(255), so a
+        # maximally long fragrance could produce a fallback over
+        # FragellaLookup.query's own String(500) column, spending a
+        # Fragella request and then failing at flush() with nothing
+        # recorded.
+        # #VERIFY: covered by a test with over-255-char brand/name.
+        search_query = search_query[:500]
         record = FragellaLookup(
             fragrance_id=fragrance.id,
             query=search_query,
