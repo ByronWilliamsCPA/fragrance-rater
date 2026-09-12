@@ -43,8 +43,20 @@ class Evaluation(Base):
             keyboard. One logged-in person often records ratings for
             several reviewers in a single group-smelling session, so these
             two fields are never constrained against each other.
+        worn_by_reviewer_id (Mapped[str | None]): The reviewer whose
+            experience wearing the fragrance this rating is about, when
+            that differs from `reviewer_id`. NULL means the rating is
+            "on me" (`reviewer_id` rated it as worn by themselves), the
+            existing and default behavior. A non-NULL value means
+            `reviewer_id` is recording an "on others" opinion -- e.g. one
+            partner's reaction to how a fragrance smells on the other --
+            and must reference a different reviewer than `reviewer_id`.
+            Captured as evidence only: per ADR-011, affinity/recommendation
+            scoring for `reviewer_id` reads only rows where this is NULL.
         fragrance (Mapped[Fragrance]): Evaluated fragrance.
         reviewer (Mapped[Reviewer]): Reviewer who made the evaluation.
+        worn_by_reviewer (Mapped[Reviewer | None]): Reviewer the fragrance
+            was worn by, when this is an "on others" rating.
     """
 
     __tablename__ = "evaluations"
@@ -91,5 +103,24 @@ class Evaluation(Base):
         String(255), nullable=True, default=None
     )
 
+    # ADR-011: optional "worn by" subject reviewer, distinct from both
+    # `reviewer_id` (whose opinion this is) and `recorded_by` (who typed it
+    # in). RESTRICT rather than CASCADE: a reviewer referenced only as the
+    # *subject* of someone else's rating must not silently take that
+    # rating's evaluation row down with them if ever hard-deleted; the
+    # rater's own opinion is still meaningful evidence on its own.
+    worn_by_reviewer_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("reviewers.id", ondelete="RESTRICT"),
+        nullable=True,
+        default=None,
+        index=True,
+    )
+
     fragrance: Mapped[Fragrance] = relationship(back_populates="evaluations")
-    reviewer: Mapped[Reviewer] = relationship(back_populates="evaluations")
+    reviewer: Mapped[Reviewer] = relationship(
+        back_populates="evaluations", foreign_keys=[reviewer_id]
+    )
+    worn_by_reviewer: Mapped[Reviewer | None] = relationship(
+        back_populates="worn_by_evaluations", foreign_keys=[worn_by_reviewer_id]
+    )

@@ -85,12 +85,20 @@ class PreferenceHistoryService:
         )
 
     async def _ordinary(self, reviewer_id: str) -> list[Evaluation]:
-        """Load live ordinary encounters newest first."""
+        """Load live ordinary encounters newest first.
+
+        ADR-011: excludes "on others" ratings (`worn_by_reviewer_id` set),
+        e.g. a partner's opinion of a fragrance worn by someone else. Those
+        are captured evidence, not yet an accepted input to this reviewer's
+        own training manifest; see the identical exclusion in
+        recommendation_service.py's affinity query.
+        """
         return list(
             await self.db.scalars(
                 select(Evaluation)
                 .where(
                     Evaluation.reviewer_id == reviewer_id,
+                    Evaluation.worn_by_reviewer_id.is_(None),
                     Evaluation.deleted_at.is_(None),
                 )
                 .order_by(
