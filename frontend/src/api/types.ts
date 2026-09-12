@@ -22,30 +22,30 @@ export type Observation = {
   phase: string
   stage: string
   elapsed_minutes: number
-  detected?: boolean | null
-  intensity?: number | null
+  detected: boolean | null
+  intensity: number | null
   liking: number | null
-  confidence?: number | null
-  sweetness?: number | null
-  freshness?: number | null
-  density?: number | null
-  familiarity?: number | null
-  dryness?: number | null
-  clean_soapy?: number | null
-  earthy_rooty?: number | null
-  bodily_animalic?: number | null
-  discomfort?: number | null
-  opening_liking?: number | null
-  drydown_liking?: number | null
-  would_wear?: number | null
-  would_buy?: number | null
-  artistic_appreciation?: number | null
-  projection?: number | null
-  longevity_minutes?: number | null
-  perceived_notes?: string[] | null
-  likes?: string | null
-  dislikes?: string | null
-  reminds_me_of?: string | null
+  confidence: number | null
+  sweetness: number | null
+  freshness: number | null
+  density: number | null
+  familiarity: number | null
+  dryness: number | null
+  clean_soapy: number | null
+  earthy_rooty: number | null
+  bodily_animalic: number | null
+  discomfort: number | null
+  opening_liking: number | null
+  drydown_liking: number | null
+  would_wear: number | null
+  would_buy: number | null
+  artistic_appreciation: number | null
+  projection: number | null
+  longevity_minutes: number | null
+  perceived_notes: string[] | null
+  likes: string | null
+  dislikes: string | null
+  reminds_me_of: string | null
   comments: string | null
 }
 
