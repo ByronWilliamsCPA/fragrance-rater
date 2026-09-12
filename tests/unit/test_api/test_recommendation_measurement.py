@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -70,17 +70,23 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         headers=IDENTITY,
     )
     assert explanation.status_code == 200
+    assert explanation.headers["cache-control"] == "private, no-store"
+    assert "X-Authentik-Username" in explanation.headers["vary"]
     assert explanation.json()["fragrance_id"] == candidate_id
     denied_explanation = await test_app.get(
         f"{API}/recommendation-measurement/impressions/{impression_id}/explanation",
         headers={"X-Authentik-Username": "unassigned"},
     )
     assert denied_explanation.status_code == 403
+    assert denied_explanation.headers["cache-control"] == "private, no-store"
+    assert "X-Authentik-Username" in denied_explanation.headers["vary"]
 
     repeated = await test_app.get(
         f"{API}/recommendation-measurement/runs/{run['id']}", headers=IDENTITY
     )
     assert repeated.status_code == 200
+    assert repeated.headers["cache-control"] == "private, no-store"
+    assert "X-Authentik-Username" in repeated.headers["vary"]
     assert repeated.json()["impressions"][0]["id"] == impression_id
 
     first = await test_app.post(
@@ -153,6 +159,7 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         "connectivity_failures": 0,
         "manual_recoveries": 0,
     }
+    assert report.headers["cache-control"] == "private, no-store"
 
     invalid_window = await test_app.get(
         f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
@@ -182,10 +189,96 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
         headers=IDENTITY,
     )
+    unauthorized_event_list = await test_app.get(
+        f"{API}/recommendation-measurement/operational-events",
+        headers=IDENTITY,
+    )
+    unauthorized_status = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status",
+        headers=IDENTITY,
+    )
     assert unauthorized_run.status_code == 403
     assert unauthorized_response.status_code == 403
     assert unauthorized_event.status_code == 403
     assert unauthorized_metrics.status_code == 403
+    assert unauthorized_event_list.status_code == 403
+    assert unauthorized_status.status_code == 403
+    assert unauthorized_run.headers["cache-control"] == "private, no-store"
+    assert unauthorized_event_list.headers["cache-control"] == "private, no-store"
+    assert "X-Authentik-Username" in unauthorized_status.headers["vary"]
+
+
+@pytest.mark.asyncio
+async def test_operational_events_drive_manager_pilot_status(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Failure and recovery events deterministically drive manager status."""
+    reviewer_id, _ = await seed_recommendable_catalog(test_app)
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
+    fixed_time = datetime(
+        # datetime.UTC is unavailable on supported Python 3.10.
+        2026,
+        9,
+        12,
+        3,
+        0,
+        tzinfo=timezone.utc,  # noqa: UP017
+    ).replace(tzinfo=None)
+    monkeypatch.setattr(
+        "fragrance_rater.services.recommendation_measurement_service.now_naive_utc",
+        lambda: fixed_time,
+    )
+
+    initial_status = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status", headers=IDENTITY
+    )
+    assert initial_status.status_code == 200
+    assert initial_status.headers["cache-control"] == "private, no-store"
+    assert initial_status.json()["status"] == "available"
+
+    failure = await test_app.post(
+        f"{API}/recommendation-measurement/operational-events",
+        headers=IDENTITY,
+        json={
+            "reviewer_id": reviewer_id,
+            "event_type": "CONNECTIVITY_FAILURE",
+            "details": "Recorder used paper fallback",
+        },
+    )
+    assert failure.status_code == 201
+    events = await test_app.get(
+        f"{API}/recommendation-measurement/operational-events", headers=IDENTITY
+    )
+    assert events.status_code == 200
+    assert events.headers["cache-control"] == "private, no-store"
+    assert events.json()[0]["details"] == "Recorder used paper fallback"
+
+    attention = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status", headers=IDENTITY
+    )
+    assert attention.status_code == 200
+    assert attention.json()["status"] == "attention"
+    assert attention.json()["unresolved_reviewer_ids"] == [reviewer_id]
+
+    recovery = await test_app.post(
+        f"{API}/recommendation-measurement/operational-events",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "event_type": "MANUAL_RECOVERY"},
+    )
+    assert recovery.status_code == 201
+    recovered = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status", headers=IDENTITY
+    )
+    assert recovered.status_code == 200
+    assert recovered.json()["status"] == "available"
+    recovered_events = await test_app.get(
+        f"{API}/recommendation-measurement/operational-events", headers=IDENTITY
+    )
+    assert recovered_events.status_code == 200
+    timestamps = [
+        datetime.fromisoformat(item["occurred_at"]) for item in recovered_events.json()
+    ]
+    assert timestamps[0] > timestamps[1]
 
 
 @pytest.mark.asyncio

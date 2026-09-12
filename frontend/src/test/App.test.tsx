@@ -500,6 +500,20 @@ describe('Calibration participant workflow', () => {
         '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'draft' }],
         '/calibration/access': { username: 'manager-user', manager: true },
         '/calibration/enrollments': [],
+        '/calibration/programs/p/members': [
+          {
+            id: 'member-secret',
+            fragrance_id: 'fragrance-secret',
+            fragrance_name: 'Oak Study',
+            fragrance_brand: 'Family House',
+            concentration: 'EDP',
+            version_key: 'oak-2026',
+            role: 'UNIVERSAL_BASELINE',
+            repeat_of_id: null,
+            group_name: 'Baseline',
+            identity_evidence: 'Bottle and batch checked',
+          },
+        ],
       }
       return path in responses
         ? Promise.resolve({ data: responses[path] })
@@ -509,6 +523,7 @@ describe('Calibration participant workflow', () => {
     render(<App />)
     fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
     fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
+    expect(await screen.findByText('Bottle and batch checked')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Activate and lock definition' }))
 
     expect(post).not.toHaveBeenCalledWith('/calibration/programs/p/activate')
@@ -516,6 +531,70 @@ describe('Calibration participant workflow', () => {
     expect(confirm).toHaveFocus()
     fireEvent.click(confirm)
     await waitFor(() => expect(post).toHaveBeenCalledWith('/calibration/programs/p/activate'))
+  })
+
+  it('operates the pilot with human-readable manager data', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'reviewer-secret', name: 'Evaluator' }],
+        '/calibration/programs': [
+          { id: 'program-secret', name: 'Family pilot', version: '1', status: 'active' },
+        ],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/manager/enrollments': [
+          {
+            id: 'enrollment-secret',
+            program_name: 'Family pilot',
+            program_version: '1',
+            reviewer_name: 'Evaluator',
+            recorder_usernames: ['recorder'],
+            total_presentations: 2,
+            blotter_complete: 1,
+            skin_planned: 0,
+            skin_complete: 0,
+            reveal_eligible: false,
+            reveal_blocker: 'BLOTTER',
+            revealed: false,
+          },
+        ],
+        '/recommendation-measurement/operational-events': [],
+        '/recommendation-measurement/operational-status': {
+          status: 'available',
+          unresolved_reviewer_ids: [],
+          guidance: 'No unresolved pilot connectivity incidents.',
+        },
+        '/calibration/enrollments/enrollment-secret/mapping': [
+          {
+            session_id: 'session-secret',
+            position: 1,
+            blind_code: 'A82F',
+            fragrance_name: 'Oak Study',
+            fragrance_brand: 'Family House',
+            concentration: 'EDP',
+            version_key: 'oak-2026',
+            role: 'UNIVERSAL_BASELINE',
+          },
+        ],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh operations' }))
+    expect(await screen.findByText('1 of 2 blotter samples complete')).toBeInTheDocument()
+    expect(screen.getByText('Blotter responses remain')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Label set'), {
+      target: { value: 'enrollment-secret' },
+    })
+    expect(await screen.findByText(/Oak Study/)).toBeInTheDocument()
+    expect(screen.getByText(/version oak-2026/)).toBeInTheDocument()
+    expect(screen.getByText('A82F')).toBeInTheDocument()
+    expect(screen.queryByText('enrollment-secret')).not.toBeInTheDocument()
+    expect(screen.queryByText('fragrance-secret')).not.toBeInTheDocument()
   })
 
   it('ignores an obsolete calibration assignment response', async () => {

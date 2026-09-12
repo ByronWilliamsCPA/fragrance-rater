@@ -162,6 +162,7 @@ class FragranceResponse(BaseModel):
     name: str
     brand: str
     concentration: str
+    version_key: str
     launch_year: int | None
     gender_target: str
     primary_family: str

@@ -356,8 +356,8 @@ END BASELINE DEVELOPMENT STANDARDS
 
 ## Project Planning Documents
 
-> **Status**: P0-P3 are complete; P4 implementation is ready for review, while P1 evidence and
-> P5-P6 product UI gates precede F1 family perfume testing. The project plan owns
+> **Status**: P0-P4 are complete; P5 implementation is ready for review, while P1 evidence and
+> P6 pilot-readiness gates precede F1 family perfume testing. The project plan owns
 > milestone status.
 
 **Planning Documents** (in `docs/planning/`):

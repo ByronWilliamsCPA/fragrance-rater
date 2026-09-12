@@ -6,7 +6,7 @@ from datetime import datetime  # noqa: TC003 - FastAPI resolves this at runtime
 from typing import TYPE_CHECKING, Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.api.calibration import actor, manager
@@ -19,6 +19,7 @@ from fragrance_rater.core.database import get_db
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter
 from fragrance_rater.models.calibration import Enrollment
 from fragrance_rater.models.recommendation_measurement import (
+    PilotOperationalEvent,
     RecommendationImpression,
     RecommendationRun,
 )
@@ -251,6 +252,68 @@ async def metrics(
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/operational-events")
+async def operational_events(
+    db: DB,
+    identity: Identity,
+    reviewer_id: Annotated[str | None, Query()] = None,
+) -> list[dict[str, object]]:
+    """List recent pilot failures and recoveries for manager follow-up."""
+    manager(identity)
+    statement = select(PilotOperationalEvent).order_by(
+        PilotOperationalEvent.occurred_at.desc()
+    )
+    if reviewer_id is not None:
+        statement = statement.where(PilotOperationalEvent.reviewer_id == reviewer_id)
+    return [
+        {
+            "id": item.id,
+            "reviewer_id": item.reviewer_id,
+            "event_type": item.event_type,
+            "details": item.details,
+            "occurred_at": item.occurred_at,
+            "recorded_by": item.recorded_by,
+        }
+        for item in await db.scalars(statement.limit(100))
+    ]
+
+
+@router.get("/operational-status")
+async def operational_status(db: DB, identity: Identity) -> dict[str, object]:
+    """Report unresolved pilot connectivity incidents without infrastructure detail."""
+    manager(identity)
+    ranked = select(
+        PilotOperationalEvent.reviewer_id,
+        PilotOperationalEvent.event_type,
+        func.row_number()
+        .over(
+            partition_by=PilotOperationalEvent.reviewer_id,
+            order_by=(
+                PilotOperationalEvent.occurred_at.desc(),
+                PilotOperationalEvent.id.desc(),
+            ),
+        )
+        .label("position"),
+    ).subquery()
+    unresolved = sorted(
+        await db.scalars(
+            select(ranked.c.reviewer_id).where(
+                ranked.c.position == 1,
+                ranked.c.event_type == "CONNECTIVITY_FAILURE",
+            )
+        )
+    )
+    return {
+        "status": "attention" if unresolved else "available",
+        "unresolved_reviewer_ids": unresolved,
+        "guidance": (
+            "Use the paper fallback and record a recovery after data entry resumes."
+            if unresolved
+            else "No unresolved pilot connectivity incidents."
+        ),
+    }
 
 
 @router.post("/operational-events", status_code=status.HTTP_201_CREATED)
