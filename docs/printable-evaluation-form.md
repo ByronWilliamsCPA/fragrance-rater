@@ -37,8 +37,8 @@ Complete the row that applies to the selected workflow.
 
 | Field | Entry |
 | --- | --- |
-| Ordinary rating: exact fragrance version | _______________________________________________ |
 | Blind session: physical blind code | _______________________________________________ |
+| Ordinary rating: exact fragrance version (leave blank for a pre-reveal blind stage) | _______________________________________________ |
 | Blind stage | ☐ Blotter ☐ Skin ☐ Post-reveal |
 | Elapsed minutes from application | __________________ |
 | Observation local date and time | __________________ |
@@ -49,7 +49,8 @@ workflow requires an elapsed observation.
 
 ## Core observation
 
-For an ordinary rating, circle **Ordinary rating** and leave the remaining rows blank. For a blind
+For an ordinary rating, circle the applicable number in the **Ordinary rating** row and leave the
+remaining rows blank. For a blind
 controlled session, complete the fields shown for the selected stage in the application. A zero
 is a real response. If **Detected** is **No**, record intensity as `0` and leave liking blank.
 

@@ -103,6 +103,11 @@ Review the [participant guide](../guides/pilot-participant.md),
 and every known limitation. The core maintainer records `go` or `no-go` in the
 [readiness decision](../planning/evidence/p6-readiness-decision.md).
 
+An empty `known_limitations` array validates cleanly, but it cannot by itself distinguish a
+review that found nothing from a step that was never done. Record an explicit "reviewed, none
+identified" note in the readiness decision whenever the list is empty, so the closure record
+shows the review happened.
+
 Only `go`, with every P6.1-P6.6 item passed and no unresolved release-blocking limitation, closes
 P6. A missing artifact, failed criterion, stale deployment, or `no-go` keeps F1 blocked. Any
 candidate change after the decision invalidates affected evidence and requires an impact review

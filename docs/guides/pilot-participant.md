@@ -71,7 +71,8 @@ Stop the session and contact the manager if:
 - the application allows entry after a stage is locked;
 - the wrong evaluator or program is shown;
 - the page cannot be completed with the keyboard or on the assigned device;
-- a severe physical reaction occurs.
+- a severe physical reaction occurs: stop exposure immediately, seek emergency help under the
+  local emergency procedure, and notify the manager once it is safe to do so.
 
 The application records preferences, observations, and operational events. Avoid entering
 passwords, medical details, or unrelated personal information in free-text fields.
