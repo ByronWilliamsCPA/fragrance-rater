@@ -60,7 +60,9 @@ manifest entry additionally requires a `fragrance_id` resolved to a canonical ca
 
 P1.1 (`docs/planning/gates/p1.md`) therefore remains **blocked on inventory** even with this
 document in place. It is the verified *design* input P1.1 needs once physical samples and source
-verification are complete - see the [P1 gate](../gates/p1.md) for current status.
+verification are complete - see the [P1 gate](../gates/p1.md) for current status. Per-entry
+Parfumo `source_url` resolution (with two open items needing product-owner confirmation) is in
+[Parfumo Source Resolution](baseline-v3.1-parfumo-source-resolution.md).
 
 ## Universal baseline (33 fragrances / 39 presentations)
 
