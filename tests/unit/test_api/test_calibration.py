@@ -365,6 +365,46 @@ async def test_fragella_lookup_accepts_an_explicit_query_override(
 
 
 @pytest.mark.asyncio
+async def test_fragella_lookup_rejects_an_overlong_query(test_app, draft_member):
+    """An over-500-char query must be rejected before spending a Fragella
+    quota request or reaching FragellaLookup.query's String(500) column,
+    not fail later at flush() as an unhandled 500."""
+    program_id, membership_id = draft_member
+    with patch(
+        "fragrance_rater.services.fragella_lookup_service.FragellaClient.search",
+        AsyncMock(return_value=[]),
+    ) as mock_search:
+        response = await test_app.post(
+            f"{PREFIX}/programs/{program_id}/members/{membership_id}/fragella-lookup",
+            params={"query": "x" * 501},
+            headers=MANAGER,
+        )
+    assert response.status_code == 422
+    mock_search.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fragella_lookup_rejects_a_query_containing_a_nul_byte(
+    test_app, draft_member
+):
+    """A NUL byte is valid in a Python str but not in a Postgres text
+    column; it must be rejected with a clean 400 rather than spending a
+    Fragella quota request and then failing at flush()."""
+    program_id, membership_id = draft_member
+    with patch(
+        "fragrance_rater.services.fragella_lookup_service.FragellaClient.search",
+        AsyncMock(return_value=[]),
+    ) as mock_search:
+        response = await test_app.post(
+            f"{PREFIX}/programs/{program_id}/members/{membership_id}/fragella-lookup",
+            params={"query": "Aimez\x00Moi"},
+            headers=MANAGER,
+        )
+    assert response.status_code == 400
+    mock_search.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_fragella_lookup_rejects_unknown_membership(test_app, draft_member):
     program_id, _ = draft_member
     response = await test_app.post(
@@ -397,6 +437,19 @@ async def test_fragella_usage_reports_failure_as_502(test_app):
     with patch(
         "fragrance_rater.api.calibration.FragellaClient.usage",
         AsyncMock(return_value=None),
+    ):
+        response = await test_app.get(f"{PREFIX}/fragella/usage", headers=MANAGER)
+    assert response.status_code == 502
+
+
+@pytest.mark.asyncio
+async def test_fragella_usage_reports_unconfigured_key_as_502(test_app):
+    """An unconfigured FRAGELLA_API_KEY raises FragellaError from inside
+    usage() before its own try block; the route must still surface the
+    documented 502, not an unhandled 500."""
+    with patch(
+        "fragrance_rater.api.calibration.FragellaClient.usage",
+        AsyncMock(side_effect=FragellaError("FRAGELLA_API_KEY is not configured")),
     ):
         response = await test_app.get(f"{PREFIX}/fragella/usage", headers=MANAGER)
     assert response.status_code == 502

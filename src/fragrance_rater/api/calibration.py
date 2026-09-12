@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,7 +32,7 @@ from fragrance_rater.schemas.calibration import (
 )
 from fragrance_rater.services.calibration_service import CalibrationService, reject
 from fragrance_rater.services.evaluation_service import EvaluationService
-from fragrance_rater.services.fragella_client import FragellaClient
+from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
 from fragrance_rater.services.preference_history import PreferenceHistoryService
 from fragrance_rater.utils.timestamps import now_naive_utc
@@ -188,7 +188,7 @@ async def fragella_lookup(
     membership_id: str,
     db: DB,
     identity: Identity,
-    query: str | None = None,
+    query: Annotated[str | None, Query(max_length=500)] = None,
 ) -> dict[str, object]:
     """Run (or re-run) a Fragella reference lookup for one membership.
 
@@ -199,6 +199,15 @@ async def fragella_lookup(
     another request to find out. Never writes into `Fragrance` fields
     or membership evidence - see ADR-002's 2026-09-13 amendment.
     """
+    # #ASSUME: data-integrity: `query` is a raw query-string parameter,
+    # not a Pydantic-validated body field; `max_length` above rejects an
+    # overlong value with a clean 400 before it can spend a Fragella
+    # request and then fail at flush() against FragellaLookup.query's
+    # String(500) column. A NUL byte is separately rejected here since
+    # it is valid in a Python str but not in a Postgres text column,
+    # which would otherwise surface as an unhandled 500 at flush() too.
+    if query is not None and "\x00" in query:
+        reject("query must not contain a NUL byte", 400)
     manager_name = manager(identity)
     member = await db.get(Membership, membership_id)
     if member is None or member.program_id != program_id:
@@ -226,7 +235,10 @@ async def fragella_usage(identity: Identity) -> dict[str, object]:
     fragella_client.py's module docstring).
     """
     manager(identity)
-    usage = await FragellaClient().usage()
+    try:
+        usage = await FragellaClient().usage()
+    except FragellaError:
+        usage = None
     if usage is None:
         reject("Could not retrieve Fragella usage", 502)
     return usage
