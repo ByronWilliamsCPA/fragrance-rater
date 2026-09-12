@@ -18,6 +18,7 @@ import pytest
 from fragrance_rater.services.fragella_client import (
     FragellaClient,
     FragellaError,
+    FragellaErrorCode,
     FragellaResult,
 )
 
@@ -66,13 +67,15 @@ def _mock_response(status_code: int, json_body: object) -> MagicMock:
 class TestFragellaClientSearch:
     async def test_requires_an_api_key(self):
         client = _client(api_key="")
-        with pytest.raises(FragellaError, match="not configured"):
+        with pytest.raises(FragellaError, match="not configured") as exc_info:
             await client.search("Aimez-Moi")
+        assert exc_info.value.code is FragellaErrorCode.NOT_CONFIGURED
 
     async def test_requires_at_least_three_characters(self):
         client = _client()
-        with pytest.raises(FragellaError, match="at least 3 characters"):
+        with pytest.raises(FragellaError, match="at least 3 characters") as exc_info:
             await client.search("Ai")
+        assert exc_info.value.code is FragellaErrorCode.QUERY_TOO_SHORT
 
     async def test_parses_a_bare_list_response(self):
         client = _client()
@@ -118,6 +121,38 @@ class TestFragellaClientSearch:
         assert len(results) == 1
         assert results[0].name == "Aimez-Moi"
 
+    async def test_parses_a_genuinely_empty_paginated_envelope(self):
+        """A dict that carries `data` as an empty list is a real
+        zero-match result, distinct from a dict missing `data` entirely
+        (see test_raises_on_a_dict_shaped_error_envelope below)."""
+        client = _client()
+        mock_response = _mock_response(
+            200,
+            {"data": [], "pagination": {"page": 1, "limit": 5, "count": 0}},
+        )
+        with patch.object(
+            httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+        ):
+            results = await client.search("Aimez-Moi Caron")
+        assert results == []
+
+    async def test_raises_on_a_dict_shaped_error_envelope(self):
+        """A 200 response whose body is a dict with no `data` key at all
+        (e.g. `{"error": "..."}`) must raise, not be treated as a
+        genuinely empty successful search -
+        `.get("data", [])` would default both shapes to `[]` alike and
+        mask the real upstream failure."""
+        client = _client()
+        mock_response = _mock_response(200, {"error": "internal server error"})
+        with (
+            patch.object(
+                httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+            ),
+            pytest.raises(FragellaError, match="error envelope") as exc_info,
+        ):
+            await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.RESPONSE_INVALID
+
     async def test_skips_items_with_no_name_rather_than_crashing(self):
         client = _client()
         mock_response = _mock_response(200, [{"Brand": "Caron", "Year": 1996}])
@@ -134,9 +169,10 @@ class TestFragellaClientSearch:
             patch.object(
                 httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
             ),
-            pytest.raises(FragellaError, match="quota exhausted"),
+            pytest.raises(FragellaError, match="quota exhausted") as exc_info,
         ):
             await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.QUOTA_EXHAUSTED
 
     @pytest.mark.parametrize("status_code", [401, 403])
     async def test_raises_on_auth_failure(self, status_code):
@@ -146,9 +182,10 @@ class TestFragellaClientSearch:
             patch.object(
                 httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
             ),
-            pytest.raises(FragellaError, match="rejected the API key"),
+            pytest.raises(FragellaError, match="rejected the API key") as exc_info,
         ):
             await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.AUTH_REJECTED
 
     async def test_raises_on_request_failure(self):
         client = _client()
@@ -158,9 +195,56 @@ class TestFragellaClientSearch:
                 "get",
                 AsyncMock(side_effect=httpx.ConnectTimeout("timed out")),
             ),
-            pytest.raises(FragellaError, match="request failed"),
+            pytest.raises(FragellaError, match="request failed") as exc_info,
         ):
             await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.REQUEST_FAILED
+
+    async def test_raises_on_a_generic_error_status(self):
+        """The catch-all non-200/429/401/403 branch (e.g. a 500)."""
+        client = _client()
+        mock_response = _mock_response(500, {})
+        with (
+            patch.object(
+                httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+            ),
+            pytest.raises(FragellaError, match="HTTP 500") as exc_info,
+        ):
+            await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.RESPONSE_INVALID
+
+    async def test_raises_on_a_non_json_response_body(self):
+        """A 200 whose body fails to parse as JSON at all - distinct
+        from a well-formed JSON body of the wrong shape (see the
+        dict-shaped-error-envelope and not-a-list tests above/below)."""
+        client = _client()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("not JSON")
+        with (
+            patch.object(
+                httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+            ),
+            pytest.raises(FragellaError, match="non-JSON response") as exc_info,
+        ):
+            await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.RESPONSE_INVALID
+
+    async def test_raises_when_the_response_is_not_a_list_or_dict(self):
+        """A well-formed JSON body that is neither a bare list nor a
+        dict at all (e.g. a bare string or number) - the final fallback
+        in `_extract_search_items`, distinct from the dict-shaped
+        error-envelope case above."""
+        client = _client()
+        mock_response = _mock_response(200, "unexpected scalar body")
+        with (
+            patch.object(
+                httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+            ),
+            pytest.raises(FragellaError, match="not a list of fragrances") as exc_info,
+        ):
+            await client.search("Aimez-Moi Caron")
+        assert exc_info.value.code is FragellaErrorCode.RESPONSE_INVALID
 
     async def test_clamps_limit_to_documented_maximum(self):
         client = _client()
@@ -202,5 +286,6 @@ class TestFragellaClientUsage:
 
     async def test_requires_an_api_key(self):
         client = _client(api_key="")
-        with pytest.raises(FragellaError, match="not configured"):
+        with pytest.raises(FragellaError, match="not configured") as exc_info:
             await client.usage()
+        assert exc_info.value.code is FragellaErrorCode.NOT_CONFIGURED

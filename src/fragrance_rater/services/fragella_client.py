@@ -37,10 +37,28 @@ narrow, non-storing, human-in-the-loop use does not require.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 import httpx
 
 from fragrance_rater.core.config import settings
+
+
+class FragellaErrorCode(Enum):
+    """Distinguishes FragellaError's failure modes.
+
+    Lets a caller react differently per failure mode (e.g. treat quota
+    exhaustion as "try later" but a rejected key as "fix configuration")
+    without substring-matching the exception's message text, which is
+    for humans, not control flow.
+    """
+
+    NOT_CONFIGURED = "not_configured"
+    QUERY_TOO_SHORT = "query_too_short"
+    QUOTA_EXHAUSTED = "quota_exhausted"
+    AUTH_REJECTED = "auth_rejected"
+    REQUEST_FAILED = "request_failed"
+    RESPONSE_INVALID = "response_invalid"
 
 
 class FragellaError(Exception):
@@ -51,7 +69,24 @@ class FragellaError(Exception):
     lookup itself could not be completed (bad/missing key, quota
     exhausted, or a request/response failure) and the caller should
     not treat a resulting empty list as "no matches."
+
+    # #ASSUME: data-integrity: `code` defaults to None, not a guessed
+    # category, so an exception built without one (a test double
+    # standing in for "some Fragella failure") is never mistaken for a
+    # real, classified failure. Every raise site in this module passes
+    # an explicit code.
+    # #VERIFY: covered by a test asserting each raise site's `code`.
+
+    Args:
+        message (str): Human-readable failure description.
+        code (FragellaErrorCode | None): Which failure mode this is, for
+            callers that need to branch on it. None only if constructed
+            without one (e.g. a test double).
     """
+
+    def __init__(self, message: str, code: FragellaErrorCode | None = None) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 @dataclass
@@ -82,10 +117,14 @@ class FragellaClient:
         api_key (str | None): Overrides ``settings.fragella_api_key`` (for
             tests); when None, the configured key is used.
         base_url (str | None): Overrides ``settings.fragella_base_url``.
+
+    Attributes:
+        MIN_SEARCH_LENGTH (int): Fragella's documented minimum query length.
+        MAX_LIMIT (int): Fragella's documented maximum `limit` value.
     """
 
-    MIN_SEARCH_LENGTH = 3
-    MAX_LIMIT = 10
+    MIN_SEARCH_LENGTH: int = 3
+    MAX_LIMIT: int = 10
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
         self.api_key = api_key if api_key is not None else settings.fragella_api_key
@@ -94,7 +133,7 @@ class FragellaClient:
     def _require_api_key(self) -> str:
         if not self.api_key:
             msg = "FRAGELLA_API_KEY is not configured"
-            raise FragellaError(msg)
+            raise FragellaError(msg, code=FragellaErrorCode.NOT_CONFIGURED)
         return self.api_key
 
     async def search(self, query: str, limit: int = 5) -> list[FragellaResult]:
@@ -121,7 +160,7 @@ class FragellaClient:
         api_key = self._require_api_key()
         if len(query.strip()) < self.MIN_SEARCH_LENGTH:
             msg = f"query must be at least {self.MIN_SEARCH_LENGTH} characters"
-            raise FragellaError(msg)
+            raise FragellaError(msg, code=FragellaErrorCode.QUERY_TOO_SHORT)
         clamped_limit = max(1, min(limit, self.MAX_LIMIT))
 
         try:
@@ -133,44 +172,66 @@ class FragellaClient:
                 )
         except httpx.RequestError as exc:
             msg = f"Fragella request failed: {exc}"
-            raise FragellaError(msg) from exc
+            raise FragellaError(msg, code=FragellaErrorCode.REQUEST_FAILED) from exc
 
         if response.status_code == 429:
             msg = "Fragella monthly quota exhausted (HTTP 429)"
-            raise FragellaError(msg)
+            raise FragellaError(msg, code=FragellaErrorCode.QUOTA_EXHAUSTED)
         if response.status_code in (401, 403):
             msg = f"Fragella rejected the API key (HTTP {response.status_code})"
-            raise FragellaError(msg)
+            raise FragellaError(msg, code=FragellaErrorCode.AUTH_REJECTED)
         if response.status_code != 200:
             msg = f"Fragella returned HTTP {response.status_code}"
-            raise FragellaError(msg)
+            raise FragellaError(msg, code=FragellaErrorCode.RESPONSE_INVALID)
 
         try:
             body: object = response.json()
         except ValueError as exc:
             msg = "Fragella returned a non-JSON response"
-            raise FragellaError(msg) from exc
+            raise FragellaError(msg, code=FragellaErrorCode.RESPONSE_INVALID) from exc
 
-        # The documented response envelope differs when `?page=` is used
-        # (`{"data": [...], "pagination": {...}}`) versus the default,
-        # undocumented-in-detail unpaginated form; accept either a bare
-        # list or a `data` key rather than assuming one.
-        raw_items: object = None
-        if isinstance(body, list):
-            raw_items = body
-        elif isinstance(body, dict):
-            raw_items = body.get("data", [])
-        if not isinstance(raw_items, list):
-            msg = "Fragella search response was not a list of fragrances"
-            raise FragellaError(msg)
-
-        items: list[object] = raw_items
+        items = self._extract_search_items(body)
         return [
             parsed
             for item in items
             if isinstance(item, dict)
             and (parsed := self._parse_result(item)) is not None
         ]
+
+    @staticmethod
+    def _extract_search_items(body: object) -> list[object]:
+        """Pull the result list out of a `/fragrances` response body.
+
+        The documented response envelope differs when `?page=` is used
+        (`{"data": [...], "pagination": {...}}`) versus the default,
+        undocumented-in-detail unpaginated form; accept either a bare
+        list or a `data` key rather than assuming one.
+
+        Args:
+            body (object): The parsed JSON response body.
+
+        Returns:
+            list[object]: The raw, not-yet-validated result items.
+
+        Raises:
+            FragellaError: `body` is not a list, and is either a dict
+                with no `data` key at all (an error envelope, e.g.
+                `{"error": "..."}` - `.get("data", [])` would default
+                this to `[]` the same as a genuinely empty paginated
+                result and mask the failure as a successful zero-match
+                search) or `data` is present but not itself a list.
+        """
+        if isinstance(body, list):
+            return body
+        if isinstance(body, dict):
+            if "data" not in body:
+                msg = f"Fragella search response was an error envelope: {body!r}"
+                raise FragellaError(msg, code=FragellaErrorCode.RESPONSE_INVALID)
+            raw_items = body["data"]
+            if isinstance(raw_items, list):
+                return raw_items
+        msg = "Fragella search response was not a list of fragrances"
+        raise FragellaError(msg, code=FragellaErrorCode.RESPONSE_INVALID)
 
     async def usage(self) -> dict[str, object] | None:
         """Fetch the account's current monthly quota status.
