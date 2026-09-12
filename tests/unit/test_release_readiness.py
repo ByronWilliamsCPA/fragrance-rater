@@ -135,6 +135,23 @@ def test_manifest_rejects_a_gtin_with_a_bad_check_digit() -> None:
     assert any("gtin must be a valid GTIN" in error for error in errors)
 
 
+def test_manifest_rejects_a_gtin_authored_as_a_json_number() -> None:
+    """A JSON number has no leading-zero literal, so an author who wrote
+    an unquoted 36000291452 instead of "036000291452" has already lost a
+    digit before this script runs; str(gtin) coercion would accept the
+    mistake (or reject it with a misleading "invalid GTIN" instead of
+    naming the real cause). The manifest's gtin field must be authored
+    as a JSON string, matching MembershipInput's live-path contract."""
+    validator = load_script("validate_calibration_manifest")
+    document = {
+        "program_name": "Baseline",
+        "program_version": "v1",
+        "entries": [valid_entry(gtin=36000291452)],
+    }
+    errors = validator.validate_manifest(document)
+    assert any("must be a JSON string" in error for error in errors)
+
+
 def test_manifest_reports_non_string_identifiers_without_crashing() -> None:
     """Structured identifiers are validation errors rather than unhashable keys."""
     validator = load_script("validate_calibration_manifest")

@@ -89,11 +89,26 @@ def validate_manifest(document: object) -> list[str]:
         # check-digit-valid GTIN, not free text; a value that fails the
         # GS1 checksum is far more likely a transcription error than a
         # genuine identity signal, so it is rejected rather than stored.
+        # Require the manifest to author it as a JSON string, matching
+        # MembershipInput's live-path contract: a JSON number has no
+        # leading-zero literal, so an author who wrote e.g. 36000291452
+        # instead of "036000291452" would have already silently lost a
+        # digit before this script ever runs. Coercing via str(gtin)
+        # here would accept that mistake and reject it (if at all) with
+        # a misleading "invalid GTIN" rather than naming the real cause.
         # #VERIFY: covered by tests for a valid GTIN, an invalid check
-        # digit, and an absent field.
+        # digit, a JSON-number gtin, and an absent field.
         gtin = entry.get("gtin")
-        if gtin is not None and not is_valid_gtin(str(gtin)):
-            errors.append(f"{prefix}.gtin must be a valid GTIN-8/12/13/14 or omitted")
+        if gtin is not None:
+            if not isinstance(gtin, str):
+                errors.append(
+                    f"{prefix}.gtin must be a JSON string, not a number "
+                    "(a bare number loses any leading zero)"
+                )
+            elif not is_valid_gtin(gtin):
+                errors.append(
+                    f"{prefix}.gtin must be a valid GTIN-8/12/13/14 or omitted"
+                )
         if role not in ROLES:
             errors.append(f"{prefix}.role must be one of {sorted(ROLES)}")
         repeat_of = entry.get("repeat_of_membership_key")
