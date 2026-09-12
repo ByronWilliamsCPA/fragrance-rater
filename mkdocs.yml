@@ -177,6 +177,7 @@ nav:
       - Project Plan: planning/PROJECT-PLAN.md
       - P0 Planning Baseline: planning/gates/p0.md
       - P1 Release Readiness Gate: planning/gates/p1.md
+      - Baseline and Holdout V3.1: planning/evidence/baseline-v3.1-universal-and-holdout.md
       - P2 Outcome Measurement Gate: planning/gates/p2.md
       - P3 Product UX Foundation Gate: planning/gates/p3.md
       - P4 Participant Experience Gate: planning/gates/p4.md
