@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003 - FastAPI resolves this at runtime
 from typing import TYPE_CHECKING, Annotated, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.api.calibration import actor, manager
+from fragrance_rater.api.calibration import actor, manager, private_response
 from fragrance_rater.api.recommendations import (
     ExplanationResponse,
     build_recommendation_explanation,
@@ -19,6 +19,7 @@ from fragrance_rater.core.database import get_db
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter
 from fragrance_rater.models.calibration import Enrollment
 from fragrance_rater.models.recommendation_measurement import (
+    PilotOperationalEvent,
     RecommendationImpression,
     RecommendationRun,
 )
@@ -236,8 +237,9 @@ async def append_response(
 
 
 @router.get("/reviewers/{reviewer_id}/metrics", response_model=MetricsView)
-async def metrics(
+async def metrics(  # noqa: PLR0917 - FastAPI injects request, auth, DB, and filters
     reviewer_id: str,
+    response: Response,
     db: DB,
     identity: Identity,
     window_start: Annotated[datetime | None, Query()] = None,
@@ -245,12 +247,74 @@ async def metrics(
 ) -> MetricsView:
     """Return the admin metric contract with explicit counts and denominators."""
     manager(identity)
+    private_response(response)
     try:
         return await RecommendationMeasurementService(db).metrics(
             reviewer_id, window_start=window_start, window_end=window_end
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/operational-events")
+async def operational_events(
+    response: Response,
+    db: DB,
+    identity: Identity,
+    reviewer_id: Annotated[str | None, Query()] = None,
+) -> list[dict[str, object]]:
+    """List recent pilot failures and recoveries for manager follow-up."""
+    manager(identity)
+    private_response(response)
+    statement = select(PilotOperationalEvent).order_by(
+        PilotOperationalEvent.occurred_at.desc()
+    )
+    if reviewer_id is not None:
+        statement = statement.where(PilotOperationalEvent.reviewer_id == reviewer_id)
+    return [
+        {
+            "id": item.id,
+            "reviewer_id": item.reviewer_id,
+            "event_type": item.event_type,
+            "details": item.details,
+            "occurred_at": item.occurred_at,
+            "recorded_by": item.recorded_by,
+        }
+        for item in await db.scalars(statement.limit(100))
+    ]
+
+
+@router.get("/operational-status")
+async def operational_status(
+    response: Response, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Report unresolved pilot connectivity incidents without infrastructure detail."""
+    manager(identity)
+    private_response(response)
+    events = list(
+        await db.scalars(
+            select(PilotOperationalEvent).order_by(
+                PilotOperationalEvent.occurred_at.desc()
+            )
+        )
+    )
+    latest_by_reviewer: dict[str, PilotOperationalEvent] = {}
+    for item in events:
+        latest_by_reviewer.setdefault(item.reviewer_id, item)
+    unresolved = sorted(
+        reviewer_id
+        for reviewer_id, item in latest_by_reviewer.items()
+        if item.event_type == "CONNECTIVITY_FAILURE"
+    )
+    return {
+        "status": "attention" if unresolved else "available",
+        "unresolved_reviewer_ids": unresolved,
+        "guidance": (
+            "Use the paper fallback and record a recovery after data entry resumes."
+            if unresolved
+            else "No unresolved pilot connectivity incidents."
+        ),
+    }
 
 
 @router.post("/operational-events", status_code=status.HTTP_201_CREATED)

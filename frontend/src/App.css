@@ -221,6 +221,116 @@ textarea {
 .fields-compact {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.manager-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+}
+.data-list {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+.data-list li,
+.progress-card,
+.service-status,
+.metric-contract {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #dbe0d5;
+  border-radius: 8px;
+  background: #f8faf6;
+}
+.data-list small,
+.progress-card small,
+.service-status small {
+  color: #566a5d;
+}
+.progress-grid,
+.label-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.progress-card progress {
+  width: 100%;
+}
+.service-status {
+  margin: 14px 0;
+  border-left: 5px solid #3a705f;
+}
+.service-status.attention {
+  border-left-color: #a65f29;
+  background: #fff7e6;
+}
+.sample-label {
+  display: grid;
+  gap: 5px;
+  min-height: 112px;
+  padding: 16px;
+  border: 2px solid #223a36;
+  border-radius: 7px;
+}
+.sample-label strong {
+  font-size: 25px;
+  letter-spacing: 0.12em;
+}
+.metric-contract {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 14px;
+}
+.metric-contract > div {
+  display: grid;
+  gap: 3px;
+}
+.metric-contract > div strong {
+  font-size: 24px;
+}
+.metric-contract p,
+.metric-contract button {
+  grid-column: 1 / -1;
+}
+hr {
+  border: 0;
+  border-top: 1px solid #dbe0d5;
+  margin: 30px 0;
+}
+@media (max-width: 760px) {
+  .manager-grid,
+  .fields,
+  .fields-compact,
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    padding: 12mm;
+  }
+  .no-print {
+    display: none;
+  }
+  .label-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .sample-label {
+    break-inside: avoid;
+  }
+}
+.fields-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 fieldset {
   border: 0;
   padding: 0;

@@ -67,6 +67,22 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
         headers=MANAGER,
     )
     assert member.status_code == 201
+    member_list = await test_app.get(
+        f"{PREFIX}/programs/{program_id}/members", headers=MANAGER
+    )
+    assert member_list.status_code == 200
+    assert member_list.headers["cache-control"] == "private, no-store"
+    assert member_list.json()[0] == {
+        "id": member.json()["id"],
+        "fragrance_id": fragrance.json()["id"],
+        "fragrance_name": "Concealed identity",
+        "fragrance_brand": "Concealed house",
+        "concentration": "EDT",
+        "role": "UNIVERSAL_BASELINE",
+        "repeat_of_id": None,
+        "group_name": "Baseline",
+        "identity_evidence": "Label verified",
+    }
     activation = await test_app.post(
         f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER
     )
@@ -85,6 +101,9 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
     forbidden = await test_app.get(url, headers=OUTSIDER)
     assert forbidden.status_code == 403
     assert (await test_app.get(f"{PREFIX}/enrollments", headers=OUTSIDER)).json() == []
+    outsider_list = await test_app.get(f"{PREFIX}/enrollments", headers=OUTSIDER)
+    assert outsider_list.headers["cache-control"] == "private, no-store"
+    assert outsider_list.headers["vary"] == "X-Authentik-Username"
     assert (await test_app.get(f"{PREFIX}/programs", headers=OUTSIDER)).json() == []
     view = await test_app.get(url, headers=RECORDER)
     assert view.status_code == 200
@@ -96,6 +115,30 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
     mapping = await test_app.get(f"{url}/mapping", headers=MANAGER)
     assert mapping.status_code == 200
     assert mapping.json()[0]["fragrance_id"] == fragrance.json()["id"]
+    assert mapping.json()[0]["fragrance_name"] == "Concealed identity"
+    assert mapping.headers["cache-control"] == "private, no-store"
+    overview = await test_app.get(f"{PREFIX}/manager/enrollments", headers=MANAGER)
+    assert overview.status_code == 200
+    assert overview.headers["cache-control"] == "private, no-store"
+    assert overview.json() == [
+        {
+            "id": enrollment_id,
+            "program_name": "Protocol",
+            "program_version": "1",
+            "reviewer_name": "Evaluator",
+            "recorder_usernames": ["recorder"],
+            "total_presentations": 1,
+            "blotter_complete": 0,
+            "skin_planned": 0,
+            "skin_complete": 0,
+            "reveal_eligible": False,
+            "reveal_blocker": "BLOTTER",
+            "revealed": False,
+        }
+    ]
+    assert (
+        await test_app.get(f"{PREFIX}/manager/enrollments", headers=RECORDER)
+    ).status_code == 403
 
     blocked = await test_app.post(f"{url}/reveal", headers=RECORDER)
     assert blocked.status_code == 409

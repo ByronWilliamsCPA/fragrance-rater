@@ -45,7 +45,7 @@ evidence are retained in the linked gate records and PR #70.
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
 | OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the F1 pilot |
 | Controlled calibration | Merged, not deployment-verified | Program, enrollment, hidden repeat/holdout, presentation, observation, locking, reveal, and checkpoint flows exist |
-| React product workflow | P3 complete; P4 in progress | Routed capability-aware shell, shared states, and feature pages exist; P4-P6 complete participant and manager workflows before family use |
+| React product workflow | P4 complete; P5 review pending | Participant workflows are merged; manager and operations workflows await review before the P6 rehearsal |
 | Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
 | Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
@@ -235,7 +235,7 @@ follow-up task through a guided interface without API tools or raw identifiers.
 
 **Owner:** Core maintainer
 
-**Status:** Implementation complete; review pending
+**Status:** Complete
 **Depends on:** P3
 **Evidence:** [P4 Participant Experience Gate](gates/p4.md)
 
@@ -261,7 +261,7 @@ without direct database changes or ad hoc API calls.
 
 **Owner:** Core maintainer
 
-**Status:** Planned
+**Status:** Implementation complete; review pending
 **Depends on:** P3 and P4
 **Evidence:** [P5 Manager and Operations Experience Gate](gates/p5.md)
 

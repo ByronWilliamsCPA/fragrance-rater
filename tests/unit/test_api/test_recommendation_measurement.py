@@ -153,6 +153,43 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         "connectivity_failures": 0,
         "manual_recoveries": 0,
     }
+    assert report.headers["cache-control"] == "private, no-store"
+
+    initial_status = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status", headers=IDENTITY
+    )
+    assert initial_status.json()["status"] == "available"
+    failure = await test_app.post(
+        f"{API}/recommendation-measurement/operational-events",
+        headers=IDENTITY,
+        json={
+            "reviewer_id": reviewer_id,
+            "event_type": "CONNECTIVITY_FAILURE",
+            "details": "Recorder used paper fallback",
+        },
+    )
+    assert failure.status_code == 201
+    events = await test_app.get(
+        f"{API}/recommendation-measurement/operational-events", headers=IDENTITY
+    )
+    assert events.status_code == 200
+    assert events.headers["cache-control"] == "private, no-store"
+    assert events.json()[0]["details"] == "Recorder used paper fallback"
+    attention = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status", headers=IDENTITY
+    )
+    assert attention.json()["status"] == "attention"
+    assert attention.json()["unresolved_reviewer_ids"] == [reviewer_id]
+    recovery = await test_app.post(
+        f"{API}/recommendation-measurement/operational-events",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "event_type": "MANUAL_RECOVERY"},
+    )
+    assert recovery.status_code == 201
+    recovered = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status", headers=IDENTITY
+    )
+    assert recovered.json()["status"] == "available"
 
     invalid_window = await test_app.get(
         f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
@@ -182,10 +219,20 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
         f"{API}/recommendation-measurement/reviewers/{reviewer_id}/metrics",
         headers=IDENTITY,
     )
+    unauthorized_event_list = await test_app.get(
+        f"{API}/recommendation-measurement/operational-events",
+        headers=IDENTITY,
+    )
+    unauthorized_status = await test_app.get(
+        f"{API}/recommendation-measurement/operational-status",
+        headers=IDENTITY,
+    )
     assert unauthorized_run.status_code == 403
     assert unauthorized_response.status_code == 403
     assert unauthorized_event.status_code == 403
     assert unauthorized_metrics.status_code == 403
+    assert unauthorized_event_list.status_code == 403
+    assert unauthorized_status.status_code == 403
 
 
 @pytest.mark.asyncio

@@ -50,6 +50,82 @@ export type Program = Person & {
   status: string
 }
 
+export type ProgramMember = {
+  id: string
+  fragrance_id: string
+  fragrance_name: string
+  fragrance_brand: string
+  concentration: string
+  role: string
+  repeat_of_id: string | null
+  group_name: string
+  identity_evidence: string
+}
+
+export type ManagerEnrollment = {
+  id: string
+  program_name: string
+  program_version: string
+  reviewer_name: string
+  recorder_usernames: string[]
+  total_presentations: number
+  blotter_complete: number
+  skin_planned: number
+  skin_complete: number
+  reveal_eligible: boolean
+  reveal_blocker: 'BLOTTER' | 'SKIN_PLAN' | 'SKIN' | null
+  revealed: boolean
+}
+
+export type MappingRow = {
+  session_id: string
+  position: number
+  blind_code: string
+  fragrance_name: string
+  fragrance_brand: string
+  concentration: string
+  role: string
+}
+
+export type OperationalEvent = {
+  id: string
+  reviewer_id: string
+  event_type: 'CONNECTIVITY_FAILURE' | 'MANUAL_RECOVERY'
+  details: string | null
+  occurred_at: string
+  recorded_by: string
+}
+
+export type OperationalStatus = {
+  status: 'available' | 'attention'
+  unresolved_reviewer_ids: string[]
+  guidance: string
+}
+
+export type Metrics = {
+  reviewer_id: string
+  window_start: string
+  window_end: string
+  reviewer_population: string[]
+  exclusion_policy: string[]
+  excluded_impressions: number
+  algorithm_versions: string[]
+  candidate_strategies: string[]
+  run_filters: Record<string, unknown>[]
+  source_snapshots: Record<string, unknown>[]
+  eligible_impressions: number
+  explicit_interest_responses: number
+  positive_interest_responses: number
+  response_coverage: number | null
+  interest_rate: number | null
+  sampled_recommendations: number
+  sampling_conversion: number | null
+  linked_outcomes: number
+  connectivity_failures: number
+  manual_recoveries: number
+  [key: string]: unknown
+}
+
 export type Encounter = {
   id: string
   fragrance_id: string
