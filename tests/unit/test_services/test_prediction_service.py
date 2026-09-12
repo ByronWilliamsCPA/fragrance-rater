@@ -190,7 +190,7 @@ async def test_link_outcome_to_a_later_evaluation(scenario):
             fragrance_id="target",
             model_id="m",
             model_version="v1",
-            predicted_rating=7.0,
+            predicted_rating=4.0,
             predicted_scale="1-5",
         ),
         recorded_by=None,
@@ -211,7 +211,7 @@ async def test_link_outcome_to_a_later_evaluation(scenario):
     assert linked.outcome_evaluation_id == evaluation.id
     assert linked.outcome_linked_at is not None
     # The frozen prediction itself never changes when the outcome is linked.
-    assert linked.predicted_rating == 7.0
+    assert linked.predicted_rating == 4.0
 
 
 @pytest.mark.asyncio

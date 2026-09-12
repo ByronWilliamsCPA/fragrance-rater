@@ -39,11 +39,12 @@ atomic non-destructive encounters, prospective holdouts, relational perfumer/sou
 and immutable recommendation impressions. The full analysis is recorded in
 [Data Model Gap Analysis](../data-model-gap-analysis.md).
 
-The review found one concentrated, consequential gap: `calibration_observations.responses`
-stores validated, bounded, clearly analytical fields — `would_wear`, `would_buy`,
-opening/drydown liking, sensory dimensions, perceived notes, confidence — inside a single
-untyped JSON column, and `PreferenceHistoryService.training_manifest()` forwards that blob
-unchanged into the frozen ML training manifest. It found a smaller number of domains
+The review found one concentrated, consequential gap, since closed by the implemented slice
+described above: `calibration_observations.responses` **used to** store validated, bounded,
+clearly analytical fields — `would_wear`, `would_buy`, opening/drydown liking, sensory
+dimensions, perceived notes, confidence — inside a single untyped JSON column, and
+`PreferenceHistoryService.training_manifest()` forwarded that blob unchanged into the frozen ML
+training manifest. The review also found a smaller number of domains
 (scenario/context, pairwise comparison, general behavioral events, multiple classification
 systems, brand identity, accord vocabulary) that are entirely or partly missing and are named
 directly in the roadmap's stated future ML outputs.

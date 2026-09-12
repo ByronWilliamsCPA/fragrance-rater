@@ -4180,6 +4180,28 @@
         "description": "Freeze one model's predicted rating before the real outcome exists."
       },
       "PredictionOutcomeInput": {
+        "oneOf": [
+          {
+            "not": {
+              "required": [
+                "outcome_observation_id"
+              ]
+            },
+            "required": [
+              "outcome_evaluation_id"
+            ]
+          },
+          {
+            "not": {
+              "required": [
+                "outcome_evaluation_id"
+              ]
+            },
+            "required": [
+              "outcome_observation_id"
+            ]
+          }
+        ],
         "properties": {
           "outcome_evaluation_id": {
             "anyOf": [
@@ -4209,7 +4231,7 @@
         "additionalProperties": false,
         "type": "object",
         "title": "PredictionOutcomeInput",
-        "description": "Link a frozen prediction to the observation that later confirmed or refuted it.\n\nExactly one of ``outcome_evaluation_id`` (an ordinary encounter) or\n``outcome_observation_id`` (a controlled observation) is required; the\nother must be omitted or explicitly null. Both empty (`{}`) and both set\nare rejected. This is deliberately two plain optional fields rather than\na discriminated union so the request stays a flat, simple shape; the\ngenerated OpenAPI schema will show both properties as optional even\nthough a request choosing zero or two of them still returns 422 here."
+        "description": "Link a frozen prediction to the observation that later confirmed or refuted it.\n\nExactly one of ``outcome_evaluation_id`` (an ordinary encounter) or\n``outcome_observation_id`` (a controlled observation) is required; the\nother must be omitted or explicitly null. Both empty (`{}`) and both set\nare rejected, and the generated OpenAPI schema's ``oneOf`` publishes\nthat same rule (see ``_require_exactly_one_outcome_schema``) rather than\nshowing both properties as merely optional."
       },
       "PredictionView": {
         "properties": {

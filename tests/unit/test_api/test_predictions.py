@@ -54,6 +54,34 @@ async def test_anonymous_and_non_manager_cannot_use_predictions(test_app):
 
 
 @pytest.mark.asyncio
+async def test_anonymous_and_non_manager_cannot_link_an_outcome(test_app):
+    reviewer_id, fragrance_id = await _make_reviewer_and_fragrance(test_app)
+    created = await test_app.post(
+        PREFIX,
+        json={
+            "reviewer_id": reviewer_id,
+            "fragrance_id": fragrance_id,
+            "model_id": "m",
+            "model_version": "v1",
+        },
+        headers=MANAGER,
+    )
+    prediction_id = created.json()["id"]
+    evaluation = await test_app.post(
+        "/api/v1/evaluations",
+        json={"fragrance_id": fragrance_id, "reviewer_id": reviewer_id, "rating": 4},
+        headers=MANAGER,
+    )
+    payload = {"outcome_evaluation_id": evaluation.json()["id"]}
+    anonymous = await test_app.post(f"{PREFIX}/{prediction_id}/outcome", json=payload)
+    assert anonymous.status_code == 401
+    non_manager = await test_app.post(
+        f"{PREFIX}/{prediction_id}/outcome", json=payload, headers=RECORDER
+    )
+    assert non_manager.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_create_reports_404_for_unknown_reviewer_or_fragrance(test_app):
     _, fragrance_id = await _make_reviewer_and_fragrance(test_app)
     missing_reviewer = await test_app.post(
