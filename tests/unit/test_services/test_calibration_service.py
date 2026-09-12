@@ -312,6 +312,99 @@ async def test_structured_response_fields_round_trip_as_typed_columns(protocol):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("boundary", "bounded_values"),
+    [
+        (
+            "minimum",
+            {
+                "confidence": 0,
+                "sweetness": 0,
+                "freshness": 0,
+                "density": 0,
+                "familiarity": 0,
+                "dryness": 0,
+                "clean_soapy": 0,
+                "earthy_rooty": 0,
+                "bodily_animalic": 0,
+                "discomfort": 0,
+                "opening_liking": 0,
+                "drydown_liking": 0,
+                "would_wear": 0,
+                "would_buy": 0,
+                "artistic_appreciation": 0,
+                "projection": 0,
+                "longevity_minutes": 0,
+            },
+        ),
+        (
+            "maximum",
+            {
+                "confidence": 5,
+                "sweetness": 5,
+                "freshness": 5,
+                "density": 5,
+                "familiarity": 5,
+                "dryness": 5,
+                "clean_soapy": 5,
+                "earthy_rooty": 5,
+                "bodily_animalic": 5,
+                "discomfort": 5,
+                "opening_liking": 10,
+                "drydown_liking": 10,
+                "would_wear": 10,
+                "would_buy": 10,
+                "artistic_appreciation": 10,
+                "projection": 5,
+                "longevity_minutes": 100000,
+            },
+        ),
+    ],
+)
+async def test_structured_response_fields_accept_boundary_values(
+    protocol, boundary, bounded_values
+):
+    """Every promoted, range-bounded field's declared minimum and maximum round-trip
+    through the service and are accepted, not rejected as one-past-the-boundary.
+
+    Complements `test_structured_response_fields_round_trip_as_typed_columns`
+    (which only exercises mid-range values) by exercising the 0/max edges the
+    schema `Field(ge=..., le=...)` bounds and the matching database
+    `CheckConstraint`s actually declare for each field.
+    """
+    service, *_ = protocol
+    enrollment = await enroll(protocol)
+    presentation = (await service.presentations(enrollment.id))[0]
+    submitted = await service.observe(
+        presentation.id,
+        ResponseInput(
+            stage="BLOTTER",
+            detected=True,
+            intensity=3,
+            liking=7,
+            # Explicit (valid) empty array rather than the default `None`:
+            # this test targets the numeric-field range boundaries, not
+            # perceived_notes' own null-handling.
+            perceived_notes=[],
+            **bounded_values,
+        ),
+        "family-recorder",
+        admin=False,
+    )
+    for field, expected in bounded_values.items():
+        assert getattr(submitted, field) == expected, (
+            f"{field} did not round-trip its {boundary} boundary value"
+        )
+
+    # The same boundary values reach the participant-facing serialized view.
+    view = await service.participant_view(enrollment)
+    row = next(row for row in view["presentations"] if row["id"] == presentation.id)
+    payload = row["observations"][0]
+    for field, expected in bounded_values.items():
+        assert payload[field] == expected
+
+
+@pytest.mark.asyncio
 async def test_stage_lock_preserves_original_and_allows_independent_skin_timepoints(
     protocol,
 ):

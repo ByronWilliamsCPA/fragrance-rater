@@ -172,6 +172,20 @@ class Observation(Base):
         ),
         CheckConstraint("projection IS NULL OR (projection >= 0 AND projection <= 5)"),
         CheckConstraint("longevity_minutes IS NULL OR longevity_minutes >= 0"),
+        # `perceived_notes` is plain `JSON`, not `JSONB` (see the column
+        # below), so `jsonb_typeof` does not apply, and PostgreSQL's
+        # `json_typeof` isn't the same function as SQLite's `json_type`, so
+        # neither name is portable to both engines this repo runs against
+        # (PostgreSQL in production per ADR-001, SQLite in this repo's
+        # migration and unit tests). Casting to text and checking the
+        # (whitespace-trimmed) leading character is portable to both and is
+        # exact for any valid JSON array. Keep this in sync with the
+        # matching `op.create_check_constraint` in
+        # alembic/versions/a1b2c3d4e5f6_ml_prediction_snapshots.py.
+        CheckConstraint(
+            "perceived_notes IS NULL OR ltrim(CAST(perceived_notes AS TEXT)) LIKE '[%'",
+            name="ck_calibration_observations_perceived_notes_is_array",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     presentation_id: Mapped[str] = mapped_column(
@@ -207,7 +221,19 @@ class Observation(Base):
     longevity_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Perceived notes and raw free text (see class docstring).
-    perceived_notes: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    # #CRITICAL: data-integrity: SQLAlchemy's JSON type defaults to
+    # `none_as_null=False`, which would serialize a Python `None` value as
+    # the literal JSON text `"null"` on write rather than a SQL NULL. The
+    # `ck_calibration_observations_perceived_notes_is_array` CHECK
+    # constraint (see `__table_args__` above) only special-cases actual SQL
+    # NULL, so an un-set `perceived_notes` would otherwise violate its own
+    # constraint. `none_as_null=True` makes Python `None` map to SQL NULL,
+    # matching what the constraint and the rest of this codebase assume.
+    # #VERIFY: keep this in sync with the matching `sa.JSON(none_as_null=True)`
+    # in alembic/versions/a1b2c3d4e5f6_ml_prediction_snapshots.py.
+    perceived_notes: Mapped[list[str] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
     likes: Mapped[str | None] = mapped_column(Text, nullable=True)
     dislikes: Mapped[str | None] = mapped_column(Text, nullable=True)
     reminds_me_of: Mapped[str | None] = mapped_column(Text, nullable=True)

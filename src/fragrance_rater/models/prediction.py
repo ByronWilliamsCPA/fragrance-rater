@@ -18,10 +18,19 @@ from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import JSON, CheckConstraint, Float, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, validates
 
 from fragrance_rater.core.database import Base
 from fragrance_rater.utils.timestamps import now_naive_utc
+
+# Outcome-link columns that must move from NULL to a value exactly once; see
+# `PredictionSnapshot._validate_outcome_immutable`.
+_OUTCOME_LINK_COLUMNS = (
+    "outcome_evaluation_id",
+    "outcome_observation_id",
+    "outcome_linked_at",
+    "outcome_recorded_by",
+)
 
 
 def identifier() -> str:
@@ -34,7 +43,7 @@ class PredictionSnapshot(Base):
 
     ``predicted_rating``, ``uncertainty``, ``percentile_rank``,
     ``input_manifest``, and ``explanation`` are set once at creation and
-    never recomputed in place — the point of freezing a prediction is that
+    never recomputed in place: the point of freezing a prediction is that
     it cannot quietly change to match what actually happened. The
     ``outcome_*`` columns are the one documented exception: they start NULL
     and are set exactly once, after a real outcome exists, by
@@ -51,6 +60,26 @@ class PredictionSnapshot(Base):
         ),
         CheckConstraint(
             "NOT (outcome_evaluation_id IS NOT NULL AND outcome_observation_id IS NOT NULL)"
+        ),
+        # Excludes NaN (`predicted_rating = predicted_rating` is false for
+        # NaN under IEEE754) and +/-Infinity (neither satisfies both
+        # bounds). Deliberately avoids a dialect-specific `::float` cast or
+        # an `'Infinity'` literal so the same constraint text works on both
+        # PostgreSQL (production, ADR-001) and SQLite (this repo's
+        # migration/unit tests); keep this in sync with the matching
+        # `op.create_check_constraint` in alembic/versions/72fe56efd128_*.
+        CheckConstraint(
+            "predicted_rating IS NULL OR "
+            "(predicted_rating = predicted_rating "
+            "AND predicted_rating > -1e308 AND predicted_rating < 1e308)",
+            name="ck_prediction_snapshot_predicted_rating_finite",
+        ),
+        # Ties `outcome_linked_at`'s nullity to both outcome-id columns':
+        # keep in sync with the migration's matching constraint.
+        CheckConstraint(
+            "(outcome_linked_at IS NULL) = "
+            "(outcome_evaluation_id IS NULL AND outcome_observation_id IS NULL)",
+            name="ck_prediction_snapshot_outcome_linked_consistency",
         ),
     )
 
@@ -115,3 +144,34 @@ class PredictionSnapshot(Base):
     outcome_recorded_by: Mapped[str | None] = mapped_column(
         String(255), nullable=True, default=None
     )
+
+    @validates(*_OUTCOME_LINK_COLUMNS)
+    def _validate_outcome_immutable(self, key: str, value: object) -> object:
+        """Reject changing an outcome-link column away from an already-set value.
+
+        ORM-level defense-in-depth for the "set exactly once" contract
+        documented on the class: once one of these four columns has been
+        assigned a non-NULL value, any later assignment must repeat that
+        same value (a harmless no-op) rather than change or clear it.
+
+        # #CRITICAL: concurrency: this only guards one already-loaded ORM
+        # instance within one session; it cannot see another transaction's
+        # uncommitted write. Two concurrent transactions that each load a
+        # fresh (outcome-unset) copy of the same row and independently call
+        # `link_outcome()` will each pass this check, since neither has
+        # observed the other's in-flight change, and the second commit to
+        # land silently overwrites the first at the database level unless
+        # something else serializes them.
+        # #VERIFY: confirm `PredictionService.link_outcome()` takes a row
+        # lock (e.g. `SELECT ... FOR UPDATE`) or otherwise serializes
+        # concurrent callers before treating this hook as a complete
+        # guarantee rather than a defense-in-depth backstop.
+        """
+        existing = getattr(self, key)
+        if existing is not None and existing != value:
+            msg = (
+                f"{key} is already set to {existing!r}; outcome-link columns "
+                "are set exactly once"
+            )
+            raise ValueError(msg)
+        return value
