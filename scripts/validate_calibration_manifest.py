@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from fragrance_rater.utils.gtin import is_valid_gtin
+
 REQUIRED_TEXT = (
     "membership_key",
     "fragrance_id",
@@ -81,6 +83,17 @@ def validate_manifest(document: object) -> list[str]:
                 errors.append(f"{prefix}.source_url must be an absolute HTTPS URL")
         if entry.get("physical_sample_confirmed") is not True:
             errors.append(f"{prefix}.physical_sample_confirmed must be true")
+        # #ASSUME: data-integrity: gtin is optional (some physical samples
+        # - decants, vintage, some indie houses - carry no scannable
+        # manufacturer barcode) but when present must be a real,
+        # check-digit-valid GTIN, not free text; a value that fails the
+        # GS1 checksum is far more likely a transcription error than a
+        # genuine identity signal, so it is rejected rather than stored.
+        # #VERIFY: covered by tests for a valid GTIN, an invalid check
+        # digit, and an absent field.
+        gtin = entry.get("gtin")
+        if gtin is not None and not is_valid_gtin(str(gtin)):
+            errors.append(f"{prefix}.gtin must be a valid GTIN-8/12/13/14 or omitted")
         if role not in ROLES:
             errors.append(f"{prefix}.role must be one of {sorted(ROLES)}")
         repeat_of = entry.get("repeat_of_membership_key")

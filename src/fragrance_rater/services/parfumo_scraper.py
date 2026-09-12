@@ -17,7 +17,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, ClassVar
-from urllib.parse import quote_plus, urlsplit
+from urllib.parse import urlsplit
 
 import httpx
 from bs4 import BeautifulSoup, Tag
@@ -36,6 +36,7 @@ from fragrance_rater.models.fragrance import (
     FragranceNote,
     Note,
 )
+from fragrance_rater.utils.gtin import is_valid_gtin
 
 logger = logging.getLogger(__name__)
 
@@ -95,16 +96,37 @@ class ScrapedFragrance:
     # intentionally not scraped here rather than emitting a URL-less
     # entry that looks navigable but is not.
     similar_fragrances: list[dict[str, str]] = field(default_factory=list)
+    # #ASSUME: data-integrity: a barcode is manufacturer-assigned per
+    # exact SKU and does not depend on Parfumo's page text/markup being
+    # unambiguous, unlike every other field above - see
+    # `fragrance_rater.utils.gtin` and `_extract_gtin`. Only populated
+    # when Parfumo publishes `meta[itemprop='gtin13']`; not every page
+    # does (see docs/planning/evidence/
+    # baseline-v3.1-parfumo-source-resolution.md's single-release
+    # entries), so this stays None rather than guessed. A caller
+    # comparing this against a physically-scanned barcode is the
+    # strongest available identity confirmation this project has.
+    gtin: str | None = None
 
 
 @dataclass
 class SearchResult:
-    """A search result from Parfumo."""
+    """A search result from Parfumo.
+
+    # #ASSUME: data-integrity: `concentration` is the one distinguishing
+    # field between two results that otherwise share `name`/`brand` (e.g.
+    # the same fragrance's Eau de Toilette and Eau de Parfum releases). A
+    # caller presenting `search()` results to a human for disambiguation
+    # (see `search()`'s docstring) must display it rather than only
+    # name/brand/url, or a same-named different-concentration release is
+    # indistinguishable from the one actually wanted.
+    """
 
     name: str
     brand: str
     url: str
     year: int | None = None
+    concentration: str | None = None
 
 
 class ParfumoScraper:
@@ -123,7 +145,7 @@ class ParfumoScraper:
 
     Attributes:
         BASE_URL: Parfumo site root.
-        SEARCH_URL: Perfume search endpoint.
+        LIVESEARCH_URL: Perfume search endpoint used by `search()`.
         ALLOWED_HOSTS (ClassVar[frozenset[str]]): Outbound host allowlist;
             requests to any other host are refused before being sent.
         REQUEST_DELAY: Minimum seconds between requests.
@@ -134,7 +156,21 @@ class ParfumoScraper:
     """
 
     BASE_URL = "https://www.parfumo.com"
-    SEARCH_URL = f"{BASE_URL}/s_perfumes.php"
+    # #CRITICAL: data-integrity: the previous implementation of search()
+    # issued `GET {BASE_URL}/s_perfumes.php?keywords=...` and was found,
+    # verified live on 2026-09-12, to render a generic/"trending" page
+    # regardless of query rather than real results - every query returned
+    # the same two unrelated links. Reading Parfumo's own bundled JS
+    # (assets/js/_js_main322.js) showed the visible search box actually
+    # posts to LIVESEARCH_URL with {q, o, iwear} and gets back an HTML
+    # fragment of `.ls-perfume-item` cards (name, concentration, brand,
+    # release year, url); search() uses that endpoint instead.
+    # #VERIFY: covered by fixtures modeling a `.ls-perfume-item` response;
+    # a regression here (Parfumo changing this endpoint) would surface as
+    # search() returning no/wrong results, not a crash, so periodic live
+    # verification (as in docs/planning/evidence/
+    # baseline-v3.1-parfumo-source-resolution.md) remains the backstop.
+    LIVESEARCH_URL = f"{BASE_URL}/action/livesearch/livesearch.php"
 
     # #CRITICAL: security: import_from_url() (via the CLI's `parfumo-url`
     # command) accepts an operator-supplied URL and passes it straight to
@@ -313,11 +349,16 @@ class ParfumoScraper:
         except ValueError:
             return None
 
-    def _make_request(self, url: str) -> BeautifulSoup | None:
-        """Make HTTP request and return parsed HTML.
+    def _make_request(
+        self, url: str, *, data: dict[str, str] | None = None
+    ) -> BeautifulSoup | None:
+        """Make an HTTP request and return parsed HTML.
 
         Args:
             url (str): URL to fetch.
+            data (dict[str, str] | None): Form fields to POST. When None
+                (the default), issues a GET instead. Only the livesearch
+                endpoint (see `search()`) currently passes this.
 
         Returns:
             BeautifulSoup | None: Parsed BeautifulSoup object or None on
@@ -333,7 +374,9 @@ class ParfumoScraper:
 
             try:
                 client = self._get_client()
-                response = client.get(url)
+                response = (
+                    client.post(url, data=data) if data is not None else client.get(url)
+                )
 
                 if response.status_code in (429, 503):
                     if attempt >= self.MAX_RETRIES:
@@ -369,60 +412,101 @@ class ParfumoScraper:
     def search(self, query: str, limit: int = 10) -> list[SearchResult]:
         """Search Parfumo for fragrances.
 
+        # #CRITICAL: data-integrity: this is the disambiguation surface for
+        # ADR-006's "no guessed fragrance concentration or version"
+        # invariant. When a query matches multiple releases of the same
+        # name (e.g. different concentrations, or a same-named-but-
+        # unrelated reissue), every caller presenting these results to an
+        # operator/manager MUST show `concentration` and `year` alongside
+        # `name`/`brand` - not just name/brand/url - or two genuinely
+        # different fragrances become indistinguishable in the UI. See
+        # `cli.py`'s `import-data parfumo-search` for the reference
+        # presentation. Do not auto-select a single "best" result when
+        # more than one candidate shares the same `name`; that is exactly
+        # the class of case (see docs/planning/evidence/
+        # baseline-v3.1-parfumo-source-resolution.md's Caron Aimez-Moi
+        # finding) where an automated pick can silently choose the wrong
+        # release.
+        # #VERIFY: covered by fixtures asserting concentration/year are
+        # populated when Parfumo's markup provides them, and by the CLI
+        # tests asserting both are displayed.
+
         Args:
             query (str): Search query (name, brand, or both).
             limit (int): Maximum results to return.
 
         Returns:
-            list[SearchResult]: List of search results.
+            list[SearchResult]: List of search results, in Parfumo's own
+                "popular" ranking order (not a relevance guarantee).
         """
-        search_url = f"{self.SEARCH_URL}?keywords={quote_plus(query)}"
-        soup = self._make_request(search_url)
-
+        soup = self._make_request(
+            self.LIVESEARCH_URL, data={"q": query, "o": "popular", "iwear": "0"}
+        )
         if not soup:
             return []
 
         results: list[SearchResult] = []
+        for item in soup.select(".ls-perfume-item"):
+            result = self._parse_livesearch_item(item)
+            if result is not None and not any(r.url == result.url for r in results):
+                results.append(result)
+            if len(results) >= limit:
+                break
 
-        # Parfumo search results are in a list/grid of perfume cards
-        # Look for links to perfume pages
-        for item in soup.select("a[href*='/Perfumes/']")[:limit]:
-            try:
-                href = item.get("href")
-                if not isinstance(href, str) or not href:
-                    continue
+        return results
 
-                # Normalize URL
-                if not href.startswith("http"):
-                    href = f"{self.BASE_URL}{href}"
+    def _parse_livesearch_item(self, item: Tag) -> SearchResult | None:
+        """Parse one `.ls-perfume-item` card from a livesearch response.
 
-                # Skip if it's not a perfume detail page
-                # Parfumo URLs: /Perfumes/brand/perfume-name
-                path_parts = href.replace(self.BASE_URL, "").split("/")
-                if len(path_parts) < 4:
-                    continue
+        Args:
+            item (Tag): The `.ls-perfume-item` element.
 
-                # Try to extract name from link text or nearby elements
-                name = item.get_text(strip=True)
-                brand = path_parts[2] if len(path_parts) > 2 else ""
+        Returns:
+            SearchResult | None: Parsed result, or None if the card is
+                missing a link or a name (malformed/unexpected markup).
+        """
+        link_elem = item.select_one("a.ls-perfume-overlay")
+        href = link_elem.get("href") if link_elem else None
+        if not isinstance(href, str) or not href:
+            return None
+        if not href.startswith("http"):
+            href = f"{self.BASE_URL}{href}"
 
-                # Clean up brand name (URL encoded)
-                brand = brand.replace("-", " ").replace("_", " ").title()
+        name_elem = item.select_one(".name")
+        if name_elem is None:
+            return None
+        # The concentration, when Parfumo shows one, is nested inside
+        # `.name` itself (e.g. "Colonia <span class='label_a'> Eau de
+        # Cologne</span>"); the release year is a *direct* child of
+        # `.ls-perfume-info`, a sibling of `.name`/`.brand` rather than
+        # nested in either. Conflating these two `.label_a` spans (via a
+        # single non-scoped `.label_a` selector) previously misread the
+        # concentration text as the year for any result that had one -
+        # fixed by scoping each lookup to its own container.
+        conc_elem = name_elem.select_one(".label_a")
+        concentration = conc_elem.get_text(strip=True) if conc_elem else None
 
-                # Avoid duplicates
-                if name and not any(r.url == href for r in results):
-                    results.append(
-                        SearchResult(
-                            name=name,
-                            brand=brand,
-                            url=href,
-                        )
-                    )
+        name = name_elem.get_text(strip=True)
+        if concentration and name.endswith(concentration):
+            name = name[: -len(concentration)].strip()
+        if not name:
+            return None
 
-            except (AttributeError, IndexError):
-                continue
+        brand_elem = item.select_one(".ls-perfume-info > span.brand")
+        brand = brand_elem.get_text(strip=True) if brand_elem else ""
 
-        return results[:limit]
+        year_elem = item.select_one(".ls-perfume-info > span.label_a")
+        year: int | None = None
+        if year_elem:
+            year_match = re.search(
+                r"\b(1[89]|20)\d{2}\b", year_elem.get_text(strip=True)
+            )
+            if year_match:
+                year = int(year_match.group())
+
+        return SearchResult(
+            name=name, brand=brand, url=href, year=year, concentration=concentration
+        )
 
     def scrape_perfume_page(self, url: str) -> ScrapedFragrance | None:
         """Scrape detailed info from a perfume page.
@@ -453,6 +537,7 @@ class ParfumoScraper:
             self._extract_metrics(soup, data)
             data.production_status = self._extract_production_status(soup)
             self._extract_similar_fragrances(soup, data)
+            data.gtin = self._extract_gtin(soup)
             data.gender = self._extract_gender(soup)
             data.year = self._extract_year(soup)
             data.perfumer = self._extract_perfumer(soup)
@@ -747,6 +832,26 @@ class ParfumoScraper:
                 entry["brand"] = brand.strip()
             data.similar_fragrances.append(entry)
 
+    def _extract_gtin(self, soup: BeautifulSoup) -> str | None:
+        """Extract the manufacturer-assigned barcode, if Parfumo publishes one.
+
+        Args:
+            soup (BeautifulSoup): Parsed HTML.
+
+        Returns:
+            str | None: A validated GTIN, or None if the page carries no
+                `gtin13` meta tag or its value fails the GS1 check digit
+                (never a value the caller would have to re-validate).
+        """
+        gtin_elem = soup.select_one("meta[itemprop='gtin13']")
+        if gtin_elem is None:
+            return None
+        value = gtin_elem.get("content")
+        if not isinstance(value, str):
+            return None
+        value = value.strip()
+        return value if is_valid_gtin(value) else None
+
     def _extract_gender(self, soup: BeautifulSoup) -> str | None:
         """Infer the target gender from the page text.
 
@@ -949,6 +1054,23 @@ class ParfumoScraper:
         brand: str | None = None,
     ) -> str | None:
         """Search Parfumo and import the best match.
+
+        # #CRITICAL: data-integrity: this silently picks one candidate
+        # (brand match, else name match, else the first result) with no
+        # human confirmation and no visibility into `concentration`/
+        # `year` - exactly the class of decision ADR-006's "no guessed
+        # fragrance concentration or version" invariant exists to
+        # prevent (see the Caron Aimez-Moi finding in docs/planning/
+        # evidence/baseline-v3.1-parfumo-source-resolution.md, where the
+        # same name matched several distinct releases). This method has
+        # no production caller today (CLI's `parfumo-search` command
+        # uses `search()` + `import_from_url()` directly so an operator
+        # reviews concentration/year before choosing a URL); do not wire
+        # it into an API route or background job for calibration-
+        # critical catalog entries without adding the same human-
+        # confirmation step first.
+        # #VERIFY: if this gains a caller, add a test asserting it
+        # refuses to auto-pick when multiple results share `name`.
 
         Args:
             name (str): Fragrance name to search for.

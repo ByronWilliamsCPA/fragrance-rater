@@ -94,6 +94,46 @@ SAMPLE_SEARCH_RESULTS = """
 </html>
 """
 
+# search() now POSTs to the real livesearch endpoint (found by reading
+# Parfumo's own JS this session) and parses `.ls-perfume-item` fragments.
+# Deliberately includes two results sharing a name with different
+# concentration/year ("Test Fragrance" EDP 2010 vs. Cologne 2016) to
+# exercise the ambiguity/scoped-selector cases (see search()'s docstring
+# and the module docstring for fixture provenance).
+SAMPLE_LIVESEARCH_RESULTS = """
+<div class="live_search_results">
+    <div id="ls-perfumes">
+        <div class="ls-perfume-item flex pointer">
+            <div class="ls-perfume-info">
+                <div class="name bold">Test Fragrance <span class="label_a small upper ml-0-5"> Eau de Parfum</span></div>
+                <span class="brand lightgrey text-sm">Test Brand</span> <span class="label_a small">2010</span>
+            </div>
+            <a href="https://www.parfumo.com/Perfumes/Test_Brand/test-fragrance-edp" class="ls-perfume-overlay"></a>
+        </div>
+        <div class="ls-perfume-item flex pointer">
+            <div class="ls-perfume-info">
+                <div class="name bold">Test Fragrance <span class="label_a small upper ml-0-5"> Cologne</span></div>
+                <span class="brand lightgrey text-sm">Test Brand</span> <span class="label_a small">2016</span>
+            </div>
+            <a href="https://www.parfumo.com/Perfumes/Test_Brand/test-fragrance-cologne" class="ls-perfume-overlay"></a>
+        </div>
+        <div class="ls-perfume-item flex pointer">
+            <div class="ls-perfume-info">
+                <div class="name bold">Unrelated Scent</div>
+                <span class="brand lightgrey text-sm">Other Brand</span> <span class="label_a small">1985</span>
+            </div>
+            <a href="https://www.parfumo.com/Perfumes/Other_Brand/unrelated-scent" class="ls-perfume-overlay"></a>
+        </div>
+    </div>
+</div>
+"""
+
+SAMPLE_LIVESEARCH_NO_RESULTS = """
+<div class="live_search_results">
+    <div id="ls-perfumes"></div>
+</div>
+"""
+
 # P1.9 fixture: the real per-dimension rating blocks (scent/durability/
 # sillage/bottle/pricing), an "in production" status sentence, and the
 # sidebar "Also liked" recommendation list. See the module docstring for
@@ -404,69 +444,117 @@ class TestParfumoScraperParsing:
 
 
 class TestParfumoScraperSearch:
-    """Tests for ParfumoScraper search functionality."""
+    """Tests for ParfumoScraper search functionality.
 
-    def test_search_returns_results(self):
-        """Test that search returns parsed results."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-        scraper.db = None
-        scraper._last_request_time = 0
-        scraper._client = None
+    search() posts to the real livesearch endpoint (Critical finding:
+    the previous GET /s_perfumes.php implementation returned a generic
+    page against the live site, not real results - see search()'s
+    docstring and the module docstring for how this was found).
+    """
+
+    def test_search_posts_to_the_livesearch_endpoint(self):
+        """Regression test for the dead-search-endpoint finding."""
+        scraper = _new_scraper()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.text = SAMPLE_SEARCH_RESULTS
+        mock_response.text = SAMPLE_LIVESEARCH_RESULTS
 
         with patch.object(scraper, "_get_client") as mock_client:
             client = MagicMock()
-            client.get.return_value = mock_response
+            client.post.return_value = mock_response
             mock_client.return_value = client
 
-            results = scraper.search("Aventus", limit=10)
+            scraper.search("Test Fragrance", limit=10)
 
-        assert len(results) > 0
-        urls = [r.url for r in results]
-        assert any("aventus" in url for url in urls)
+        client.post.assert_called_once()
+        call_args = client.post.call_args
+        assert call_args.args[0] == ParfumoScraper.LIVESEARCH_URL
+        assert call_args.kwargs["data"]["q"] == "Test Fragrance"
+        client.get.assert_not_called()
+
+    def test_search_returns_results_with_concentration_and_year(self):
+        """Concentration/year must be scoped to their own elements, not
+        conflated (Critical finding: a single non-scoped `.label_a`
+        selector previously read the concentration text as the year for
+        any result that had one)."""
+        scraper = _new_scraper()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.text = SAMPLE_LIVESEARCH_RESULTS
+
+        with patch.object(scraper, "_get_client") as mock_client:
+            client = MagicMock()
+            client.post.return_value = mock_response
+            mock_client.return_value = client
+
+            results = scraper.search("Test Fragrance", limit=10)
+
+        assert len(results) == 3
+        edp, cologne, unrelated = results
+
+        assert edp.name == "Test Fragrance"
+        assert edp.concentration == "Eau de Parfum"
+        assert edp.year == 2010
+        assert (
+            edp.url == "https://www.parfumo.com/Perfumes/Test_Brand/test-fragrance-edp"
+        )
+
+        assert cologne.name == "Test Fragrance"
+        assert cologne.concentration == "Cologne"
+        assert cologne.year == 2016
+
+        assert unrelated.name == "Unrelated Scent"
+        assert unrelated.concentration is None
+        assert unrelated.year == 1985
 
     def test_search_respects_limit(self):
         """Test that search respects the limit parameter."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-        scraper.db = None
-        scraper._last_request_time = 0
-        scraper._client = None
+        scraper = _new_scraper()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.text = SAMPLE_SEARCH_RESULTS
+        mock_response.text = SAMPLE_LIVESEARCH_RESULTS
 
         with patch.object(scraper, "_get_client") as mock_client:
             client = MagicMock()
-            client.get.return_value = mock_response
+            client.post.return_value = mock_response
             mock_client.return_value = client
 
             results = scraper.search("test", limit=1)
 
-        assert len(results) <= 1
+        assert len(results) == 1
 
     def test_search_handles_no_results(self):
         """Test search handles empty results."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-        scraper.db = None
-        scraper._last_request_time = 0
-        scraper._client = None
+        scraper = _new_scraper()
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.text = "<html><body>No results</body></html>"
+        mock_response.text = SAMPLE_LIVESEARCH_NO_RESULTS
 
         with patch.object(scraper, "_get_client") as mock_client:
             client = MagicMock()
-            client.get.return_value = mock_response
+            client.post.return_value = mock_response
             mock_client.return_value = client
 
             results = scraper.search("xyznonexistent123")
 
         assert len(results) == 0
+
+    def test_search_short_circuits_disallowed_host(self):
+        """The host allowlist still applies to the POST-based search."""
+        scraper = _new_scraper()
+
+        with (
+            patch.object(scraper, "_get_client") as mock_client,
+            patch.object(scraper, "LIVESEARCH_URL", "https://evil.example.com/x"),
+        ):
+            results = scraper.search("anything")
+
+        assert results == []
+        mock_client.assert_not_called()
 
 
 class TestParfumoScraperHelpers:
@@ -1262,3 +1350,35 @@ class TestParfumoScraperConcentrationVariantLimitation:
     def test_no_related_version_field_is_fabricated(self):
         field_names = {f.name for f in dataclasses.fields(ScrapedFragrance)}
         assert "related_versions" not in field_names
+
+
+class TestParfumoScraperGtin:
+    """A scraped GTIN is the strongest identity signal this project has
+    (manufacturer-assigned per exact SKU); it must never be trusted
+    unvalidated, since a malformed/truncated scrape would otherwise
+    silently corrupt the one field meant to *confirm* identity rather
+    than infer it."""
+
+    def test_extracts_a_valid_gtin(self):
+        html = """
+        <html><body>
+            <h1 class="p_name_h1">Test Fragrance<span class="p_brand_name nobold">Test Brand</span></h1>
+            <meta itemprop="gtin13" content="3508440005953">
+        </body></html>
+        """
+        result = _scrape_fixture(html)
+        assert result.gtin == "3508440005953"
+
+    def test_rejects_an_invalid_check_digit_rather_than_propagating_it(self):
+        html = """
+        <html><body>
+            <h1 class="p_name_h1">Test Fragrance<span class="p_brand_name nobold">Test Brand</span></h1>
+            <meta itemprop="gtin13" content="3508440005950">
+        </body></html>
+        """
+        result = _scrape_fixture(html)
+        assert result.gtin is None
+
+    def test_missing_gtin_meta_stays_none(self):
+        result = _scrape_fixture(SAMPLE_PERFUME_PAGE_MISSING_SECTIONS)
+        assert result.gtin is None

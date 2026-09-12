@@ -15,6 +15,7 @@ from fragrance_rater.models.calibration import (
     Observation,
     Presentation,
     Program,
+    SourceSnapshot,
 )
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
@@ -51,6 +52,45 @@ class CalibrationService:
             reject("Program not found", 404)
         assert obj is not None
         return obj
+
+    async def _check_gtin_against_source_evidence(
+        self, fragrance_id: str, gtin: str
+    ) -> None:
+        """Reject an operator-entered GTIN that contradicts scraped source evidence.
+
+        # #CRITICAL: data-integrity: this is the actual gap-closing
+        # mechanism a barcode is meant to provide - if the physical
+        # bottle's scanned GTIN does not match the GTIN already recorded
+        # from this fragrance's source snapshot (e.g. its Parfumo page),
+        # that is a strong, mechanical signal the wrong catalog version
+        # is about to be assigned, independent of any text-based
+        # ambiguity. Silently accepting the operator's value in that case
+        # would defeat the entire point of capturing a barcode. Absence
+        # of a recorded source GTIN is not evidence of anything (many
+        # pages simply do not publish one - see `ParfumoScraper.
+        # _extract_gtin`) and is not treated as a conflict.
+        # #VERIFY: covered by a test asserting a mismatched GTIN is
+        # rejected and a matching or absent one is accepted.
+
+        Args:
+            fragrance_id (str): Catalog version being assigned.
+            gtin (str): The operator-entered, already check-digit-valid GTIN.
+        """
+        snapshot = await self.db.scalar(
+            select(SourceSnapshot)
+            .where(SourceSnapshot.fragrance_id == fragrance_id)
+            .order_by(SourceSnapshot.retrieved_at.desc())
+            .limit(1)
+        )
+        if snapshot is None:
+            return
+        source_gtin = snapshot.payload.get("gtin")
+        if isinstance(source_gtin, str) and source_gtin and source_gtin != gtin:
+            reject(
+                "Entered GTIN does not match this fragrance's recorded source "
+                "evidence - re-check the physical bottle and the catalog entry "
+                "before assigning it"
+            )
 
     async def add_member(self, program_id: str, data: MembershipInput) -> Membership:
         """Require explicit version evidence and consistent hidden-repeat linkage."""
@@ -92,8 +132,12 @@ class CalibrationService:
             x.role == "HOLDOUT" for x in existing
         ):
             reject("Holdout version cannot also be a training member")
+        if data.gtin is not None:
+            await self._check_gtin_against_source_evidence(data.fragrance_id, data.gtin)
         selection = dict(data.selection)
         selection["identity_evidence"] = data.identity_evidence
+        if data.gtin is not None:
+            selection["gtin"] = data.gtin
         member = Membership(
             program_id=program_id,
             fragrance_id=data.fragrance_id,

@@ -2,7 +2,9 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from fragrance_rater.utils.gtin import is_valid_gtin
 
 Role = Literal[
     "UNIVERSAL_BASELINE",
@@ -39,6 +41,25 @@ class MembershipInput(StrictInput):
     group_name: str = Field(default="Baseline", min_length=1, max_length=200)
     selection: dict[str, str | float | None] = Field(default_factory=dict)
     identity_evidence: str = Field(min_length=1, max_length=2000)
+    # #ASSUME: data-integrity: gtin is optional (a decant, a vintage
+    # sample, or some indie houses carry no scannable manufacturer
+    # barcode) but when given must be a real, check-digit-valid GTIN -
+    # the strongest identity signal this project has, since it is
+    # assigned per exact SKU and does not depend on any scraped source
+    # being unambiguous. CalibrationService.add_member additionally
+    # cross-checks it against the fragrance's own scraped source
+    # evidence, when one exists, before accepting it.
+    # #VERIFY: covered by schema tests (valid/invalid check digit) and a
+    # service-level test for the cross-check.
+    gtin: str | None = Field(default=None, min_length=8, max_length=14)
+
+    @field_validator("gtin")
+    @classmethod
+    def _validate_gtin(cls, value: str | None) -> str | None:
+        if value is not None and not is_valid_gtin(value):
+            msg = "gtin must be a valid GTIN-8/12/13/14 (GS1 check digit)"
+            raise ValueError(msg)
+        return value
 
 
 class EnrollmentInput(StrictInput):

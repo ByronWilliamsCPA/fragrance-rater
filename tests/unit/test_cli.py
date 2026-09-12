@@ -447,6 +447,8 @@ class TestImportParfumoSearchCommand:
         mock_result.name = "Aventus"
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
+        mock_result.concentration = "Eau de Parfum"
+        mock_result.year = 2010
 
         with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             mock_scraper = MagicMock()
@@ -474,6 +476,8 @@ class TestImportParfumoSearchCommand:
         mock_result.name = "Aventus"
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
+        mock_result.concentration = "Eau de Parfum"
+        mock_result.year = 2010
 
         with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
             # Use MagicMock for sync methods, AsyncMock for async
@@ -490,8 +494,95 @@ class TestImportParfumoSearchCommand:
             )
 
             assert result.exit_code == 0
-            assert "Importing first result" in result.output
+            assert "Importing result 1" in result.output
             assert "Imported with ID: fragrance-456" in result.output
+
+    @patch("fragrance_rater.cli.async_session_maker")
+    def test_parfumo_search_select(self, mock_session_maker: MagicMock) -> None:
+        """Should import the chosen result with --select N."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        # MagicMock's constructor `name=` kwarg sets the mock's own repr,
+        # not an attribute, so `.name` is set explicitly afterward instead.
+        first = MagicMock()
+        first.name = "Aimez-Moi"
+        first.brand = "Caron"
+        first.url = "https://parfumo.com/aimez-moi-1996"
+        first.concentration = "Eau de Toilette"
+        first.year = 1996
+        second = MagicMock()
+        second.name = "Aimez-Moi"
+        second.brand = "Caron"
+        second.url = "https://parfumo.com/aimez-moi-comme-je-suis"
+        second.concentration = None
+        second.year = 2020
+
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
+            mock_scraper = MagicMock()
+            mock_scraper.search.return_value = [first, second]
+            mock_scraper.import_from_url = AsyncMock(return_value="fragrance-789")
+            mock_scraper.close = MagicMock()
+            mock_scraper_class.return_value = mock_scraper
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli,
+                ["import-data", "parfumo-search", "Aimez-Moi Caron", "--select", "2"],
+            )
+
+            assert result.exit_code == 0
+            assert "Multiple results share a name" in result.output
+            assert "Importing result 2" in result.output
+            assert "Imported with ID: fragrance-789" in result.output
+            mock_scraper.import_from_url.assert_awaited_once_with(second.url)
+
+    @patch("fragrance_rater.cli.async_session_maker")
+    def test_parfumo_search_import_first_refused_when_ambiguous(
+        self, mock_session_maker: MagicMock
+    ) -> None:
+        """--import-first must refuse rather than silently pick a
+        release when multiple results share a name (Critical finding:
+        see docs/planning/evidence/
+        baseline-v3.1-parfumo-source-resolution.md's Caron Aimez-Moi
+        case, where an automated "first result" pick would have chosen
+        an unrelated fragrance)."""
+        mock_session = AsyncMock()
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_maker.return_value = mock_session
+
+        first = MagicMock()
+        first.name = "Aimez-Moi"
+        first.brand = "Caron"
+        first.url = "https://parfumo.com/aimez-moi-1996"
+        first.concentration = "Eau de Toilette"
+        first.year = 1996
+        second = MagicMock()
+        second.name = "Aimez-Moi"
+        second.brand = "Caron"
+        second.url = "https://parfumo.com/aimez-moi-comme-je-suis"
+        second.concentration = None
+        second.year = 2020
+
+        with patch("fragrance_rater.cli.ParfumoScraper") as mock_scraper_class:
+            mock_scraper = MagicMock()
+            mock_scraper.search.return_value = [first, second]
+            mock_scraper.import_from_url = AsyncMock()
+            mock_scraper.close = MagicMock()
+            mock_scraper_class.return_value = mock_scraper
+
+            runner = CliRunner()
+            result = runner.invoke(
+                cli,
+                ["import-data", "parfumo-search", "Aimez-Moi Caron", "--import-first"],
+            )
+
+            assert result.exit_code == 1
+            assert "Refusing --import-first" in result.output
+            mock_scraper.import_from_url.assert_not_awaited()
 
     @patch("fragrance_rater.cli.async_session_maker")
     def test_parfumo_search_offloads_blocking_search_to_thread(
@@ -513,6 +604,8 @@ class TestImportParfumoSearchCommand:
         mock_result.name = "Aventus"
         mock_result.brand = "Creed"
         mock_result.url = "https://parfumo.com/aventus"
+        mock_result.concentration = "Eau de Parfum"
+        mock_result.year = 2010
 
         def blocking_search(query: str, limit: int = 10) -> list[MagicMock]:
             # Simulates the real search()'s blocking network call.

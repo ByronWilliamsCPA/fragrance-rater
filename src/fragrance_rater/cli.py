@@ -18,7 +18,7 @@ from structlog.stdlib import BoundLogger
 from fragrance_rater.core.config import settings
 from fragrance_rater.core.database import async_session_maker
 from fragrance_rater.services.kaggle_importer import KaggleImporter
-from fragrance_rater.services.parfumo_scraper import ParfumoScraper
+from fragrance_rater.services.parfumo_scraper import ParfumoScraper, SearchResult
 from fragrance_rater.services.reviewer_service import ReviewerService
 from fragrance_rater.utils.logging import get_logger
 
@@ -219,12 +219,93 @@ def import_parfumo_url(url: str) -> None:
         sys.exit(1)
 
 
+def _print_search_results(results: list[SearchResult]) -> bool:
+    """Print each result with enough detail to disambiguate it.
+
+    Args:
+        results (list[SearchResult]): Results from `ParfumoScraper.search()`.
+
+    Returns:
+        bool: True if two or more results share the same `name` - see
+            `import_parfumo_search`'s docstring for why that matters.
+    """
+    click.echo(f"\nFound {len(results)} result(s):\n")
+
+    names_seen: dict[str, int] = {}
+    for i, result in enumerate(results, 1):
+        click.echo(f"  {i}. {result.name}")
+        click.echo(f"     Brand: {result.brand}")
+        click.echo(f"     Concentration: {result.concentration or 'unknown'}")
+        click.echo(f"     Year: {result.year or 'unknown'}")
+        click.echo(f"     URL: {result.url}\n")
+        key = result.name.strip().lower()
+        names_seen[key] = names_seen.get(key, 0) + 1
+
+    ambiguous = any(count > 1 for count in names_seen.values())
+    if ambiguous:
+        click.echo(
+            "Multiple results share a name above - check concentration/"
+            "year (and the physical bottle) carefully before choosing.\n"
+        )
+    return ambiguous
+
+
+def _select_search_result(
+    result_count: int,
+    select_index: int | None,
+    import_first: bool,
+    ambiguous: bool,
+) -> tuple[int | None, str | None]:
+    """Resolve which 1-indexed search result (if any) to import.
+
+    Args:
+        result_count (int): Number of results `search()` returned.
+        select_index (int | None): Operator-chosen 1-indexed result.
+        import_first (bool): Whether `--import-first` was passed.
+        ambiguous (bool): Whether multiple results share a name (see
+            `_print_search_results`).
+
+    Returns:
+        tuple[int | None, str | None]: `(chosen_index, error)`. Exactly
+            one of the following holds: `chosen_index` is set and
+            `error` is None (import it); both are None (print usage
+            guidance, nothing to import); or `error` is set (report it
+            and exit non-zero).
+    """
+    if select_index is not None:
+        if not 1 <= select_index <= result_count:
+            return None, f"--select {select_index} is out of range (1-{result_count})."
+        return select_index, None
+
+    if import_first:
+        if ambiguous:
+            return None, (
+                "Refusing --import-first: multiple results share a name, so "
+                "picking one automatically risks the wrong release. Use "
+                "--select N after reviewing concentration/year above."
+            )
+        return 1, None
+
+    return None, None
+
+
 @import_data.command(name="parfumo-search")
 @click.argument("query", type=str)
 @click.option(
     "--import-first",
     is_flag=True,
-    help="Automatically import the first result",
+    help=(
+        "Automatically import the first result. Refused when multiple "
+        "results share the same name (see --select)."
+    ),
+)
+@click.option(
+    "--select",
+    "select_index",
+    type=int,
+    default=None,
+    metavar="N",
+    help="Import result N (1-indexed) from the printed list.",
 )
 @click.option(
     "--limit",
@@ -236,20 +317,35 @@ def import_parfumo_url(url: str) -> None:
 def import_parfumo_search(
     query: str,
     import_first: bool,
+    select_index: int | None,
     limit: int,
 ) -> None:
     """Search Parfumo and optionally import a fragrance.
 
     QUERY: Search terms (fragrance name, brand, or both).
 
+    # #CRITICAL: data-integrity: concentration and release year are
+    # printed for every result, not just name/brand, because they are
+    # often the only thing distinguishing two real, different fragrances
+    # that share a name (see ParfumoScraper.search()'s docstring and
+    # docs/planning/evidence/baseline-v3.1-parfumo-source-resolution.md's
+    # Caron Aimez-Moi finding). --import-first is refused outright when
+    # more than one result shares a name, forcing --select (or a plain
+    # 'import-data parfumo-url <URL>') so an operator makes that call
+    # deliberately rather than the tool guessing.
+    # #VERIFY: covered by a test asserting --import-first exits non-zero
+    # on an ambiguous (same-name, different-concentration) result set.
+
     Args:
         query (str): Search terms (fragrance name, brand, or both).
         import_first (bool): Import the first search result automatically.
+        select_index (int | None): 1-indexed result to import, if given.
         limit (int): Maximum number of search results to display.
 
     Examples:
         fragrance-rater import-data parfumo-search "Aventus Creed"
         fragrance-rater import-data parfumo-search "Sauvage" --import-first
+        fragrance-rater import-data parfumo-search "Aimez-Moi Caron" --select 2
     """
 
     async def do_search() -> None:
@@ -278,16 +374,19 @@ def import_parfumo_search(
                 scraper.close()
                 return
 
-            click.echo(f"\nFound {len(results)} result(s):\n")
+            ambiguous = _print_search_results(results)
+            chosen_index, error = _select_search_result(
+                len(results), select_index, import_first, ambiguous
+            )
+            if error:
+                click.echo(error, err=True)
+                scraper.close()
+                sys.exit(1)
 
-            for i, result in enumerate(results, 1):
-                click.echo(f"  {i}. {result.name}")
-                click.echo(f"     Brand: {result.brand}")
-                click.echo(f"     URL: {result.url}\n")
-
-            if import_first:
-                click.echo(f"Importing first result: {results[0].name}...")
-                fragrance_id = await scraper.import_from_url(results[0].url)
+            if chosen_index is not None:
+                chosen = results[chosen_index - 1]
+                click.echo(f"Importing result {chosen_index}: {chosen.name}...")
+                fragrance_id = await scraper.import_from_url(chosen.url)
 
                 if fragrance_id:
                     click.echo(f"Imported with ID: {fragrance_id}")
@@ -296,10 +395,10 @@ def import_parfumo_search(
                     sys.exit(1)
             else:
                 click.echo(
-                    "Use --import-first to automatically import the first result,"
-                )
-                click.echo(
-                    "or use 'import-data parfumo-url <URL>' to import a specific one."
+                    "Use --select N to import a specific result (after reviewing "
+                    "concentration/year above), --import-first for an "
+                    "unambiguous single match, or 'import-data parfumo-url "
+                    "<URL>' to import a specific one."
                 )
 
             scraper.close()

@@ -81,6 +81,60 @@ def test_manifest_accepts_a_repeat_of_the_same_verified_version() -> None:
     assert validator.validate_manifest(document) == []
 
 
+def valid_entry(**overrides: object) -> dict[str, Any]:
+    """Return a minimum valid manifest entry, with fields overridden."""
+    entry: dict[str, Any] = {
+        "membership_key": "m1",
+        "fragrance_id": "f1",
+        "brand": "House",
+        "name": "Scent",
+        "concentration": "EDP",
+        "version_key": "house-scent-edp",
+        "source_url": "https://example.test/scent",
+        "verification_evidence": "Bottle and source title agree",
+        "physical_sample_confirmed": True,
+        "role": "UNIVERSAL_BASELINE",
+    }
+    entry.update(overrides)
+    return entry
+
+
+def test_manifest_accepts_a_valid_gtin() -> None:
+    """A real, check-digit-valid GTIN (Chanel N5 Parfum's, per its Parfumo
+    page) passes; gtin is otherwise optional."""
+    validator = load_script("validate_calibration_manifest")
+    document = {
+        "program_name": "Baseline",
+        "program_version": "v1",
+        "entries": [valid_entry(gtin="3508440005953")],
+    }
+    assert validator.validate_manifest(document) == []
+
+
+def test_manifest_omitted_gtin_is_not_an_error() -> None:
+    validator = load_script("validate_calibration_manifest")
+    document = {
+        "program_name": "Baseline",
+        "program_version": "v1",
+        "entries": [valid_entry()],
+    }
+    assert validator.validate_manifest(document) == []
+
+
+def test_manifest_rejects_a_gtin_with_a_bad_check_digit() -> None:
+    """A GTIN that fails its GS1 check digit is far more likely a
+    transcription typo than a real identifier, so it is release-blocking
+    rather than silently accepted as free text."""
+    validator = load_script("validate_calibration_manifest")
+    document = {
+        "program_name": "Baseline",
+        "program_version": "v1",
+        "entries": [valid_entry(gtin="3508440005950")],
+    }
+    errors = validator.validate_manifest(document)
+    assert any("gtin must be a valid GTIN" in error for error in errors)
+
+
 def test_manifest_reports_non_string_identifiers_without_crashing() -> None:
     """Structured identifiers are validation errors rather than unhashable keys."""
     validator = load_script("validate_calibration_manifest")
