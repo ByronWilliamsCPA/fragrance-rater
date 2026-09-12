@@ -15,13 +15,28 @@ approved implementing, in one pass, the two changes this needed most:
   `sweetness`, `freshness`, `density`, `familiarity`, `dryness`, `clean_soapy`, `earthy_rooty`,
   `bodily_animalic`, `discomfort`, `opening_liking`, `drydown_liking`, `would_wear`, `would_buy`,
   `artistic_appreciation`, `projection`, `longevity_minutes`, `perceived_notes`, `likes`,
-  `dislikes`, `reminds_me_of`, and `comments` are now typed, individually bounded columns.
+  `dislikes`, `reminds_me_of`, and `comments`, 22 columns in total, are now typed. Of those 22,
+  17 carry database-level CHECK-constraint bounds; the remaining 5 (`likes`, `dislikes`,
+  `reminds_me_of`, and `comments` as free text, plus `perceived_notes` as JSON) are validated at
+  the API layer only, not at the database level.
   `PreferenceHistoryService.training_manifest()` exposes them as a named `features` dict (plus a
   separate `notes_text` dict for free text) instead of one opaque blob.
 - **`PredictionSnapshot`**: implemented as a new model, migration, service
   (`PredictionService`), and manager-gated API (`/api/v1/predictions`). A model's predicted
   rating is frozen before the real outcome exists and linked to exactly one later `Evaluation`
   or `Observation` outcome, without ever recomputing the frozen prediction.
+
+**Note on naming**: the `PredictionSnapshot` entity above is a new, standalone model, service,
+and API endpoint shipped in this PR for freezing a model's predicted rating against a later real
+outcome. It is a different concept from the still-deferred, unimplemented
+`ModelCheckpoint.predictions` decomposition mentioned in the Decision below and in the
+[Data Model Gap Analysis](../data-model-gap-analysis.md) (§XXXVII, §6 Deferred): that item would
+split the existing `ModelCheckpoint.predictions` JSON column into typed rows and remains
+unimplemented. The two must not be conflated.
+
+The regenerated `docs/api/openapi.json` accompanying this PR also picks up two pre-existing,
+previously undocumented routes from prior work that are unrelated to the changes described here;
+this is expected spec-regeneration behavior, not new functionality introduced by this PR.
 
 Everything else in the Decision below (brand/accord lookup tables, familiarity as a controlled
 code rather than a raw int, `perceived_notes` normalized against `Note`, sample-provenance
@@ -41,8 +56,8 @@ and immutable recommendation impressions. The full analysis is recorded in
 
 The review found one concentrated, consequential gap, since closed by the implemented slice
 described above: `calibration_observations.responses` **used to** store validated, bounded,
-clearly analytical fields — `would_wear`, `would_buy`, opening/drydown liking, sensory
-dimensions, perceived notes, confidence — inside a single untyped JSON column, and
+clearly analytical fields, including `would_wear`, `would_buy`, opening/drydown liking, sensory
+dimensions, perceived notes, and confidence, inside a single untyped JSON column, and
 `PreferenceHistoryService.training_manifest()` forwarded that blob unchanged into the frozen ML
 training manifest. The review also found a smaller number of domains
 (scenario/context, pairwise comparison, general behavioral events, multiple classification
@@ -74,7 +89,8 @@ Extend, rather than replace, the existing catalog/encounter/experiment/measureme
   possible taxonomy.
 - Defer a `FragranceVariant` split from `Fragrance` (governed by ADR-006, unchanged by this
   decision), a full `PhysicalSample` entity, backend-published `FeatureDefinition`/`FeatureValue`
-  rows, `PredictionSnapshot` decomposition of `ModelCheckpoint.predictions`, a recommendation
+  rows, the `ModelCheckpoint.predictions` decomposition (deferred; distinct from the
+  already-implemented `PredictionSnapshot` entity described above), a recommendation
   `selection_objective` taxonomy, and embedding storage until the milestone or concrete
   consumer that needs each one actually exists.
 
