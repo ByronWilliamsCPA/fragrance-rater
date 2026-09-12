@@ -1412,6 +1412,23 @@ class TestParfumoScraperMetrics:
         result = _scrape_fixture(SAMPLE_PERFUME_PAGE)
         assert result.rating == pytest.approx(8.55)
 
+    def test_flat_rating_count_strips_thousands_separator(self):
+        """_extract_flat_rating's count regex must strip commas the same
+        way _extract_scoped_rating already does - otherwise "1,200
+        Ratings" parses only the digits after the comma ("200"), silently
+        undercounting by a factor of 6."""
+        rating_elem = BeautifulSoup(
+            "<div>Scent8.5 1,200 Ratings</div>", "html.parser"
+        ).div
+        scraped = ScrapedFragrance(
+            url="https://parfumo.com/Perfumes/test/flat-count",
+            name="Test",
+            brand="Test",
+        )
+        ParfumoScraper._extract_flat_rating(rating_elem, scraped)
+        assert scraped.rating == pytest.approx(8.5)
+        assert scraped.rating_count == 1200
+
     def test_missing_metric_blocks_leave_both_dicts_empty(self):
         result = _scrape_fixture(SAMPLE_PERFUME_PAGE_MISSING_SECTIONS)
         assert result.metrics == {}

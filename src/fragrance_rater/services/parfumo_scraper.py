@@ -711,7 +711,11 @@ class ParfumoScraper:
         if match:
             data.rating = float(match.group(1))
 
-        count_match = re.search(r"(\d+)\s*Rating", rating_text)
+        # Strip thousands-separator commas first (matching
+        # `_extract_scoped_rating`'s count parsing above) so e.g. "1,200
+        # Ratings" parses as 1200, not 200 from the digits after the comma.
+        count_text = rating_text.replace(",", "")
+        count_match = re.search(r"(\d+)\s*Rating", count_text)
         if count_match:
             data.rating_count = int(count_match.group(1))
 
