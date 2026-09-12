@@ -71,6 +71,7 @@ async def list_evaluations(
             notes=e.notes,
             longevity_rating=e.longevity_rating,
             sillage_rating=e.sillage_rating,
+            worn_by_reviewer_id=e.worn_by_reviewer_id,
             evaluated_at=e.evaluated_at,
             created_at=e.created_at,
             recorded_by=e.recorded_by,
@@ -99,6 +100,7 @@ async def get_evaluation(
         notes=evaluation.notes,
         longevity_rating=evaluation.longevity_rating,
         sillage_rating=evaluation.sillage_rating,
+        worn_by_reviewer_id=evaluation.worn_by_reviewer_id,
         evaluated_at=evaluation.evaluated_at,
         created_at=evaluation.created_at,
         recorded_by=evaluation.recorded_by,
@@ -151,6 +153,21 @@ async def create_evaluation(
             },
         )
 
+    # ADR-011: same SQLite-FK-off rationale as the fragrance/reviewer
+    # checks above, applied to the optional "worn by" subject reviewer.
+    # `EvaluationCreate` already rejects worn_by_reviewer_id == reviewer_id
+    # at the schema layer; existence still needs a database round trip.
+    if data.worn_by_reviewer_id is not None:
+        worn_by_reviewer = await reviewer_service.get_by_id(data.worn_by_reviewer_id)
+        if not worn_by_reviewer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "WORN_BY_REVIEWER_NOT_FOUND",
+                    "message": f"Reviewer {data.worn_by_reviewer_id} not found",
+                },
+            )
+
     evaluation = await service.create(data, recorded_by=identity.username)
 
     log_audit_event(
@@ -171,6 +188,7 @@ async def create_evaluation(
         notes=evaluation.notes,
         longevity_rating=evaluation.longevity_rating,
         sillage_rating=evaluation.sillage_rating,
+        worn_by_reviewer_id=evaluation.worn_by_reviewer_id,
         evaluated_at=evaluation.evaluated_at,
         created_at=evaluation.created_at,
         recorded_by=evaluation.recorded_by,
@@ -182,9 +200,49 @@ async def update_evaluation(
     evaluation_id: str,
     data: EvaluationUpdate,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
+    reviewer_service: Annotated[ReviewerService, Depends(get_reviewer_service)],
     identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
 ) -> EvaluationResponse:
     """Update an existing evaluation."""
+    # ADR-011: `EvaluationUpdate` has no `reviewer_id` field (immutable via
+    # PATCH), so the self-reference and existence checks that
+    # `EvaluationCreate` handles at the schema layer happen here instead,
+    # against the stored evaluation's own reviewer_id. Only runs when the
+    # client actually supplied a non-null worn_by_reviewer_id; omitting the
+    # field or explicitly clearing it to null needs neither check.
+    update_fields = data.model_dump(exclude_unset=True)
+    new_worn_by_reviewer_id = update_fields.get("worn_by_reviewer_id")
+    if "worn_by_reviewer_id" in update_fields and new_worn_by_reviewer_id is not None:
+        existing = await service.get_by_id(evaluation_id)
+        if not existing:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "EVALUATION_NOT_FOUND",
+                    "message": "Evaluation not found",
+                },
+            )
+        if new_worn_by_reviewer_id == existing.reviewer_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "error": "WORN_BY_REVIEWER_SAME_AS_REVIEWER",
+                    "message": (
+                        "worn_by_reviewer_id must differ from the evaluation's "
+                        "reviewer_id; omit it (or set it null) for an on-me rating"
+                    ),
+                },
+            )
+        worn_by_reviewer = await reviewer_service.get_by_id(new_worn_by_reviewer_id)
+        if not worn_by_reviewer:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "WORN_BY_REVIEWER_NOT_FOUND",
+                    "message": f"Reviewer {new_worn_by_reviewer_id} not found",
+                },
+            )
+
     evaluation = await service.update(evaluation_id, data)
     if not evaluation:
         raise HTTPException(
@@ -206,6 +264,7 @@ async def update_evaluation(
         notes=evaluation.notes,
         longevity_rating=evaluation.longevity_rating,
         sillage_rating=evaluation.sillage_rating,
+        worn_by_reviewer_id=evaluation.worn_by_reviewer_id,
         evaluated_at=evaluation.evaluated_at,
         created_at=evaluation.created_at,
         recorded_by=evaluation.recorded_by,

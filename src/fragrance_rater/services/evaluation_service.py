@@ -163,6 +163,7 @@ class EvaluationService:
             notes=data.notes,
             longevity_rating=data.longevity_rating,
             sillage_rating=data.sillage_rating,
+            worn_by_reviewer_id=data.worn_by_reviewer_id,
             recorded_by=recorded_by,
             evaluated_at=data.evaluated_at or now_naive_utc(),
         )

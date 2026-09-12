@@ -2873,6 +2873,19 @@
             ],
             "title": "Sillage Rating"
           },
+          "worn_by_reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn By Reviewer Id",
+            "description": "ADR-010: reviewer the fragrance was worn by, when this rating is an \"on others\" opinion (e.g. a partner's reaction) rather than \"on me\". Omit or leave null for the default self-worn rating. Must differ from reviewer_id."
+          },
           "evaluated_at": {
             "anyOf": [
               {
@@ -2946,6 +2959,17 @@
               }
             ],
             "title": "Sillage Rating"
+          },
+          "worn_by_reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn By Reviewer Id"
           },
           "evaluated_at": {
             "type": "string",
@@ -3036,11 +3060,24 @@
               }
             ],
             "title": "Sillage Rating"
+          },
+          "worn_by_reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn By Reviewer Id",
+            "description": "ADR-010: reviewer the fragrance was worn by, when this rating is an \"on others\" opinion (e.g. a partner's reaction) rather than \"on me\". Omit or leave null for the default self-worn rating. Must differ from reviewer_id."
           }
         },
         "type": "object",
         "title": "EvaluationUpdate",
-        "description": "Schema for updating an evaluation (PATCH semantics).\n\nEvery field defaults to `None` so a client can omit it to mean \"leave\nunchanged\"; `evaluation_service.update()` reads only the fields present\nin the request via `model_dump(exclude_unset=True)`. `notes`,\n`longevity_rating`, and `sillage_rating` back nullable columns\n(`Evaluation.notes`/`longevity_rating`/`sillage_rating`), so an explicit\n`null` for one of those is legitimate and clears it. `rating` backs a\nNOT NULL column and is additionally guarded below so an explicit `null`\nis rejected rather than reaching the database layer."
+        "description": "Schema for updating an evaluation (PATCH semantics).\n\nEvery field defaults to `None` so a client can omit it to mean \"leave\nunchanged\"; `evaluation_service.update()` reads only the fields present\nin the request via `model_dump(exclude_unset=True)`. `notes`,\n`longevity_rating`, `sillage_rating`, and `worn_by_reviewer_id` back\nnullable columns (`Evaluation.notes`/`longevity_rating`/\n`sillage_rating`/`worn_by_reviewer_id`), so an explicit `null` for one\nof those is legitimate: for `worn_by_reviewer_id` it reverts the rating\nto the default \"on me\" perspective. `rating` backs a NOT NULL column\nand is additionally guarded below so an explicit `null` is rejected\nrather than reaching the database layer.\n\n`worn_by_reviewer_id` cannot be validated against `reviewer_id` here\n(this schema has no `reviewer_id` field -- it is immutable via PATCH),\nso that self-reference check and the existence check both happen at\nthe API layer (api/evaluations.py), which already has the stored\nevaluation's `reviewer_id` on hand."
       },
       "ExplanationResponse": {
         "properties": {

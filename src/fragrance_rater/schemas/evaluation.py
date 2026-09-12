@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+WORN_BY_REVIEWER_ID_DESCRIPTION = (
+    "ADR-011: reviewer the fragrance was worn by, when this rating is an "
+    '"on others" opinion (e.g. a partner\'s reaction) rather than "on me". '
+    "Omit or leave null for the default self-worn rating. Must differ from "
+    "reviewer_id."
+)
 
 
 class EvaluationCreate(BaseModel):
@@ -16,6 +23,9 @@ class EvaluationCreate(BaseModel):
     notes: str | None = Field(None, max_length=2000)
     longevity_rating: int | None = Field(None, ge=1, le=5)
     sillage_rating: int | None = Field(None, ge=1, le=5)
+    worn_by_reviewer_id: str | None = Field(
+        None, min_length=1, description=WORN_BY_REVIEWER_ID_DESCRIPTION
+    )
 
     evaluated_at: datetime | None = Field(
         None,
@@ -30,6 +40,30 @@ class EvaluationCreate(BaseModel):
             return value
         return value.astimezone(timezone.utc).replace(tzinfo=None)  # noqa: UP017 - Python 3.10
 
+    # #ASSUME: data-integrity: `worn_by_reviewer_id` equal to `reviewer_id`
+    # would be a redundant, ambiguous way to spell the default "on me"
+    # rating (which is NULL), and would let two different stored shapes
+    # mean the same thing to every later reader (recommendation scoring,
+    # history display). Reject it here rather than silently normalizing it,
+    # so a client mistake is visible instead of quietly collapsed.
+    # #VERIFY: existence of `worn_by_reviewer_id` as a live reviewer is
+    # checked at the API layer (api/evaluations.py), matching the existing
+    # fragrance_id/reviewer_id pattern; Pydantic alone cannot query the
+    # database.
+    @model_validator(mode="after")
+    def _reject_self_as_worn_by(self) -> EvaluationCreate:
+        """Reject a redundant explicit self-reference for `worn_by_reviewer_id`."""
+        if (
+            self.worn_by_reviewer_id is not None
+            and self.worn_by_reviewer_id == self.reviewer_id
+        ):
+            msg = (
+                "worn_by_reviewer_id must differ from reviewer_id; "
+                "omit it (or leave it null) for an on-me rating"
+            )
+            raise ValueError(msg)
+        return self
+
 
 class EvaluationUpdate(BaseModel):
     """Schema for updating an evaluation (PATCH semantics).
@@ -37,17 +71,28 @@ class EvaluationUpdate(BaseModel):
     Every field defaults to `None` so a client can omit it to mean "leave
     unchanged"; `evaluation_service.update()` reads only the fields present
     in the request via `model_dump(exclude_unset=True)`. `notes`,
-    `longevity_rating`, and `sillage_rating` back nullable columns
-    (`Evaluation.notes`/`longevity_rating`/`sillage_rating`), so an explicit
-    `null` for one of those is legitimate and clears it. `rating` backs a
-    NOT NULL column and is additionally guarded below so an explicit `null`
-    is rejected rather than reaching the database layer.
+    `longevity_rating`, `sillage_rating`, and `worn_by_reviewer_id` back
+    nullable columns (`Evaluation.notes`/`longevity_rating`/
+    `sillage_rating`/`worn_by_reviewer_id`), so an explicit `null` for one
+    of those is legitimate: for `worn_by_reviewer_id` it reverts the rating
+    to the default "on me" perspective. `rating` backs a NOT NULL column
+    and is additionally guarded below so an explicit `null` is rejected
+    rather than reaching the database layer.
+
+    `worn_by_reviewer_id` cannot be validated against `reviewer_id` here
+    (this schema has no `reviewer_id` field -- it is immutable via PATCH),
+    so that self-reference check and the existence check both happen at
+    the API layer (api/evaluations.py), which already has the stored
+    evaluation's `reviewer_id` on hand.
     """
 
     rating: int | None = Field(None, ge=1, le=5)
     notes: str | None = Field(None, max_length=2000)
     longevity_rating: int | None = Field(None, ge=1, le=5)
     sillage_rating: int | None = Field(None, ge=1, le=5)
+    worn_by_reviewer_id: str | None = Field(
+        None, min_length=1, description=WORN_BY_REVIEWER_ID_DESCRIPTION
+    )
 
     # #CRITICAL: data-integrity: `rating` backs `Evaluation.rating`, a NOT
     # NULL column. The field is typed `int | None` only so the client can
@@ -95,6 +140,7 @@ class EvaluationResponse(BaseModel):
     notes: str | None
     longevity_rating: int | None
     sillage_rating: int | None
+    worn_by_reviewer_id: str | None = None
     evaluated_at: datetime
     created_at: datetime
     # Critical finding 2: Authentik username of whoever was logged in when

@@ -92,3 +92,63 @@ def test_encounter_dates_use_naive_utc(value, expected):
     )
     actual = data.evaluated_at.isoformat() if data.evaluated_at else None
     assert actual == expected
+
+
+class TestEvaluationCreateWornByReviewer:
+    """ADR-011: `worn_by_reviewer_id` on `EvaluationCreate`."""
+
+    def test_omitted_worn_by_reviewer_id_is_none(self) -> None:
+        """Default (self/"on me") rating: the field is None."""
+        data = EvaluationCreate(
+            fragrance_id="fragrance", reviewer_id="reviewer", rating=3
+        )
+        assert data.worn_by_reviewer_id is None
+
+    def test_different_worn_by_reviewer_id_is_accepted(self) -> None:
+        """A distinct subject reviewer is a valid "on others" rating."""
+        data = EvaluationCreate(
+            fragrance_id="fragrance",
+            reviewer_id="reviewer",
+            rating=3,
+            worn_by_reviewer_id="partner",
+        )
+        assert data.worn_by_reviewer_id == "partner"
+
+    def test_worn_by_reviewer_id_equal_to_reviewer_id_is_rejected(self) -> None:
+        """A redundant explicit self-reference must fail validation, not
+        silently normalize to the same NULL/self meaning.
+        """
+        with pytest.raises(ValidationError) as exc_info:
+            EvaluationCreate(
+                fragrance_id="fragrance",
+                reviewer_id="reviewer",
+                rating=3,
+                worn_by_reviewer_id="reviewer",
+            )
+        errors = exc_info.value.errors()
+        assert any("worn_by_reviewer_id" in str(error["msg"]) for error in errors)
+
+
+class TestEvaluationUpdateWornByReviewer:
+    """ADR-011: `worn_by_reviewer_id` PATCH omit/null semantics.
+
+    The reviewer_id == worn_by_reviewer_id cross-check cannot happen here
+    (this schema has no `reviewer_id` field); that check is covered at the
+    API layer in tests/unit/test_api/test_evaluations.py.
+    """
+
+    def test_omitting_worn_by_reviewer_id_leaves_it_unset(self) -> None:
+        """Omitting the field must not synthesize an update for it."""
+        data = EvaluationUpdate(rating=4)
+        dumped = data.model_dump(exclude_unset=True)
+        assert "worn_by_reviewer_id" not in dumped
+
+    def test_explicit_null_worn_by_reviewer_id_reverts_to_self(self) -> None:
+        """Explicit `null` is a legitimate way to revert to an on-me rating."""
+        data = EvaluationUpdate.model_validate({"worn_by_reviewer_id": None})
+        assert data.model_dump(exclude_unset=True) == {"worn_by_reviewer_id": None}
+
+    def test_valid_worn_by_reviewer_id_is_accepted(self) -> None:
+        """A real reviewer id still validates and updates normally."""
+        data = EvaluationUpdate.model_validate({"worn_by_reviewer_id": "partner"})
+        assert data.model_dump(exclude_unset=True) == {"worn_by_reviewer_id": "partner"}

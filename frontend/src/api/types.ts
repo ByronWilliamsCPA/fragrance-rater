@@ -211,6 +211,11 @@ export type Encounter = {
   rating: number
   evaluated_at: string
   notes?: string | null
+  // ADR-011: set when this encounter is an "on others" rating (e.g. a
+  // partner's reaction to how a fragrance smells on someone else), naming
+  // the reviewer it was worn by. Omitted/null means the default "on me"
+  // rating.
+  worn_by_reviewer_id?: string | null
 }
 
 export type RecommendationImpression = {

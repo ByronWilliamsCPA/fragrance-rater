@@ -166,6 +166,28 @@ async def test_latest_ordinary_encounter_contributes_once(history_data):
 
 
 @pytest.mark.asyncio
+async def test_worn_by_evaluation_excluded_from_training_manifest(history_data):
+    """ADR-011: an "on others" rating (worn_by_reviewer_id set) is captured
+    evidence but is not yet an accepted training input for the rater's own
+    manifest.
+    """
+    service, *_ = history_data
+    service.db.add(
+        Evaluation(
+            id="on-others",
+            fragrance_id="baseline",
+            reviewer_id="owner",
+            worn_by_reviewer_id="other",
+            rating=5,
+        )
+    )
+    await service.db.flush()
+    assert await service.training_manifest("owner") == []
+    profile = await RecommendationService(service.db).build_preference_profile("owner")
+    assert profile.evaluation_count == 0
+
+
+@pytest.mark.asyncio
 async def test_latest_non_detection_does_not_resurrect_earlier_liking(history_data):
     service, _, presentations = history_data
     presentation = presentations["UNIVERSAL_BASELINE"]
