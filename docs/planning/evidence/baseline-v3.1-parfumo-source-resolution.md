@@ -74,7 +74,7 @@ own stated value, still to be confirmed against the physical bottle per P1.1 (`p
 | B27 | Tihota | Indult | Eau de Parfum (not published; single release) | 2006 | <https://www.parfumo.com/Perfumes/Indult/Tihota> |
 | B28 | Angel | Mugler | Eau de Parfum (confirmed) | 1992 | <https://www.parfumo.com/Perfumes/mugler/Angel> |
 | B29 | Bake | Akro | Eau de Parfum (not published; single release) | 2023 | <https://www.parfumo.com/Perfumes/Akro/bake> |
-| B30 | Bee | Zoologist | Extrait de Parfum (not published; single release) | 2019 | <https://www.parfumo.com/Perfumes/Zoologist/bee> |
+| B30 | Bee | Zoologist | Extrait de Parfum (corroborated by 4 independent retailer listings; see Supplemental source exploration) | 2019 | <https://www.parfumo.com/Perfumes/Zoologist/bee> |
 | B31 | Tobacco Vanille | Tom Ford | Eau de Parfum (confirmed) | 2007 | <https://www.parfumo.com/Perfumes/Tom_Ford/Tobacco_Vanille_Eau_de_Parfum> |
 | B32 | Molecule 01 + Black Tea | Escentric Molecules | Eau de Toilette (not published; single release) | 2023 | <https://www.parfumo.com/Perfumes/Escentric_Molecules/molecule-01-black-tea> |
 | B33 | A City on Fire | Imaginary Authors | Eau de Parfum (not published; single release) | 2014 | <https://www.parfumo.com/Perfumes/Imaginary_Authors/a-city-on-fire> |
@@ -82,36 +82,86 @@ own stated value, still to be confirmed against the physical bottle per P1.1 (`p
 | H02 | Oud Wood | Tom Ford | Eau de Parfum (confirmed) | 2007 | <https://www.parfumo.com/Perfumes/Tom_Ford/Oud_Wood_Eau_de_Parfum> |
 | H03 | Vétiver Extraordinaire | Editions de Parfums Frédéric Malle | Eau de Parfum (not published; single release) | 2002 | <https://www.parfumo.com/Perfumes/Editions_de_Parfum_Frederic_Malle/Vetiver_Extraordinaire> |
 | H04 | LAVS | Filippo Sorcinelli (see note) | Not published anywhere on the page | 2013 | <https://www.parfumo.com/Perfumes/Filippo_Sorcinelli/lavs> |
-| H05 | Naxos | Xerjoff | Eau de Parfum (not published; single release) | 2015 | <https://www.parfumo.com/Perfumes/Xerjoff/naxos> |
+| H05 | Naxos | Xerjoff | Not stated by the source document or published by Parfumo | 2015 | <https://www.parfumo.com/Perfumes/Xerjoff/naxos> |
 | H06 | Black Orchid | Tom Ford | Eau de Parfum (confirmed) | 2006 | <https://www.parfumo.com/Perfumes/Tom_Ford/Black_Orchid_Eau_de_Parfum> |
 | H07 | **Unresolved** - see note | Caron | - | - | - |
 | H08 | Osmanthe Yunnan | Hermès | Not published anywhere on the page | 2005 | <https://www.parfumo.com/Perfumes/Hermes/osmanthe-yunnan> |
 | H09 | Bornéo 1834 | Serge Lutens | Not published anywhere on the page | 2005 | <https://www.parfumo.com/Perfumes/Serge_Lutens/Borneo_1834> |
-| H10 | Kenzo Jungle / Jungle L'Éléphant | Kenzo | Eau de Parfum (not published; confirmed by name/image filename match) | 1996 | <https://www.parfumo.com/Perfumes/Kenzo/Kenzo_Jungle_Jungle_L_Elephant> |
+| H10 | Kenzo Jungle / Jungle L'Éléphant | Kenzo | Eau de Parfum (corroborated by independent retailer listings; see Supplemental source exploration) | 1996 | <https://www.parfumo.com/Perfumes/Kenzo/Kenzo_Jungle_Jungle_L_Elephant> |
+
+## Supplemental source exploration (2026-09-12)
+
+Prompted by the two open items below, this checked what supplemental sources beyond Parfumo could
+help. Two access paths were tried and one was used:
+
+- **Direct fetches to Fragrantica and Basenotes were attempted and blocked.** Both sites'
+  `robots.txt` publish the emerging Cloudflare "Content-Signal" declaration
+  (`Content-Signal: search=yes, ai-train=no, use=reference`) - a machine-readable policy that
+  permits AI systems to consume content for **reference** use (answering a specific question)
+  while withholding permission for **ai-train** (model training) and staying silent on **full**
+  (bulk reproduction/corpus import). That policy would have covered a handful of one-off,
+  reference-only lookups to resolve the two items below - a materially narrower ask than the
+  bulk "Fragrantica-derived corpus" import ADR-002/D1 already gate separately. In practice,
+  though, both sites returned an active Cloudflare bot challenge (HTTP 403 / a "Just a moment..."
+  JS-challenge page) to a direct request. No attempt was made to defeat that technical control
+  (no headless-browser rendering, header/fingerprint rotation, etc.) - an active bot wall is
+  respected regardless of what the content policy would otherwise permit.
+- **`WebSearch` (a licensed search API returning indexed snippets, not a scrape of either site)
+  was used instead** to answer the two open questions below and to spot-check two more
+  "not published" entries. This is consistent with ADR-002's existing "UI provides copy-paste
+  from Fragrantica" mitigation - getting a specific fact from indexed/cited third-party content
+  without operating a scraper against a site that blocks one.
+
+Findings:
+
+- **H07 Caron Aimez-Moi is now resolved with high confidence: "Aimez-Moi" (1996), Eau de
+  Toilette, by Dominique Ropion**, at
+  <https://www.parfumo.com/Perfumes/Caron/Aimez_Moi_Eau_de_Toilette>. Its published note pyramid
+  (violet, iris, woodsy/musk/vanilla/sandalwood/amber) matches the source document's own stated
+  diagnostic role, "Violet / floral-powder generalization," almost exactly. "Aimez-Moi Comme Je
+  Suis" (2020) is confirmed to be a wholly different, masculine fragrance (ginger, grapefruit,
+  hazelnut, vetiver, tonka, tobacco - no violet or powder character at all), ruling it out. The
+  "Aimez-Moi (2013)" Parfumo lists separately is most likely a "La Sélection" repackaging of the
+  same 1996 formula rather than a distinct fragrance, though nothing found confirms that
+  definitively - if the physical/ordered bottle is dated 2013 rather than 1996, that should still
+  be flagged and checked before assignment. Either way, this is **not** the similarly-spelled
+  "N'Aimez que Moi" line, which is a separate, older Caron fragrance.
+- **H04 Unum LAVS brand housing is now strongly corroborated, not just Parfumo's opinion.** The
+  perfumer's own official site (filipposorcinelli.com) and four independent retailers all agree:
+  "Filippo Sorcinelli" is the brand, "Unum" is the collection/line name within it. The concentration
+  question also gained independent corroboration - two review sources describe LAVS as an Extrait
+  de Parfum - though this remains short of an authoritative structured product-page field, so
+  physical-bottle confirmation is still the final word. The brand-*string* choice for this
+  catalog (which has no brand/line hierarchy) remains a product-owner decision either way.
+- **B30 Zoologist Bee**: four independent retailer listings (Luckyscent, Venba, Slickboys,
+  nosenotes) confirm Extrait de Parfum, matching the source document.
+- **H10 Kenzo Jungle L'Éléphant**: independent retailer listings (Amazon, FragranceNet) confirm
+  Eau de Parfum and the exact product identity, matching the source document.
 
 ## Open items for the product owner
 
-- **H07 Caron Aimez-Moi is unresolved - do not guess.** Parfumo lists several distinct,
-  similarly-named Caron releases: "Aimez-Moi (1996)" (Eau de Toilette), "Aimez-Moi (2013)",
-  and "Aimez-Moi Comme Je Suis" (2020) are plausible matches for "Aimez-Moi"; separately,
-  "N'Aimez que Moi" (1916 Parfum, a 2021 reissue, and an Eau de Parfum) is a *different*,
-  similarly-spelled vintage Caron fragrance, not this one. Please confirm which release the
-  physical/ordered bottle is (year and concentration) before this entry is added to any manifest.
-- **H04 Unum LAVS brand housing.** Parfumo catalogs this fragrance under the perfumer's personal
-  name, "Filippo Sorcinelli," with "Unum" recorded as the collection/line name, not as a
-  top-level brand. The source document calls it "Unum LAVS." Please confirm whether the catalog
-  entry should record the brand as "Unum" (matching the source document and the bottle) or
-  "Filippo Sorcinelli" (matching Parfumo's brand taxonomy) - this project's catalog has no
-  separate brand/line hierarchy today (see `docs/calibration-v1.md`), so one string must be
-  chosen.
-- **Concentration not independently confirmable from Parfumo for the "(not published)" rows
-  above.** These are all single-release fragrances with no Parfumo concentration field to cross-
-  check against; the source document's stated concentration is carried forward as-is and remains
-  subject to physical-bottle confirmation like every other entry, per P1.1's
-  `physical_sample_confirmed` requirement.
+- **H07 Caron Aimez-Moi**: recommend proceeding with "Aimez-Moi (1996)" Eau de Toilette by
+  Dominique Ropion (see above) unless the physical/ordered bottle says otherwise. Please confirm
+  against the bottle once it arrives rather than treating this as final.
+- **H04 Unum LAVS brand string**: the facts are now well-corroborated (see above), but a decision
+  is still needed on which string this catalog records as "brand" - "Unum" (matching the source
+  document) or "Filippo Sorcinelli" (matching Parfumo, the official site, and retailers) - since
+  this catalog has no separate brand/line hierarchy today (see `docs/calibration-v1.md`).
+- **Concentration not independently confirmable for the remaining "(not published)"/"not stated"
+  rows above.** These are single-release fragrances (or, for H05/H08/H09, entries the source
+  document itself left the concentration open on) with no structured field to cross-check;
+  whatever concentration is used is still subject to physical-bottle confirmation like every
+  other entry, per P1.1's `physical_sample_confirmed` requirement.
 - **`ParfumoScraper.search()`/`search_and_import()` do not work against the live site today**
   (see **Method**, above) - a separate defect from this resolution pass, noted here for
   prioritization rather than fixed in it.
+- **Whether to formalize a supplemental-source policy.** This pass used `WebSearch` for a handful
+  of one-off reference lookups, which fits within ADR-002's existing scraping-risk assessment of
+  Fragrantica/Basenotes without needing a new decision. If supplemental-source lookups become a
+  routine part of manifest verification going forward (rather than an occasional one-off), that
+  would be worth a short ADR-002 amendment naming the approved method and its "reference,
+  non-bulk" scope - distinct from, and not a precedent for, the still-gated "Fragrantica-derived
+  corpus" bulk import in the D1 decision table.
 
 ## What remains before P1.1 closes
 
