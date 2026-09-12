@@ -458,17 +458,26 @@ class RecommendationMeasurementService:
     ) -> PilotOperationalEvent:
         """Persist a pilot failure or recovery event."""
         reviewer = await self.db.scalar(
-            select(Reviewer.id).where(
-                Reviewer.id == reviewer_id, Reviewer.deleted_at.is_(None)
-            )
+            select(Reviewer)
+            .where(Reviewer.id == reviewer_id, Reviewer.deleted_at.is_(None))
+            .with_for_update()
         )
         if reviewer is None:
             message = "reviewer not found"
             raise LookupError(message)
+        occurred_at = now_naive_utc()
+        latest = await self.db.scalar(
+            select(func.max(PilotOperationalEvent.occurred_at)).where(
+                PilotOperationalEvent.reviewer_id == reviewer_id
+            )
+        )
+        if latest is not None and occurred_at <= latest:
+            occurred_at = latest + timedelta(microseconds=1)
         item = PilotOperationalEvent(
             reviewer_id=reviewer_id,
             event_type=event_type,
             details=details,
+            occurred_at=occurred_at,
             recorded_by=recorded_by,
         )
         self.db.add(item)

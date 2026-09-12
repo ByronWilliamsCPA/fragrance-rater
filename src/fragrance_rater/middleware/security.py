@@ -64,6 +64,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         """Add security headers to response."""
         response = await call_next(request)
 
+        path = request.url.path.rstrip("/")
+        identity_scoped = any(
+            path.endswith(fragment) or f"{fragment}/" in path
+            for fragment in ("/calibration", "/recommendation-measurement")
+        )
+        if request.method == "GET" and identity_scoped:
+            response.headers["Cache-Control"] = "private, no-store"
+            vary = [
+                item.strip() for item in response.headers.get("Vary", "").split(",")
+            ]
+            if "X-Authentik-Username" not in vary:
+                vary.append("X-Authentik-Username")
+            response.headers["Vary"] = ", ".join(item for item in vary if item)
+
         # Prevent MIME sniffing (OWASP A05)
         response.headers["X-Content-Type-Options"] = "nosniff"
 

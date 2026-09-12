@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,12 +39,6 @@ DB = Annotated[AsyncSession, Depends(get_db)]
 Identity = Annotated[AuthenticatedIdentity, Depends(get_current_identity)]
 
 
-def private_response(response: Response) -> None:
-    """Prevent identity-scoped manager data from entering browser/shared caches."""
-    response.headers["Cache-Control"] = "private, no-store"
-    response.headers["Vary"] = "X-Authentik-Username"
-
-
 def actor(identity: AuthenticatedIdentity) -> tuple[str, bool]:
     """Fail closed without a named recorder, including local development."""
     if not identity.username:
@@ -61,19 +55,15 @@ def manager(identity: AuthenticatedIdentity) -> str:
 
 
 @router.get("/access")
-async def access(response: Response, identity: Identity) -> dict[str, object]:
+async def access(identity: Identity) -> dict[str, object]:
     """Expose capabilities without hidden experiment data."""
-    private_response(response)
     username, admin = actor(identity)
     return {"username": username, "manager": admin}
 
 
 @router.get("/programs")
-async def programs(
-    response: Response, db: DB, identity: Identity
-) -> list[dict[str, object]]:
+async def programs(db: DB, identity: Identity) -> list[dict[str, object]]:
     """List protocol descriptions without membership or blind mappings."""
-    private_response(response)
     username, admin = actor(identity)
     result = list(await db.scalars(select(Program)))
     allowed: set[str] = set()
@@ -120,11 +110,10 @@ async def add_member(
 
 @router.get("/programs/{program_id}/members")
 async def members(
-    program_id: str, response: Response, db: DB, identity: Identity
+    program_id: str, db: DB, identity: Identity
 ) -> list[dict[str, object]]:
     """Return setup references only to managers."""
     manager(identity)
-    private_response(response)
     items = list(
         await db.scalars(
             select(Membership)
@@ -143,6 +132,7 @@ async def members(
                 "fragrance_name": fragrance.name,
                 "fragrance_brand": fragrance.brand,
                 "concentration": fragrance.concentration,
+                "version_key": fragrance.version_key,
                 "role": item.role,
                 "repeat_of_id": item.repeat_of_id,
                 "group_name": item.group_name,
@@ -186,11 +176,8 @@ async def enroll(
 
 
 @router.get("/enrollments")
-async def enrollments(
-    response: Response, db: DB, identity: Identity
-) -> list[dict[str, str]]:
+async def enrollments(db: DB, identity: Identity) -> list[dict[str, str]]:
     """List only evaluator assignments the recorder can access."""
-    private_response(response)
     username, admin = actor(identity)
     return [
         {"id": e.id, "program_id": e.program_id, "reviewer_id": e.reviewer_id}
@@ -200,12 +187,9 @@ async def enrollments(
 
 
 @router.get("/manager/enrollments")
-async def manager_enrollments(
-    response: Response, db: DB, identity: Identity
-) -> list[dict[str, object]]:
+async def manager_enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
     """Summarize evaluator progress and reveal readiness for pilot operations."""
     manager(identity)
-    private_response(response)
     service = CalibrationService(db)
     result: list[dict[str, object]] = []
     for item in await db.scalars(select(Enrollment).order_by(Enrollment.id)):
@@ -214,16 +198,18 @@ async def manager_enrollments(
         assert program is not None
         assert reviewer is not None
         presentations = await service.presentations(item.id)
+        members = {
+            member.id: member
+            for member in await db.scalars(
+                select(Membership).where(
+                    Membership.id.in_({p.membership_id for p in presentations})
+                )
+            )
+        }
         blotter_complete = sum(p.blotter_locked_at is not None for p in presentations)
         skin_planned = [p for p in presentations if p.skin_reason is not None]
         skin_complete = sum(p.skin_locked_at is not None for p in skin_planned)
-        blocker: str | None = None
-        if blotter_complete != len(presentations):
-            blocker = "BLOTTER"
-        elif item.skin_plan_locked_at is None:
-            blocker = "SKIN_PLAN"
-        elif skin_complete != len(skin_planned):
-            blocker = "SKIN"
+        blocker = service.reveal_blocker(item, presentations, members)
         result.append(
             {
                 "id": item.id,
@@ -248,10 +234,9 @@ async def manager_enrollments(
 
 @router.get("/enrollments/{enrollment_id}")
 async def enrollment(
-    enrollment_id: str, response: Response, db: DB, identity: Identity
+    enrollment_id: str, db: DB, identity: Identity
 ) -> dict[str, object]:
     """Return the allowlisted blind session history."""
-    private_response(response)
     service = CalibrationService(db)
     obj = await service.enrollment(enrollment_id, *actor(identity))
     return await service.participant_view(obj)
@@ -351,11 +336,10 @@ async def checkpoint(
 
 @router.get("/enrollments/{enrollment_id}/mapping")
 async def mapping(
-    enrollment_id: str, response: Response, db: DB, identity: Identity
+    enrollment_id: str, db: DB, identity: Identity
 ) -> list[dict[str, object]]:
     """Manager-only decant labeling sheet; never part of participant payloads."""
     manager(identity)
-    private_response(response)
     service = CalibrationService(db)
     await service.enrollment(enrollment_id, *actor(identity))
     result: list[dict[str, object]] = []
@@ -373,6 +357,7 @@ async def mapping(
                 "fragrance_name": fragrance.name,
                 "fragrance_brand": fragrance.brand,
                 "concentration": fragrance.concentration,
+                "version_key": fragrance.version_key,
                 "membership_id": member.id,
                 "role": member.role,
             }
@@ -382,11 +367,10 @@ async def mapping(
 
 @router.get("/enrollments/{enrollment_id}/checkpoints")
 async def checkpoints(
-    enrollment_id: str, response: Response, db: DB, identity: Identity
+    enrollment_id: str, db: DB, identity: Identity
 ) -> list[dict[str, object]]:
     """Retrieve frozen inputs and predictions for manager-side analysis."""
     manager(identity)
-    private_response(response)
     await CalibrationService(db).enrollment(enrollment_id, *actor(identity))
     return [
         {
@@ -406,10 +390,9 @@ async def checkpoints(
 
 @router.get("/history/{reviewer_id}")
 async def history(
-    reviewer_id: str, response: Response, db: DB, identity: Identity
+    reviewer_id: str, db: DB, identity: Identity
 ) -> list[dict[str, object]]:
     """Unified history; conceal controlled identities according to reveal state."""
-    private_response(response)
     username, admin = actor(identity)
     assigned = list(
         await db.scalars(

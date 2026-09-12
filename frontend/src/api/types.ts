@@ -3,6 +3,7 @@ export type Person = { id: string; name: string }
 export type FragranceSummary = Person & {
   brand: string
   concentration: string
+  version_key: string
 }
 
 export type Access = {
@@ -56,10 +57,11 @@ export type ProgramMember = {
   fragrance_name: string
   fragrance_brand: string
   concentration: string
+  version_key: string
   role: string
   repeat_of_id: string | null
   group_name: string
-  identity_evidence: string
+  identity_evidence: string | null
 }
 
 export type ManagerEnrollment = {
@@ -84,6 +86,7 @@ export type MappingRow = {
   fragrance_name: string
   fragrance_brand: string
   concentration: string
+  version_key: string
   role: string
 }
 

@@ -38,6 +38,22 @@ function percentage(value: number | null): string {
   return value === null ? 'No denominator yet' : `${Math.round(value * 100)}%`
 }
 
+function asUtc(value: string): string {
+  return /(?:Z|[+-]\d{2}:\d{2})$/.test(value) ? value : `${value}Z`
+}
+
+function formatUtcDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, { timeZone: 'UTC' }).format(new Date(asUtc(value)))
+}
+
+function formatUtcDateTime(value: string): string {
+  return `${new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(asUtc(value)))} UTC`
+}
+
 export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
   const [programId, setProgramId] = useState('')
   const [members, setMembers] = useState<ProgramMember[]>([])
@@ -171,7 +187,7 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
     link.href = href
     link.download = `pilot-metrics-${metrics.window_end.slice(0, 10)}.json`
     link.click()
-    URL.revokeObjectURL(href)
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000)
   }
 
   async function recordEvent(form: HTMLFormElement) {
@@ -267,7 +283,8 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                       <option value="">Choose search result</option>
                       {catalog.map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.brand} · {item.name} · {item.concentration}
+                          {item.brand} · {item.name} · {item.concentration} · version{' '}
+                          {item.version_key}
                         </option>
                       ))}
                     </select>
@@ -312,12 +329,15 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                   {members.map((item) => (
                     <li key={item.id}>
                       <strong>
-                        {item.fragrance_brand} · {item.fragrance_name} · {item.concentration}
+                        {item.fragrance_brand} · {item.fragrance_name} · {item.concentration} ·
+                        version {item.version_key}
                       </strong>
                       <span>
                         {item.role.replace(/_/g, ' ')} · {item.group_name}
                       </span>
-                      <small>{item.identity_evidence}</small>
+                      <small>
+                        {item.identity_evidence ?? 'Evidence unavailable for legacy membership'}
+                      </small>
                     </li>
                   ))}
                 </ul>
@@ -461,7 +481,8 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                   {item.fragrance_brand} · {item.fragrance_name}
                 </span>
                 <small>
-                  {item.concentration} · {item.role.replace(/_/g, ' ')} · position {item.position}
+                  {item.concentration} · {item.role.replace(/_/g, ' ')} · position {item.position} ·
+                  version {item.version_key}
                 </small>
               </article>
             ))}
@@ -534,8 +555,8 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                 <strong>Source snapshots:</strong> {metrics.source_snapshots.length}
               </p>
               <p>
-                <strong>Window:</strong> {new Date(metrics.window_start).toLocaleDateString()}–
-                {new Date(metrics.window_end).toLocaleDateString()}
+                <strong>Window:</strong> {formatUtcDate(metrics.window_start)}–
+                {formatUtcDate(metrics.window_end)} UTC
               </p>
               <button onClick={downloadMetrics}>Download evidence JSON</button>
             </div>
@@ -585,7 +606,7 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                     {item.event_type.replace(/_/g, ' ')}
                   </strong>
                   <span>
-                    {new Date(item.occurred_at).toLocaleString()} · recorded by {item.recorded_by}
+                    {formatUtcDateTime(item.occurred_at)} · recorded by {item.recorded_by}
                   </span>
                   {item.details && <small>{item.details}</small>}
                 </li>

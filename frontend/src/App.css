@@ -328,9 +328,6 @@ hr {
     break-inside: avoid;
   }
 }
-.fields-compact {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
 fieldset {
   border: 0;
   padding: 0;

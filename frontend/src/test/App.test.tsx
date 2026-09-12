@@ -507,6 +507,7 @@ describe('Calibration participant workflow', () => {
             fragrance_name: 'Oak Study',
             fragrance_brand: 'Family House',
             concentration: 'EDP',
+            version_key: 'oak-2026',
             role: 'UNIVERSAL_BASELINE',
             repeat_of_id: null,
             group_name: 'Baseline',
@@ -571,6 +572,7 @@ describe('Calibration participant workflow', () => {
             fragrance_name: 'Oak Study',
             fragrance_brand: 'Family House',
             concentration: 'EDP',
+            version_key: 'oak-2026',
             role: 'UNIVERSAL_BASELINE',
           },
         ],
@@ -589,6 +591,7 @@ describe('Calibration participant workflow', () => {
       target: { value: 'enrollment-secret' },
     })
     expect(await screen.findByText(/Oak Study/)).toBeInTheDocument()
+    expect(screen.getByText(/version oak-2026/)).toBeInTheDocument()
     expect(screen.getByText('A82F')).toBeInTheDocument()
     expect(screen.queryByText('enrollment-secret')).not.toBeInTheDocument()
     expect(screen.queryByText('fragrance-secret')).not.toBeInTheDocument()

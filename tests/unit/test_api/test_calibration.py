@@ -47,7 +47,19 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
         },
         headers=MANAGER,
     )
-    assert reviewer.status_code == fragrance.status_code == 201
+    holdout = await test_app.post(
+        "/api/v1/fragrances",
+        json={
+            "name": "Future holdout",
+            "brand": "Concealed house",
+            "concentration": "EDT",
+            "gender_target": "Unisex",
+            "primary_family": "woody",
+            "subfamily": "aromatic",
+        },
+        headers=MANAGER,
+    )
+    assert reviewer.status_code == fragrance.status_code == holdout.status_code == 201
     program = await test_app.post(
         f"{PREFIX}/programs", json={"name": "Protocol", "version": "1"}, headers=MANAGER
     )
@@ -67,17 +79,32 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
         headers=MANAGER,
     )
     assert member.status_code == 201
+    holdout_member = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members",
+        json={
+            "fragrance_id": holdout.json()["id"],
+            "role": "HOLDOUT",
+            "identity_evidence": "Label verified",
+            "group_name": "Holdout",
+        },
+        headers=MANAGER,
+    )
+    assert holdout_member.status_code == 201
     member_list = await test_app.get(
         f"{PREFIX}/programs/{program_id}/members", headers=MANAGER
     )
     assert member_list.status_code == 200
     assert member_list.headers["cache-control"] == "private, no-store"
-    assert member_list.json()[0] == {
+    baseline_member = next(
+        item for item in member_list.json() if item["role"] == "UNIVERSAL_BASELINE"
+    )
+    assert baseline_member == {
         "id": member.json()["id"],
         "fragrance_id": fragrance.json()["id"],
         "fragrance_name": "Concealed identity",
         "fragrance_brand": "Concealed house",
         "concentration": "EDT",
+        "version_key": "legacy",
         "role": "UNIVERSAL_BASELINE",
         "repeat_of_id": None,
         "group_name": "Baseline",
@@ -116,6 +143,7 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
     assert mapping.status_code == 200
     assert mapping.json()[0]["fragrance_id"] == fragrance.json()["id"]
     assert mapping.json()[0]["fragrance_name"] == "Concealed identity"
+    assert mapping.json()[0]["version_key"] == "legacy"
     assert mapping.headers["cache-control"] == "private, no-store"
     overview = await test_app.get(f"{PREFIX}/manager/enrollments", headers=MANAGER)
     assert overview.status_code == 200
@@ -127,18 +155,21 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
             "program_version": "1",
             "reviewer_name": "Evaluator",
             "recorder_usernames": ["recorder"],
-            "total_presentations": 1,
+            "total_presentations": 2,
             "blotter_complete": 0,
             "skin_planned": 0,
             "skin_complete": 0,
             "reveal_eligible": False,
-            "reveal_blocker": "BLOTTER",
+            "reveal_blocker": "SKIN_PLAN",
             "revealed": False,
         }
     ]
-    assert (
-        await test_app.get(f"{PREFIX}/manager/enrollments", headers=RECORDER)
-    ).status_code == 403
+    denied_overview = await test_app.get(
+        f"{PREFIX}/manager/enrollments", headers=RECORDER
+    )
+    assert denied_overview.status_code == 403
+    assert denied_overview.headers["cache-control"] == "private, no-store"
+    assert "X-Authentik-Username" in denied_overview.headers["vary"]
 
     blocked = await test_app.post(f"{url}/reveal", headers=RECORDER)
     assert blocked.status_code == 409
@@ -175,6 +206,12 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
     assert (
         await test_app.post(f"{url}/lock-skin-plan", headers=RECORDER)
     ).status_code == 200
+    ready_overview = await test_app.get(
+        f"{PREFIX}/manager/enrollments", headers=MANAGER
+    )
+    assert ready_overview.status_code == 200
+    assert ready_overview.json()[0]["reveal_eligible"] is True
+    assert ready_overview.json()[0]["reveal_blocker"] is None
     checkpoint = await test_app.post(
         f"{url}/checkpoints", json={"algorithm_version": "test"}, headers=RECORDER
     )

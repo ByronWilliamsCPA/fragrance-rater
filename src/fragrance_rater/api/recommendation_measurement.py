@@ -5,11 +5,11 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003 - FastAPI resolves this at runtime
 from typing import TYPE_CHECKING, Annotated, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.api.calibration import actor, manager, private_response
+from fragrance_rater.api.calibration import actor, manager
 from fragrance_rater.api.recommendations import (
     ExplanationResponse,
     build_recommendation_explanation,
@@ -237,9 +237,8 @@ async def append_response(
 
 
 @router.get("/reviewers/{reviewer_id}/metrics", response_model=MetricsView)
-async def metrics(  # noqa: PLR0917 - FastAPI injects request, auth, DB, and filters
+async def metrics(
     reviewer_id: str,
-    response: Response,
     db: DB,
     identity: Identity,
     window_start: Annotated[datetime | None, Query()] = None,
@@ -247,7 +246,6 @@ async def metrics(  # noqa: PLR0917 - FastAPI injects request, auth, DB, and fil
 ) -> MetricsView:
     """Return the admin metric contract with explicit counts and denominators."""
     manager(identity)
-    private_response(response)
     try:
         return await RecommendationMeasurementService(db).metrics(
             reviewer_id, window_start=window_start, window_end=window_end
@@ -258,14 +256,12 @@ async def metrics(  # noqa: PLR0917 - FastAPI injects request, auth, DB, and fil
 
 @router.get("/operational-events")
 async def operational_events(
-    response: Response,
     db: DB,
     identity: Identity,
     reviewer_id: Annotated[str | None, Query()] = None,
 ) -> list[dict[str, object]]:
     """List recent pilot failures and recoveries for manager follow-up."""
     manager(identity)
-    private_response(response)
     statement = select(PilotOperationalEvent).order_by(
         PilotOperationalEvent.occurred_at.desc()
     )
@@ -285,26 +281,29 @@ async def operational_events(
 
 
 @router.get("/operational-status")
-async def operational_status(
-    response: Response, db: DB, identity: Identity
-) -> dict[str, object]:
+async def operational_status(db: DB, identity: Identity) -> dict[str, object]:
     """Report unresolved pilot connectivity incidents without infrastructure detail."""
     manager(identity)
-    private_response(response)
-    events = list(
+    ranked = select(
+        PilotOperationalEvent.reviewer_id,
+        PilotOperationalEvent.event_type,
+        func.row_number()
+        .over(
+            partition_by=PilotOperationalEvent.reviewer_id,
+            order_by=(
+                PilotOperationalEvent.occurred_at.desc(),
+                PilotOperationalEvent.id.desc(),
+            ),
+        )
+        .label("position"),
+    ).subquery()
+    unresolved = sorted(
         await db.scalars(
-            select(PilotOperationalEvent).order_by(
-                PilotOperationalEvent.occurred_at.desc()
+            select(ranked.c.reviewer_id).where(
+                ranked.c.position == 1,
+                ranked.c.event_type == "CONNECTIVITY_FAILURE",
             )
         )
-    )
-    latest_by_reviewer: dict[str, PilotOperationalEvent] = {}
-    for item in events:
-        latest_by_reviewer.setdefault(item.reviewer_id, item)
-    unresolved = sorted(
-        reviewer_id
-        for reviewer_id, item in latest_by_reviewer.items()
-        if item.event_type == "CONNECTIVITY_FAILURE"
     )
     return {
         "status": "attention" if unresolved else "available",
