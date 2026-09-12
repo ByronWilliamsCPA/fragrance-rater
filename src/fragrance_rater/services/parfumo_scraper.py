@@ -148,6 +148,9 @@ class ParfumoScraper:
         LIVESEARCH_URL: Perfume search endpoint used by `search()`.
         ALLOWED_HOSTS (ClassVar[frozenset[str]]): Outbound host allowlist;
             requests to any other host are refused before being sent.
+        METRIC_TYPE_LABELS (ClassVar[dict[str, str]]): Maps a metric
+            page's raw ``data-type`` to the key used in
+            ScrapedFragrance.metrics/metric_vote_counts.
         REQUEST_DELAY: Minimum seconds between requests.
         MAX_RETRIES: Maximum retry attempts on a 429/503 response.
         BACKOFF_BASE_SECONDS: Base delay for exponential backoff between
@@ -399,6 +402,9 @@ class ParfumoScraper:
                     continue
 
                 if response.status_code != 200:
+                    logger.warning(
+                        "Parfumo returned HTTP %s for %s", response.status_code, url
+                    )
                     return None
 
                 return BeautifulSoup(response.text, "lxml")
