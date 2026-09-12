@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import type {
+  FragellaUsage,
   FragranceSummary,
   ManagerEnrollment,
   MappingRow,
@@ -64,6 +65,7 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [events, setEvents] = useState<OperationalEvent[]>([])
   const [status, setStatus] = useState<OperationalStatus | null>(null)
+  const [fragellaUsage, setFragellaUsage] = useState<FragellaUsage | null>(null)
   const task = useTask()
   const selectedProgram = programs.find((program) => program.id === programId)
   const reviewerNames = useMemo(
@@ -117,6 +119,22 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
     setMembers(response.data)
     form.reset()
     task.setNotice('Catalog version added to the draft.')
+  }
+
+  async function runFragellaLookup(membershipId: string) {
+    // Reference lookup only: this never changes fragrance_name/brand/
+    // concentration or membership evidence, and spends one of the
+    // account's 20 monthly Fragella requests, so it only ever runs when
+    // a manager clicks it here - never automatically.
+    await api.post(`/calibration/programs/${programId}/members/${membershipId}/fragella-lookup`)
+    const response = await api.get<ProgramMember[]>(`/calibration/programs/${programId}/members`)
+    setMembers(response.data)
+    task.setNotice('Fragella reference lookup recorded below.')
+  }
+
+  async function checkFragellaUsage() {
+    const response = await api.get<FragellaUsage>('/calibration/fragella/usage')
+    setFragellaUsage(response.data)
   }
 
   async function activate() {
@@ -323,7 +341,22 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                   <button disabled={task.busy || catalog.length === 0}>Add version</button>
                 </form>
               )}
-              <h3>Frozen definition preview</h3>
+              <div className="flex-row-between">
+                <h3>Frozen definition preview</h3>
+                <button
+                  className="secondary"
+                  disabled={task.busy}
+                  onClick={() => void task.run(checkFragellaUsage)}
+                >
+                  Check Fragella quota
+                </button>
+              </div>
+              {fragellaUsage && (
+                <p className="fragella-usage">
+                  Fragella plan: {fragellaUsage.plan ?? 'unknown'} · remaining this period:{' '}
+                  {fragellaUsage.usage?.requests_remaining ?? 'unknown'}
+                </p>
+              )}
               {members.length ? (
                 <ul className="data-list">
                   {members.map((item) => (
@@ -338,6 +371,50 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                       <small>
                         {item.identity_evidence ?? 'Evidence unavailable for legacy membership'}
                       </small>
+                      <div className="fragella-status">
+                        {item.fragella ? (
+                          <>
+                            <small>
+                              Fragella checked {formatUtcDateTime(item.fragella.checked_at)} (
+                              {item.fragella.status}) - reference only, not used to fill in catalog
+                              fields.
+                            </small>
+                            {item.fragella.status === 'error' && (
+                              <p className="error">{item.fragella.error_message}</p>
+                            )}
+                            {item.fragella.status === 'success' &&
+                              (item.fragella.results.length ? (
+                                <ul className="data-list">
+                                  {item.fragella.results.map((candidate) => (
+                                    <li key={candidate.id}>
+                                      {candidate.name} · {candidate.brand} ·{' '}
+                                      {candidate.year ?? 'year unknown'} ·{' '}
+                                      {candidate.oil_type ?? 'concentration unknown'} · confidence{' '}
+                                      {candidate.confidence ?? 'unknown'}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p>No Fragella matches found.</p>
+                              ))}
+                            <ConfirmAction
+                              actionLabel="Re-check Fragella"
+                              confirmLabel="Spend another monthly request"
+                              description="This uses one of the account's 20 monthly Fragella requests again - only re-check if the result above looks wrong or out of date."
+                              disabled={task.busy}
+                              onConfirm={() => void task.run(() => runFragellaLookup(item.id))}
+                            />
+                          </>
+                        ) : (
+                          <button
+                            className="secondary"
+                            disabled={task.busy}
+                            onClick={() => void task.run(() => runFragellaLookup(item.id))}
+                          >
+                            Run Fragella check
+                          </button>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>

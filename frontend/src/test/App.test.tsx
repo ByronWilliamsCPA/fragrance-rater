@@ -533,6 +533,85 @@ describe('Calibration participant workflow', () => {
     await waitFor(() => expect(post).toHaveBeenCalledWith('/calibration/programs/p/activate'))
   })
 
+  it('runs a manual Fragella check and shows an already-checked result as reference only', async () => {
+    const uncheckedMember = {
+      id: 'member-unchecked',
+      fragrance_id: 'fragrance-unchecked',
+      fragrance_name: 'Aimez-Moi',
+      fragrance_brand: 'Caron',
+      concentration: 'EDT',
+      version_key: 'aimez-moi-1996',
+      role: 'UNIVERSAL_BASELINE',
+      repeat_of_id: null,
+      group_name: 'Baseline',
+      identity_evidence: 'Bottle and batch checked',
+      fragella: null,
+    }
+    const checkedMember = {
+      ...uncheckedMember,
+      id: 'member-checked',
+      fragrance_id: 'fragrance-checked',
+      fragrance_name: 'Fougere Royale',
+      identity_evidence: 'Bottle and batch checked',
+      fragella: {
+        checked_at: '2026-09-13T10:00:00Z',
+        query: 'Houbigant Fougere Royale',
+        status: 'success',
+        error_message: null,
+        results: [
+          {
+            id: 'fougere-royale-2010',
+            name: 'Fougere Royale',
+            brand: 'Houbigant',
+            year: 2010,
+            oil_type: 'Eau de Parfum',
+            gender: null,
+            general_notes: [],
+            top_notes: [],
+            middle_notes: [],
+            base_notes: [],
+            confidence: 'medium',
+          },
+        ],
+      },
+    }
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'draft' }],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/programs/p/members': [uncheckedMember, checkedMember],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+    post.mockResolvedValue({
+      data: { checked_at: '2026-09-13T10:05:00Z', status: 'success', results: [] },
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
+
+    // Already-checked membership: shows the recorded result, never edits
+    // fragrance fields, and offers only a confirmed re-check.
+    expect(await screen.findByText(/Fragella checked/)).toBeInTheDocument()
+    expect(screen.getByText(/Houbigant/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Re-check Fragella' })).toBeInTheDocument()
+
+    // Never-checked membership: a single click runs the lookup - no
+    // confirmation needed for a first check.
+    fireEvent.click(screen.getByRole('button', { name: 'Run Fragella check' }))
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/calibration/programs/p/members/member-unchecked/fragella-lookup'
+      )
+    )
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/programs/p/members'))
+  })
+
   it('operates the pilot with human-readable manager data', async () => {
     get.mockImplementation((path: string) => {
       const responses: Record<string, unknown> = {

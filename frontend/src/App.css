@@ -248,6 +248,22 @@ textarea {
 .service-status small {
   color: #566a5d;
 }
+.flex-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.fragella-usage {
+  color: #566a5d;
+  font-size: 0.9em;
+}
+.fragella-status {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+}
 .progress-grid,
 .label-grid {
   display: grid;

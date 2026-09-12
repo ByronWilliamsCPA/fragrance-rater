@@ -1,8 +1,12 @@
 """Calibration manager/recorder authorization and end-to-end lifecycle."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
+import pytest_asyncio
 
 from fragrance_rater.core.config import settings
+from fragrance_rater.services.fragella_client import FragellaError, FragellaResult
 
 PREFIX = "/api/v1/calibration"
 MANAGER = {"X-Authentik-Username": "manager"}
@@ -109,6 +113,7 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
         "repeat_of_id": None,
         "group_name": "Baseline",
         "identity_evidence": "Label verified",
+        "fragella": None,
     }
     activation = await test_app.post(
         f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER
@@ -241,3 +246,157 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
         ("PRE_REVEAL", 8),
         ("POST_REVEAL", 5),
     ]
+
+
+@pytest_asyncio.fixture
+async def draft_member(test_app):
+    """A draft program with one baseline membership; returns (program_id, membership_id)."""
+    fragrance = await test_app.post(
+        "/api/v1/fragrances",
+        json={
+            "name": "Aimez-Moi",
+            "brand": "Caron",
+            "concentration": "EDT",
+            "gender_target": "Unisex",
+            "primary_family": "floral",
+            "subfamily": "powdery",
+        },
+        headers=MANAGER,
+    )
+    program = await test_app.post(
+        f"{PREFIX}/programs", json={"name": "Gap-fill", "version": "1"}, headers=MANAGER
+    )
+    program_id = program.json()["id"]
+    member = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members",
+        json={
+            "fragrance_id": fragrance.json()["id"],
+            "role": "UNIVERSAL_BASELINE",
+            "identity_evidence": "Label verified",
+        },
+        headers=MANAGER,
+    )
+    return program_id, member.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_fragella_lookup_requires_manager(test_app, draft_member):
+    program_id, membership_id = draft_member
+    response = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members/{membership_id}/fragella-lookup",
+        headers=RECORDER,
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_fragella_lookup_records_success_and_appears_in_members(
+    test_app, draft_member
+):
+    program_id, membership_id = draft_member
+    fake_result = FragellaResult(
+        id="aimez-moi-1996",
+        name="Aimez-Moi",
+        brand="Caron",
+        year=1996,
+        oil_type="Eau de Toilette",
+        confidence="medium",
+    )
+    with patch(
+        "fragrance_rater.services.fragella_lookup_service.FragellaClient.search",
+        AsyncMock(return_value=[fake_result]),
+    ):
+        response = await test_app.post(
+            f"{PREFIX}/programs/{program_id}/members/{membership_id}/fragella-lookup",
+            headers=MANAGER,
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "success"
+    assert body["results"][0]["name"] == "Aimez-Moi"
+    assert body["query"] == "Caron Aimez-Moi"
+
+    member_list = await test_app.get(
+        f"{PREFIX}/programs/{program_id}/members", headers=MANAGER
+    )
+    member = next(item for item in member_list.json() if item["id"] == membership_id)
+    assert member["fragella"]["status"] == "success"
+    assert member["fragella"]["results"][0]["brand"] == "Caron"
+
+
+@pytest.mark.asyncio
+async def test_fragella_lookup_records_failure_without_crashing(test_app, draft_member):
+    """A lookup failure (bad key, quota exhausted) must still be recorded
+    and reported, not silently dropped or surfaced as a 500."""
+    program_id, membership_id = draft_member
+    with patch(
+        "fragrance_rater.services.fragella_lookup_service.FragellaClient.search",
+        AsyncMock(
+            side_effect=FragellaError("Fragella monthly quota exhausted (HTTP 429)")
+        ),
+    ):
+        response = await test_app.post(
+            f"{PREFIX}/programs/{program_id}/members/{membership_id}/fragella-lookup",
+            headers=MANAGER,
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "error"
+    assert "quota exhausted" in body["error_message"]
+    assert body["results"] == []
+
+
+@pytest.mark.asyncio
+async def test_fragella_lookup_accepts_an_explicit_query_override(
+    test_app, draft_member
+):
+    program_id, membership_id = draft_member
+    with patch(
+        "fragrance_rater.services.fragella_lookup_service.FragellaClient.search",
+        AsyncMock(return_value=[]),
+    ) as mock_search:
+        response = await test_app.post(
+            f"{PREFIX}/programs/{program_id}/members/{membership_id}/fragella-lookup",
+            params={"query": "Aimez-Moi Comme Je Suis"},
+            headers=MANAGER,
+        )
+    assert response.status_code == 200
+    mock_search.assert_awaited_once_with("Aimez-Moi Comme Je Suis")
+
+
+@pytest.mark.asyncio
+async def test_fragella_lookup_rejects_unknown_membership(test_app, draft_member):
+    program_id, _ = draft_member
+    response = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members/does-not-exist/fragella-lookup",
+        headers=MANAGER,
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_fragella_usage_requires_manager(test_app):
+    response = await test_app.get(f"{PREFIX}/fragella/usage", headers=RECORDER)
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_fragella_usage_reports_quota(test_app):
+    usage_body = {"plan": "free", "usage": {"requests_remaining": 17}}
+    with patch(
+        "fragrance_rater.api.calibration.FragellaClient.usage",
+        AsyncMock(return_value=usage_body),
+    ):
+        response = await test_app.get(f"{PREFIX}/fragella/usage", headers=MANAGER)
+    assert response.status_code == 200
+    assert response.json() == usage_body
+
+
+@pytest.mark.asyncio
+async def test_fragella_usage_reports_failure_as_502(test_app):
+    with patch(
+        "fragrance_rater.api.calibration.FragellaClient.usage",
+        AsyncMock(return_value=None),
+    ):
+        response = await test_app.get(f"{PREFIX}/fragella/usage", headers=MANAGER)
+    assert response.status_code == 502
