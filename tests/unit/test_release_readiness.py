@@ -107,6 +107,77 @@ def test_manifest_reports_non_string_identifiers_without_crashing() -> None:
     assert "entries[0].fragrance_id must be non-empty text" in errors
 
 
+def valid_p6_readiness() -> dict[str, Any]:
+    """Return a complete machine-readable P6 go record."""
+    return {
+        "release": {
+            "commit": "a" * 40,
+            "app_image_digest": f"sha256:{'b' * 64}",
+            "frontend_image_digest": f"sha256:{'c' * 64}",
+            "deployment_reference": "private:release-candidate",
+            "remote_ci_passed": True,
+        },
+        "gates": {f"P6.{index}": "pass" for index in range(1, 7)},
+        "artifacts": {
+            "p1_gate": "private:p1",
+            "device_matrix": "private:devices",
+            "synthetic_rehearsal": "private:rehearsal",
+            "redacted_export_manifest": "private:export",
+            "quality_report": "private:quality",
+            "operations_drill": "private:operations",
+            "signed_decision": "private:decision",
+        },
+        "known_limitations": [],
+        "decision": {
+            "value": "go",
+            "decided_by": "core maintainer",
+            "decided_at": "2026-09-12T04:00:00Z",
+        },
+    }
+
+
+def test_p6_readiness_accepts_a_complete_go_record() -> None:
+    """All gates, evidence references, and immutable release fields close P6."""
+    validator = load_script("validate_p6_readiness")
+    assert validator.validate_readiness(valid_p6_readiness()) == []
+
+
+def test_p6_readiness_rejects_pending_evidence_and_decision() -> None:
+    """A partially filled template cannot authorize actual perfume testing."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["release"]["remote_ci_passed"] = False
+    document["gates"]["P6.4"] = "pending"
+    document["artifacts"]["quality_report"] = "replace-with-private-reference"
+    document["decision"]["value"] = "no-go"
+    errors = validator.validate_readiness(document)
+    assert "release.remote_ci_passed must be true" in errors
+    assert "gates.P6.4 must be pass" in errors
+    assert (
+        "artifacts.quality_report must be a completed private evidence reference"
+        in errors
+    )
+    assert "decision.value must be go to close P6" in errors
+
+
+def test_p6_readiness_rejects_blocking_limitations_and_non_utc_decision() -> None:
+    """Blocking limitations and local timestamps keep the gate open."""
+    validator = load_script("validate_p6_readiness")
+    document = valid_p6_readiness()
+    document["known_limitations"] = [
+        {
+            "id": "P6-L1",
+            "summary": "Participant disclosure failure",
+            "blocking": True,
+            "disposition": "Return to P4",
+        }
+    ]
+    document["decision"]["decided_at"] = "2026-09-12T04:00:00-07:00"
+    errors = validator.validate_readiness(document)
+    assert "known_limitations[0] remains release blocking" in errors
+    assert "decision.decided_at must be in UTC" in errors
+
+
 def valid_topology() -> dict[str, Any]:
     """Return the minimum valid rendered production topology."""
     return {

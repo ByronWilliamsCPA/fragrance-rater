@@ -159,6 +159,9 @@ nav:
       - Overview: guides/overview.md
       - Configuration: guides/configuration.md
       - Usage: guides/usage.md
+      - Printable Evaluation and Outage Form: printable-evaluation-form.md
+      - Pilot Participant: guides/pilot-participant.md
+      - Pilot Manager: guides/pilot-manager.md
 
   - API Reference:
       - Overview: api-reference.md
@@ -184,12 +187,18 @@ nav:
       - P5 Manager and Operations Gate: planning/gates/p5.md
       - P5 Manager Disclosure Matrix: planning/evidence/p5-manager-disclosure.md
       - P6 Integrated Pilot Readiness Gate: planning/gates/p6.md
+      - P6 Device Matrix: planning/evidence/p6-device-matrix.md
+      - P6 Synthetic Rehearsal: planning/evidence/p6-synthetic-rehearsal.md
+      - P6 Quality Report: planning/evidence/p6-quality-report.md
+      - P6 Operations Drill: planning/evidence/p6-operations-drill.md
+      - P6 Readiness Decision: planning/evidence/p6-readiness-decision.md
       - F1 Initial Family Pilot Gate: planning/gates/f1.md
       - Controlled Calibration V1: calibration-v1.md
       - Scent chords Analysis: research/scent-chords-analysis.md
 
   - Deployment:
       - P1 Release Readiness: deployment/p1-release-readiness.md
+      - P6 Pilot Readiness: deployment/p6-pilot-readiness.md
 
   - Measurement:
       - Recommendation Outcomes: measurement/recommendation-outcomes.md

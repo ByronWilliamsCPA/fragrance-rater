@@ -1,0 +1,32 @@
+{
+  "release": {
+    "commit": "replace-with-40-character-main-commit",
+    "app_image_digest": "sha256:replace-with-64-hex-digest",
+    "frontend_image_digest": "sha256:replace-with-64-hex-digest",
+    "deployment_reference": "replace-with-private-reference-release-candidate",
+    "remote_ci_passed": false
+  },
+  "gates": {
+    "P6.1": "pending",
+    "P6.2": "pending",
+    "P6.3": "pending",
+    "P6.4": "pending",
+    "P6.5": "pending",
+    "P6.6": "pending"
+  },
+  "artifacts": {
+    "p1_gate": "replace-with-private-reference-p1-gate",
+    "device_matrix": "replace-with-private-reference-device-matrix",
+    "synthetic_rehearsal": "replace-with-private-reference-synthetic-rehearsal",
+    "redacted_export_manifest": "replace-with-private-reference-export-manifest",
+    "quality_report": "replace-with-private-reference-quality-report",
+    "operations_drill": "replace-with-private-reference-operations-drill",
+    "signed_decision": "replace-with-private-reference-readiness-decision"
+  },
+  "known_limitations": [],
+  "decision": {
+    "value": "pending",
+    "decided_by": "replace-with-decision-maker",
+    "decided_at": "replace-with-UTC-timestamp"
+  }
+}

@@ -4,6 +4,19 @@ Utility scripts for Fragrance Rater.
 
 ## Available Scripts
 
+### validate_p6_readiness.py
+
+Validates that the P6 closure record identifies immutable release images, marks P6.1-P6.6 as
+passed, references every private evidence artifact, contains no unresolved blocking limitation,
+and records an attributable UTC `go` decision.
+
+```bash
+uv run python scripts/validate_p6_readiness.py /secure/path/p6-readiness.json
+```
+
+Start from `data/pilot/p6-readiness.template.json`. The completed record belongs in the private
+evidence directory because its references can reveal deployment details.
+
 ### update-claude-standards.sh
 
 Updates the Claude Code standards from the upstream repository.
