@@ -13,6 +13,7 @@ fields automatically.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict
 from typing import TYPE_CHECKING
 
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from fragrance_rater.models.fragrance import Fragrance
+
+logger = logging.getLogger(__name__)
 
 
 class FragellaLookupService:
@@ -66,6 +69,16 @@ class FragellaLookupService:
             results = await self.client.search(search_query)
         except FragellaError as exc:
             record.error_message = str(exc)
+        except Exception as exc:
+            # A bug in FragellaClient (not a documented FragellaError
+            # failure mode) must not skip persisting the attempt - the
+            # "always recorded" contract above applies to any failure,
+            # not only the ones FragellaClient itself anticipates.
+            logger.exception(
+                "Unexpected error during Fragella lookup for fragrance %s",
+                fragrance.id,
+            )
+            record.error_message = f"Unexpected error: {exc}"
         else:
             record.status = "success"
             record.results = [asdict(result) for result in results]
