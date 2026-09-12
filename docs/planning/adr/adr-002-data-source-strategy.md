@@ -19,7 +19,7 @@ current priority is local catalog → manual verified entry/source link → auth
 snapshot or refresh. A source is never allowed to overwrite evaluator evidence or assigned
 version identity.
 
-## 2026-09-13 amendment: Fragella as a capped reference lookup, not a source
+## 2026-09-12 amendment: Fragella as a capped reference lookup, not a source
 
 Fragella's rejection above was as a *primary* source (its 20 requests/month free tier is far too
 small for routine enrichment). This amendment authorizes a narrower, still-declined-as-a-source

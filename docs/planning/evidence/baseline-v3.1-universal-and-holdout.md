@@ -10,8 +10,8 @@ tags:
   - evidence
 ---
 
-**Received:** 2026-09-12, from the product owner, as the "AUTHORITATIVE UNIVERSAL BASELINE — V3.1"
-and "AUTHORITATIVE VALIDATION HOLDOUT SET — V3.1" documents. This page reproduces that content
+**Received:** 2026-09-12, from the product owner, as the "AUTHORITATIVE UNIVERSAL BASELINE: V3.1"
+and "AUTHORITATIVE VALIDATION HOLDOUT SET: V3.1" documents. This page reproduces that content
 verbatim (reformatted as tables) so it is versioned in the repository rather than living only in
 chat history, per
 [Controlled Calibration V1](../../calibration-v1.md#configuration-and-workflow): *"The current

@@ -11,7 +11,7 @@ alone did not resolve, or a concentration/year Parfumo did not publish.
 
 # #ASSUME: external-resources: this client is built from Fragella's own
 # published API documentation (https://api.fragella.com/docs.html, read
-# 2026-09-13), not verified against a live authenticated response - no API
+# 2026-09-12), not verified against a live authenticated response - no API
 # key was available in this environment. Response field names/casing
 # (`Name`, `Brand`, `Year`, `OilType`, `General Notes`, `Notes.Top/Middle/
 # Base`, `Confidence`) and the unpaginated response envelope (a bare list

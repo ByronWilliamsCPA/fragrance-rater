@@ -2,7 +2,7 @@
 
 Fixture provenance: response shapes below are modeled on Fragella's own
 published API documentation (https://api.fragella.com/docs.html, read
-2026-09-13) - not a live authenticated response, since no API key was
+2026-09-12) - not a live authenticated response, since no API key was
 available in this environment. See fragella_client.py's module docstring
 for why this integration is explicitly flagged as documentation-derived
 rather than live-verified, unlike ParfumoScraper's fixtures.
