@@ -24,6 +24,7 @@ instead of a fake success path - see
 """
 
 import dataclasses
+import logging
 import threading
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
@@ -442,6 +443,29 @@ class TestParfumoScraperParsing:
 
         assert result is None
 
+    def test_make_request_logs_a_non_200_status(self, caplog):
+        """A non-200/429/503 status must be logged, not silently swallowed,
+        so a caller cannot mistake a failed fetch for zero genuine matches."""
+        scraper = _new_scraper()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+
+        with (
+            patch.object(scraper, "_get_client") as mock_client,
+            caplog.at_level(logging.WARNING),
+        ):
+            client = MagicMock()
+            client.get.return_value = mock_response
+            mock_client.return_value = client
+
+            result = scraper._make_request("https://www.parfumo.com/Perfumes/x/y")
+
+        assert result is None
+        assert any("404" in record.message for record in caplog.records), (
+            "expected a warning logging the non-200 status"
+        )
+
 
 class TestParfumoScraperSearch:
     """Tests for ParfumoScraper search functionality.
@@ -555,6 +579,98 @@ class TestParfumoScraperSearch:
 
         assert results == []
         mock_client.assert_not_called()
+
+
+class TestParseLivesearchItem:
+    """Tests for `_parse_livesearch_item`'s malformed/absent-markup branches.
+
+    `search()`'s own tests (above) exercise the well-formed-card path;
+    these call the parser directly against a single `.ls-perfume-item`
+    fragment, since `_parse_livesearch_item`'s entire job is tolerating
+    the messy markup real search results sometimes contain."""
+
+    @staticmethod
+    def _parse(html: str) -> SearchResult | None:
+        scraper = ParfumoScraper.__new__(ParfumoScraper)
+        item = BeautifulSoup(html, "html.parser").select_one(".ls-perfume-item")
+        assert item is not None
+        return scraper._parse_livesearch_item(item)
+
+    def test_returns_none_when_the_overlay_link_is_missing(self):
+        """No `a.ls-perfume-overlay` at all - href can't be recovered."""
+        result = self._parse("""
+            <div class="ls-perfume-item">
+                <div class="ls-perfume-info">
+                    <div class="name">Test Fragrance</div>
+                </div>
+            </div>
+        """)
+        assert result is None
+
+    def test_prefixes_a_relative_href_with_the_base_url(self):
+        result = self._parse("""
+            <div class="ls-perfume-item">
+                <div class="ls-perfume-info">
+                    <div class="name">Test Fragrance</div>
+                </div>
+                <a class="ls-perfume-overlay" href="/Perfumes/Test_Brand/test-fragrance"></a>
+            </div>
+        """)
+        assert result is not None
+        assert (
+            result.url
+            == f"{ParfumoScraper.BASE_URL}/Perfumes/Test_Brand/test-fragrance"
+        )
+
+    def test_returns_none_when_the_name_element_is_missing(self):
+        result = self._parse("""
+            <div class="ls-perfume-item">
+                <div class="ls-perfume-info"></div>
+                <a class="ls-perfume-overlay" href="https://www.parfumo.com/x"></a>
+            </div>
+        """)
+        assert result is None
+
+    def test_returns_none_when_the_name_is_empty(self):
+        """`.name` present but blank (e.g. whitespace-only markup)."""
+        result = self._parse("""
+            <div class="ls-perfume-item">
+                <div class="ls-perfume-info">
+                    <div class="name">   </div>
+                </div>
+                <a class="ls-perfume-overlay" href="https://www.parfumo.com/x"></a>
+            </div>
+        """)
+        assert result is None
+
+    def test_year_stays_none_when_the_year_element_is_missing(self):
+        """No `.ls-perfume-info > span.label_a` at all - a missing year
+        is not itself a reason to reject the result."""
+        result = self._parse("""
+            <div class="ls-perfume-item">
+                <div class="ls-perfume-info">
+                    <div class="name">Test Fragrance</div>
+                </div>
+                <a class="ls-perfume-overlay" href="https://www.parfumo.com/x"></a>
+            </div>
+        """)
+        assert result is not None
+        assert result.year is None
+
+    def test_year_stays_none_when_the_year_text_does_not_match(self):
+        """The year element is present but its text isn't a recognizable
+        18xx/19xx/20xx year (e.g. Parfumo shows "N/A")."""
+        result = self._parse("""
+            <div class="ls-perfume-item">
+                <div class="ls-perfume-info">
+                    <div class="name">Test Fragrance</div>
+                    <span class="label_a">N/A</span>
+                </div>
+                <a class="ls-perfume-overlay" href="https://www.parfumo.com/x"></a>
+            </div>
+        """)
+        assert result is not None
+        assert result.year is None
 
 
 class TestParfumoScraperHelpers:
