@@ -192,6 +192,139 @@ class TestCreateEvaluationAPI:
 
 
 @pytest.mark.asyncio
+class TestEvaluationWornByReviewerAPI:
+    """ADR-011: creating and updating "on others" evaluations."""
+
+    async def test_create_evaluation_with_worn_by_reviewer_id(self, test_app):
+        """A different, existing reviewer as worn_by_reviewer_id succeeds
+        and round-trips through the response.
+        """
+        reviewer_id = await _create_reviewer(test_app, "Worn By Rater")
+        partner_id = await _create_reviewer(test_app, "Worn By Partner")
+        fragrance_id = await _create_fragrance(test_app, "Worn By Fragrance")
+
+        data = await _create_evaluation(
+            test_app, reviewer_id, fragrance_id, worn_by_reviewer_id=partner_id
+        )
+        assert data["worn_by_reviewer_id"] == partner_id
+
+        fetched = await test_app.get(f"{API_PREFIX}/evaluations/{data['id']}")
+        assert fetched.json()["worn_by_reviewer_id"] == partner_id
+
+    async def test_create_evaluation_worn_by_reviewer_id_defaults_to_none(
+        self, test_app
+    ):
+        """Omitting worn_by_reviewer_id keeps the default "on me" rating."""
+        data = await _create_evaluation(
+            test_app,
+            await _create_reviewer(test_app, "Worn By Default Rater"),
+            await _create_fragrance(test_app, "Worn By Default Fragrance"),
+        )
+        assert data["worn_by_reviewer_id"] is None
+
+    async def test_create_evaluation_worn_by_reviewer_id_same_as_reviewer_422s(
+        self, test_app
+    ):
+        """A redundant explicit self-reference is a clean 422."""
+        reviewer_id = await _create_reviewer(test_app, "Worn By Self Rater")
+        fragrance_id = await _create_fragrance(test_app, "Worn By Self Fragrance")
+
+        response = await test_app.post(
+            f"{API_PREFIX}/evaluations",
+            json={
+                "fragrance_id": fragrance_id,
+                "reviewer_id": reviewer_id,
+                "rating": 4,
+                "worn_by_reviewer_id": reviewer_id,
+            },
+        )
+        assert response.status_code == 422
+
+    async def test_create_evaluation_nonexistent_worn_by_reviewer_returns_404(
+        self, test_app
+    ):
+        """A nonexistent worn_by_reviewer_id must 404, not 500 or silently insert."""
+        reviewer_id = await _create_reviewer(test_app, "Worn By Missing Rater")
+        fragrance_id = await _create_fragrance(test_app, "Worn By Missing Fragrance")
+
+        response = await test_app.post(
+            f"{API_PREFIX}/evaluations",
+            json={
+                "fragrance_id": fragrance_id,
+                "reviewer_id": reviewer_id,
+                "rating": 4,
+                "worn_by_reviewer_id": "nonexistent-reviewer",
+            },
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "WORN_BY_REVIEWER_NOT_FOUND"
+
+    async def test_update_evaluation_sets_worn_by_reviewer_id(self, test_app):
+        """PATCH can add a worn_by_reviewer_id to an existing on-me rating."""
+        reviewer_id = await _create_reviewer(test_app, "Worn By Patch Rater")
+        partner_id = await _create_reviewer(test_app, "Worn By Patch Partner")
+        fragrance_id = await _create_fragrance(test_app, "Worn By Patch Fragrance")
+        evaluation = await _create_evaluation(test_app, reviewer_id, fragrance_id)
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/evaluations/{evaluation['id']}",
+            json={"worn_by_reviewer_id": partner_id},
+        )
+        assert response.status_code == 200
+        assert response.json()["worn_by_reviewer_id"] == partner_id
+
+    async def test_update_evaluation_clears_worn_by_reviewer_id(self, test_app):
+        """An explicit null PATCH reverts an "on others" rating to on-me."""
+        reviewer_id = await _create_reviewer(test_app, "Worn By Clear Rater")
+        partner_id = await _create_reviewer(test_app, "Worn By Clear Partner")
+        fragrance_id = await _create_fragrance(test_app, "Worn By Clear Fragrance")
+        evaluation = await _create_evaluation(
+            test_app, reviewer_id, fragrance_id, worn_by_reviewer_id=partner_id
+        )
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/evaluations/{evaluation['id']}",
+            json={"worn_by_reviewer_id": None},
+        )
+        assert response.status_code == 200
+        assert response.json()["worn_by_reviewer_id"] is None
+
+    async def test_update_evaluation_worn_by_reviewer_id_same_as_reviewer_422s(
+        self, test_app
+    ):
+        """PATCHing worn_by_reviewer_id to the evaluation's own reviewer_id
+        is a clean 422, not silently accepted or a raw IntegrityError.
+        """
+        reviewer_id = await _create_reviewer(test_app, "Worn By Patch Self Rater")
+        fragrance_id = await _create_fragrance(test_app, "Worn By Patch Self Fragrance")
+        evaluation = await _create_evaluation(test_app, reviewer_id, fragrance_id)
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/evaluations/{evaluation['id']}",
+            json={"worn_by_reviewer_id": reviewer_id},
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "WORN_BY_REVIEWER_SAME_AS_REVIEWER"
+
+    async def test_update_evaluation_nonexistent_worn_by_reviewer_returns_404(
+        self, test_app
+    ):
+        """PATCHing worn_by_reviewer_id to a nonexistent reviewer 404s."""
+        reviewer_id = await _create_reviewer(test_app, "Worn By Patch Missing Rater")
+        fragrance_id = await _create_fragrance(
+            test_app, "Worn By Patch Missing Fragrance"
+        )
+        evaluation = await _create_evaluation(test_app, reviewer_id, fragrance_id)
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/evaluations/{evaluation['id']}",
+            json={"worn_by_reviewer_id": "nonexistent-reviewer"},
+        )
+        assert response.status_code == 404
+        assert response.json()["detail"]["error"] == "WORN_BY_REVIEWER_NOT_FOUND"
+
+
+@pytest.mark.asyncio
 class TestListEvaluationsAPI:
     """Tests for GET /evaluations.
 

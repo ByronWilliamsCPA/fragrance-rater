@@ -1,15 +1,24 @@
 """Add fragella_lookups: a reference-only lookup log, not adopted source evidence.
 
-Revision ID: a1b2c3d4e5f6
-Revises: f5c2d3e4a5b6
+Revision ID: 2c341c369192
+Revises: 72fe56efd128
+
+Chains after 72fe56efd128 rather than directly after f5c2d3e4a5b6, purely
+to keep migration history a single linear head: this table addition has
+no actual dependency on either of the two migrations ahead of it. This
+revision originally shared the literal id `a1b2c3d4e5f6` with 9ded7f54996c
+(ml_prediction_snapshots) - an unrelated collision between two PRs merged
+independently, since neither branch could see the other's new file at
+review time. Renamed here to resolve it; no deployed environment had
+migrated to the original id.
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "a1b2c3d4e5f6"
-down_revision = "f5c2d3e4a5b6"
+revision = "2c341c369192"
+down_revision = "72fe56efd128"
 branch_labels = None
 depends_on = None
 

@@ -243,7 +243,11 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                       observedAt &&
                       item.shown_at &&
                       utcDate(observedAt).getTime() >= utcDate(item.shown_at).getTime()
-                    )
+                    ) &&
+                    // ADR-011: an "on others" evaluation is never a valid
+                    // outcome for this reviewer's own recommendation; the
+                    // API rejects it, so it must not be offered here either.
+                    !outcome.worn_by_reviewer_id
                   )
                 })
                 return (

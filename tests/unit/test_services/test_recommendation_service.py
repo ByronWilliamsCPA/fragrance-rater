@@ -407,6 +407,55 @@ class TestRecommendationServiceIntegration:
         assert profile.evaluation_count == 1
         assert profile.note_affinities.get("note-001", 0) == 2.0  # 5-star = +2.0
 
+    async def test_build_preference_profile_excludes_worn_by_evaluation(
+        self, async_session
+    ):
+        """ADR-011: an "on others" rating (worn_by_reviewer_id set) must not
+        contribute to the rater's own affinity profile, even though it is a
+        live, non-soft-deleted evaluation authored by that reviewer.
+        """
+        rater = Reviewer(id="rater-worn-by", name="Rater")
+        subject = Reviewer(id="subject-worn-by", name="Subject")
+        async_session.add_all([rater, subject])
+
+        note = Note(id="note-worn-by", name="Oud", category="woody")
+        async_session.add(note)
+
+        fragrance = Fragrance(
+            id="frag-worn-by",
+            name="Worn By Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family="woody",
+            subfamily="",
+            data_source="manual",
+        )
+        async_session.add(fragrance)
+
+        fn = FragranceNote(
+            fragrance_id="frag-worn-by", note_id="note-worn-by", position="top"
+        )
+        async_session.add(fn)
+
+        # An "on others" rating: rater's opinion of this fragrance as worn
+        # by subject. It must be excluded from rater's own profile.
+        eval_on_others = Evaluation(
+            id="eval-worn-by-on-others",
+            fragrance_id="frag-worn-by",
+            reviewer_id="rater-worn-by",
+            worn_by_reviewer_id="subject-worn-by",
+            rating=5,
+        )
+        async_session.add(eval_on_others)
+        await async_session.commit()
+
+        service = RecommendationService(async_session)
+        profile = await service.build_preference_profile("rater-worn-by")
+
+        assert profile.evaluation_count == 0
+        assert profile.note_affinities == {}
+
     async def test_build_preference_profile_empty_subfamily_not_bucketed(
         self, async_session
     ):
@@ -620,6 +669,72 @@ class TestRecommendationServiceIntegration:
         # Should recommend the unrated fragrance
         assert len(recommendations) == 1
         assert recommendations[0].fragrance_id == "frag-r3"
+
+    async def test_get_recommendations_worn_by_evaluation_does_not_exclude_candidate(
+        self, async_session
+    ):
+        """ADR-011: an "on others" rating of the candidate fragrance (the
+        reviewer smelled it on someone else, not on themselves) must not
+        remove it from `exclude_rated`'s "already rated" set.
+        """
+        reviewer = Reviewer(id="reviewer-worn-by-candidate", name="Active User")
+        subject = Reviewer(id="subject-worn-by-candidate", name="Partner")
+        async_session.add_all([reviewer, subject])
+
+        note = Note(id="note-worn-by-candidate", name="Vanilla", category="sweet")
+        async_session.add(note)
+
+        for i in range(4):
+            frag = Fragrance(
+                id=f"frag-wbc-{i}",
+                name=f"Fragrance {i}",
+                brand="Brand",
+                concentration="EDP",
+                gender_target="unisex",
+                primary_family="oriental" if i < 2 else "woody",
+                subfamily="vanilla" if i < 2 else "cedar",
+                data_source="manual",
+            )
+            async_session.add(frag)
+            async_session.add(
+                FragranceNote(
+                    fragrance_id=f"frag-wbc-{i}",
+                    note_id="note-worn-by-candidate",
+                    position="base",
+                )
+            )
+
+        for i in range(3):
+            async_session.add(
+                Evaluation(
+                    id=f"eval-wbc-{i}",
+                    fragrance_id=f"frag-wbc-{i}",
+                    reviewer_id="reviewer-worn-by-candidate",
+                    rating=5,
+                )
+            )
+        # An "on others" rating of the would-be unrated candidate: the
+        # reviewer smelled frag-wbc-3 on their partner, not on themselves.
+        async_session.add(
+            Evaluation(
+                id="eval-wbc-3-on-others",
+                fragrance_id="frag-wbc-3",
+                reviewer_id="reviewer-worn-by-candidate",
+                worn_by_reviewer_id="subject-worn-by-candidate",
+                rating=5,
+            )
+        )
+        await async_session.commit()
+
+        service = RecommendationService(async_session)
+        recommendations = await service.get_recommendations(
+            "reviewer-worn-by-candidate",
+            limit=10,
+            exclude_rated=True,
+        )
+
+        assert len(recommendations) == 1
+        assert recommendations[0].fragrance_id == "frag-wbc-3"
 
     async def test_get_reviewer_profile_summary(self, async_session):
         """Test profile summary generation."""

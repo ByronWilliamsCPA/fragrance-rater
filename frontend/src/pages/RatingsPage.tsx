@@ -44,9 +44,14 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
 
   async function saveEncounter(form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
+    // ADR-011: the "Worn by" select's "Myself" option submits an empty
+    // string; the API expects that dimension omitted (or null) for the
+    // default on-me rating, not an empty string.
+    const wornByReviewerId = String(values.worn_by_reviewer_id || '')
     await api.post('/evaluations', {
       ...values,
       rating: Number(values.rating),
+      worn_by_reviewer_id: wornByReviewerId || null,
       evaluated_at: values.evaluated_at
         ? new Date(String(values.evaluated_at)).toISOString()
         : null,
@@ -142,6 +147,19 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
           </label>
         </div>
         <label>
+          Worn by
+          <select name="worn_by_reviewer_id" defaultValue="">
+            <option value="">Myself (on me)</option>
+            {reviewers
+              .filter((reviewer) => reviewer.id !== reviewerId)
+              .map((reviewer) => (
+                <option key={reviewer.id} value={reviewer.id}>
+                  {reviewer.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        <label>
           Observations
           <textarea name="notes" />
         </label>
@@ -157,6 +175,13 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
               · {encounter.rating}/5
             </strong>
             <p>{formatUtc(encounter.evaluated_at)}</p>
+            {encounter.worn_by_reviewer_id && (
+              <p className="eyebrow">
+                On{' '}
+                {reviewers.find((reviewer) => reviewer.id === encounter.worn_by_reviewer_id)
+                  ?.name || 'another reviewer'}
+              </p>
+            )}
             {encounter.notes && <p>{encounter.notes}</p>}
             {editingId === encounter.id ? (
               <form

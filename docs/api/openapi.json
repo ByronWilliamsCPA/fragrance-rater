@@ -1789,6 +1789,101 @@
         }
       }
     },
+    "/api/v1/calibration/programs/{program_id}/members/{membership_id}/fragella-lookup": {
+      "post": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Fragella Lookup",
+        "description": "Run (or re-run) a Fragella reference lookup for one membership.\n\nManual and manager-only: the account's 20-request/month quota is\nspent only when a manager deliberately asks, never automatically.\nRecords the attempt (success or error) so the manager view can show\nwhich fragrances still have not been checked without spending\nanother request to find out. Never writes into `Fragrance` fields\nor membership evidence - see ADR-002's 2026-09-13 amendment.",
+        "operationId": "fragella_lookup_api_v1_calibration_programs__program_id__members__membership_id__fragella_lookup_post",
+        "parameters": [
+          {
+            "name": "program_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Program Id"
+            }
+          },
+          {
+            "name": "membership_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Membership Id"
+            }
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Query"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Fragella Lookup Api V1 Calibration Programs  Program Id  Members  Membership Id  Fragella Lookup Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calibration/fragella/usage": {
+      "get": {
+        "tags": [
+          "calibration"
+        ],
+        "summary": "Fragella Usage",
+        "description": "Report the Fragella account's remaining monthly quota.\n\nManager-only; fetched on demand from the manager UI rather than\nautomatically before every lookup, since whether checking usage\nitself counts against the same quota is undocumented (see\nfragella_client.py's module docstring).",
+        "operationId": "fragella_usage_api_v1_calibration_fragella_usage_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Fragella Usage Api V1 Calibration Fragella Usage Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/calibration/programs/{program_id}/activate": {
       "post": {
         "tags": [
@@ -2655,7 +2750,7 @@
             "description": "Prediction not found"
           },
           "409": {
-            "description": "Prediction already has a linked outcome"
+            "description": "Prediction already has a different linked outcome, or the supplied outcome cannot honestly test this prediction (wrong reviewer/fragrance, recorded before the prediction, a soft-deleted reviewer/fragrance, or a predicted_scale mismatched to the outcome's scale). Retrying with the same outcome id(s) already linked is a no-op success, not a conflict."
           },
           "422": {
             "description": "Validation Error",
@@ -2873,6 +2968,19 @@
             ],
             "title": "Sillage Rating"
           },
+          "worn_by_reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn By Reviewer Id",
+            "description": "ADR-011: reviewer the fragrance was worn by, when this rating is an \"on others\" opinion (e.g. a partner's reaction) rather than \"on me\". Omit or leave null for the default self-worn rating. Must differ from reviewer_id."
+          },
           "evaluated_at": {
             "anyOf": [
               {
@@ -2946,6 +3054,17 @@
               }
             ],
             "title": "Sillage Rating"
+          },
+          "worn_by_reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn By Reviewer Id"
           },
           "evaluated_at": {
             "type": "string",
@@ -3036,11 +3155,24 @@
               }
             ],
             "title": "Sillage Rating"
+          },
+          "worn_by_reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worn By Reviewer Id",
+            "description": "ADR-011: reviewer the fragrance was worn by, when this rating is an \"on others\" opinion (e.g. a partner's reaction) rather than \"on me\". Omit or leave null for the default self-worn rating. Must differ from reviewer_id."
           }
         },
         "type": "object",
         "title": "EvaluationUpdate",
-        "description": "Schema for updating an evaluation (PATCH semantics).\n\nEvery field defaults to `None` so a client can omit it to mean \"leave\nunchanged\"; `evaluation_service.update()` reads only the fields present\nin the request via `model_dump(exclude_unset=True)`. `notes`,\n`longevity_rating`, and `sillage_rating` back nullable columns\n(`Evaluation.notes`/`longevity_rating`/`sillage_rating`), so an explicit\n`null` for one of those is legitimate and clears it. `rating` backs a\nNOT NULL column and is additionally guarded below so an explicit `null`\nis rejected rather than reaching the database layer."
+        "description": "Schema for updating an evaluation (PATCH semantics).\n\nEvery field defaults to `None` so a client can omit it to mean \"leave\nunchanged\"; `evaluation_service.update()` reads only the fields present\nin the request via `model_dump(exclude_unset=True)`. `notes`,\n`longevity_rating`, `sillage_rating`, and `worn_by_reviewer_id` back\nnullable columns (`Evaluation.notes`/`longevity_rating`/\n`sillage_rating`/`worn_by_reviewer_id`), so an explicit `null` for one\nof those is legitimate: for `worn_by_reviewer_id` it reverts the rating\nto the default \"on me\" perspective. `rating` backs a NOT NULL column\nand is additionally guarded below so an explicit `null` is rejected\nrather than reaching the database layer.\n\n`worn_by_reviewer_id` cannot be validated against `reviewer_id` here\n(this schema has no `reviewer_id` field -- it is immutable via PATCH),\nso that self-reference check and the existence check both happen at\nthe API layer (api/evaluations.py), which already has the stored\nevaluation's `reviewer_id` on hand."
       },
       "ExplanationResponse": {
         "properties": {
@@ -3706,6 +3838,19 @@
             "maxLength": 2000,
             "minLength": 1,
             "title": "Identity Evidence"
+          },
+          "gtin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 14,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gtin"
           }
         },
         "additionalProperties": false,
@@ -4431,7 +4576,7 @@
           "outcome_recorded_by"
         ],
         "title": "PredictionView",
-        "description": "Serialized, (mostly) immutable prediction snapshot.\n\nEvery field is set once at creation except ``outcome_evaluation_id``,\n``outcome_observation_id``, and ``outcome_linked_at``, which start NULL\nand are set exactly once by a later, separate outcome-link call."
+        "description": "Serialized, (mostly) immutable prediction snapshot.\n\nEvery field is set once at creation except ``outcome_evaluation_id``,\n``outcome_observation_id``, ``outcome_linked_at``, and\n``outcome_recorded_by``, which start NULL and are set exactly once by a\nlater, separate outcome-link call."
       },
       "ProfileSummaryResponse": {
         "properties": {

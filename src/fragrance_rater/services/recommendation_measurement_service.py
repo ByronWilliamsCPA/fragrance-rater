@@ -239,8 +239,15 @@ class RecommendationMeasurementService:
                 or evaluation.reviewer_id != run.reviewer_id
                 or evaluation.fragrance_id != impression.fragrance_id
                 or self._naive_utc(evaluation.evaluated_at) < impression.shown_at
+                # ADR-011: an "on others" rating (worn_by_reviewer_id set) is
+                # run.reviewer_id's opinion of how the fragrance suits someone
+                # else, not evidence of their own preference; it must not be
+                # linkable as this recommendation's outcome. See the matching
+                # exclusion in recommendation_service.py and
+                # preference_history.py.
+                or evaluation.worn_by_reviewer_id is not None
             ):
-                message = "ordinary outcome must be a live encounter for this reviewer and version"
+                message = "ordinary outcome must be a live, on-me encounter for this reviewer and version"
                 raise MeasurementConflictError(message)
         if data.outcome_observation_id:
             controlled = await self.db.execute(

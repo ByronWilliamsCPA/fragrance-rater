@@ -381,6 +381,7 @@ END BASELINE DEVELOPMENT STANDARDS
 - **ADR-006**: Canonical version identity, source provenance, aliases, and taxonomy
 - **ADR-008**: Authentik/Traefik production trust boundary
 - **ADR-009**: Prospective evaluation with frozen checkpoints
+- **ADR-011**: Worn-by ("on others") evidence dimension, captured but excluded from scoring
 
 ### Current Delivery Sequence
 

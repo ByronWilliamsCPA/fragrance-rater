@@ -47,6 +47,7 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Controlled calibration | Merged, not deployment-verified | Program, enrollment, hidden repeat/holdout, presentation, observation, locking, reveal, and checkpoint flows exist |
 | React product workflow | P5 complete | Participant, manager, reporting, and operations workflows are merged; deployed rehearsal remains P6 work |
 | Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
+| Worn-by ("on others") evidence dimension | Implemented, capture only | Optional `worn_by_reviewer_id` on `Evaluation` per ADR-011; excluded from affinity/training-manifest scoring until a future milestone folds it in |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
 | Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |

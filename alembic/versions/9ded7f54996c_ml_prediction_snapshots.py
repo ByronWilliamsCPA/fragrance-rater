@@ -1,6 +1,6 @@
 """Type controlled-observation fields.
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: 9ded7f54996c
 Revises: f5c2d3e4a5b6
 Create Date: 2026-09-12
 
@@ -26,6 +26,14 @@ The new, wholly unrelated `prediction_snapshots` table (an immutable,
 model-agnostic record of a predicted rating, see ADR-009) is created by the
 following revision, 72fe56efd128, which depends on this one because its
 outcome-observation foreign key targets `calibration_observations.id`.
+
+# #EDGE: data-integrity: this revision id was originally `a1b2c3d4e5f6`,
+# a value that collided with another migration (fragella_lookups,
+# unrelated PR, same literal id, see 2c341c369192_fragella_lookups.py)
+# also merged to main - neither branch could see the other's new file at
+# review time. Renamed here to a genuinely random id; no deployed
+# environment had migrated to the original id (see the current-state
+# ledger reference above), so this rename carries no upgrade-path risk.
 """
 
 import logging
@@ -37,7 +45,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "a1b2c3d4e5f6"
+revision: str = "9ded7f54996c"
 down_revision: str | None = "f5c2d3e4a5b6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
