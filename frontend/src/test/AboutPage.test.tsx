@@ -78,6 +78,7 @@ describe('About / Methodology page', () => {
     render(<App />)
 
     const footerLink = await screen.findByRole('link', { name: 'About this project' })
+    expect(footerLink).toHaveAttribute('href', '/about')
     fireEvent.click(footerLink)
 
     expect(
