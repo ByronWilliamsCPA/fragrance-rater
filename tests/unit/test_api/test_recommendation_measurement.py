@@ -416,6 +416,46 @@ async def test_feedback_rejects_outcome_recorded_before_impression(
 
 
 @pytest.mark.asyncio
+async def test_feedback_rejects_an_on_others_evaluation_as_outcome(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-011: an "on others" evaluation is not this reviewer's own preference."""
+    reviewer_id, candidate_id = await seed_recommendable_catalog(test_app)
+    subject = await test_app.post(f"{API}/reviewers", json={"name": "Worn By"})
+    subject_id = subject.json()["id"]
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
+    created = await test_app.post(
+        f"{API}/recommendation-measurement/runs",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "limit": 1},
+    )
+    assert created.status_code == 201
+    impression_id = created.json()["impressions"][0]["id"]
+
+    on_others = await test_app.post(
+        f"{API}/evaluations",
+        headers=IDENTITY,
+        json={
+            "fragrance_id": candidate_id,
+            "reviewer_id": reviewer_id,
+            "rating": 4,
+            "worn_by_reviewer_id": subject_id,
+        },
+    )
+    assert on_others.status_code == 201
+
+    response = await test_app.post(
+        f"{API}/recommendation-measurement/impressions/{impression_id}/responses",
+        headers=IDENTITY,
+        json={
+            "sampling_state": "SAMPLED",
+            "outcome_evaluation_id": on_others.json()["id"],
+        },
+    )
+    assert response.status_code == 409
+
+
+@pytest.mark.asyncio
 async def test_concurrent_sqlite_feedback_never_leaks_database_error(
     test_app, monkeypatch: pytest.MonkeyPatch
 ) -> None:
