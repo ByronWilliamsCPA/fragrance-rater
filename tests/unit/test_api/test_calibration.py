@@ -647,6 +647,12 @@ async def test_participant_facing_payloads_never_expose_membership_internals(tes
     history = await test_app.get(f"{PREFIX}/history/{reviewer_id}", headers=RECORDER)
     assert history.status_code == 200
 
+    # Scope note: only the recorder-facing enrollment view and the participant
+    # history endpoint are checked here. `/mapping` (asserted separately in
+    # test_controlled_lifecycle_authorization_and_reveal) and `/checkpoints`
+    # are manager-only routes that legitimately return fragrance identity and
+    # are exempt from this participant-facing leak guard by design, not by
+    # oversight.
     for response in (enrollment_view, history):
         assert _find_forbidden_keys(response.json(), forbidden) == []
         assert "HIDDEN_REPEAT" not in response.text
