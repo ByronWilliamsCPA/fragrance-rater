@@ -506,6 +506,10 @@ async def history(
             "rating": e.rating,
             "notes": e.notes,
             "observed_at": e.evaluated_at.isoformat(),
+            # ADR-011: surfaced so a consumer can tell an "on others" entry
+            # (evidence only, excluded from this reviewer's own affinity
+            # scoring) apart from an ordinary "on me" rating.
+            "worn_by_reviewer_id": e.worn_by_reviewer_id,
         }
         for e in ordinary
     ]
