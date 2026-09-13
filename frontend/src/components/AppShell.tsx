@@ -1,6 +1,6 @@
 import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import type { Access, Capabilities } from '../api/types'
-import { navigationItems, type Route } from '../routing/routes'
+import { navigationItems, pathFor, type Route } from '../routing/routes'
 
 type AppShellProps = {
   access: Access
@@ -49,7 +49,7 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       </header>
       <nav aria-label="Main navigation">
         {navigationItems
-          .filter((item) => !item.managerOnly || capabilities.canManagePrograms)
+          .filter((item) => !item.hiddenFromNav && (!item.managerOnly || capabilities.canManagePrograms))
           .map((item) => (
             <a
               key={item.route}
@@ -64,7 +64,12 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <main ref={mainContent} id="main-content" tabIndex={-1}>
         {children}
       </main>
-      <footer>Ordinary encounters and controlled observations share one preference history.</footer>
+      <footer>
+        Ordinary encounters and controlled observations share one preference history.{' '}
+        <a href={pathFor('about')} onClick={(event) => follow(event, 'about')}>
+          About this project
+        </a>
+      </footer>
     </div>
   )
 }

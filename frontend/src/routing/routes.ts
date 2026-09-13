@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type Route = 'home' | 'calibration' | 'recommendations' | 'ratings' | 'programs'
+export type Route = 'home' | 'calibration' | 'recommendations' | 'ratings' | 'programs' | 'about'
 
 export type NavigationItem = {
   route: Route
   label: string
   path: string
   managerOnly?: boolean
+  hiddenFromNav?: boolean
 }
 
 export const navigationItems: NavigationItem[] = [
@@ -15,6 +16,7 @@ export const navigationItems: NavigationItem[] = [
   { route: 'recommendations', label: 'Recommendations', path: '/recommendations' },
   { route: 'ratings', label: 'My Ratings', path: '/ratings' },
   { route: 'programs', label: 'Program setup', path: '/programs', managerOnly: true },
+  { route: 'about', label: 'About', path: '/about', hiddenFromNav: true },
 ]
 
 export function routeFromPath(pathname: string): Route {

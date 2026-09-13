@@ -468,6 +468,42 @@ footer {
     flex-direction: column;
   }
 }
+.hero-statement {
+  font-family: Georgia, serif;
+  font-size: clamp(20px, 3vw, 28px);
+  color: #234f45;
+  margin: 4px 0 0;
+}
+.flow-steps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+  margin: 18px 0;
+}
+.flow-step {
+  flex: 1 1 150px;
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #dbe0d5;
+  border-radius: 8px;
+  background: #f8faf6;
+  text-align: center;
+}
+.flow-arrow {
+  align-self: center;
+  color: #55746a;
+  font-size: 20px;
+}
+@media (max-width: 760px) {
+  .flow-steps {
+    flex-direction: column;
+  }
+  .flow-arrow {
+    transform: rotate(90deg);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .loading-mark {
     animation: none;
