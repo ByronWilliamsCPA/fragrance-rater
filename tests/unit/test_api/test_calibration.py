@@ -502,3 +502,178 @@ async def test_fragella_usage_reports_unconfigured_key_as_502(test_app):
     ):
         response = await test_app.get(f"{PREFIX}/fragella/usage", headers=MANAGER)
     assert response.status_code == 502
+
+
+def _find_forbidden_keys(value: object, forbidden: set[str]) -> list[str]:
+    """Recursively collect any forbidden dict keys found at any depth."""
+    found: list[str] = []
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if key in forbidden:
+                found.append(key)
+            found.extend(_find_forbidden_keys(nested, forbidden))
+    elif isinstance(value, list):
+        for item in value:
+            found.extend(_find_forbidden_keys(item, forbidden))
+    return found
+
+
+@pytest.mark.asyncio
+async def test_participant_facing_payloads_never_expose_membership_internals(test_app):
+    """Guards against a future change that spreads `**membership.__dict__` (or
+    similar) into an evaluator-facing response and leaks the concealed
+    experimental-control fields (role, repeat_of_id, group_name)."""
+    forbidden = {"role", "repeat_of_id", "group_name", "membership_id"}
+
+    reviewer = await test_app.post(
+        "/api/v1/reviewers", json={"name": "Evaluator"}, headers=MANAGER
+    )
+    fragrance_a = await test_app.post(
+        "/api/v1/fragrances",
+        json={
+            "name": "Concealed identity",
+            "brand": "Concealed house",
+            "concentration": "EDT",
+            "gender_target": "Unisex",
+            "primary_family": "woody",
+            "subfamily": "aromatic",
+        },
+        headers=MANAGER,
+    )
+    fragrance_b = await test_app.post(
+        "/api/v1/fragrances",
+        json={
+            "name": "Future holdout",
+            "brand": "Concealed house",
+            "concentration": "EDT",
+            "gender_target": "Unisex",
+            "primary_family": "woody",
+            "subfamily": "aromatic",
+        },
+        headers=MANAGER,
+    )
+    assert (
+        reviewer.status_code
+        == fragrance_a.status_code
+        == fragrance_b.status_code
+        == 201
+    )
+    program = await test_app.post(
+        f"{PREFIX}/programs", json={"name": "Protocol", "version": "1"}, headers=MANAGER
+    )
+    assert program.status_code == 201
+    program_id = program.json()["id"]
+
+    baseline_member = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members",
+        json={
+            "fragrance_id": fragrance_a.json()["id"],
+            "role": "UNIVERSAL_BASELINE",
+            "identity_evidence": "Label verified",
+            "group_name": "Baseline",
+        },
+        headers=MANAGER,
+    )
+    assert baseline_member.status_code == 201
+    repeat_member = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members",
+        json={
+            "fragrance_id": fragrance_a.json()["id"],
+            "role": "HIDDEN_REPEAT",
+            "repeat_of_id": baseline_member.json()["id"],
+            "identity_evidence": "Label verified",
+            "group_name": "Repeat",
+        },
+        headers=MANAGER,
+    )
+    assert repeat_member.status_code == 201
+    holdout_member = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members",
+        json={
+            "fragrance_id": fragrance_b.json()["id"],
+            "role": "HOLDOUT",
+            "identity_evidence": "Label verified",
+            "group_name": "Holdout",
+        },
+        headers=MANAGER,
+    )
+    assert holdout_member.status_code == 201
+
+    activation = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER
+    )
+    assert activation.status_code == 200
+    enrollment = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/enroll",
+        json={
+            "reviewer_id": reviewer.json()["id"],
+            "recorder_usernames": ["recorder"],
+        },
+        headers=MANAGER,
+    )
+    assert enrollment.status_code == 201
+    enrollment_id = enrollment.json()["id"]
+    url = f"{PREFIX}/enrollments/{enrollment_id}"
+
+    view = await test_app.get(url, headers=RECORDER)
+    assert view.status_code == 200
+    presentation_ids = [item["id"] for item in view.json()["presentations"]]
+    assert len(presentation_ids) == 3
+
+    for presentation_id in presentation_ids:
+        presentation_url = f"{PREFIX}/presentations/{presentation_id}"
+        response = await test_app.post(
+            f"{presentation_url}/observations",
+            json={
+                "stage": "BLOTTER",
+                "detected": True,
+                "intensity": 3,
+                "liking": 8,
+            },
+            headers=RECORDER,
+        )
+        assert response.status_code == 201
+        lock = await test_app.post(f"{presentation_url}/lock/BLOTTER", headers=RECORDER)
+        assert lock.status_code == 200
+
+    lock_skin_plan = await test_app.post(f"{url}/lock-skin-plan", headers=RECORDER)
+    assert lock_skin_plan.status_code == 200
+    reveal = await test_app.post(f"{url}/reveal", headers=RECORDER)
+    assert reveal.status_code == 200
+
+    enrollment_view = await test_app.get(url, headers=RECORDER)
+    assert enrollment_view.status_code == 200
+    reviewer_id = reviewer.json()["id"]
+    history = await test_app.get(f"{PREFIX}/history/{reviewer_id}", headers=RECORDER)
+    assert history.status_code == 200
+
+    # Scope note: only the recorder-facing enrollment view and the participant
+    # history endpoint are checked here. `/mapping` (asserted separately in
+    # test_controlled_lifecycle_authorization_and_reveal) and `/checkpoints`
+    # are manager-only routes that legitimately return fragrance identity and
+    # are exempt from this participant-facing leak guard by design, not by
+    # oversight.
+    for response in (enrollment_view, history):
+        assert _find_forbidden_keys(response.json(), forbidden) == []
+        assert "HIDDEN_REPEAT" not in response.text
+        assert "repeat_of_id" not in response.text
+        assert "group_name" not in response.text
+
+    member_list = await test_app.get(
+        f"{PREFIX}/programs/{program_id}/members", headers=MANAGER
+    )
+    assert member_list.status_code == 200
+    members_by_id = {item["id"]: item for item in member_list.json()}
+    assert members_by_id[repeat_member.json()["id"]]["role"] == "HIDDEN_REPEAT"
+    assert (
+        members_by_id[repeat_member.json()["id"]]["repeat_of_id"]
+        == baseline_member.json()["id"]
+    )
+    assert members_by_id[repeat_member.json()["id"]]["group_name"] == "Repeat"
+    assert members_by_id[baseline_member.json()["id"]]["role"] == "UNIVERSAL_BASELINE"
+    assert members_by_id[holdout_member.json()["id"]]["role"] == "HOLDOUT"
+
+    denied = await test_app.get(
+        f"{PREFIX}/programs/{program_id}/members", headers=RECORDER
+    )
+    assert denied.status_code == 403

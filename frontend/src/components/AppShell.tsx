@@ -13,6 +13,7 @@ type AppShellProps = {
 export function AppShell({ access, capabilities, route, navigate, children }: AppShellProps) {
   const mainContent = useRef<HTMLElement>(null)
   const previousRoute = useRef(route)
+  const aboutNavItem = navigationItems.find((item) => item.route === 'about')
   const role = capabilities.canManagePrograms
     ? 'Manager'
     : capabilities.canRecordCalibration
@@ -49,7 +50,9 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       </header>
       <nav aria-label="Main navigation">
         {navigationItems
-          .filter((item) => !item.managerOnly || capabilities.canManagePrograms)
+          .filter(
+            (item) => !item.hiddenFromNav && (!item.managerOnly || capabilities.canManagePrograms)
+          )
           .map((item) => (
             <a
               key={item.route}
@@ -64,7 +67,14 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <main ref={mainContent} id="main-content" tabIndex={-1}>
         {children}
       </main>
-      <footer>Ordinary encounters and controlled observations share one preference history.</footer>
+      <footer>
+        Ordinary encounters and controlled observations share one preference history.{' '}
+        {aboutNavItem && (
+          <a href={aboutNavItem.path} onClick={(event) => follow(event, aboutNavItem.route)}>
+            About this project
+          </a>
+        )}
+      </footer>
     </div>
   )
 }

@@ -3,6 +3,7 @@ import './App.css'
 import { AppShell } from './components/AppShell'
 import { ErrorState, LoadingState } from './components/PageState'
 import { useAppData } from './hooks/useAppData'
+import { AboutPage } from './pages/AboutPage'
 import { CalibrationPage } from './pages/CalibrationPage'
 import { HomePage } from './pages/HomePage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
@@ -59,6 +60,7 @@ function App() {
           reload={appData.reload}
         />
       )}
+      {route === 'about' && <AboutPage />}
     </AppShell>
   )
 }

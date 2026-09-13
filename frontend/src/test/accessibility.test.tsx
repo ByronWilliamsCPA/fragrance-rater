@@ -50,4 +50,12 @@ describe('P3 accessibility baseline', () => {
     )
     expectAccessibleControls()
   })
+
+  it('provides labelled controls and unique ids on the About page', async () => {
+    window.history.replaceState({}, '', '/about')
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'How this project learns your taste' })
+    expectAccessibleControls()
+  })
 })
