@@ -9,24 +9,29 @@ V3.1 baseline/holdout resolution hit by hand (see docs/planning/evidence/
 baseline-v3.1-parfumo-source-resolution.md) - a same-name ambiguity Parfumo
 alone did not resolve, or a concentration/year Parfumo did not publish.
 
-# #ASSUME: external-resources: this client is built from Fragella's own
-# published API documentation (https://api.fragella.com/docs.html, read
-# 2026-09-12), not verified against a live authenticated response - no API
-# key was available in this environment. Response field names/casing
-# (`Name`, `Brand`, `Year`, `OilType`, `General Notes`, `Notes.Top/Middle/
-# Base`, `Confidence`) and the unpaginated response envelope (a bare list
-# vs. an object) are the documentation's best description, not something
-# fetched and inspected directly - unlike ParfumoScraper, whose selectors
-# were checked against real live pages. This mirrors the exact kind of gap
-# that caused ParfumoScraper.search() to silently break against the live
-# site (see its docstring): treat this integration as unverified until a
-# real API key is used to confirm parsing against an actual response, and
-# do not extend it further on the assumption the documented shape is
-# already correct.
-# #VERIFY: smoke-test search()/usage() against a live key before relying on
-# this for a real gap-filling decision; add regression fixtures from that
-# real response once one is available, the same way Parfumo's fixtures
-# were built from verified live markup.
+# #ASSUME: external-resources: verified 2026-09-12 against a live
+# authenticated `/fragrances?search=` and `/usage` call (see
+# tests/unit/test_services/test_fragella_client.py's
+# `LIVE_VERIFIED_SEARCH_RESPONSE` fixture, transcribed field-for-field from
+# that real response). Confirmed correct: the unpaginated bare-list
+# envelope, `_id`/`Name`/`Brand`/`OilType`/`Gender`/`General Notes`/
+# `Confidence`, and the full `/usage` shape (plan/billing_period/limit/
+# usage). Confirmed WRONG and fixed here: `Year` is returned as a numeric
+# string (`"2018"`), not an int as documented, so `_parse_result` now
+# accepts both and coerces the string form; `Notes.Top/Middle/Base` are
+# lists of `{"name": ..., "imageUrl": ...}` objects, not plain strings as
+# documented, so `_str_list` now extracts `.get("name")` from an object
+# entry as well as accepting a bare string, on the theory that a live
+# vendor API silently reshaping a field entirely (rather than just adding
+# one) is unlikely, so accepting both forms is safer than assuming the
+# live shape is now permanent. Still unconfirmed: `FragellaResult`
+# intentionally does not mirror several fields the live response does
+# carry (`Country`, `Price`, `Main Accords`, `Season Ranking`/`Occasion
+# Ranking`) - that is a scoping choice (this client keeps only what
+# disambiguation needs), not a gap.
+# #VERIFY: if a future live response is inspected again, diff it against
+# `LIVE_VERIFIED_SEARCH_RESPONSE` and update both the fixture and this
+# marker rather than trusting the vendor docs over an actual response.
 
 Nothing this client returns is written into the Fragrance catalog or a
 SourceSnapshot automatically - adopting Fragella data as a stored source
@@ -42,6 +47,49 @@ from enum import Enum
 import httpx
 
 from fragrance_rater.core.config import settings
+
+
+def _str_list(value: object) -> list[str]:
+    """Coerce a `Notes.Top/Middle/Base`-shaped value to a list of names.
+
+    # #ASSUME: external-resources: a live response was observed to carry
+    # each entry as {"name": ..., "imageUrl": ...} rather than the
+    # documented bare string; accept both so a future reversion to the
+    # documented shape, or a mix of the two, still parses.
+    """
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for entry in value:
+        if isinstance(entry, str) and entry.strip():
+            result.append(entry)
+        elif isinstance(entry, dict):
+            entry_dict: dict[str, object] = entry
+            name = entry_dict.get("name")
+            if isinstance(name, str) and name.strip():
+                result.append(name)
+    return result
+
+
+def _optional_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value.strip() else None
+
+
+def _optional_year(value: object) -> int | None:
+    """Coerce a `Year` value to an int, or None if it cannot be trusted.
+
+    # #ASSUME: external-resources: a live response was observed to return
+    # this as a numeric string ("2018"), not the documented int. Coerce a
+    # digit-only string; never guess on anything else (e.g. "2018-2020" or
+    # "unknown").
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
 
 
 class FragellaErrorCode(Enum):
@@ -286,17 +334,7 @@ class FragellaClient:
         raw_id = item.get("_id")
         raw_notes = item.get("Notes")
         notes: dict[str, object] = raw_notes if isinstance(raw_notes, dict) else {}
-
-        def _str_list(value: object) -> list[str]:
-            if not isinstance(value, list):
-                return []
-            return [entry for entry in value if isinstance(entry, str)]
-
-        def _optional_str(value: object) -> str | None:
-            return value if isinstance(value, str) and value.strip() else None
-
-        year_raw = item.get("Year")
-        year = year_raw if isinstance(year_raw, int) else None
+        year = _optional_year(item.get("Year"))
 
         return FragellaResult(
             id=str(raw_id) if raw_id is not None else name,

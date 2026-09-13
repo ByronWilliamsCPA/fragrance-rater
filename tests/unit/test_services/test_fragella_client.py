@@ -1,11 +1,15 @@
 """Tests for the Fragella reference-lookup client.
 
-Fixture provenance: response shapes below are modeled on Fragella's own
-published API documentation (https://api.fragella.com/docs.html, read
-2026-09-12) - not a live authenticated response, since no API key was
-available in this environment. See fragella_client.py's module docstring
-for why this integration is explicitly flagged as documentation-derived
-rather than live-verified, unlike ParfumoScraper's fixtures.
+Fixture provenance: `SAMPLE_SEARCH_RESPONSE` below is modeled on Fragella's
+own published API documentation (https://api.fragella.com/docs.html, read
+2026-09-12); it exercises the paginated-envelope and error-envelope paths,
+which were never live-verified either way. `LIVE_VERIFIED_SEARCH_RESPONSE`
+was transcribed field-shape-for-field-shape from a real, live authenticated
+`/fragrances?search=Aventus` call made 2026-09-12 (see fragella_client.py's
+module docstring) and exists specifically to catch the two places the
+documented shape and the live shape diverge: `Year` as a numeric string
+rather than an int, and `Notes.Top/Middle/Base` entries as `{"name": ...,
+"imageUrl": ...}` objects rather than plain strings.
 """
 
 from __future__ import annotations
@@ -48,6 +52,48 @@ SAMPLE_SEARCH_RESPONSE = [
         "General Notes": ["Ginger", "Tobacco"],
         "Notes": {"Top": ["Ginger"], "Middle": ["Hazelnut"], "Base": ["Tobacco"]},
         "Confidence": "low",
+    },
+]
+
+
+# A single, real Aventus search result, field-shape-for-field-shape as
+# returned by a live authenticated call. Trimmed to the fields
+# FragellaResult captures; values are the vendor's own catalog data for a
+# well-known, publicly documented fragrance, not anything sensitive.
+LIVE_VERIFIED_SEARCH_RESPONSE = [
+    {
+        "_id": "aventus-creed",
+        "Name": "Aventus",
+        "Brand": "Creed",
+        "Year": "2018",
+        "OilType": "Eau de Parfum",
+        "Gender": "male",
+        "General Notes": ["Pineapple", "Birch", "Musk"],
+        "Notes": {
+            "Top": [
+                {
+                    "name": "Bergamot",
+                    "imageUrl": "https://cdn.fragella.com/note_images/Bergamot.png",
+                },
+                {
+                    "name": "Blackcurrant",
+                    "imageUrl": "https://cdn.fragella.com/note_images/Blackcurrant.png",
+                },
+            ],
+            "Middle": [
+                {
+                    "name": "Birch",
+                    "imageUrl": "https://cdn.fragella.com/note_images/Birch.png",
+                },
+            ],
+            "Base": [
+                {
+                    "name": "Musk",
+                    "imageUrl": "https://cdn.fragella.com/note_images/Musk.png",
+                },
+            ],
+        },
+        "Confidence": "high",
     },
 ]
 
@@ -263,6 +309,74 @@ class TestFragellaClientSearch:
             await client.search("Aimez-Moi Caron", limit=999)
 
         assert get_mock.call_args.kwargs["params"]["limit"] == FragellaClient.MAX_LIMIT
+
+    async def test_parses_the_live_verified_response_shape(self):
+        """Regression test for the two real parsing bugs found 2026-09-12:
+        `Year` as a numeric string and `Notes.*` entries as objects (see
+        LIVE_VERIFIED_SEARCH_RESPONSE's docstring)."""
+        client = _client()
+        mock_response = _mock_response(200, LIVE_VERIFIED_SEARCH_RESPONSE)
+        with patch.object(
+            httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+        ):
+            results = await client.search("Aventus")
+
+        assert len(results) == 1
+        assert results[0] == FragellaResult(
+            id="aventus-creed",
+            name="Aventus",
+            brand="Creed",
+            year=2018,
+            oil_type="Eau de Parfum",
+            gender="male",
+            general_notes=["Pineapple", "Birch", "Musk"],
+            top_notes=["Bergamot", "Blackcurrant"],
+            middle_notes=["Birch"],
+            base_notes=["Musk"],
+            confidence="high",
+        )
+
+    @pytest.mark.parametrize(
+        ("year_raw", "expected"),
+        [
+            (2018, 2018),  # documented int shape, still accepted
+            ("2018", 2018),  # live-observed numeric-string shape
+            (True, None),  # bool is an int subclass; must not become 1
+            ("unknown", None),  # non-digit string, never guess
+            ("2018-2020", None),  # a range, never guess
+            (None, None),
+        ],
+    )
+    async def test_year_coercion(self, year_raw, expected):
+        client = _client()
+        item = {**LIVE_VERIFIED_SEARCH_RESPONSE[0], "Year": year_raw}
+        mock_response = _mock_response(200, [item])
+        with patch.object(
+            httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+        ):
+            results = await client.search("Aventus")
+        assert results[0].year == expected
+
+    async def test_notes_accept_a_mix_of_string_and_object_entries(self):
+        """A note list could plausibly mix shapes across a transition
+        period; both forms in the same list must parse."""
+        client = _client()
+        item = {
+            **LIVE_VERIFIED_SEARCH_RESPONSE[0],
+            "Notes": {
+                "Top": ["Bergamot", {"name": "Blackcurrant", "imageUrl": "x"}],
+                "Middle": [],
+                "Base": [{"name": "Musk"}, {"imageUrl": "no-name-key"}],
+            },
+        }
+        mock_response = _mock_response(200, [item])
+        with patch.object(
+            httpx.AsyncClient, "get", AsyncMock(return_value=mock_response)
+        ):
+            results = await client.search("Aventus")
+        assert results[0].top_notes == ["Bergamot", "Blackcurrant"]
+        assert results[0].middle_notes == []
+        assert results[0].base_notes == ["Musk"]
 
 
 @pytest.mark.asyncio
