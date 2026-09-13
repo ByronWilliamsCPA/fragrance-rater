@@ -42,6 +42,9 @@ not a free-text label: partners in this program are already modeled as reviewers
   rated it for themselves, and must not suppress it as a future candidate.
 - `PreferenceHistoryService`'s ordinary training-manifest query (feeding ADR-007's affinity-v1
   adapter) reads only rows where `worn_by_reviewer_id IS NULL`.
+- `RecommendationMeasurementService._validate_outcome` refuses to link an "on others" evaluation
+  as a recommendation's measured `outcome_evaluation_id`: it is `reviewer_id`'s opinion of someone
+  else's experience, not evidence of their own preference for the recommended version.
 
 General reviewer-activity bookkeeping (evaluation counts in `ReviewerService`) is unaffected: the
 reviewer did author the row, so it still counts as their recorded activity.
@@ -75,6 +78,9 @@ if pursued.
 - Recommendation-service and preference-history tests cover that an "on others" row is excluded
   from a reviewer's own affinity profile, candidate exclusion, and training manifest, while still
   appearing in that reviewer's plain evaluation history and count.
+- A recommendation-measurement API test covers that an "on others" row is refused as a
+  recommendation's outcome link (409), and a calibration-history API test covers that the unified
+  history surface labels it with a non-NULL `worn_by_reviewer_id` rather than an ordinary rating.
 
 ## Related
 
