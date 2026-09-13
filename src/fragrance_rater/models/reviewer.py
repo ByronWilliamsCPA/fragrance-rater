@@ -86,7 +86,19 @@ class Reviewer(Base):
     # this reviewer is only the *subject* of these rows, not their owner,
     # so deleting this reviewer must not delete someone else's evaluation
     # (see the RESTRICT ondelete on Evaluation.worn_by_reviewer_id).
+    # #CRITICAL: data-integrity: without passive_deletes="all", SQLAlchemy's
+    # default ORM-side delete behavior loads and NULLs out every child
+    # Evaluation.worn_by_reviewer_id before issuing the DELETE, silently
+    # bypassing the DB-level ondelete="RESTRICT" FK constraint and turning
+    # a rejected delete into a quiet on-me rating for someone else's
+    # evaluation. passive_deletes="all" tells the ORM to leave these child
+    # rows alone and let the DELETE reach the database so the FK constraint
+    # actually fires.
+    # #VERIFY: tests/unit/test_models/test_reviewer.py exercises the
+    # RESTRICT path directly (delete a reviewer who is another reviewer's
+    # worn-by subject and assert IntegrityError).
     worn_by_evaluations: Mapped[list[Evaluation]] = relationship(
         back_populates="worn_by_reviewer",
         foreign_keys="[Evaluation.worn_by_reviewer_id]",
+        passive_deletes="all",
     )
