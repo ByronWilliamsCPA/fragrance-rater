@@ -295,7 +295,8 @@ pip-audit --require-hashes
 
 3. **Configure CI/CD secrets in Infisical:**
 
-   - `GCP_SA_KEY_BASE64`: Base64-encoded GCP service account key
+   - `GOOGLE_APPLICATION_CREDENTIALS_B64`: Base64-encoded GCP service account key (name read by
+     `scripts/validate_assuredoss.py`)
    - `CODECOV_TOKEN`: Codecov upload token (if using Codecov)
    - `SONAR_TOKEN`: SonarCloud token (if using SonarCloud)
 
