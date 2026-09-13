@@ -181,7 +181,7 @@ class Observation(Base):
         # (whitespace-trimmed) leading character is portable to both and is
         # exact for any valid JSON array. Keep this in sync with the
         # matching `op.create_check_constraint` in
-        # alembic/versions/a1b2c3d4e5f6_ml_prediction_snapshots.py.
+        # alembic/versions/9ded7f54996c_ml_prediction_snapshots.py.
         CheckConstraint(
             "perceived_notes IS NULL OR ltrim(CAST(perceived_notes AS TEXT)) LIKE '[%'",
             name="ck_calibration_observations_perceived_notes_is_array",
@@ -230,7 +230,7 @@ class Observation(Base):
     # constraint. `none_as_null=True` makes Python `None` map to SQL NULL,
     # matching what the constraint and the rest of this codebase assume.
     # #VERIFY: keep this in sync with the matching `sa.JSON(none_as_null=True)`
-    # in alembic/versions/a1b2c3d4e5f6_ml_prediction_snapshots.py.
+    # in alembic/versions/9ded7f54996c_ml_prediction_snapshots.py.
     perceived_notes: Mapped[list[str] | None] = mapped_column(
         JSON(none_as_null=True), nullable=True
     )

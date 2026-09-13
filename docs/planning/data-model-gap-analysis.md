@@ -14,8 +14,8 @@ schema, or route at the time it was written. Where this analysis recommends a du
 it is captured as [ADR-010](adr/adr-010-preference-learning-and-scenario-data-model.md).
 
 > **2026-09-12 update**: the product owner asked to begin ML testing against recommendation/
-> liking projections. Two things below are now **implemented** (migration `a1b2c3d4e5f6`; see
-> ADR-010's implementation-status note for exact scope): promoting the scalar/text
+> liking projections. Two things below are now **implemented** (migrations `9ded7f54996c` and
+> `72fe56efd128`; see ADR-010's implementation-status note for exact scope): promoting the scalar/text
 > `calibration_observations.responses` fields to typed columns (§6 Step 1, Risk 1), including
 > quarantining, rather than fabricating or crashing on, any legacy value that predates a new
 > column's bound, and adding a new, standalone `PredictionSnapshot` entity (§4). That
@@ -346,7 +346,7 @@ backfill, then tighten constraints only where safe.
 
 **Sequence (P0, before controlled baseline data collection scales up under milestone P1/F1):**
 
-- **Step 1 (IMPLEMENTED, migration `a1b2c3d4e5f6`): add typed columns to
+- **Step 1 (IMPLEMENTED, migration `9ded7f54996c`): add typed columns to
   `calibration_observations`** for `confidence`, `sweetness`, `freshness`, `density`,
   `familiarity` (kept as the original numeric scale here; superseded by the new controlled code
   proposed in step 2 below, which remains unimplemented), `dryness`, `clean_soapy`,
