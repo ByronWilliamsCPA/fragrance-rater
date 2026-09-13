@@ -154,7 +154,7 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
               .filter((reviewer) => reviewer.id !== reviewerId)
               .map((reviewer) => (
                 <option key={reviewer.id} value={reviewer.id}>
-                  {reviewer.name} (on {reviewer.name})
+                  {reviewer.name}
                 </option>
               ))}
           </select>

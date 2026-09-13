@@ -259,6 +259,9 @@ export type HistoryItem = {
   created_at?: string
   rating?: number
   liking?: number | null
+  // ADR-011: set only on an ORDINARY entry that is an "on others" rating;
+  // absent or null means the ordinary default, "on me".
+  worn_by_reviewer_id?: string | null
 }
 
 export type Capabilities = {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import App from '../App'
 const { get, post, patch } = vi.hoisted(() => ({
   get: vi.fn(),
@@ -207,7 +207,11 @@ describe('Calibration participant workflow', () => {
     expect(screen.getByRole('button', { name: 'Save new encounter' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/ratings')
     expect(screen.getByRole('main')).toHaveFocus()
-    await screen.findByRole('option', { name: 'Evaluator' })
+    // Scoped to the "Evaluator" select itself: the "Worn by" select on this
+    // same form also lists every reviewer (including one named "Evaluator"
+    // in this fixture), so an unscoped query can match both.
+    const evaluatorSelect = await screen.findByLabelText('Evaluator')
+    await within(evaluatorSelect).findByRole('option', { name: 'Evaluator' })
   })
 
   it('corrects an ordinary encounter without exposing its identifier', async () => {
