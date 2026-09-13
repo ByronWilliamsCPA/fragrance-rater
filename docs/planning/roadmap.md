@@ -1,6 +1,6 @@
 # Fragrance Rater Execution Roadmap
 
-> **Status**: Active mirror | **Updated**: 2026-09-11
+> **Status**: Active mirror | **Updated**: 2026-09-13
 
 The [Authoritative Project Plan](PROJECT-PLAN.md) owns scope, status, acceptance criteria,
 risks, and evidence. This page is a compact execution view and must be updated from that plan in
@@ -45,9 +45,12 @@ P0 ┬→ P1 ----------------------------------------------┐
 
 The former Phase 0–4 plan delivered the backend foundation, catalog and evaluation services,
 imports, deterministic recommendations, optional LLM explanations, and the first React and
-controlled-calibration workflows. Historical task checkboxes are not maintained because Git and
-the [current-state ledger](PROJECT-PLAN.md#3-current-state-ledger) provide the implementation
-record.
+controlled-calibration workflows. Within the completed P4 participant experience, the worn-by
+("on others") evidence dimension is now implemented for capture only: an optional
+`worn_by_reviewer_id` on `Evaluation` per ADR-011, excluded from affinity and training-manifest
+scoring until a future milestone folds it in. Historical task checkboxes are not maintained
+because Git and the [current-state ledger](PROJECT-PLAN.md#3-current-state-ledger) provide the
+implementation record.
 
 ## Change control
 
