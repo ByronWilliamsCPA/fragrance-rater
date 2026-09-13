@@ -80,14 +80,16 @@ def _optional_year(value: object) -> int | None:
 
     # #ASSUME: external-resources: a live response was observed to return
     # this as a numeric string ("2018"), not the documented int. Coerce a
-    # digit-only string; never guess on anything else (e.g. "2018-2020" or
-    # "unknown").
+    # decimal string (`str.isdecimal()`, not `str.isdigit()`: the latter
+    # also accepts non-decimal digit characters like superscript "²"
+    # that `int()` itself rejects with ValueError); never guess on
+    # anything else (e.g. "2018-2020" or "unknown").
     """
     if isinstance(value, bool):
         return None
     if isinstance(value, int):
         return value
-    if isinstance(value, str) and value.strip().isdigit():
+    if isinstance(value, str) and value.strip().isdecimal():
         return int(value.strip())
     return None
 

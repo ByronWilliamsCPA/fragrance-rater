@@ -344,6 +344,7 @@ class TestFragellaClientSearch:
             (True, None),  # bool is an int subclass; must not become 1
             ("unknown", None),  # non-digit string, never guess
             ("2018-2020", None),  # a range, never guess
+            ("²", None),  # digit-like but non-decimal; int() raises ValueError
             (None, None),
         ],
     )
