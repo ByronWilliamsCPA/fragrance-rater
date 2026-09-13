@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import App from '../App'
 const { get, post, patch } = vi.hoisted(() => ({
   get: vi.fn(),
@@ -207,7 +207,11 @@ describe('Calibration participant workflow', () => {
     expect(screen.getByRole('button', { name: 'Save new encounter' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/ratings')
     expect(screen.getByRole('main')).toHaveFocus()
-    await screen.findByRole('option', { name: 'Evaluator' })
+    // Scoped to the "Evaluator" select itself: the "Worn by" select on this
+    // same form also lists every reviewer (including one named "Evaluator"
+    // in this fixture), so an unscoped query can match both.
+    const evaluatorSelect = await screen.findByLabelText('Evaluator')
+    await within(evaluatorSelect).findByRole('option', { name: 'Evaluator' })
   })
 
   it('corrects an ordinary encounter without exposing its identifier', async () => {
@@ -240,10 +244,122 @@ describe('Calibration participant workflow', () => {
       expect(patch).toHaveBeenCalledWith('/evaluations/encounter-secret-id', {
         rating: 5,
         notes: 'Original',
+        worn_by_reviewer_id: null,
       })
     )
     expect(screen.queryByText('encounter-secret-id')).not.toBeInTheDocument()
   })
+
+  function mockRatingsPageWithPartner(overrides: Record<string, unknown> = {}) {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [
+          { id: 'r', name: 'Evaluator' },
+          { id: 'partner', name: 'Partner' },
+        ],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [],
+        '/evaluations': [],
+        '/fragrances': [{ id: 'f-1', name: 'Scent', brand: 'House', concentration: 'EDP' }],
+        ...overrides,
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+  }
+
+  async function fillOrdinaryEncounterForm() {
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+    // The Evaluator change kicks off its own task.run(loadHistory); wait for
+    // it to finish (the button re-enables) before clicking, since fireEvent
+    // is a no-op against a disabled button.
+    const searchButton = await screen.findByRole('button', { name: 'Search catalog' })
+    await waitFor(() => expect(searchButton).toBeEnabled())
+    fireEvent.click(searchButton)
+    await screen.findByRole('option', { name: /Scent/ })
+    fireEvent.change(screen.getByLabelText('Fragrance version'), { target: { value: 'f-1' } })
+    fireEvent.change(screen.getByLabelText('Rating (1–5)'), { target: { value: '4' } })
+  }
+
+  it('includes the selected worn-by reviewer id in the create payload', async () => {
+    mockRatingsPageWithPartner()
+    window.history.replaceState({}, '', '/ratings')
+    await fillOrdinaryEncounterForm()
+    fireEvent.change(screen.getByLabelText('Worn by'), { target: { value: 'partner' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save new encounter' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/evaluations',
+        expect.objectContaining({ worn_by_reviewer_id: 'partner' })
+      )
+    )
+  })
+
+  it('submits worn_by_reviewer_id as null when left as Myself', async () => {
+    mockRatingsPageWithPartner()
+    window.history.replaceState({}, '', '/ratings')
+    await fillOrdinaryEncounterForm()
+    fireEvent.click(screen.getByRole('button', { name: 'Save new encounter' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith(
+        '/evaluations',
+        expect.objectContaining({ worn_by_reviewer_id: null })
+      )
+    )
+  })
+
+  it('excludes the selected evaluator from the worn-by options', async () => {
+    mockRatingsPageWithPartner()
+    window.history.replaceState({}, '', '/ratings')
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+
+    const wornBySelect = screen.getByLabelText('Worn by')
+    expect(
+      within(wornBySelect).queryByRole('option', { name: 'Evaluator' })
+    ).not.toBeInTheDocument()
+    expect(within(wornBySelect).getByRole('option', { name: 'Partner' })).toBeInTheDocument()
+  })
+
+  it('renders the on-{name} indicator for a worn-by history entry', async () => {
+    mockRatingsPageWithPartner({
+      '/evaluations': [
+        {
+          id: 'e-1',
+          fragrance_id: 'f-1',
+          rating: 4,
+          evaluated_at: '2026-09-11T12:00:00',
+          worn_by_reviewer_id: 'partner',
+        },
+      ],
+    })
+    window.history.replaceState({}, '', '/ratings')
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+
+    expect(await screen.findByText('On Partner')).toBeInTheDocument()
+  })
+
+  it('clears the worn-by selection and warns when evaluator becomes the same person', async () => {
+    mockRatingsPageWithPartner()
+    window.history.replaceState({}, '', '/ratings')
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText('Evaluator'), { target: { value: 'r' } })
+    fireEvent.change(screen.getByLabelText('Worn by'), { target: { value: 'partner' } })
+
+    fireEvent.change(screen.getByLabelText('Evaluator'), { target: { value: 'partner' } })
+
+    expect(
+      await screen.findByText('Worn by was cleared because it now matches the evaluator.')
+    ).toBeInTheDocument()
+    expect(screen.getByLabelText('Worn by')).toHaveValue('')
+  })
+
   it('records recommendation interest with one interaction', async () => {
     post.mockImplementation((path: string) => {
       if (path === '/recommendation-measurement/runs') {

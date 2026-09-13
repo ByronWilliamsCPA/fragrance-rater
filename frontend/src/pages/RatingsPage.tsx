@@ -18,6 +18,8 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
   const [catalogQuery, setCatalogQuery] = useState('')
   const [history, setHistory] = useState<Encounter[]>([])
   const [reviewerId, setReviewerId] = useState('')
+  const [wornByReviewerId, setWornByReviewerId] = useState('')
+  const [wornByResetNotice, setWornByResetNotice] = useState(false)
   const [editingId, setEditingId] = useState('')
   const historyGeneration = useRef(0)
   const task = useTask()
@@ -47,6 +49,10 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     await api.post('/evaluations', {
       ...values,
       rating: Number(values.rating),
+      // ADR-011: the "Worn by" select's "Myself" option submits an empty
+      // string; the API expects that dimension omitted (or null) for the
+      // default on-me rating, not an empty string.
+      worn_by_reviewer_id: String(values.worn_by_reviewer_id || '') || null,
       evaluated_at: values.evaluated_at
         ? new Date(String(values.evaluated_at)).toISOString()
         : null,
@@ -54,6 +60,8 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     const savedReviewerId = String(values.reviewer_id)
     form.reset()
     setReviewerId(savedReviewerId)
+    setWornByReviewerId('')
+    setWornByResetNotice(false)
     await loadHistory(savedReviewerId)
     task.setNotice('New encounter saved.')
   }
@@ -63,6 +71,7 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     await api.patch(`/evaluations/${encounterId}`, {
       rating: Number(values.rating),
       notes: String(values.notes || '') || null,
+      worn_by_reviewer_id: String(values.worn_by_reviewer_id || '') || null,
     })
     setEditingId('')
     await loadHistory(reviewerId)
@@ -109,6 +118,16 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
             onChange={(event) => {
               const id = event.target.value
               setReviewerId(id)
+              // The Worn By select excludes whoever is chosen as Evaluator
+              // (rating yourself as "worn by" yourself is meaningless), so
+              // changing Evaluator to match the current Worn By selection
+              // would otherwise make that option vanish and the browser
+              // would silently fall back to "Myself" with no indication a
+              // prior choice was cleared. Reset explicitly and say so.
+              if (wornByReviewerId && wornByReviewerId === id) {
+                setWornByReviewerId('')
+                setWornByResetNotice(true)
+              }
               void task.run(() => loadHistory(id))
             }}
           >
@@ -142,6 +161,32 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
           </label>
         </div>
         <label>
+          Worn by
+          <select
+            name="worn_by_reviewer_id"
+            value={wornByReviewerId}
+            disabled={task.busy}
+            onChange={(event) => {
+              setWornByReviewerId(event.target.value)
+              setWornByResetNotice(false)
+            }}
+          >
+            <option value="">Myself (on me)</option>
+            {reviewers
+              .filter((reviewer) => reviewer.id !== reviewerId)
+              .map((reviewer) => (
+                <option key={reviewer.id} value={reviewer.id}>
+                  {reviewer.name}
+                </option>
+              ))}
+          </select>
+        </label>
+        {wornByResetNotice && (
+          <p role="status" className="notice">
+            Worn by was cleared because it now matches the evaluator.
+          </p>
+        )}
+        <label>
           Observations
           <textarea name="notes" />
         </label>
@@ -157,6 +202,13 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
               · {encounter.rating}/5
             </strong>
             <p>{formatUtc(encounter.evaluated_at)}</p>
+            {encounter.worn_by_reviewer_id && (
+              <p className="eyebrow">
+                On{' '}
+                {reviewers.find((reviewer) => reviewer.id === encounter.worn_by_reviewer_id)
+                  ?.name || 'another reviewer'}
+              </p>
+            )}
             {encounter.notes && <p>{encounter.notes}</p>}
             {editingId === encounter.id ? (
               <form
@@ -180,6 +232,23 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
                 <label>
                   Corrected observations
                   <textarea name="notes" defaultValue={encounter.notes ?? ''} />
+                </label>
+                <label>
+                  Worn by
+                  <select
+                    name="worn_by_reviewer_id"
+                    defaultValue={encounter.worn_by_reviewer_id ?? ''}
+                    disabled={task.busy}
+                  >
+                    <option value="">Myself (on me)</option>
+                    {reviewers
+                      .filter((reviewer) => reviewer.id !== reviewerId)
+                      .map((reviewer) => (
+                        <option key={reviewer.id} value={reviewer.id}>
+                          {reviewer.name}
+                        </option>
+                      ))}
+                  </select>
                 </label>
                 <div className="button-row">
                   <button disabled={task.busy}>Save correction</button>

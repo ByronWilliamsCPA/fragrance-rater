@@ -63,6 +63,12 @@ Each `Evaluation` POST creates a dated encounter on the original 1–5 scale. PA
 encounter. DELETE soft-deletes one encounter. Storage retains repeated encounters; recommendation
 policy selects contributions separately.
 
+An `Evaluation` optionally carries `worn_by_reviewer_id` (ADR-011): NULL (default) means the
+rating is "on me"; a different reviewer's id means `reviewer_id` is recording an "on others"
+opinion, e.g. a partner's reaction to how a fragrance smells on the other. This dimension is
+captured and returned through the same CRUD surface but is explicitly excluded from affinity
+scoring and training-manifest input until a future milestone extends ADR-007's adapter to use it.
+
 ### Controlled evidence
 
 The controlled domain contains:

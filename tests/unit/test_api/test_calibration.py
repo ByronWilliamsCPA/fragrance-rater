@@ -415,6 +415,55 @@ async def test_fragella_lookup_rejects_unknown_membership(test_app, draft_member
 
 
 @pytest.mark.asyncio
+async def test_history_surfaces_worn_by_reviewer_id_on_ordinary_entries(test_app):
+    """ADR-011: the unified history exposes on-others evaluations as such."""
+    reviewer = await test_app.post(
+        "/api/v1/reviewers", json={"name": "Evaluator"}, headers=MANAGER
+    )
+    reviewer_id = reviewer.json()["id"]
+    subject = await test_app.post(
+        "/api/v1/reviewers", json={"name": "Worn By"}, headers=MANAGER
+    )
+    subject_id = subject.json()["id"]
+    fragrance = await test_app.post(
+        "/api/v1/fragrances",
+        json={
+            "name": "History scent",
+            "brand": "History house",
+            "concentration": "EDP",
+            "gender_target": "Unisex",
+            "primary_family": "woody",
+            "subfamily": "aromatic",
+        },
+        headers=MANAGER,
+    )
+    fragrance_id = fragrance.json()["id"]
+    on_me = await test_app.post(
+        "/api/v1/evaluations",
+        headers=MANAGER,
+        json={"fragrance_id": fragrance_id, "reviewer_id": reviewer_id, "rating": 4},
+    )
+    assert on_me.status_code == 201
+    on_others = await test_app.post(
+        "/api/v1/evaluations",
+        headers=MANAGER,
+        json={
+            "fragrance_id": fragrance_id,
+            "reviewer_id": reviewer_id,
+            "rating": 3,
+            "worn_by_reviewer_id": subject_id,
+        },
+    )
+    assert on_others.status_code == 201
+
+    response = await test_app.get(f"{PREFIX}/history/{reviewer_id}", headers=MANAGER)
+    assert response.status_code == 200
+    entries = {entry["id"]: entry for entry in response.json()}
+    assert entries[on_me.json()["id"]]["worn_by_reviewer_id"] is None
+    assert entries[on_others.json()["id"]]["worn_by_reviewer_id"] == subject_id
+
+
+@pytest.mark.asyncio
 async def test_fragella_usage_requires_manager(test_app):
     response = await test_app.get(f"{PREFIX}/fragella/usage", headers=RECORDER)
     assert response.status_code == 403

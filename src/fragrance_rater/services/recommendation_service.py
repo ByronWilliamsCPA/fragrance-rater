@@ -146,6 +146,13 @@ class RecommendationService:
         # Fetch all evaluations with fragrance details
         # Critical finding 2: soft-delete filter on the evaluation aggregation.
         #
+        # ADR-011: worn_by_reviewer_id.is_(None) excludes "on others"
+        # ratings (e.g. a partner's opinion of how a fragrance smells on
+        # this reviewer) from this reviewer's own affinity profile. That
+        # evidence is captured for display but is not yet an accepted
+        # scoring input; folding it in would require its own versioned
+        # adapter and prospective comparison per ADR-007.
+        #
         # #CRITICAL: data integrity: Evaluation.deleted_at above only guards
         # the evaluation row itself; a live (non-soft-deleted) evaluation can
         # still point at a fragrance that has since been soft-deleted out of
@@ -169,6 +176,7 @@ class RecommendationService:
             .join(Fragrance, Evaluation.fragrance_id == Fragrance.id)
             .where(
                 Evaluation.reviewer_id == reviewer_id,
+                Evaluation.worn_by_reviewer_id.is_(None),
                 Evaluation.deleted_at.is_(None),
                 Fragrance.deleted_at.is_(None),
             )
@@ -442,8 +450,13 @@ class RecommendationService:
 
         # Exclude already-rated fragrances if requested
         if exclude_rated:
+            # ADR-011: an "on others" rating (worn_by_reviewer_id set) means
+            # reviewer_id smelled this fragrance on someone else, not that
+            # they rated it for themselves; it must not suppress the
+            # fragrance from this reviewer's own candidate set.
             rated_stmt = select(Evaluation.fragrance_id).where(
                 Evaluation.reviewer_id == reviewer_id,
+                Evaluation.worn_by_reviewer_id.is_(None),
                 Evaluation.deleted_at.is_(None),
             )
             rated_result = await self.session.execute(rated_stmt)
