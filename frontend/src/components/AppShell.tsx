@@ -1,6 +1,6 @@
 import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import type { Access, Capabilities } from '../api/types'
-import { navigationItems, pathFor, type Route } from '../routing/routes'
+import { navigationItems, type Route } from '../routing/routes'
 
 type AppShellProps = {
   access: Access
@@ -13,6 +13,7 @@ type AppShellProps = {
 export function AppShell({ access, capabilities, route, navigate, children }: AppShellProps) {
   const mainContent = useRef<HTMLElement>(null)
   const previousRoute = useRef(route)
+  const aboutNavItem = navigationItems.find((item) => item.route === 'about')
   const role = capabilities.canManagePrograms
     ? 'Manager'
     : capabilities.canRecordCalibration
@@ -49,7 +50,9 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       </header>
       <nav aria-label="Main navigation">
         {navigationItems
-          .filter((item) => !item.hiddenFromNav && (!item.managerOnly || capabilities.canManagePrograms))
+          .filter(
+            (item) => !item.hiddenFromNav && (!item.managerOnly || capabilities.canManagePrograms)
+          )
           .map((item) => (
             <a
               key={item.route}
@@ -66,9 +69,11 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       </main>
       <footer>
         Ordinary encounters and controlled observations share one preference history.{' '}
-        <a href={pathFor('about')} onClick={(event) => follow(event, 'about')}>
-          About this project
-        </a>
+        {aboutNavItem && (
+          <a href={aboutNavItem.path} onClick={(event) => follow(event, aboutNavItem.route)}>
+            About this project
+          </a>
+        )}
       </footer>
     </div>
   )
