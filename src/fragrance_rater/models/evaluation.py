@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -60,6 +60,16 @@ class Evaluation(Base):
     """
 
     __tablename__ = "evaluations"
+    __table_args__ = (
+        # ADR-011: mirrors migration da7c14f4a129's DB-level CHECK, same
+        # name, so a schema built by Base.metadata.create_all() (tests,
+        # fresh dev databases) enforces the identical rule as one built by
+        # running migrations against an existing database.
+        CheckConstraint(
+            "worn_by_reviewer_id IS NULL OR worn_by_reviewer_id != reviewer_id",
+            name="ck_evaluations_worn_by_reviewer_not_self",
+        ),
+    )
     # Every ordinary encounter is retained, including repeated fragrance ratings.
 
     id: Mapped[str] = mapped_column(
