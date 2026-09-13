@@ -11,7 +11,7 @@ The product owner asked to begin ML testing against recommendation/liking projec
 approved implementing, in one pass, the two changes this needed most:
 
 - **Typed controlled-observation fields** (first bullet of the Decision below): implemented in
-  migration `a1b2c3d4e5f6`. `calibration_observations.responses` is retired; `confidence`,
+  migration `9ded7f54996c`. `calibration_observations.responses` is retired; `confidence`,
   `sweetness`, `freshness`, `density`, `familiarity`, `dryness`, `clean_soapy`, `earthy_rooty`,
   `bodily_animalic`, `discomfort`, `opening_liking`, `drydown_liking`, `would_wear`, `would_buy`,
   `artistic_appreciation`, `projection`, `longevity_minutes`, `perceived_notes`, `likes`,

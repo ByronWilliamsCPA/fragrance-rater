@@ -32,7 +32,7 @@ def load_calibration_migration():
 
 
 def load_typing_migration():
-    return _load_migration("a1b2c3d4e5f6_ml_prediction_snapshots.py")
+    return _load_migration("9ded7f54996c_ml_prediction_snapshots.py")
 
 
 def load_prediction_snapshots_migration():
@@ -55,7 +55,7 @@ def _observations_table():
 
 
 def _upgrade_to_pre_typing_schema(connection):
-    """Build the schema exactly as it stood right before a1b2c3d4e5f6.
+    """Build the schema exactly as it stood right before 9ded7f54996c.
 
     ``Base.metadata`` reflects the current ORM models (post-``c731b42e9a01``
     fragrances/evaluations shape), so it must be rolled back to that
@@ -249,7 +249,7 @@ def test_typing_migration_downgrade_is_refused():
 
 
 def test_prediction_snapshots_migration_down_revision_points_at_typing_migration():
-    assert load_prediction_snapshots_migration().down_revision == "a1b2c3d4e5f6"
+    assert load_prediction_snapshots_migration().down_revision == "9ded7f54996c"
 
 
 def test_prediction_snapshots_table_is_created_with_constraints():

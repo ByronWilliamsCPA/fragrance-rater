@@ -1,18 +1,19 @@
 """Create prediction_snapshots table.
 
 Revision ID: 72fe56efd128
-Revises: a1b2c3d4e5f6
+Revises: 9ded7f54996c
 Create Date: 2026-09-12
 
-Split out of a1b2c3d4e5f6 (which promotes calibration_observations.responses
-to typed columns): this half is a wholly new table, `prediction_snapshots`,
-an immutable, model-agnostic record of a predicted rating for one
-evaluator/fragrance pair, frozen before the real outcome is known, with a
-one-time append-only outcome link so prediction error can be measured
-honestly (ADR-009). It depends on `calibration_observations` already having
-its final, typed shape (the outcome-observation foreign key below points at
-it), hence the split into a second, dependent revision rather than one
-migration doing both unrelated things.
+Split out of 9ded7f54996c (ml_prediction_snapshots, which promotes
+calibration_observations.responses to typed columns): this half is a
+wholly new table, `prediction_snapshots`, an immutable, model-agnostic
+record of a predicted rating for one evaluator/fragrance pair, frozen
+before the real outcome is known, with a one-time append-only outcome
+link so prediction error can be measured honestly (ADR-009). It depends
+on `calibration_observations` already having its final, typed shape (the
+outcome-observation foreign key below points at it), hence the split
+into a second, dependent revision rather than one migration doing both
+unrelated things.
 """
 
 from collections.abc import Sequence
@@ -22,7 +23,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "72fe56efd128"
-down_revision: str | None = "a1b2c3d4e5f6"
+down_revision: str | None = "9ded7f54996c"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
