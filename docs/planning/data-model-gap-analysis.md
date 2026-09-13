@@ -14,8 +14,8 @@ schema, or route at the time it was written. Where this analysis recommends a du
 it is captured as [ADR-010](adr/adr-010-preference-learning-and-scenario-data-model.md).
 
 > **2026-09-12 update**: the product owner asked to begin ML testing against recommendation/
-> liking projections. Two things below are now **implemented** (migration `9ded7f54996c`; see
-> ADR-010's implementation-status note for exact scope): promoting the scalar/text
+> liking projections. Two things below are now **implemented** (migrations `9ded7f54996c` and
+> `72fe56efd128`; see ADR-010's implementation-status note for exact scope): promoting the scalar/text
 > `calibration_observations.responses` fields to typed columns (§6 Step 1, Risk 1), including
 > quarantining, rather than fabricating or crashing on, any legacy value that predates a new
 > column's bound, and adding a new, standalone `PredictionSnapshot` entity (§4). That
