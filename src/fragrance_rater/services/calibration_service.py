@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+from datetime import timedelta
 from typing import TYPE_CHECKING, NoReturn
 
 from fastapi import HTTPException
@@ -261,11 +262,28 @@ class CalibrationService:
         holdouts = [m for m in members if m.role == "HOLDOUT"]
         secrets.SystemRandom().shuffle(holdouts)
         blocks = [baseline, holdouts]
+        # #CRITICAL: timing-dependency: presentations() orders sessions by
+        # (created_at, id) so the manager-facing mapping sheet reflects block
+        # order (baseline before holdout). `id` is a random UUID (identifier()
+        # below), which carries no creation-order signal, so a created_at tie
+        # between two sessions created back-to-back in this loop makes block
+        # order nondeterministic. Ties are rare but not impossible: some CI
+        # runners (observed on Windows) have wall-clock resolution coarse
+        # enough that two now_naive_utc() calls a few statements apart return
+        # the same value. #VERIFY: tests/unit/test_api/test_calibration.py's
+        # test_controlled_lifecycle_authorization_and_reveal asserts the
+        # mapping's first row is the baseline fragrance, not the holdout.
+        session_created_at = now_naive_utc()
         for block in blocks:
             for offset in range(0, len(block), data.session_size):
-                session = CalibrationSession(enrollment_id=enrollment.id, context={})
+                session = CalibrationSession(
+                    enrollment_id=enrollment.id,
+                    context={},
+                    created_at=session_created_at,
+                )
                 self.db.add(session)
                 await self.db.flush()
+                session_created_at += timedelta(microseconds=1)
                 for position, member in enumerate(
                     block[offset : offset + data.session_size], start=1
                 ):
