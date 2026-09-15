@@ -44,11 +44,20 @@ local ones. Fragella's own ranking or `SimilarityScore` is not exposed to the us
 logged internally for debugging or later comparison only.
 
 **Storage**: Fragella-sourced candidates are never written to `Fragrance` or any other durable
-catalog table. The API call and its result are logged only as part of the recommendation event
-(`RecommendationRun.source_snapshot`), consistent with ADR-012's Fragella storage boundary. If a
-user samples and rates a Fragella-discovered fragrance, it then needs its own canonical identity
-record, created the same way any other new fragrance would be (manual entry, or a
-manufacturer-confirmed record per ADR-012), not by copying Fragella's fields wholesale.
+catalog table, and a retained call log is never read back as a substitute for calling Fragella
+again, that is the specific thing Fragella's terms restrict, not retention itself. What is
+retained (the request and raw response for each `/match` or `/similar` call, extending
+`RecommendationRun.source_snapshot`) is kept as a quality-control record: evaluating how well a
+given call's returned candidates matched what the model expected, and refining future query
+construction (which accords/notes to select, how many, in what order) as calls accumulate. This
+mirrors the existing `fragella_lookups` pattern from ADR-002's 2026-09-12 amendment, where a
+lookup's query, status, and payload are retained as an audit record without that record ever being
+adopted into `Fragrance` or `SourceSnapshot` as data, or used to answer a later lookup in place of
+a fresh request. Every new recommendation event calls Fragella live regardless of what a prior log
+contains. If a user samples and rates a Fragella-discovered fragrance, it then needs its own
+canonical identity record, created the same way any other new fragrance would be (manual entry, or
+a manufacturer-confirmed record per ADR-012), not by copying Fragella's fields, retained or
+otherwise, wholesale.
 
 **Provenance labeling**: a Fragella-sourced candidate has not been through the same catalog
 curation as a locally-sourced one, and its underlying accords/notes may themselves be
@@ -68,7 +77,9 @@ Consequences of this amendment:
   and `/fragrances/similar` wrappers; neither exists today, only `/fragrances` search and `/usage`.
   `calculate_match_score` needs to accept a transient, non-persisted fragrance-shaped object, not
   only an ORM `Fragrance` row, since Fragella-sourced candidates are scored without ever being
-  written to the database.
+  written to the database. `RecommendationRun.source_snapshot` currently holds only a
+  `parfumo_url`/`data_source` summary per candidate; holding the full request/response needed for
+  the QC use above is a schema extension, not something the column already supports.
 
 ## Context
 
