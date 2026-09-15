@@ -37,6 +37,7 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md) | Preference-Learning and Scenario Data Model | Partially implemented | 2026-09-12 |
 | [ADR-011](./adr-011-worn-by-evidence-dimension.md) | Worn-By Evidence Dimension | Accepted | 2026-09-12 |
 | [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md) | Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance | Accepted | 2026-09-15 |
+| [ADR-013](./adr-013-external-ontology-and-standards-crosswalk.md) | External Ontology and Standards Crosswalk | Accepted; amends ADR-004, ADR-010 | 2026-09-15 |
 
 ## Creating ADRs
 
