@@ -38,6 +38,20 @@ being relied on, the same live-verification discipline `fragella_client.py`'s do
 applies to its search endpoint (it caught `Year` returning as a string and `Notes` returning as
 objects, not bare strings, versus the vendor documentation).
 
+Fragella's playground (`https://api.fragella.com/playground.html`) was checked directly
+(screen captures, 2026-09-15) and ruled out as a free way to do this verification. Every
+backend-endpoint panel, `/fragrances/match` and `/fragrances/similar` included, is labeled
+"Using a test API Key. Results are hardcoded," and the `/fragrances/match` panel ships
+pre-filled with the exact accord/note example from Fragella's own documentation. The playground's
+own banner claims its controls "execute standard backend REST API requests using your Secret API
+Key," but the per-field hardcoded-results label contradicts that for this purpose: typing an
+unrecognized note or accord into the form still returns the same canned example output, so it
+cannot observe real service behavior. The playground remains useful for confirming parameter
+names and generated curl shape, nothing more. The weight-scale and unrecognized-value questions
+below still require either spending one of the real 20 monthly requests through
+`fragella_client.py`, or asking Fragella support directly, which costs nothing against the quota
+and is worth trying first given how scarce that quota is.
+
 **Vocabulary alignment and unrecognized values**: `/notes` and `/accords` are search endpoints (a
 query term, `limit` defaulting to 10 and capped at 20), not a listing; there is no call that
 returns Fragella's full controlled vocabulary, and both endpoints draw on the same 20
