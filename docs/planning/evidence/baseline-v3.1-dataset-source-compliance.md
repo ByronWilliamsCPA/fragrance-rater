@@ -103,3 +103,12 @@ awareness since they used the same scraper/access pattern this finding now calls
   [Parfumo Source Resolution](baseline-v3.1-parfumo-source-resolution.md), plus whatever
   `WebSearch` and Fragella's capped quota can add** - not the fuller notes/accords/ratings
   corpus a direct scrape of the 43 resolved pages would have produced.
+
+## Follow-up: the WebSearch-only dataset that was built
+
+Per the product owner's follow-up ("this is a one time exercise, we don't need to build
+repeatable processes"), a one-time `WebSearch`-only research pass was run for all 43 entries -
+see [Public Dataset (WebSearch Pass)](baseline-v3.1-public-dataset-websearch.md) for the
+resulting notes/accords/family/perfumer/description content and its per-entry source citations.
+That pass added no code, scraper, or import path; it is a documentation artifact only, consistent
+with this document's recommendation above.
