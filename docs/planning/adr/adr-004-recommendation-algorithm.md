@@ -36,7 +36,15 @@ parameter names. The accord weight scale is not fully documented (the API's own 
 values in an 80-100 range with no stated bound) and must be verified against a live call before
 being relied on, the same live-verification discipline `fragella_client.py`'s docstring already
 applies to its search endpoint (it caught `Year` returning as a string and `Notes` returning as
-objects, not bare strings, versus the vendor documentation).
+objects, not bare strings, versus the vendor documentation). The accord parameter format is
+`name:minPercent`, comma-separated; multi-word accord names (`fresh spicy`, `white floral`) keep
+their internal space and Fragella's own lowercase casing rather than being converted to
+`snake_case`, `camelCase`, or title case. A secondary research pass reports `/match` (per
+Fragella's own creator, not independently confirmed here) uses exact canonical note names rather
+than the fuzzy text matching `/fragrances`'s ordinary search tolerates; treat this as a working
+assumption pending live confirmation, not a settled fact, but it means a resolved canonical value
+(see Vocabulary alignment, below), never a raw user-typed or internal-taxonomy string, is what
+should ever reach `/match`.
 
 Fragella's playground (`https://api.fragella.com/playground.html`) was checked directly
 (screen captures, 2026-09-15) and ruled out as a free way to do this verification. Every
@@ -53,30 +61,67 @@ below still require either spending one of the real 20 monthly requests through
 `fragella_client.py`, or asking Fragella support directly, which costs nothing against the quota
 and is worth trying first given how scarce that quota is.
 
-**Vocabulary alignment and unrecognized values**: `/notes` and `/accords` are search endpoints (a
-query term, `limit` defaulting to 10 and capped at 20), not a listing; there is no call that
-returns Fragella's full controlled vocabulary, and both endpoints draw on the same 20
-requests/month account-wide cap as `/match` and `/similar`. Pre-syncing a local vocabulary table
-by iterating those endpoints would cost most or all of that monthly budget before a single
-recommendation call runs, the same problem ADR-012 already identified for the catalog itself, one
-level down. Query construction therefore uses this project's own note/accord names (ADR-006's and
-ADR-010's taxonomy) directly, with no attempt to pre-validate them against Fragella's vocabulary.
-A cross-reference of which internal names Fragella actually recognizes can build up for free as a
-byproduct of the QC retention defined below (every retained `/match`/`/similar` response carries
-its own `Notes`/`Accords` fields on each returned fragrance), refining future query construction
-without spending additional quota on harvesting calls.
+**Vocabulary alignment**: `/notes` and `/accords` are search endpoints (a query term, `limit`
+defaulting to 10 and capped at 20), not a listing; there is no call that returns Fragella's full
+controlled vocabulary, and both endpoints draw on the same 20 requests/month account-wide cap as
+`/match` and `/similar`. Bulk-syncing a full local vocabulary table by iterating those endpoints
+would still cost most or all of that monthly budget before a single recommendation call runs, the
+same problem ADR-012 already identified for the catalog itself, one level down, and stays
+rejected for that reason.
+
+What query construction does instead: resolve each *distinct* internal note or accord (ADR-006's
+and ADR-010's taxonomy) to its Fragella canonical name once, the first time that concept is ever
+needed in a query, via a single `/notes?search=` or `/accords?search=` call, then cache the result
+permanently rather than re-querying it. This is a provider-vocabulary mapping (`provider`,
+`entity_type`, `internal_concept_id`, `provider_canonical_name`, `provider_occurrence`,
+`provider_description`, `verified_at`), not a local copy of Fragella's catalog: its size is
+bounded by how many distinct concepts this project's own taxonomy actually uses, not by
+Fragella's vocabulary size, and each row is resolved once, ever, not refreshed on a schedule. This
+still respects the quota (an incremental, one-time-per-concept cost spread across however many
+months it takes, not a bulk sync attempted in one) while directly fixing the mismatch problem
+instead of just tolerating it, which the earlier "send internal names and accept some won't match"
+approach did. A `/notes` search for a broad concept can return multiple distinct Fragella records
+rather than one, `Bergamot`, `Sicilian Bergamot`, `Calabrian Bergamot`, and `White Bergamot` are
+observed as separate entries with separate occurrence counts, not synonyms, so a resolution must
+pick one deliberately; default to the higher-occurrence, more generic entry unless a fragrance's
+known composition calls for a specific variant. Every retained `/match`/`/similar` response (see
+Storage, below) also carries its own `Notes`/`Accords` fields on each returned fragrance, a second,
+free source of confirmed canonical names as a byproduct of calls already being made, independent
+of the deliberate resolution calls above.
 
 What happens when a supplied accord or note is not recognized is undocumented and must be
-verified live rather than assumed. Fragella's general error-handling section distinguishes `400
-Bad Request` ("a required parameter... fails validation") from `404 Not Found` ("no fragrances
-were found"), which leaves open whether an unrecognized value rejects the whole call outright
-(400) or is silently absorbed into the AND-match and just yields sparser or empty results. This
-determines whether `/fragrances/match` needs a strip-and-retry fallback for a rejected term or can
-rely on the AND-match's own sparsity handling; resolve it in the same live call already planned
-for the accord-weight-scale question above, so the two questions cost one request against the
-monthly cap rather than two, and capture the result the way `fragella_client.py`'s existing
-`#ASSUME`/`#VERIFY` marker and `LIVE_VERIFIED_SEARCH_RESPONSE` fixture already do for the search
-endpoint.
+verified live rather than assumed, and actually splits into two distinct cases with different
+likely defaults, not one. Fragella's general error-handling section distinguishes `400 Bad
+Request` ("a required parameter... fails validation"), `404 Not Found` ("no fragrances were
+found"), and `429` (quota exceeded), among standard statuses. Malformed syntax that cannot be
+parsed at all, `woody:notanumber` for the accord weight, is the stronger candidate for a `400`,
+since the parameter itself fails validation before any lookup happens. A syntactically valid but
+unrecognized value, `general=ZZZNotARealNote`, is the stronger candidate for a `404` or an empty
+result set, since the criteria are well-formed but match nothing; neither hypothesis is confirmed.
+This determines whether `/fragrances/match` needs a strip-and-retry fallback for a rejected term
+(if 400) or can rely on the AND-match's own sparsity handling (if 404/empty).
+
+Resolve both cases in the same live-verification pass already planned for the accord-weight-scale
+question, rather than as separate work: a control call with a known-good canonical value, one with
+a syntactically valid but nonexistent note, one with a syntactically valid but nonexistent accord,
+and one with malformed accord syntax, four calls total, each isolating one variable. This spends a
+meaningful fraction of the monthly quota (4 of 20) in one sitting, so it should happen
+deliberately when `/fragrances/match` is actually being implemented, not before, matching this
+ADR's existing position that no additional Fragella work is needed during the current
+baseline-data phase. Capture each result the way `fragella_client.py`'s existing `#ASSUME`/
+`#VERIFY` marker and `LIVE_VERIFIED_SEARCH_RESPONSE` fixture already do for the search endpoint.
+Do not call `/usage` reflexively before every Fragella request to check remaining budget either;
+whether `/usage` itself counts against the monthly quota is unconfirmed, so check it deliberately,
+not automatically.
+
+**Qualitative accords are not the same as the numeric threshold `/match` accepts**: a returned
+fragrance's `Main Accords`/`Main Accords Percentage` fields expose qualitative strength buckets
+(`Dominant`, `Prominent`, `Moderate`, `Subtle`), while `/fragrances/match`'s `accords` parameter
+takes a numeric minimum percentage (`woody:50`). The relationship between the two is undocumented;
+do not derive a numeric threshold from a qualitative bucket, or vice versa, without an explicit
+vendor mapping. The qualitative buckets describe a *returned* fragrance's own composition; the
+numeric threshold constrains what gets *matched* in the first place. Treat them as two independent
+signals.
 
 **Terminology**: per ADR-007, the value shown to the user remains the "affinity score," never
 "confidence," "probability," or "predicted liking," for Fragella-sourced candidates exactly as for
@@ -120,12 +165,17 @@ Consequences of this amendment:
   written to the database. `RecommendationRun.source_snapshot` currently holds only a
   `parfumo_url`/`data_source` summary per candidate; holding the full request/response needed for
   the QC use above is a schema extension, not something the column already supports.
-- Follow-up (implementation, not part of this decision): the live verification call for
-  `/fragrances/match` must deliberately mix known-good and deliberately-unrecognized accord/note
-  terms in one request, so it resolves both the weight-scale question and the unrecognized-value
-  question above without spending two requests against the monthly cap. Record the result as a
-  fixture plus an `#ASSUME`/`#VERIFY` marker in the new wrapper, the same precedent
-  `fragella_client.py` already sets for the search endpoint.
+- Follow-up (implementation, not part of this decision): the live verification pass for
+  `/fragrances/match` should run the four isolated calls described above (control, unrecognized
+  note, unrecognized accord, malformed syntax) in one sitting. Record each result as a fixture
+  plus an `#ASSUME`/`#VERIFY` marker in the new wrapper, the same precedent `fragella_client.py`
+  already sets for the search endpoint.
+- Follow-up (implementation, not part of this decision): the vocabulary-alignment design above
+  needs a `provider_term_mapping` table (`provider`, `entity_type`, `internal_concept_id`,
+  `provider_canonical_name`, `provider_occurrence`, `provider_description`, `verified_at`) that
+  doesn't exist yet; this sits alongside `SourceSnapshot` conceptually (ADR-006's provenance
+  model) but is a distinct table, since it maps this project's ontology to an external provider's
+  vocabulary rather than recording where a fact came from.
 
 ## Context
 
