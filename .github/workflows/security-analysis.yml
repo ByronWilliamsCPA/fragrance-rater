@@ -41,7 +41,7 @@ permissions:
 jobs:
   security:
     name: Security Analysis
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-security-analysis.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-security-analysis.yml@cb0742cf00832b4e640a47dfca222047c2b70c1c  # main
     with:
       source-directory: 'src'
       python-version: '3.12'
@@ -72,7 +72,7 @@ jobs:
       contents: read
     steps:
       - name: Harden runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
         with:
           # This job makes no network calls of its own; it only reads the
           # needs.security result, so egress is blocked outright.
