@@ -45,6 +45,27 @@ authenticated response (no API key was available while building it) - see
 `fragella_client.py`'s module docstring for the explicit caveat and the smoke-test this ADR
 expects before it is relied on for a real gap-filling decision.
 
+## 2026-09-15 amendment: Parfumo, Fragrantica, and Basenotes all exclude Claude's crawler by name
+
+A dataset-building pass over the 33 baseline + 10 holdout fragrances (see
+[Dataset-Building Source Compliance](../../planning/evidence/baseline-v3.1-dataset-source-compliance.md))
+found that all three sites' `robots.txt` carry a `User-agent: ClaudeBot` block with
+`Disallow: /` - a site-wide exclusion naming Anthropic's crawler specifically, distinct from the
+generic Cloudflare-bot-challenge and `ai-train=no` concerns this ADR already recorded for
+Fragrantica. `ParfumoScraper`'s browser-like `User-Agent` (chosen "to avoid Cloudflare issues")
+was never a considered decision to route around this exclusion - nobody had checked for it - but
+now that it is known, continuing to fetch these sites' content pages from an agent session
+(through `ParfumoScraper` or otherwise) would mean disregarding an exclusion the operator wrote
+for this agent by name, regardless of what `User-Agent` string the request carries.
+
+**Pending product-owner decision**, this ADR's "current implemented source path" for Parfumo is
+suspended for agent-run fetching: `import-data parfumo-url`/`parfumo-search` should be run by a
+human operator, not from an autonomous or agent session, until this is resolved one way or
+another. `WebSearch` (a licensed indexed-snippet API, not a scrape of these sites) and Fragella
+(a distinct rate-limited API integration) are unaffected and remain available per their existing
+scope. Kaggle bulk import is likewise unaffected (a human downloads the CSV directly under
+Kaggle's own terms, not a crawl of any of the three sites above).
+
 ## Context
 
 ### Problem
