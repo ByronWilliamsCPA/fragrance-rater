@@ -285,6 +285,9 @@ output/
 tmp_cleanup/.tmp-*
 !tmp_cleanup/.gitkeep
 
+# Fragrance brand outreach letters and contact research: local only, never committed
+tmp_cleanup/letters/
+
 # SonarCloud
 .scannerwork/
 .sonar/
