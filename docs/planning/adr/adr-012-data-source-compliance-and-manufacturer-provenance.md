@@ -1,8 +1,99 @@
 # ADR-012: Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance
 
-> **Status**: Accepted; amends ADR-002
+> **Status**: Accepted; amends ADR-002; SourceSnapshot provenance specified by the
+> 2026-09-15 amendment below
 >
 > **Date**: 2026-09-15
+
+## 2026-09-15 amendment: SourceSnapshot per-field provenance
+
+Decision item 4 above says source evidence must record enough to answer what may be done
+with a fact, not just where it came from, and names `SourceSnapshot` as the mechanism to
+extend. This amendment specifies that extension, closing the gap a direct read of the
+current schema surfaced: `Fragrance.data_source` (`models/fragrance.py`) is a bare
+`String(20)` with exactly three values used anywhere in the codebase today, `manual`,
+`kaggle`, `parfumo`, none of which can represent this ADR's own new source tiers
+(manufacturer-provided, open-licensed, bounded lookup). It is also one column per
+fragrance row, not per fact, so there is no way to say concentration and release year are
+manufacturer-confirmed while brand attribution still traces to Wikidata for the same row.
+Separately, `Fragrance.parfumo_url` is a Parfumo-named column living directly on the core
+entity even though the generic `SourceSnapshot` table already exists for this purpose;
+`recommendation_measurement_service.py` already reads it into a key it calls `source_url`,
+treating it as generic in practice while the column name has not caught up.
+
+**`SourceSnapshot` (`models/calibration.py`) gains three fields and one relaxed
+constraint:**
+
+- `source_type: Mapped[str]`, CHECK-constrained (matching the existing
+  `PilotOperationalEvent.event_type` and `FragellaLookup.status` precedent for
+  enum-shaped string columns) to this ADR's own source hierarchy: `project_owned`,
+  `manufacturer_provided`, `open_licensed`, `bounded_lookup`, `excluded_legacy`. The last
+  value is for historical Parfumo-sourced snapshots being re-verified per Decision item 5;
+  no new snapshot may be written with it.
+- `permission_state: Mapped[str]`, CHECK-constrained, answering what may be done with the
+  fact rather than just where it came from: `retain_and_train` (project-owned,
+  manufacturer-provided, and open-licensed/CC0 facts, all supplied voluntarily or owned
+  outright), `retain_for_qc_only` (Fragella's bounded-lookup terms, mirroring the existing
+  rule from ADR-002's 2026-09-12 amendment that retained Fragella payloads are for quality
+  control, never a substitute for re-querying), `excluded_no_new_writes` (legacy Parfumo
+  rows).
+- `fields: Mapped[list[str]]` (JSON), required, no default. Names which `Fragrance`
+  column(s) this specific snapshot evidences, for example `["concentration",
+  "launch_year"]`. This is the mechanism that makes per-fact, rather than per-fragrance,
+  provenance possible: two `SourceSnapshot` rows for the same fragrance can now disagree
+  on which source is authoritative for which field, and both stay true at once.
+- `source_url: Mapped[str | None]`, relaxed from its current non-nullable `String(1000)`.
+  A manufacturer confirmation arriving as a letter reply, an email, or a phone call has no
+  URL to cite, and the column's current NOT NULL constraint cannot represent that.
+- New `source_reference: Mapped[str | None]` (`String(500)`), for exactly that case, for
+  example `"Email reply from Brand X contact, 2026-09-20"`. A CHECK constraint requires at
+  least one of `source_url` or `source_reference` to be non-null; a snapshot with neither
+  is not evidence of anything.
+
+**`Fragrance.data_source`'s value space widens** to add `manufacturer`, `wikidata`, and
+`fragella` alongside the existing `manual`, `kaggle`, and `parfumo` (the last retained only
+on historical rows; `ParfumoScraper`'s retirement per Decision item 1 means no new writes
+use it). Its role changes from sole provenance record to a lightweight display/summary
+label; the authoritative per-field record lives in `SourceSnapshot.fields` going forward.
+
+**`Fragrance.parfumo_url` is deprecated**, no new writes once `ParfumoScraper` is retired.
+New source URLs and references, including manufacturer confirmations, Wikidata entity
+links, and Fragella lookup citations, go into `SourceSnapshot.source_url` /
+`source_reference` instead of a source-specific column on the core entity. Dropping the
+column itself is a migration, tracked as follow-up alongside `ParfumoScraper`'s removal,
+not part of this decision.
+
+**Alternatives considered for this amendment.** Adding the new source tiers as more
+`data_source` string values and stopping there, no `SourceSnapshot` changes: rejected,
+does not solve the actual problem, a single column per fragrance still cannot express
+partial confirmation (concentration confirmed, attribution not), which is the normal case
+once manufacturer replies start arriving piecemeal. Giving `Fragrance` one column per
+confirmable fact (`concentration_source`, `launch_year_source`, and so on) instead of a
+`fields` array on `SourceSnapshot`: rejected, duplicates the append-only evidence ledger
+ADR-006 already established, and would need a new column every time a new confirmable
+fact is added; `SourceSnapshot.fields` keeps the ledger single and extensible.
+
+**Consequences of this amendment.** Positive: closes the Decision item 4 gap with
+concrete, implementable column definitions
+instead of leaving it as unspecified policy; the outreach letters' manufacturer replies
+now have a real landing spot that can express partial confirmation; `parfumo_url`'s
+Parfumo-specific naming stops leaking into the core entity.
+
+Trade-offs: existing `SourceSnapshot` rows (written only by `parfumo_scraper.py` today)
+need a backfill migration assigning `source_type="excluded_legacy"`,
+`permission_state="excluded_no_new_writes"`, and `fields=["concentration", "launch_year",
+"brand"]` (or a narrower list, whatever each row actually evidences) before the new NOT
+NULL `fields` column can be added without breaking existing rows.
+
+Follow-up (implementation, not part of this decision):
+
+- Write the Alembic migration: add `source_type`, `permission_state`, `fields`,
+  `source_reference` to `calibration_source_snapshots`; relax `source_url` to nullable;
+  backfill existing rows per the trade-off above; add the CHECK constraints.
+- Update `recommendation_measurement_service.py`'s read of `Fragrance.parfumo_url` (line
+  ~109) to read the newest relevant `SourceSnapshot` instead, once the column is dropped.
+- Widen `Fragrance.data_source`'s CHECK constraint (if any exists at the DB level; today
+  it is unconstrained at the column level) to the new value set.
 
 ## Context
 
