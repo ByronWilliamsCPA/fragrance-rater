@@ -44,9 +44,10 @@ backend-endpoint panel, `/fragrances/match` and `/fragrances/similar` included, 
 "Using a test API Key. Results are hardcoded," and the `/fragrances/match` panel ships
 pre-filled with the exact accord/note example from Fragella's own documentation. The playground's
 own banner claims its controls "execute standard backend REST API requests using your Secret API
-Key," but the per-field hardcoded-results label contradicts that for this purpose: typing an
-unrecognized note or accord into the form still returns the same canned example output, so it
-cannot observe real service behavior. The playground remains useful for confirming parameter
+Key," contradicting the per-field label; this was resolved empirically, not just by trusting one
+claim over the other: the project owner edited the form's accord/note/fragrance-name values
+directly and confirmed the returned output does not change, so the panel is confirmed hardcoded,
+not merely labeled as such. The playground remains useful for confirming parameter
 names and generated curl shape, nothing more. The weight-scale and unrecognized-value questions
 below still require either spending one of the real 20 monthly requests through
 `fragella_client.py`, or asking Fragella support directly, which costs nothing against the quota
