@@ -26,7 +26,7 @@ ADRs document significant architectural decisions along with their context and c
 | ADR | Title | Status | Date |
 | --- | ----- | ------ | ---- |
 | [ADR-001](./adr-001-initial-architecture.md) | Initial Architecture - Docker Compose Monolith | Accepted | 2025-12-28 |
-| [ADR-002](./adr-002-data-source-strategy.md) | Data Source Strategy - Tiered Acquisition | Accepted | 2025-12-28 |
+| [ADR-002](./adr-002-data-source-strategy.md) | Data Source Strategy - Tiered Acquisition | Amended by ADR-006, ADR-012 | 2025-12-28 |
 | [ADR-003](./adr-003-llm-integration.md) | LLM Integration - OpenRouter for Recommendations | Accepted | 2025-12-28 |
 | [ADR-004](./adr-004-recommendation-algorithm.md) | V1 Recommendation Scoring Algorithm | Partially superseded by ADR-007 | 2025-12-28 |
 | [ADR-005](./adr-005-controlled-calibration.md) | Controlled Calibration and Disclosure State | Accepted | 2026-09-11 |
@@ -36,6 +36,7 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-009](./adr-009-prospective-evaluation-and-checkpoints.md) | Prospective Evaluation and Frozen Checkpoints | Accepted | 2026-09-11 |
 | [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md) | Preference-Learning and Scenario Data Model | Partially implemented | 2026-09-12 |
 | [ADR-011](./adr-011-worn-by-evidence-dimension.md) | Worn-By Evidence Dimension | Accepted | 2026-09-12 |
+| [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md) | Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance | Accepted | 2026-09-15 |
 
 ## Creating ADRs
 
