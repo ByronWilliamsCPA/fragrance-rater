@@ -1,12 +1,74 @@
 # ADR-004: V1 Recommendation Scoring Algorithm
 
-> **Status**: Partially superseded by ADR-007
+> **Status**: Partially superseded by ADR-007; candidate discovery extended by the 2026-09-15
+> amendment (Fragella-sourced candidates, bounded by ADR-012)
 >
 > **Date**: 2025-12-28
 
 ## TL;DR
 
 Use a simple weighted scoring algorithm based on cumulative note/accord affinities derived from user ratings, with a "veto" mechanism for strongly disliked notes.
+
+## 2026-09-15 amendment: Fragella-sourced candidate discovery
+
+Candidates today come only from `get_fragrances()` (Step 3, below): the local catalog. Once a
+household has rated most of what is locally catalogued, the system runs out of new things to
+suggest. ADR-012 deprecates Parfumo as the source that used to grow that catalog and establishes
+Fragella as a bounded, non-storage lookup rather than a replacement bulk source. This amendment
+defines how Fragella participates in candidate generation under that constraint.
+
+When fresh discovery is wanted, call Fragella's `GET /fragrances/match` (preferred) or
+`GET /fragrances/similar` (name-seeded fallback, when no accord/note query makes sense) at
+recommendation time. Score every fragrance either call returns through the existing
+`calculate_match_score` function unchanged, the same weighted affinity and veto logic this ADR
+already defines for local candidates. Never rank by Fragella's own signal: `/match` returns no
+score at all, and `/similar`'s `SimilarityScore` is partly machine-imputed (Fragella's own
+documentation states accords and notes are ML-predicted at an estimated 80% confidence when
+community data is sparse). Merge the scored Fragella candidates with scored local candidates and
+return the combined top N, 3 by default for this discovery path, using the existing `limit`
+parameter on `get_recommendations`.
+
+**Query construction for `/fragrances/match`**: pass only the user's top 2-3 highest-affinity
+accords and top 3-5 highest-affinity notes from `UserProfile`, not the full profile. The endpoint
+applies conjunctive (AND) matching; a full profile would almost always return zero results. Map
+the internal `top`/`heart`/`base` note-position vocabulary to Fragella's `top`/`middle`/`base`
+parameter names. The accord weight scale is not fully documented (the API's own examples show
+values in an 80-100 range with no stated bound) and must be verified against a live call before
+being relied on, the same live-verification discipline `fragella_client.py`'s docstring already
+applies to its search endpoint (it caught `Year` returning as a string and `Notes` returning as
+objects, not bare strings, versus the vendor documentation).
+
+**Terminology**: per ADR-007, the value shown to the user remains the "affinity score," never
+"confidence," "probability," or "predicted liking," for Fragella-sourced candidates exactly as for
+local ones. Fragella's own ranking or `SimilarityScore` is not exposed to the user; it may be
+logged internally for debugging or later comparison only.
+
+**Storage**: Fragella-sourced candidates are never written to `Fragrance` or any other durable
+catalog table. The API call and its result are logged only as part of the recommendation event
+(`RecommendationRun.source_snapshot`), consistent with ADR-012's Fragella storage boundary. If a
+user samples and rates a Fragella-discovered fragrance, it then needs its own canonical identity
+record, created the same way any other new fragrance would be (manual entry, or a
+manufacturer-confirmed record per ADR-012), not by copying Fragella's fields wholesale.
+
+**Provenance labeling**: a Fragella-sourced candidate has not been through the same catalog
+curation as a locally-sourced one, and its underlying accords/notes may themselves be
+ML-imputed by Fragella. Following the pattern ADR-011 already established for worn-by evidence
+(distinct evidence types get an explicit label, never silently blended), API and UI surfaces must
+label Fragella-sourced recommendations distinctly from local-catalog ones.
+
+Consequences of this amendment:
+
+- Positive: extends the candidate pool past the fixed local catalog without violating Fragella's
+  storage restriction, addressing the practical version of this ADR's original "cold start" concern,
+  what happens once a household has rated most of what is locally available, not just early on.
+- Trade-off: Fragella-sourced candidates carry lower-fidelity note/accord data than curated local
+  entries, so their affinity-score inputs are weaker signal; the provenance label above exists so
+  this is visible, not blended away.
+- Follow-up (implementation, not part of this decision): `fragella_client.py` needs `/fragrances/match`
+  and `/fragrances/similar` wrappers; neither exists today, only `/fragrances` search and `/usage`.
+  `calculate_match_score` needs to accept a transient, non-persisted fragrance-shaped object, not
+  only an ORM `Fragrance` row, since Fragella-sourced candidates are scored without ever being
+  written to the database.
 
 ## Context
 
@@ -287,4 +349,8 @@ def get_recommendations(
 - [ADR-003](./adr-003-llm-integration.md): LLM adds explanations to these scores
 - [ADR-007](./adr-007-preference-evidence-and-score-semantics.md): Current evidence
   selection and score semantics
+- [ADR-011](./adr-011-worn-by-evidence-dimension.md): Precedent for labeling a distinct
+  evidence/provenance type rather than blending it silently
+- [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md): Fragella's storage
+  boundary and bounded-lookup role that the 2026-09-15 amendment operates within
 - [Tech Spec API](../tech-spec.md#api-surface): Recommendation endpoints

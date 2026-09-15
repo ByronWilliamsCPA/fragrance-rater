@@ -179,6 +179,8 @@ identity matching.
   requirements this ADR's provenance-metadata extension satisfies
 - [ADR-009](adr-009-prospective-evaluation-and-checkpoints.md): frozen-checkpoint baseline that
   depends on stable, correctly-attributed fragrance identity
+- [ADR-004](adr-004-recommendation-algorithm.md): 2026-09-15 amendment uses Fragella's bounded
+  lookup role established here for candidate discovery, not identity enrichment
 - `docs/planning/evidence/baseline-v3.1-parfumo-source-resolution.md`: the document holding the
   facts this ADR requires re-verifying
 - Outreach contact tracker (tracked locally, outside this repository; see project `.gitignore`)
