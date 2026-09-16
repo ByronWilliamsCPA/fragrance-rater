@@ -1,0 +1,66 @@
+# Docker Publish - Calls Org-Level Reusable Workflow
+#
+# Builds the backend (FastAPI) and frontend (nginx) images and pushes both
+# to GHCR on merge to main. PR builds run the same jobs without pushing, so
+# Trivy/SBOM feedback shows up before merge.
+#
+# Distinct from container-security.yml, which builds a scan-only local image
+# on every push/PR touching Dockerfile-adjacent files and never publishes.
+name: Docker Publish
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'docker-compose*.yml'
+      - '.dockerignore'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'frontend/package*.json'
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - 'Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'docker-compose*.yml'
+      - '.dockerignore'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'frontend/package*.json'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-publish-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  backend:
+    name: Build & Push Backend Image
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
+    with:
+      dockerfile: 'Dockerfile'
+      context: '.'
+      image-name: 'byronwilliamscpa/fragrance_rater'
+      push: ${{ github.event_name != 'pull_request' }}
+      tag-latest: true
+    secrets: inherit
+
+  frontend:
+    name: Build & Push Frontend Image
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
+    with:
+      dockerfile: 'frontend/Dockerfile'
+      context: './frontend'
+      build-args: |
+        VITE_API_URL=/api
+      image-name: 'byronwilliamscpa/fragrance_rater-frontend'
+      push: ${{ github.event_name != 'pull_request' }}
+      tag-latest: true
+    secrets: inherit
