@@ -1,6 +1,7 @@
 # ADR-002: Data Source Strategy - Tiered Acquisition
 
-> **Status**: Accepted baseline; source-provenance portions amended by ADR-006
+> **Status**: Accepted baseline; source-provenance portions amended by ADR-006; Parfumo ingestion
+> deprecated and manufacturer-provenance strategy established by ADR-012
 >
 > **Date**: 2025-12-28
 

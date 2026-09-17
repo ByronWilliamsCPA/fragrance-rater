@@ -382,6 +382,8 @@ END BASELINE DEVELOPMENT STANDARDS
 - **ADR-008**: Authentik/Traefik production trust boundary
 - **ADR-009**: Prospective evaluation with frozen checkpoints
 - **ADR-011**: Worn-by ("on others") evidence dimension, captured but excluded from scoring
+- **ADR-012**: Parfumo deprecation and manufacturer-provenance as preferred replacement source
+- **ADR-013**: External ontology and standards crosswalk (Cinquieme Sens, IFRA, Michael Edwards, evaluation methodology)
 
 ### Current Delivery Sequence
 

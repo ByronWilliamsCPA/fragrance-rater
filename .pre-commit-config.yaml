@@ -150,6 +150,7 @@ repos:
         entry: uv run --no-sync basedpyright src/ scripts/validate_p6_readiness.py
         language: system
         pass_filenames: false
+        files: ^(src/|scripts/validate_p6_readiness\.py)
         stages: [pre-commit]
 
   # ============================================================================
