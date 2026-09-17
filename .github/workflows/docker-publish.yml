@@ -1,0 +1,104 @@
+# Docker Publish - Calls Org-Level Reusable Workflow
+#
+# Builds the backend (FastAPI) and frontend (nginx) images and pushes both
+# to GHCR once CI succeeds on main or master (workflow_run-gated, so a commit
+# that breaks CI is never published). PR builds run the same jobs without
+# pushing, so Trivy/SBOM feedback shows up before merge. workflow_dispatch is
+# also accepted, restricted to main/master via the job-level `if:`.
+#
+# Distinct from container-security.yml, which builds a scan-only local image
+# on every push/PR touching Dockerfile-adjacent files and never publishes.
+name: Docker Publish
+
+on:
+  # #ASSUME: timing: workflow_run's default checkout ref is the branch tip at
+  # run time, not necessarily the exact commit CI just validated (the called
+  # python-docker.yml has no ref-override input). This mirrors release.yml's
+  # identical, already-accepted tradeoff for PyPI publishing.
+  # #VERIFY: acceptable given the narrow race window; revisit if a push
+  # landing in that gap is ever observed publishing the wrong commit.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main, master]
+  pull_request:
+    branches: [main, master, develop]
+    paths:
+      - 'Dockerfile'
+      - 'frontend/Dockerfile'
+      - 'docker-compose*.yml'
+      - '.dockerignore'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'frontend/package*.json'
+      - 'src/**'
+      - 'alembic/**'
+      - 'frontend/src/**'
+      - 'frontend/public/**'
+      - 'frontend/nginx.conf'
+      - 'frontend/index.html'
+      - 'frontend/vite.config.*'
+      - 'frontend/tsconfig*.json'
+      - '.github/workflows/docker-publish.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-publish-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # Required for the publish path (backend/frontend jobs write to GHCR); also
+  # granted on PR/dispatch runs that never push, since the reusable workflow
+  # does not expose a way to scope permissions per-branch.
+  packages: write
+  # Lets the reusable workflow's Trivy scan step upload SARIF results to the
+  # Security tab, matching container-security.yml's identical grant.
+  security-events: write
+
+jobs:
+  backend:
+    name: Build & Push Backend Image
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' &&
+        (github.ref_name == 'main' || github.ref_name == 'master')) ||
+      github.event.workflow_run.conclusion == 'success'
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
+    with:
+      dockerfile: 'Dockerfile'
+      context: '.'
+      image-name: 'byronwilliamscpa/fragrance_rater'
+      push: ${{ github.event_name != 'pull_request' }}
+      tag-latest: true
+      # Non-blocking for now: matches this repo's existing CVE-acceptance
+      # posture in container-security.yml. Revisit once P6 pilot images are
+      # actually deployed and exposed to real usage.
+      trivy-fail-on-vuln: false
+    secrets:
+      DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
+      DHI_PAT: ${{ secrets.DHI_PAT }}
+
+  frontend:
+    name: Build & Push Frontend Image
+    if: >-
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'workflow_dispatch' &&
+        (github.ref_name == 'main' || github.ref_name == 'master')) ||
+      github.event.workflow_run.conclusion == 'success'
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
+    with:
+      dockerfile: 'frontend/Dockerfile'
+      context: './frontend'
+      build-args: |
+        VITE_API_URL=/api
+      image-name: 'byronwilliamscpa/fragrance_rater-frontend'
+      push: ${{ github.event_name != 'pull_request' }}
+      tag-latest: true
+      # Non-blocking for now: matches this repo's existing CVE-acceptance
+      # posture in container-security.yml. Revisit once P6 pilot images are
+      # actually deployed and exposed to real usage.
+      trivy-fail-on-vuln: false
+    secrets:
+      DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
+      DHI_PAT: ${{ secrets.DHI_PAT }}
