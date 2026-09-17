@@ -32,9 +32,13 @@ on:
       - 'uv.lock'
       - 'frontend/package*.json'
       - 'src/**'
+      - 'alembic/**'
       - 'frontend/src/**'
       - 'frontend/public/**'
       - 'frontend/nginx.conf'
+      - 'frontend/index.html'
+      - 'frontend/vite.config.*'
+      - 'frontend/tsconfig*.json'
       - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
