@@ -41,6 +41,16 @@ constraint:**
   excluded outright. It does not encode export terms, attribution or share-alike
   obligations, or the underlying license evidence for a given fact; that finer-grained
   tracking is deferred to D1's provenance work per ADR-006, not solved by this column alone.
+  The "never a substitute for re-querying" rule governs per-fragrance QC lookups only: a
+  retained `/match` or `/similar` response for a specific fragrance must never stand in for
+  asking Fragella again about that fragrance. It does not extend to ADR-004's
+  `provider_term_mapping` (generalized by ADR-013 to other vocabulary authorities): a
+  `provider_canonical_name` row there is a stable translation between this project's own
+  internal concept and a provider's vocabulary for that concept, not a fact about any
+  specific fragrance, and Cinquieme Sens/IFRA rows in the identical table shape carry no
+  re-querying restriction at all. Resolving a concept once and reusing that mapping
+  indefinitely permanently caches a crosswalk entry; it does not retain a fragrance-level
+  lookup in place of a current one.
 - `fields: Mapped[list[str]]` (JSON), required, no default. Names which `Fragrance`
   column(s) this specific snapshot evidences, for example `["concentration",
   "launch_year"]`. This is the mechanism that makes per-fact, rather than per-fragrance,
