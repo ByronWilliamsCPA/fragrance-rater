@@ -55,6 +55,11 @@ permissions:
   # Lets the reusable workflow's Trivy scan step upload SARIF results to the
   # Security tab, matching container-security.yml's identical grant.
   security-events: write
+  # python-docker.yml's build job requests this (unused by this repo's own
+  # steps, but a reusable workflow's job can only request permissions the
+  # caller also grants). Omitting it fails the whole run at startup before
+  # any job is created, with no per-step log to point at the cause.
+  pull-requests: write
 
 jobs:
   backend:
@@ -76,8 +81,8 @@ jobs:
       # actually deployed and exposed to real usage.
       trivy-fail-on-vuln: false
     secrets:
-      DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
-      DHI_PAT: ${{ secrets.DHI_PAT }}
+      DHI_USERNAME: ${{ secrets.DHI_REGISTRY_USERNAME }}
+      DHI_PAT: ${{ secrets.DHI_REGISTRY_TOKEN }}
 
   frontend:
     name: Build & Push Frontend Image
@@ -100,5 +105,5 @@ jobs:
       # actually deployed and exposed to real usage.
       trivy-fail-on-vuln: false
     secrets:
-      DHI_USERNAME: ${{ secrets.DHI_USERNAME }}
-      DHI_PAT: ${{ secrets.DHI_PAT }}
+      DHI_USERNAME: ${{ secrets.DHI_REGISTRY_USERNAME }}
+      DHI_PAT: ${{ secrets.DHI_REGISTRY_TOKEN }}
