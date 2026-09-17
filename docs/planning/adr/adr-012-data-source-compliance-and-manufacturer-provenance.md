@@ -36,7 +36,11 @@ constraint:**
   outright), `retain_for_qc_only` (Fragella's bounded-lookup terms, mirroring the existing
   rule from ADR-002's 2026-09-12 amendment that retained Fragella payloads are for quality
   control, never a substitute for re-querying), `excluded_no_new_writes` (legacy Parfumo
-  rows).
+  rows). This three-way split answers retention/reuse-class at the coarseness Decision item
+  4 needs for this amendment: whether a fact may be trained on, must stay QC-only, or is
+  excluded outright. It does not encode export terms, attribution or share-alike
+  obligations, or the underlying license evidence for a given fact; that finer-grained
+  tracking is deferred to D1's provenance work per ADR-006, not solved by this column alone.
 - `fields: Mapped[list[str]]` (JSON), required, no default. Names which `Fragrance`
   column(s) this specific snapshot evidences, for example `["concentration",
   "launch_year"]`. This is the mechanism that makes per-fact, rather than per-fragrance,
@@ -57,11 +61,14 @@ use it). Its role changes from sole provenance record to a lightweight display/s
 label; the authoritative per-field record lives in `SourceSnapshot.fields` going forward.
 
 **`Fragrance.parfumo_url` is deprecated**, no new writes once `ParfumoScraper` is retired.
-New source URLs and references, including manufacturer confirmations, Wikidata entity
-links, and Fragella lookup citations, go into `SourceSnapshot.source_url` /
-`source_reference` instead of a source-specific column on the core entity. Dropping the
-column itself is a migration, tracked as follow-up alongside `ParfumoScraper`'s removal,
-not part of this decision.
+New source URLs and references adopted as fact evidence, manufacturer confirmations and
+Wikidata entity links, go into `SourceSnapshot.source_url` / `source_reference` instead of
+a source-specific column on the core entity. Fragella lookup citations stay where they
+already are, the existing `fragella_lookups` QC log from ADR-002's 2026-09-12 amendment,
+never `SourceSnapshot`: a bounded lookup is retained for quality control, not adopted as
+source evidence for a fact, which is exactly the distinction `retain_for_qc_only` versus
+`retain_and_train` draws above. Dropping the `parfumo_url` column itself is a migration,
+tracked as follow-up alongside `ParfumoScraper`'s removal, not part of this decision.
 
 **Alternatives considered for this amendment.** Adding the new source tiers as more
 `data_source` string values and stopping there, no `SourceSnapshot` changes: rejected,
@@ -158,8 +165,13 @@ reaches every brand behind a baseline or holdout fragrance. It is a natural, alr
 to also ask each brand to confirm the exact facts this project has otherwise needed from third-party
 sources: concentration, release year, brand/line attribution, and perfumer where relevant. A brand's
 own confirmation of its own product is the strongest-attribution source available for that fact,
-stronger than any third-party directory, and requires no reuse-rights review at all since it is
-supplied directly and voluntarily by the rights holder.
+stronger than any third-party directory. Because it is supplied directly and voluntarily by the
+rights holder, it needs none of the third-party ToS/licensing review this ADR required for
+Parfumo, but it is not automatically unrestricted evidence either: the reply itself becomes a
+`SourceSnapshot` row (per ADR-006) and must record who replied and any scope the brand stated. A
+reply from a named brand representative defaults to `retain_and_train`; an unattributed
+contact-form reply, or one that states a narrower scope such as confirmation only with no
+ML/export use, should not.
 
 ## Decision
 

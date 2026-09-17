@@ -172,10 +172,15 @@ Consequences of this amendment:
   already sets for the search endpoint.
 - Follow-up (implementation, not part of this decision): the vocabulary-alignment design above
   needs a `provider_term_mapping` table (`provider`, `entity_type`, `internal_concept_id`,
-  `provider_canonical_name`, `provider_occurrence`, `provider_description`, `verified_at`) that
-  doesn't exist yet; this sits alongside `SourceSnapshot` conceptually (ADR-006's provenance
-  model) but is a distinct table, since it maps this project's ontology to an external provider's
-  vocabulary rather than recording where a fact came from.
+  `provider_canonical_name`, `provider_occurrence`, `provider_description`, `source_value_hash`,
+  `verified_at`) that doesn't exist yet; this sits alongside `SourceSnapshot` conceptually
+  (ADR-006's provenance model) but is a distinct table, since it maps this project's ontology to
+  an external provider's vocabulary rather than recording where a fact came from.
+  `source_value_hash` is a hash of the provider's canonical name, occurrence, and description as
+  read at `verified_at`, so a later re-verification pass can detect that the provider silently
+  redefined or renamed a term without needing a fully versioned row per provider value the way
+  ADR-006 tracks source facts; `verified_at` alone only answers when a mapping was last checked,
+  not whether the provider has since changed underneath it.
 
 ## Context
 
