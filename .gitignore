@@ -304,3 +304,9 @@ docs/compliance-reports/
 # Only the template is tracked.
 data/pilot/p6-readiness*.json
 !data/pilot/p6-readiness.template.json
+
+# Baseline/holdout dataset content (notes, accords, family, perfumer) for the
+# 33 baseline + 10 holdout fragrances would leak blind-evaluation answers to
+# anyone with repo access, including the family members being tested (see
+# docs/calibration-v1.md, ADR-005). Kept in local working storage only.
+tmp_cleanup/baseline-v3.1-public-dataset-websearch.md
