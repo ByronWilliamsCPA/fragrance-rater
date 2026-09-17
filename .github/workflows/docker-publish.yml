@@ -64,7 +64,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' &&
         (github.ref_name == 'main' || github.ref_name == 'master')) ||
       github.event.workflow_run.conclusion == 'success'
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@cb0742cf00832b4e640a47dfca222047c2b70c1c  # main
     with:
       dockerfile: 'Dockerfile'
       context: '.'
@@ -86,7 +86,7 @@ jobs:
       (github.event_name == 'workflow_dispatch' &&
         (github.ref_name == 'main' || github.ref_name == 'master')) ||
       github.event.workflow_run.conclusion == 'success'
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@987d517d3c8e4b180f4dd15de6d9575f0df91182  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-docker.yml@cb0742cf00832b4e640a47dfca222047c2b70c1c  # main
     with:
       dockerfile: 'frontend/Dockerfile'
       context: './frontend'
