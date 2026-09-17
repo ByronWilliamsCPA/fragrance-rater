@@ -7,8 +7,9 @@
 ## TL;DR
 
 Use a local-first tiered data strategy: verified local catalog → manual entry/source link →
-authorized source snapshot or refresh. Kaggle and Parfumo are current implemented source paths;
-any additional provider must pass provenance and reuse-rights review.
+authorized source snapshot or refresh. Kaggle and Parfumo are current implemented source paths
+(Parfumo fetching is human-operator-only as of the 2026-09-15 amendment below, pending a
+product-owner decision); any additional provider must pass provenance and reuse-rights review.
 
 ## 2026 amendment
 
@@ -61,7 +62,14 @@ for this agent by name, regardless of what `User-Agent` string the request carri
 **Pending product-owner decision**, this ADR's "current implemented source path" for Parfumo is
 suspended for agent-run fetching: `import-data parfumo-url`/`parfumo-search` should be run by a
 human operator, not from an autonomous or agent session, until this is resolved one way or
-another. `WebSearch` (a licensed indexed-snippet API, not a scrape of these sites) and Fragella
+another. The exception is about who decides to fetch, not what code runs: a human operator
+typing `import-data parfumo-url` themselves is the same `ParfumoScraper` code path a human
+copy-pasting a note pyramid from their own browser would sidestep entirely, so this interim
+exception permits the existing CLI command when a human is the one invoking it, not only manual
+browser copy-paste. Whether that distinction (human-invoked automation vs. human-only,
+tool-free entry) is the right place to draw the line is itself part of what the product owner
+still needs to decide; this amendment states the interim default, not the final answer.
+`WebSearch` (a licensed indexed-snippet API, not a scrape of these sites) and Fragella
 (a distinct rate-limited API integration) are unaffected and remain available per their existing
 scope. Kaggle bulk import is likewise unaffected (a human downloads the CSV directly under
 Kaggle's own terms, not a crawl of any of the three sites above).

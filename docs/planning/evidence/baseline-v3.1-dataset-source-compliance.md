@@ -34,6 +34,41 @@ generic `User-agent: *` restriction:
 | `fragrantica.com` / `www.fragrantica.com` | `Content-Signal: search=yes,ai-train=no,use=reference`; `Allow: /` | Listed individually with `Disallow: /`, alongside Amazonbot, Applebot-Extended, Bytespider, CCBot, GPTBot, Google-Extended, meta-externalagent. A comment even records a deliberate carve-out for a *different* Anthropic agent: `Claude-User (Anthropic's on-demand fetcher for user questions, cites sources) is deliberately NOT listed here: it falls under the User-agent: * rules like ChatGPT-User` - i.e., the operator considered Claude's agents specifically and chose to exclude the bulk/autonomous crawler (`ClaudeBot`) while allowing the on-demand, cites-its-source fetcher (`Claude-User`). This project's scraper identifies as neither; it sends a plain Chrome browser user agent (see below) - it is not `Claude-User` making a cited, user-visible fetch. |
 | basenotes.net (redirects to itself; robots.txt read via redirect) | `Allow`-by-default, no distinguishing `Content-Signal` seen | Listed individually with `Disallow: /`, alongside Amazonbot, Applebot-Extended, Bytespider, CCBot, CloudflareBrowserRenderingCrawler, Google-Extended, GPTBot, meta-externalagent |
 
+**Independent re-verification (2026-09-17):** the table above summarizes the 2026-09-15 finding
+in prose; for a later reviewer to check it without repeating the research from scratch, here is
+the verbatim `ClaudeBot` block fetched directly from each site's `robots.txt` (fetching the
+policy document itself, not a content page, so it carries none of this document's own crawl
+restriction):
+
+- `https://www.parfumo.com/robots.txt` (fetched 2026-09-17): the `ClaudeBot` line sits in a
+  shared `User-agent` list (with `GPTBot`, `Meta-ExternalAgent`, `Amazonbot`, `ia_archiver`, and
+  roughly twenty others) followed by a single `Disallow: /` covering the whole list.
+- `https://www.fragrantica.com/robots.txt` (fetched 2026-09-17):
+
+  ```text
+  User-agent: ClaudeBot
+  Disallow: /
+
+  User-agent: Claude-SearchBot
+  Disallow: /
+
+  # Claude-User (Anthropic's on-demand fetcher for user questions, cites sources) is deliberately NOT listed here:
+  # it falls under the `User-agent: *` rules like ChatGPT-User. Decision 2026-09-10 (AI answer-engine measurement window).
+  ```
+
+  This also shows `Claude-SearchBot` excluded alongside `ClaudeBot` (not previously called out
+  above), and dates the site operator's `Claude-User` carve-out decision to 2026-09-10, before
+  this dataset-building pass even started. Note: this re-fetch found no `Content-Signal` line on
+  `fragrantica.com`; the 2026-09-15 finding recorded one
+  (`search=yes,ai-train=no,use=reference`). Both observations are recorded as fetched rather than
+  reconciled, since `robots.txt` is not a versioned document and either snapshot could have been
+  accurate at its own fetch time.
+- `basenotes.net/robots.txt` and `basenotes.com/robots.txt` both returned `HTTP 403` to this
+  re-fetch attempt (no body), consistent with the 2026-09-15 finding's note that basenotes.net
+  needed a redirect to read at all; this document retains the original transcription for
+  basenotes.net on trust rather than re-verifying it, since the site currently blocks even the
+  robots.txt fetch itself.
+
 This is a materially different situation from the generic "ToS concerns, fragile" risk ADR-002
 already recorded for Fragrantica scraping, and from the Cloudflare bot-challenge finding in
 [Parfumo Source Resolution](baseline-v3.1-parfumo-source-resolution.md#supplemental-source-exploration-2026-09-12).
@@ -69,8 +104,10 @@ awareness since they used the same scraper/access pattern this finding now calls
 - `WebSearch` (a licensed search API returning indexed snippets, distinct from operating a
   crawler against these sites directly) is unaffected by this finding and remains the path
   [Parfumo Source Resolution](baseline-v3.1-parfumo-source-resolution.md#supplemental-source-exploration-2026-09-12)
-  already used for one-off reference lookups (H07, H04, B30, H10). It was not used further in
-  this pass beyond what that document already recorded.
+  already used for one-off reference lookups (H07, H04, B30, H10). This compliance check itself
+  used `WebSearch` no further than that prior document already recorded; the separate,
+  later dataset-building pass that did use `WebSearch` at scale is documented below, under
+  Follow-up.
 - Fragella (`fragella_client.py`, `import-data fragella-lookup`) is a direct API integration
   against a service that publishes and rate-limits its own API for this purpose; it is not a
   site scrape and this finding does not affect it. It remains capped at 20 requests/month and
@@ -81,9 +118,13 @@ awareness since they used the same scraper/access pattern this finding now calls
   43 specific entries (many are small/niche houses - Papillon, Akro, Zoologist, Imaginary
   Authors, Indult) is unverified; no such CSV is present in this repository today.
 - Manual entry (a person browsing these sites themselves and pasting notes into the app, per
-  ADR-002's existing "UI provides copy-paste from Fragrantica" mitigation) is unaffected: these
-  `robots.txt` exclusions bind automated crawlers, not a human reading a page in their own
-  browser.
+  ADR-002's existing "UI provides copy-paste from Fragrantica" mitigation) is unaffected by
+  *this specific finding*: `robots.txt` exclusions bind automated crawlers, not a human reading
+  a page in their own browser. That is a statement about crawling, not about redistribution
+  rights - a `robots.txt` `Disallow` says nothing about whether copying a site's note pyramid
+  or accord description into this application's catalog is permitted under that site's terms of
+  use or copyright. ADR-002's existing reuse-rights review requirement for any source still
+  applies in full to manual copy-paste; this finding neither satisfies nor waives it.
 
 ## Recommendation
 
@@ -104,11 +145,18 @@ awareness since they used the same scraper/access pattern this finding now calls
   `WebSearch` and Fragella's capped quota can add** - not the fuller notes/accords/ratings
   corpus a direct scrape of the 43 resolved pages would have produced.
 
-## Follow-up: the WebSearch-only dataset that was built
+## Follow-up: the dataset that was built
 
 Per the product owner's follow-up ("this is a one time exercise, we don't need to build
-repeatable processes"), a one-time `WebSearch`-only research pass was run for all 43 entries -
-see [Public Dataset (WebSearch Pass)](baseline-v3.1-public-dataset-websearch.md) for the
-resulting notes/accords/family/perfumer/description content and its per-entry source citations.
-That pass added no code, scraper, or import path; it is a documentation artifact only, consistent
-with this document's recommendation above.
+repeatable processes"), a one-time research pass was run for all 43 entries: primarily
+`WebSearch`, with three entries (Baccarat Rouge 540, Mitsouko, Shalimar) also using a direct
+`WebFetch` against Wikipedia specifically, which is not one of the three excluded sites and so
+carries none of this document's finding. This was not a `WebSearch`-only pass in the strict
+sense; it is accurate to call it a `WebSearch`-primary pass with three documented direct-fetch
+exceptions, none of them against parfumo.com, fragrantica.com, or basenotes.net. That dataset
+(notes/accords/family/perfumer/description content with per-entry source citations) is
+intentionally not committed to this repository: it is not published evidence, it lives only in
+local working storage as non-published research notes, because it directly documents the
+answer key for a blind evaluation (see [Calibration V1](../../calibration-v1.md) and ADR-005)
+that family members with repo access will be participating in. This pass added no code,
+scraper, or import path; consistent with this document's recommendation above.
