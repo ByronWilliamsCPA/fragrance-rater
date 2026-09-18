@@ -80,9 +80,14 @@ jobs:
       # posture in container-security.yml. Revisit once P6 pilot images are
       # actually deployed and exposed to real usage.
       trivy-fail-on-vuln: false
+    # Withheld on pull_request runs: neither Dockerfile in this repo pulls
+    # from dhi.io, so PR-time builds have no need for these credentials, and
+    # not passing them keeps the privileged registry login scoped to the
+    # actual publish path (workflow_run/workflow_dispatch) that CodeRabbit
+    # flagged as the one that should hold them.
     secrets:
-      DHI_USERNAME: ${{ secrets.DHI_REGISTRY_USERNAME }}
-      DHI_PAT: ${{ secrets.DHI_REGISTRY_TOKEN }}
+      DHI_USERNAME: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_USERNAME || '' }}
+      DHI_PAT: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_TOKEN || '' }}
 
   frontend:
     name: Build & Push Frontend Image
@@ -104,6 +109,7 @@ jobs:
       # posture in container-security.yml. Revisit once P6 pilot images are
       # actually deployed and exposed to real usage.
       trivy-fail-on-vuln: false
+    # See the backend job's identical comment: withheld on pull_request runs.
     secrets:
-      DHI_USERNAME: ${{ secrets.DHI_REGISTRY_USERNAME }}
-      DHI_PAT: ${{ secrets.DHI_REGISTRY_TOKEN }}
+      DHI_USERNAME: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_USERNAME || '' }}
+      DHI_PAT: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_TOKEN || '' }}
