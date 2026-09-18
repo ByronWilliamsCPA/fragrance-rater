@@ -35,8 +35,38 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 # =============================================================================
-# Stage 3: Production (nginx)
+# Stage 3: Development (optional - for docker-compose dev)
 # =============================================================================
+FROM node:22-alpine AS development
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Expose Vite dev server port
+EXPOSE 3000
+
+# Start development server
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
+# =============================================================================
+# Stage 4: Production (nginx)
+# =============================================================================
+# #CRITICAL: build-tooling: this must stay the LAST stage in the file. CI
+# (ByronWilliamsCPA/.github's python-docker.yml) builds this Dockerfile
+# without a --target flag, so Docker's "no target = build the last stage"
+# default is the only thing that makes CI produce the nginx image instead
+# of the Vite dev server above. Local dev is unaffected either way since
+# docker-compose.yml/docker-compose.prod.yml both pin target: by name.
+# #VERIFY before adding any stage after this one, confirm CI still ends up
+# publishing the production (nginx, port 80) image, not development.
 FROM nginx:alpine AS production
 
 # Metadata labels
@@ -70,25 +100,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 USER appuser
 
 CMD ["nginx", "-g", "daemon off;"]
-
-# =============================================================================
-# Stage 4: Development (optional - for docker-compose dev)
-# =============================================================================
-FROM node:22-alpine AS development
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install all dependencies (including dev)
-RUN npm ci
-
-# Copy source code
-COPY . .
-
-# Expose Vite dev server port
-EXPOSE 3000
-
-# Start development server
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
