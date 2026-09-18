@@ -145,6 +145,8 @@ documentation updated in the same pull request, and no destructive change to exi
 ## Related
 
 - [Data Model Gap Analysis](../data-model-gap-analysis.md)
+- [ADR-004](adr-004-recommendation-algorithm.md): deferred ML for the V1 scoring algorithm;
+  this ADR builds the data model that later ML work depends on
 - [ADR-005](adr-005-controlled-calibration.md)
 - [ADR-006](adr-006-version-identity-and-source-provenance.md)
 - [ADR-007](adr-007-preference-evidence-and-score-semantics.md)

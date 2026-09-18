@@ -195,7 +195,10 @@ The recommendation system needs to predict which unrated fragrances a user will 
 
 ### Constraints
 
-- **Technical**: Must work with PostgreSQL queries for sorting/filtering; no ML libraries in MVP
+- **Technical**: Must work with PostgreSQL queries for sorting/filtering; no ML libraries in MVP.
+  This constraint applies to the V1 scoring algorithm only; ADR-010 later began building the data
+  model (typed observations, prediction snapshots) needed to support ML once enough calibration
+  data exists.
 - **Business**: Simple enough to implement in Phase 1; accuracy target 80%
 
 ### Significance
@@ -461,6 +464,9 @@ def get_recommendations(
 - [ADR-003](./adr-003-llm-integration.md): LLM adds explanations to these scores
 - [ADR-007](./adr-007-preference-evidence-and-score-semantics.md): Current evidence
   selection and score semantics
+- [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md): Data model changes
+  (typed observations, `PredictionSnapshot`) that make the ML path this ADR deferred
+  feasible once the calibration data exists
 - [ADR-011](./adr-011-worn-by-evidence-dimension.md): Precedent for labeling a distinct
   evidence/provenance type rather than blending it silently
 - [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md): Fragella's storage
