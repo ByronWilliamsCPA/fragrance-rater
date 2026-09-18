@@ -76,18 +76,18 @@ jobs:
       image-name: 'byronwilliamscpa/fragrance_rater'
       push: ${{ github.event_name != 'pull_request' }}
       tag-latest: true
+      # Neither Dockerfile in this repo pulls from dhi.io (both build from
+      # python:3.12-slim / node:22-alpine / nginx:alpine), so this step has
+      # nothing to authenticate for. Disabling it removes the unnecessary
+      # privileged login attempt entirely, rather than just scoping when its
+      # credentials are passed: the pinned reusable workflow's DHI login step
+      # has no continue-on-error, so passing it empty credentials (the prior
+      # fix here) hard-fails the job instead of skipping cleanly.
+      enable-dhi-login: false
       # Non-blocking for now: matches this repo's existing CVE-acceptance
       # posture in container-security.yml. Revisit once P6 pilot images are
       # actually deployed and exposed to real usage.
       trivy-fail-on-vuln: false
-    # Withheld on pull_request runs: neither Dockerfile in this repo pulls
-    # from dhi.io, so PR-time builds have no need for these credentials, and
-    # not passing them keeps the privileged registry login scoped to the
-    # actual publish path (workflow_run/workflow_dispatch) that CodeRabbit
-    # flagged as the one that should hold them.
-    secrets:
-      DHI_USERNAME: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_USERNAME || '' }}
-      DHI_PAT: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_TOKEN || '' }}
 
   frontend:
     name: Build & Push Frontend Image
@@ -105,11 +105,9 @@ jobs:
       image-name: 'byronwilliamscpa/fragrance_rater-frontend'
       push: ${{ github.event_name != 'pull_request' }}
       tag-latest: true
+      # See the backend job's identical comment: this repo never needs DHI.
+      enable-dhi-login: false
       # Non-blocking for now: matches this repo's existing CVE-acceptance
       # posture in container-security.yml. Revisit once P6 pilot images are
       # actually deployed and exposed to real usage.
       trivy-fail-on-vuln: false
-    # See the backend job's identical comment: withheld on pull_request runs.
-    secrets:
-      DHI_USERNAME: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_USERNAME || '' }}
-      DHI_PAT: ${{ github.event_name != 'pull_request' && secrets.DHI_REGISTRY_TOKEN || '' }}
