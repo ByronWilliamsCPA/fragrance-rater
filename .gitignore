@@ -284,6 +284,7 @@ output/
 # Keep the directory, but ignore .tmp-* files inside it
 tmp_cleanup/.tmp-*
 !tmp_cleanup/.gitkeep
+tmp_cleanup/
 
 # Fragrance brand outreach letters and contact research: local only, never committed
 tmp_cleanup/letters/
