@@ -93,8 +93,19 @@ RUN addgroup -g 1001 -S appgroup && \
 EXPOSE 80
 
 # Health check
+# #CRITICAL: external resources: busybox wget resolves "localhost" via
+# /etc/hosts, which lists ::1 before 127.0.0.1, and unlike curl it does not
+# fall back to the next address on connection failure. nginx's "listen 80;"
+# binds IPv4-only, so wget's IPv6 attempt gets connection-refused and the
+# healthcheck fails every time even though the app is serving fine over
+# IPv4. Traefik's Docker provider excludes unhealthy containers from
+# routing entirely, so this alone can take the app offline (404, not a
+# backend-level 502) despite nginx working. Using 127.0.0.1 forces IPv4.
+# #VERIFY after any base-image bump, confirm 127.0.0.1 is still reachable
+# and nginx still binds IPv4 (docker inspect --format
+# '{{json .State.Health}}' should show Status "healthy", not "unhealthy").
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -q --spider http://localhost/health || exit 1
+    CMD wget -q --spider http://127.0.0.1/health || exit 1
 
 # Run as non-root user
 USER appuser
