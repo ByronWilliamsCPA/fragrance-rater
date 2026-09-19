@@ -412,7 +412,7 @@ article {
  */
 .scale-field {
   margin: 0;
-  padding: var(--space-4) 0;
+  padding: var(--space-5) 0;
   border: 0;
   border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
 }
@@ -817,7 +817,7 @@ article {
  * fact about them rather than about the fragrance.
  */
 .scale-group {
-  margin-top: var(--space-8);
+  margin-top: var(--space-12);
 }
 
 .scale-group__legend {

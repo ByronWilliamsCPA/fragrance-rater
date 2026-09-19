@@ -38,10 +38,10 @@ What replaced it:
 | | |
 | :--- | :--- |
 | **Surface** | The page is the sheet. There is no card layer at all: no element combines a background, a border and a shadow. Sections are separated by rules and space. |
-| **Type** | A grotesque (Helvetica and its metric clones) for the whole interface, because that is what printed forms are set in. Monospace for codes, figures and timings. A serif *only* inside `.prose`, which is the About essay. |
+| **Type** | A humanist sans for the whole interface: the structural discipline of a printed form, without the coldness of Helvetica. Monospace for codes, figures and timings. A serif *only* inside `.prose`, which is the About essay. No webfont, because the repository is REUSE-compliant and shipping a font is a licensing decision. |
 | **Colour** | Ink on paper. Colour carries exactly two meanings, below. |
 | **Shape** | Squared. `--radius` is 2px, the most a printed control ever gets. |
-| **Density** | A form is dense. The type scale tops out at 1.5rem; there is no hero. |
+| **Density** | Dense, but not cramped. The type scale tops out at 1.75rem and there is no hero; the vertical rhythm was opened up in a second pass toward the Wikiparfum/NOSE reference. |
 
 ### The two registers
 
@@ -231,6 +231,9 @@ perfume site. The fragrance model also has no image field of any kind today.
 - **No cards.** If a change adds an element with a background, a border and a shadow together, it
   is reintroducing the layer this design removed. Use a rule.
 - **The serif is for `.prose` only.** It is a reading face, not a heading face.
+- **Every family in `--font-ui` must be humanist.** The stack degrades across platforms, so a
+  neo-grotesque or geometric entry would make the interface read differently depending on the
+  machine.
 - **Kickers must carry data.** `Sample 1`, `Choice 3` and `Manager` earn their place; `Today`,
   `Discover` and `Journal` above a heading that already says so do not.
 - **Every `<progress>` needs an accessible name.** A bare one is announced only as a percentage.

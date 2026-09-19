@@ -10,7 +10,7 @@
 .app {
   max-width: var(--sheet-max);
   margin-inline: auto;
-  padding: var(--space-8) var(--space-6) var(--space-12);
+  padding: var(--space-12) var(--space-6) var(--space-16);
 }
 
 /* ---- Masthead --------------------------------------------------------- */
@@ -25,7 +25,7 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-6);
-  padding-bottom: var(--space-3);
+  padding-bottom: var(--space-5);
   border-bottom: var(--rule-section) solid var(--color-ink);
 }
 
@@ -73,7 +73,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0 var(--space-6);
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-10);
   border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
 }
 
@@ -123,7 +123,7 @@ main:focus {
 /* ---- Sections --------------------------------------------------------- */
 
 section {
-  margin: 0 0 var(--space-10);
+  margin: 0 0 var(--space-16);
 }
 
 .section-head {
@@ -131,8 +131,8 @@ section {
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-4);
-  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
   border-bottom: var(--rule-section) solid var(--color-ink);
 }
 
@@ -149,8 +149,8 @@ section {
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-4);
-  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
   border-bottom: var(--rule-section) solid var(--color-ink);
 }
 
@@ -177,7 +177,9 @@ section {
 .manager-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
-  gap: var(--space-8);
+  /* Wide enough that two numbered sections side by side read as two blocks
+     of the form rather than as one continuous column of fields. */
+  gap: var(--space-16);
 }
 
 .workspace {

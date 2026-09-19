@@ -61,8 +61,8 @@ h2 {
 h3 {
   font-size: var(--text-heading);
   font-weight: var(--weight-bold);
-  margin: var(--space-8) 0 var(--space-4);
-  padding-bottom: var(--space-2);
+  margin: var(--space-10) 0 var(--space-5);
+  padding-bottom: var(--space-3);
   border-bottom: var(--rule-section) solid var(--color-ink);
 }
 
@@ -78,7 +78,7 @@ aside > h3:first-child {
 }
 
 p {
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-5);
   max-width: var(--measure);
   line-height: var(--leading-normal);
 }
@@ -141,7 +141,7 @@ progress,
 
 label {
   display: block;
-  margin: 0 0 var(--space-4);
+  margin: 0 0 var(--space-5);
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
   color: var(--color-ink-secondary);
@@ -154,7 +154,7 @@ textarea {
   width: 100%;
   margin-top: var(--space-1);
   min-height: var(--target-min);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-3);
   font: inherit;
   font-size: var(--text-body);
   font-weight: var(--weight-normal);

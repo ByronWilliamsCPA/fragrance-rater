@@ -33,11 +33,22 @@
   /* ---- Type families -------------------------------------------------- */
 
   /*
-   * A grotesque, not a UI-kit geometric. Printed forms are set in Helvetica
-   * and its metric clones, and that is most of why they read as instruments
-   * rather than as products.
+   * A humanist sans, not a neo-grotesque.
+   *
+   * The first score-sheet pass set everything in Helvetica, which reads as a
+   * laboratory form but also reads cold. A humanist face keeps the structural
+   * discipline while carrying the editorial warmth the reference survey asks
+   * for (Wikiparfum, NOSE Paris).
+   *
+   * No webfont: the repository is REUSE-compliant, so shipping a font means
+   * adding its licence to LICENSES/ and annotating REUSE.toml, which is a
+   * licensing decision rather than a styling one. Every entry below is
+   * humanist, so the face has a consistent character across platforms even
+   * though the exact cut differs: Seravek on macOS, Gill Sans Nova or Segoe UI
+   * on Windows, Ubuntu/Cantarell/DejaVu on Linux.
    */
-  --font-ui: Helvetica, 'Helvetica Neue', 'Liberation Sans', Arial, sans-serif;
+  --font-ui:
+    Seravek, 'Gill Sans Nova', 'Segoe UI', Ubuntu, Cantarell, 'DejaVu Sans', system-ui, sans-serif;
 
   /* Blind codes, figures, timings: anything that must not be misread. */
   --font-mono:
@@ -54,15 +65,15 @@
 
   /* Deliberately compressed. A form is dense; a hero is not. */
   --text-masthead: 1.25rem;
-  --text-title: 1.5rem;
-  --text-heading: 1.0625rem;
+  --text-title: 1.75rem;
+  --text-heading: 1.125rem;
   --text-body: 1rem;
-  --text-label: 0.8125rem;
-  --text-caption: 0.75rem;
+  --text-label: 0.875rem;
+  --text-caption: 0.8125rem;
 
   --leading-tight: 1.25;
-  --leading-normal: 1.5;
-  --leading-prose: 1.65;
+  --leading-normal: 1.55;
+  --leading-prose: 1.7;
 
   --weight-normal: 400;
   --weight-medium: 500;
@@ -78,6 +89,7 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
   --space-12: 3rem;
+  --space-16: 4rem;
 
   /* ---- Radius ---------------------------------------------------------- */
 

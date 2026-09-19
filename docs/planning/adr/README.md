@@ -39,6 +39,7 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md) | Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance | Accepted | 2026-09-15 |
 | [ADR-013](./adr-013-external-ontology-and-standards-crosswalk.md) | External Ontology and Standards Crosswalk | Accepted; amends ADR-004, ADR-010 | 2026-09-15 |
 | [ADR-014](./adr-014-frontend-e2e-and-accessibility-strategy.md) | Frontend E2E and Accessibility Testing Strategy | Accepted; amended 2026-09-19 to WCAG 2.2 AA | 2026-09-18 |
+| [ADR-016](./adr-016-per-dimension-preference-capture.md) | Per-Dimension Preference Capture | Proposed; amends ADR-010 if accepted | 2026-09-19 |
 
 ## Creating ADRs
 
