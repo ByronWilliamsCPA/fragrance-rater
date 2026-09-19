@@ -66,7 +66,10 @@ cd .. && uv run uvicorn fragrance_rater.main:app &
 npm run generate-client
 ```
 
-This creates typed API functions in `src/client/`.
+This creates typed API functions in `src/client/`, which is committed to
+source control rather than gitignored: CI has no live backend to run
+`generate-client` against, so the generated types must be regenerated and
+committed manually whenever the OpenAPI schema changes.
 
 ### Project Structure
 
@@ -75,7 +78,7 @@ frontend/
 ├── public/              # Static assets
 ├── src/
 │   ├── assets/          # Images, fonts, etc.
-│   ├── client/          # Auto-generated API client
+│   ├── client/          # Generated API client (committed; regenerate manually)
 │   ├── components/      # React components
 │   ├── hooks/           # Custom React hooks
 │   ├── test/            # Test setup and utilities

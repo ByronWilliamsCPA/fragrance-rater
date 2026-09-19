@@ -133,6 +133,33 @@ the generic project-plan template in project navigation by default.
 
 ---
 
+### PlanningFM `component` enum is domain-specific and has no general-engineering category
+
+- **Priority**: Medium
+- **Category**: Tooling
+- **Discovered**: 2026-09-18
+
+**Issue**: `tools/frontmatter_contract/models.py`'s `PlanningFM.component` field is a closed
+`Literal` with values `Strategy`, `Development-Tools`, `Context`, `Request`, `Examples`,
+`Augmentations`, `Tone-Format`, `Evaluation`. These read as categories for an LLM
+prompt-engineering project, not a general software project. A planning document for
+ordinary engineering work (e.g. a frontend testing/documentation improvement plan) has no
+accurate value to choose; the least-wrong option (`Strategy`) is a forced mismatch, not a fit.
+
+**Context**: Writing a `schema_type: planning` frontend testing plan document under
+`docs/superpowers/plans/` and needing a valid `component` value for the required frontmatter.
+
+**Suggested Fix**: Either make `component` an open `str` (validated only for non-emptiness) with
+the current values kept as a documented convention, or add general-engineering categories
+(e.g. `Architecture`, `Testing`, `Frontend`, `Backend`, `Infrastructure`) to the enum so the
+schema isn't implicitly scoped to one project type.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/tools/frontmatter_contract/models.py`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

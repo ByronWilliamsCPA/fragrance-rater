@@ -22,6 +22,8 @@ boundaries and invariants rather than duplicating every request field.
 | Authentication edge | Authentik forward-auth through Traefik | Verified production identity and access boundary |
 | Optional external services | OpenRouter and authorized metadata sources | Explanations and catalog enrichment |
 
+State management: local component state only, no external state-management library. Routing: a custom type-safe route union (`frontend/src/routing/routes.ts`), not React Router. Testing: Vitest + React Testing Library for unit/component tests, Playwright for mocked e2e plus a real-backend smoke tier (ADR-014), `@axe-core/playwright` + `eslint-plugin-jsx-a11y` for accessibility (ADR-014).
+
 Docker Compose remains the deployment unit on Unraid. Core capture, history, and deterministic
 recommendations must continue when optional services are unavailable.
 

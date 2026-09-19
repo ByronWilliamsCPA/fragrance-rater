@@ -133,9 +133,69 @@ and reviewed as P6.1 before P6 can close.
 | P1.5 | Rollback/recovery | Demonstrate restore from the verified pre-upgrade backup; do not use lossy downgrade or migration stamping | Timed restore drill and recovery checklist |
 | P1.6 | Trust-boundary validation | Production requests traverse Authentik/Traefik; direct backend access from reachable networks cannot mutate data or expose calibration mappings | Deployed topology, port scan, bypass tests, role matrix |
 | P1.7 | Blind disclosure audit | Search, history, profiles, recommendations, explanations, caches, errors, exports, and logs reveal no mapping, role, repeat, selection, or holdout information before policy allows | Automated disclosure matrix |
-| P1.8 | Target-environment verification | Python 3.12, PostgreSQL 16, frontend build, backend tests, type checks, lint, security scans, and critical end-to-end flows pass | CI run and target-host smoke report |
+| P1.8 | Target-environment verification | Python 3.12, PostgreSQL 16, frontend build, backend tests, type checks, lint, security scans, and critical end-to-end flows pass | CI run and target-host smoke report. Frontend e2e/accessibility slice: partial, see P1.8 evidence below and `docs/planning/gates/p1.md` |
 | P1.9 | Parfumo fixtures | Add authorized representative fixtures for requested metrics, status, related versions, similar fragrances, missing fields, and unknown concentration | Fixture provenance and parser coverage |
 | P1.10 | Operations | Document health checks, logs, alerting, database growth, backups, secret rotation, external-service failure, and upgrade procedure | Operations runbook |
+
+### P1.8 evidence: frontend e2e and accessibility testing, 2026-09-18
+
+**Status: partial closure, not full closure.** The frontend e2e/accessibility test plan
+(ADR-014, `docs/architecture/frontend-user-journeys.md`) closes P1.8's e2e-flow and
+manager-route-authorization criteria for the frontend. It does not close P1.8 as a whole. Three
+gaps below are recorded so the gate does not read as closed when it isn't: two
+(`ProgramSetupPage`'s internal actions, frontend performance budgets) are permanent,
+out-of-scope-for-this-plan gaps, not oversights; the third (`RatingsPage`'s correction-flow e2e
+coverage) is a residual coverage gap surfaced by final cross-task review, not a deliberate scope
+boundary.
+
+- **E2E coverage for the four named flows: closed.** `frontend/e2e/` (13 Playwright tests:
+  accessibility x7, blind-calibration, manager-authorization x3, ordinary-entry,
+  recommendation-feedback) passes, covering ordinary entry (`/ratings`), blind calibration and
+  reveal (`/calibration`), recommendation feedback and sampling (`/recommendations`), and program
+  setup route access (`/programs`). Evidence: ADR-014 and the passing `frontend/e2e/` suite.
+- **"Authorization and disclosure tests cover every manager route": closed for the one manager
+  route's route-level boundary; the two backend invariants remain unverified in this
+  environment.** `/programs` (`ProgramSetupPage`) is the only manager-only route. Its route-level
+  authorization (redirect for a non-manager, access for a manager, graceful degradation when the
+  API rejects a manager action with 403) is covered by `e2e/manager-authorization.spec.ts`. The
+  two backend-invariant checks ADR-014 identifies (pre-reveal identity omission, non-manager 403
+  on a manager-only endpoint) are implemented in the real-backend smoke tier
+  (`playwright.smoke.config.ts`, `e2e-smoke/disclosure-and-authorization.spec.ts`) but have not
+  been executed against a live backend in any sandbox to date (no Docker access); they are
+  verified only by source-code reading. A spec that exists and is spec'd is not the same claim as
+  a spec that has run against a live backend, and this entry does not conflate the two.
+- **`ProgramSetupPage`'s internal manager actions beyond the authorization boundary: open, no
+  coverage at any tier.** Program definition, reviewer enrollment, pilot operations, and pilot
+  metrics beyond what `App.test.tsx` exercises (activation, catalog-version addition, the
+  Fragella check) have no Vitest, Playwright-mocked, or Playwright-smoke coverage. See
+  `docs/architecture/frontend-user-journeys.md`'s `/programs` row and its Known gaps section.
+- **`RatingsPage`'s correction/edit flow: open at the e2e tier.** `e2e/ordinary-entry.spec.ts`
+  covers creating a new journal encounter only; the correction form (`RatingsPage.tsx:213-259`)
+  is covered at the Vitest tier only (`src/test/App.test.tsx`), with no Playwright-mocked or
+  Playwright-smoke coverage. See `docs/architecture/frontend-user-journeys.md`'s `/ratings` row
+  and its Known gaps section.
+- **Frontend performance budgets (Section 19 definition of done): open, out of scope for this
+  plan.** No task in the seventeen-task frontend e2e/accessibility plan (eighteen counting the
+  Task 3b amendment) defined or measured a frontend performance budget. This remains unaddressed
+  and unscheduled.
+- **Frontend lint, type, test, and build checks pass: closed as of
+  2026-09-18**, verified by running `npm run lint && npm run typecheck && npm run test:coverage
+  && npm run build && npx playwright test` together for the first time across all seventeen
+  prior tasks' combined output (eighteen counting the Task 3b amendment), not task by task: lint
+  clean, typecheck clean, 40/40 Vitest unit tests
+  passing (78.92% statement / 70.06% branch / 78.41% function / 80.42% line coverage), the
+  production build succeeding, and 13/13 Playwright e2e tests passing. No regression appeared
+  that any individual task's isolated check had missed. CI enforces this on every pull request
+  via the `frontend` and `frontend-e2e` jobs in `.github/workflows/ci.yml`, both required by
+  `ci-gate`.
+- **Remaining open decision for the user:** whether to build CI wiring for the real-backend smoke
+  tier's cadence (nightly or pre-deploy). The per-PR `frontend-e2e` job deliberately does not run
+  it; this is a scope boundary this plan draws, not an oversight, and needs the user's
+  confirmation before this frontend testing effort is treated as its own end point.
+
+Backend Python 3.12/PostgreSQL 16 target-environment verification and the target-host smoke
+report are unaffected by this frontend work and remain tracked separately in
+`docs/planning/gates/p1.md`. P1.8 does not close on this evidence alone.
 
 ### Release-blocking invariants
 

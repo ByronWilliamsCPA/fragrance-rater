@@ -32,11 +32,13 @@ coverage/
 .env.local
 .env.*.local
 
-# Generated API client (regenerate with npm run generate-client)
-src/client/
-
 # TypeScript build info
 *.tsbuildinfo
 
 # Vite cache
 .vite/
+
+# Playwright test artifacts
+playwright-report/
+test-results/
+blob-report/
