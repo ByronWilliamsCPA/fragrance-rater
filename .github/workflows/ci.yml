@@ -77,16 +77,70 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Runs the mocked-API Playwright suite (Tasks 1-9) against a production
+  # build. The real-backend smoke tier (frontend/e2e-smoke/, Task 10) is
+  # intentionally NOT run here: it needs a running Compose stack and
+  # belongs in a separate, less-frequent workflow (nightly or pre-deploy).
+  # That is an open, already-surfaced decision, not an oversight.
+  frontend-e2e:
+    name: Frontend E2E
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Get installed Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ steps.playwright-version.outputs.version }}
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - name: Install Playwright OS dependencies (cache hit)
+        run: npx playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - name: Run e2e tests
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+
   # Top-level gate that emits the bare "CI Gate" check name the org
   # ruleset requires. The reusable workflow's internal "CI Gate" job
   # surfaces as "CI Pipeline / CI Gate" because of the caller-job
   # prefix; this aggregate job re-publishes the same pass/fail signal
   # under the canonical name the ruleset matches on. Also gates on the
-  # frontend job so a frontend lint/typecheck/test/build failure blocks
-  # the same required check, not just the Python pipeline.
+  # frontend and frontend-e2e jobs so a frontend lint/typecheck/test/build
+  # or e2e failure blocks the same required check, not just the Python
+  # pipeline.
   ci-gate:
     name: CI Gate
-    needs: [ci, frontend]
+    needs: [ci, frontend, frontend-e2e]
     runs-on: ubuntu-latest
     if: always()
     permissions:
@@ -100,9 +154,10 @@ jobs:
         env:
           CI_RESULT: ${{ needs.ci.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
+          FRONTEND_E2E_RESULT: ${{ needs.frontend-e2e.result }}
         run: |
-          if [ "$CI_RESULT" != "success" ] || [ "$FRONTEND_RESULT" != "success" ]; then
-            echo "::error::CI did not succeed (backend=$CI_RESULT, frontend=$FRONTEND_RESULT)"
+          if [ "$CI_RESULT" != "success" ] || [ "$FRONTEND_RESULT" != "success" ] || [ "$FRONTEND_E2E_RESULT" != "success" ]; then
+            echo "::error::CI did not succeed (backend=$CI_RESULT, frontend=$FRONTEND_RESULT, frontend-e2e=$FRONTEND_E2E_RESULT)"
             exit 1
           fi
           echo "CI Gate: all upstream checks succeeded."
