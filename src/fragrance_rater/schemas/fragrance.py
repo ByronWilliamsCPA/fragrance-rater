@@ -179,8 +179,8 @@ class PerfumerResponse(BaseModel):
     verified and must not be presented as though it were established.
     """
 
-    name: str
-    source_url: str
+    name: str = Field(..., min_length=1)
+    source_url: str = Field(..., min_length=1)
 
     model_config = {"from_attributes": True}
 
