@@ -38,6 +38,7 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-011](./adr-011-worn-by-evidence-dimension.md) | Worn-By Evidence Dimension | Accepted | 2026-09-12 |
 | [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md) | Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance | Accepted | 2026-09-15 |
 | [ADR-013](./adr-013-external-ontology-and-standards-crosswalk.md) | External Ontology and Standards Crosswalk | Accepted; amends ADR-004, ADR-010 | 2026-09-15 |
+| [ADR-014](./adr-014-training-eligibility-and-unclassified-family.md) | Training Eligibility and the Unclassified Family Sentinel | Proposed | 2026-09-19 |
 
 ## Creating ADRs
 
