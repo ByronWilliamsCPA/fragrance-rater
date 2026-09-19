@@ -654,6 +654,98 @@ class TestRecommendationServiceIntegration:
         assert profile.family_affinities.get("floral", 0) == 2.0
         assert "oriental" not in profile.family_affinities
 
+    async def test_build_preference_profile_excludes_training_ineligible_fragrance(
+        self, async_session
+    ):
+        """ADR-014: a fragrance whose training_eligibility_code is in
+        TRAINING_INELIGIBLE_CODES (e.g. "excluded_pending_classification",
+        because it has no real Michael Edwards Wheel classification yet)
+        must not contribute its notes/accords/family to the reviewer's
+        affinity profile, even though its evaluation is otherwise live.
+        The NULL (eligible) fragrance's evaluation must still count.
+        """
+        reviewer = Reviewer(id="reviewer-ineligible", name="Ineligible Test User")
+        async_session.add(reviewer)
+
+        note_eligible = Note(id="note-eligible", name="Bergamot", category="citrus")
+        note_ineligible = Note(id="note-ineligible", name="Oud", category="woody")
+        async_session.add_all([note_eligible, note_ineligible])
+
+        eligible_fragrance = Fragrance(
+            id="frag-eligible",
+            name="Eligible Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family="citrus",
+            subfamily="fresh",
+            data_source="manual",
+            training_eligibility_code=None,
+        )
+        ineligible_fragrance = Fragrance(
+            id="frag-ineligible",
+            name="Ineligible Fragrance",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family="oriental",
+            subfamily="oud",
+            data_source="manual",
+            training_eligibility_code="excluded_pending_classification",
+        )
+        async_session.add_all([eligible_fragrance, ineligible_fragrance])
+
+        async_session.add_all(
+            [
+                FragranceNote(
+                    fragrance_id="frag-eligible",
+                    note_id="note-eligible",
+                    position="top",
+                ),
+                FragranceNote(
+                    fragrance_id="frag-ineligible",
+                    note_id="note-ineligible",
+                    position="base",
+                ),
+                FragranceAccord(
+                    fragrance_id="frag-eligible", accord_type="citrus", intensity=1.0
+                ),
+                FragranceAccord(
+                    fragrance_id="frag-ineligible", accord_type="woody", intensity=1.0
+                ),
+            ]
+        )
+
+        async_session.add_all(
+            [
+                Evaluation(
+                    id="eval-eligible",
+                    fragrance_id="frag-eligible",
+                    reviewer_id="reviewer-ineligible",
+                    rating=5,
+                ),
+                Evaluation(
+                    id="eval-ineligible",
+                    fragrance_id="frag-ineligible",
+                    reviewer_id="reviewer-ineligible",
+                    rating=5,
+                ),
+            ]
+        )
+        await async_session.commit()
+
+        service = RecommendationService(async_session, model=AffinityV1())
+        profile = await service.build_preference_profile("reviewer-ineligible")
+
+        assert profile.evaluation_count == 1
+        assert profile.note_affinities.get("note-eligible", 0) == 2.0
+        assert "note-ineligible" not in profile.note_affinities
+        assert "citrus" in profile.accord_affinities
+        assert "woody" not in profile.accord_affinities
+        assert profile.family_affinities.get("citrus", 0) == 2.0
+        assert "oriental" not in profile.family_affinities
+        assert "oud" not in profile.family_affinities
+
     async def test_get_recommendations_insufficient_data(self, async_session):
         """Test that insufficient evaluations raises error."""
         # Create reviewer with only 2 evaluations (need 3)

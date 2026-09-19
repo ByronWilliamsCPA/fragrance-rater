@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.core.exceptions import BusinessLogicError
+from fragrance_rater.core.vocabulary import TRAINING_INELIGIBLE_CODES
 from fragrance_rater.ml.feature_space import vectorize
 from fragrance_rater.ml.model import (
     COMPONENT_WEIGHTS,
@@ -199,11 +200,17 @@ class RecommendationService:
         )
         # Accumulation is the model's job (fragrance_rater.ml.model); this
         # service only selects eligible evidence and vectorizes features.
+        #
+        # ADR-014: a fragrance flagged as not yet eligible to train
+        # affinities (e.g. no real Michael Edwards Wheel classification yet)
+        # must not contribute its notes/accords/family here. NULL (every
+        # fragrance as of this ADR) means "eligible".
         return self.model.build_profile(
             reviewer_id,
             [
                 (vectorize(fragrance), weights)
                 for fragrance, weights in contributions.values()
+                if fragrance.training_eligibility_code not in TRAINING_INELIGIBLE_CODES
             ],
         )
 
