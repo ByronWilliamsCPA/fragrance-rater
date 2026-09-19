@@ -80,6 +80,7 @@ jobs:
           files: frontend/coverage/lcov.info
           flags: frontend
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
       - name: Build
         run: npm run build
 
