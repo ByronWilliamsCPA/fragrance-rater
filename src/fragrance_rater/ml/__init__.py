@@ -12,9 +12,10 @@ Layout:
   vector (``FeatureVector``) and how it is produced from an ORM row or
   reconstructed from a frozen manifest.
 - ``model``: ``ModelSpec`` (identity, version, serialized parameters and their
-  digest), the ``Scorer`` protocol, and ``AffinityV1``, the deterministic
+  digest), the ``Scorer`` protocol, ``AffinityV1`` (the deterministic
   weighted-affinity heuristic from ADR-004/ADR-007 extracted as a pure,
-  synchronous model object.
+  synchronous model object) and ``AffinityV2``, the corrected heuristic that
+  is the default scorer.
 - ``registry``: named lookup of registered scorers.
 - ``dataset``: uniform training rows and array export built on the frozen
   training manifest.
@@ -23,9 +24,10 @@ Layout:
 - ``predict``: run a registered model over an eligible set and freeze
   ``PredictionSnapshot`` rows with a server-built manifest (ADR-009).
 
-Nothing here changes the affinity-v1 ranking; the scorer is a
-behavior-preserving extraction whose parameters are now serialized and
-digested so that a change to any tunable is a recorded version change.
+``AffinityV1`` is a behavior-preserving extraction whose parameters are now
+serialized and digested, so a change to any tunable is a recorded version
+change. ``AffinityV2`` is a new version and does change ranking; it is the
+default scorer (ML Decisions Q6, ADR-004 amendment).
 
 Exception hierarchy exemption: this package raises plain built-in exceptions
 (``ValueError``, ``KeyError``) rather than ``fragrance_rater.core.exceptions``

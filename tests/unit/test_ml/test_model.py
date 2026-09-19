@@ -178,6 +178,25 @@ class TestAffinityV2:
         assert result.score == pytest.approx(expected)
         assert result.n_evidence == 2
 
+    def test_extreme_negative_v2_raw_score_does_not_overflow(self) -> None:
+        """Critical finding 3, negative side, for the v2 scorer directly.
+
+        Mirrors the AffinityV1 regression coverage in
+        ``test_recommendation_service.py``: ``sigmoid_clamp`` bounds the
+        scaled raw score before ``math.exp`` is called, so an extreme
+        negative family affinity (plausible after many evaluations
+        accumulate) still produces a valid, non-overflowing score that
+        saturates at ~0.0 instead of raising ``OverflowError``.
+        """
+        profile = UserProfile(
+            reviewer_id="r",
+            family_affinities={"woody": -1_000_000.0},
+        )
+        result = AffinityV2().score(profile, _vector(subfamily=""))
+        assert math.isfinite(result.score)
+        assert not math.isnan(result.score)
+        assert result.score == pytest.approx(0.0, abs=1e-9)
+
 
 class TestAffinityV1Scoring:
     def test_empty_profile_scores_neutral(self) -> None:

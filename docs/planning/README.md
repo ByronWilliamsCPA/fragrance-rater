@@ -25,10 +25,12 @@ behavior but does not silently supersede an accepted ADR.
 ```text
 P0 ┬→ P1 Calibration release readiness --------------------------┐
    └→ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
-                                                                    └→ P6 Pilot readiness
-                                                                        └→ F1 Family pilot
-                                                                            └→ D1 → D2 ┬→ D3
-                                                                                        └→ D4 → D5
+                                                                    └→ R1 ┬→ R2
+                                                                            └→ R3 ┴→ R4
+                                                                                    └→ P6 Pilot readiness
+                                                                                        └→ F1 Family pilot
+                                                                                            └→ D1 → D2 ┬→ D3
+                                                                                                        └→ D4 → D5
 ```
 
 P1 evidence can proceed alongside P3-P5, but P6 must close P1 against the final deployed UI.
