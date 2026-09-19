@@ -27,7 +27,7 @@ import json
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from fragrance_rater.ml.feature_space import FEATURE_SPACE_VERSION, FeatureVector
 
@@ -248,9 +248,14 @@ AFFINITY_V1_SPEC = ModelSpec(
 class AffinityV1:
     """ADR-004 weighted affinity with veto, ADR-007 evidence rules, frozen.
 
-    Parameters are fixed class-level constants exposed through ``spec`` so
-    the digest pins them; ``tests/unit/test_ml/test_model.py`` asserts the
-    pinned digest and fails when any tunable changes without a version bump.
+    ``build_profile``/``score``/``controlled_affinity`` read every tunable
+    from ``self.spec.params``, never from the bare module constants below
+    (``VETO_THRESHOLD`` and friends exist only to seed ``AFFINITY_V1_SPEC``'s
+    params at definition time). That makes ``spec.digest`` an actual behavior
+    fingerprint rather than a snapshot of values nothing reads: a change to
+    how this scores has to go through ``params`` to take effect, so it
+    cannot drift while ``tests/unit/test_ml/test_model.py``'s pinned-digest
+    assertion stays green.
     """
 
     spec: ModelSpec = AFFINITY_V1_SPEC
@@ -265,7 +270,9 @@ class AffinityV1:
             float: ``(liking - 5) / 2.5``; an explicit ADR-007 heuristic,
                 not predicted liking.
         """
-        return (liking - CONTROLLED_LIKING_OFFSET) / CONTROLLED_LIKING_DIVISOR
+        offset = cast("float", self.spec.params["controlled_liking_offset"])
+        divisor = cast("float", self.spec.params["controlled_liking_divisor"])
+        return (liking - offset) / divisor
 
     def build_profile(
         self,
@@ -287,6 +294,7 @@ class AffinityV1:
         Returns:
             UserProfile: Accumulated affinities and display summaries.
         """
+        subfamily_factor = cast("float", self.spec.params["subfamily_factor"])
         note_affinities: defaultdict[str, float] = defaultdict(float)
         note_names: dict[str, str] = {}
         accord_affinities: defaultdict[str, float] = defaultdict(float)
@@ -311,7 +319,7 @@ class AffinityV1:
             # a "" key that every unknown-subfamily fragrance would match.
             family_affinities[features.primary_family or ""] += weight
             if features.subfamily:
-                family_affinities[features.subfamily] += weight * SUBFAMILY_FACTOR
+                family_affinities[features.subfamily] += weight * subfamily_factor
 
         sorted_notes = sorted(
             [
@@ -344,14 +352,21 @@ class AffinityV1:
         Returns:
             ScoredResult: Bounded score, veto state, and components.
         """
+        veto_threshold = cast("float", self.spec.params["veto_threshold"])
+        veto_score = cast("float", self.spec.params["veto_score"])
+        component_weights = cast(
+            "dict[str, float]", self.spec.params["component_weights"]
+        )
+        sigmoid_clamp = cast("float", self.spec.params["sigmoid_clamp"])
+
         # Veto on strong dislike of any published note, first in source order.
         for note in features.notes:
             if note.note_id is None:
                 continue
-            if profile.note_affinities.get(note.note_id, 0) < VETO_THRESHOLD:
+            if profile.note_affinities.get(note.note_id, 0) < veto_threshold:
                 return ScoredResult(
-                    score=VETO_SCORE,
-                    score_percent=int(VETO_SCORE * 100),
+                    score=veto_score,
+                    score_percent=int(veto_score * 100),
                     vetoed=True,
                     veto_note=note.name,
                     n_evidence=profile.evaluation_count,
@@ -374,19 +389,19 @@ class AffinityV1:
         subfamily_score = profile.family_affinities.get(features.subfamily or "", 0)
 
         raw_score = (
-            COMPONENT_WEIGHTS["notes"] * note_score
-            + COMPONENT_WEIGHTS["accords"] * accord_score
-            + COMPONENT_WEIGHTS["family"] * family_score
-            + COMPONENT_WEIGHTS["subfamily"] * subfamily_score
+            component_weights["notes"] * note_score
+            + component_weights["accords"] * accord_score
+            + component_weights["family"] * family_score
+            + component_weights["subfamily"] * subfamily_score
         )
 
         # #EDGE: data integrity: raw_score is an unbounded weighted sum that
         # grows with history, so clamp before math.exp to guarantee no
         # OverflowError; sigmoid(+/-50) already round-trips to
         # 1.0 / ~1.9e-22 in float64.
-        # #VERIFY: clamp the sigmoid input to +/-SIGMOID_CLAMP before calling
+        # #VERIFY: clamp the sigmoid input to +/-sigmoid_clamp before calling
         # math.exp.
-        clamped = max(-SIGMOID_CLAMP, min(SIGMOID_CLAMP, raw_score))
+        clamped = max(-sigmoid_clamp, min(sigmoid_clamp, raw_score))
         normalized = 1 / (1 + math.exp(-clamped))
 
         return ScoredResult(
@@ -477,6 +492,8 @@ class AffinityV2(AffinityV1):
             UserProfile: Shrunk affinities, per-key evidence counts, and
                 display summaries.
         """
+        subfamily_factor = cast("float", self.spec.params["subfamily_factor"])
+        shrinkage_k = cast("float", self.spec.params["shrinkage_k"])
         note_sums: defaultdict[str, float] = defaultdict(float)
         note_counts: defaultdict[str, int] = defaultdict(int)
         note_names: dict[str, str] = {}
@@ -510,13 +527,12 @@ class AffinityV2(AffinityV1):
                 family_sums[features.primary_family] += weight
                 family_counts[features.primary_family] += 1
             if features.subfamily:
-                subfamily_sums[features.subfamily] += weight * SUBFAMILY_FACTOR
+                subfamily_sums[features.subfamily] += weight * subfamily_factor
                 subfamily_counts[features.subfamily] += 1
 
         def shrink(sums: dict[str, float], counts: dict[str, int]) -> dict[str, float]:
             return {
-                key: total / (counts[key] + V2_SHRINKAGE_K)
-                for key, total in sums.items()
+                key: total / (counts[key] + shrinkage_k) for key, total in sums.items()
             }
 
         note_affinities = shrink(note_sums, note_counts)
@@ -556,13 +572,21 @@ class AffinityV2(AffinityV1):
         Returns:
             ScoredResult: Bounded score, veto state, and components.
         """
+        veto_threshold = cast("float", self.spec.params["veto_threshold"])
+        veto_score = cast("float", self.spec.params["veto_score"])
+        component_weights = cast(
+            "dict[str, float]", self.spec.params["component_weights"]
+        )
+        sigmoid_clamp = cast("float", self.spec.params["sigmoid_clamp"])
+        link_scale = cast("float", self.spec.params["link_scale"])
+
         for note in features.notes:
             if note.note_id is None:
                 continue
-            if profile.note_affinities.get(note.note_id, 0.0) < V2_VETO_THRESHOLD:
+            if profile.note_affinities.get(note.note_id, 0.0) < veto_threshold:
                 return ScoredResult(
-                    score=VETO_SCORE,
-                    score_percent=int(VETO_SCORE * 100),
+                    score=veto_score,
+                    score_percent=int(veto_score * 100),
                     vetoed=True,
                     veto_note=note.name,
                     n_evidence=profile.evaluation_count,
@@ -587,16 +611,16 @@ class AffinityV2(AffinityV1):
         )
 
         raw_score = (
-            COMPONENT_WEIGHTS["notes"] * note_score
-            + COMPONENT_WEIGHTS["accords"] * accord_score
-            + COMPONENT_WEIGHTS["family"] * family_score
-            + COMPONENT_WEIGHTS["subfamily"] * subfamily_score
+            component_weights["notes"] * note_score
+            + component_weights["accords"] * accord_score
+            + component_weights["family"] * family_score
+            + component_weights["subfamily"] * subfamily_score
         )
         # #EDGE: data integrity: same unbounded-raw_score risk as
-        # AffinityV1.score above, scaled by V2_LINK_SCALE before clamping.
-        # #VERIFY: clamp the sigmoid input to +/-SIGMOID_CLAMP before calling
+        # AffinityV1.score above, scaled by link_scale before clamping.
+        # #VERIFY: clamp the sigmoid input to +/-sigmoid_clamp before calling
         # math.exp.
-        clamped = max(-SIGMOID_CLAMP, min(SIGMOID_CLAMP, raw_score * V2_LINK_SCALE))
+        clamped = max(-sigmoid_clamp, min(sigmoid_clamp, raw_score * link_scale))
         normalized = 1 / (1 + math.exp(-clamped))
 
         return ScoredResult(

@@ -7,7 +7,11 @@ import math
 
 import pytest
 
-from fragrance_rater.ml.model import AffinityV1
+from fragrance_rater.ml.model import (
+    AFFINITY_V2_SPEC,
+    AffinityV1,
+    AffinityV2,
+)
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
     Fragrance,
@@ -348,6 +352,75 @@ class TestCalculateMatchScore:
         assert not math.isnan(result.score)
         assert result.score == pytest.approx(0.0, abs=1e-9)
         assert result.score_percent == 0
+
+
+@pytest.mark.asyncio
+class TestCalculateMatchScoreDefaultModel:
+    """Pin the shipping default (AffinityV2) through RecommendationService.
+
+    Every other test in this file constructs ``RecommendationService`` with
+    an explicit ``model=AffinityV1()``, so a bug confined to ``AffinityV2``
+    (the actual ``DEFAULT_SCORER_FACTORY``, ADR-004's 2026-09-19 amendment)
+    could pass the entire suite. These tests use ``RecommendationService``'s
+    real default and hand-compute expectations from AffinityV2's own
+    formula, so a regression in shrinkage, the separated family/subfamily
+    namespaces, ``link_scale``, or the v2 veto threshold fails here even
+    though every AffinityV1-pinned test above stays green.
+    """
+
+    _fragrance = TestCalculateMatchScore._fragrance
+
+    async def test_recommendation_service_defaults_to_affinity_v2(self, async_session):
+        """No explicit model means RecommendationService.model is AffinityV2."""
+        service = RecommendationService(async_session)
+
+        assert isinstance(service.model, AffinityV2)
+        assert service.model.spec is AFFINITY_V2_SPEC
+
+    async def test_family_and_subfamily_use_separate_namespaces(self, async_session):
+        """AffinityV2's M-12 fix: family and subfamily affinities are kept in
+        separate dicts, so a subfamily label does not need to avoid
+        colliding with a family label and both contribute independently.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="v2-family-subfamily-profile",
+            family_affinities={"woody": 5.0},
+            subfamily_affinities={"amber": 3.0},
+        )
+        fragrance = self._fragrance(primary_family="woody", subfamily="amber")
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        expected_raw = (
+            COMPONENT_WEIGHTS["family"] * 5.0 + COMPONENT_WEIGHTS["subfamily"] * 3.0
+        )
+        expected_normalized = 1 / (1 + math.exp(-(expected_raw * 2.0)))  # link_scale
+
+        assert result.vetoed is False
+        assert result.components["family"] == 5.0
+        assert result.components["subfamily"] == 3.0
+        assert result.components["raw"] == pytest.approx(expected_raw)
+        assert result.score == pytest.approx(expected_normalized)
+        assert result.score_percent == int(expected_normalized * 100)
+
+    async def test_veto_uses_v2_threshold_not_v1(self, async_session):
+        """AffinityV2's veto threshold (-1.25, on the shrunk -2..2 scale) is
+        not AffinityV1's (-3.0, on the unbounded scale). A note affinity that
+        would not veto under v1 must still veto under the shipping default.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="v2-veto-profile",
+            note_affinities={"n-veto": -1.5},  # below v2's -1.25, above v1's -3.0
+        )
+        fragrance = self._fragrance(notes=[("n-veto", "Patchouli")])
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        assert result.vetoed is True
+        assert result.veto_note == "Patchouli"
+        assert result.score == 0.1
 
 
 @pytest.mark.asyncio
