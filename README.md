@@ -149,7 +149,10 @@ uv run uvicorn fragrance_rater.main:app &
 cd frontend && npm run generate-client
 ```
 
-This creates typed API functions in `frontend/src/client/`.
+This creates typed API functions in `frontend/src/client/`, which is committed
+to source control rather than gitignored: CI has no live backend to run
+`generate-client` against, so the generated types must be regenerated and
+committed manually whenever the OpenAPI schema changes.
 
 ### Docker
 

@@ -80,7 +80,7 @@ export type Sample = {
   skin_planned: boolean
   blotter_locked: boolean
   skin_locked: boolean
-  identity?: { name: string; brand: string; concentration: string }
+  identity?: { fragrance_id: string; name: string; brand: string; concentration: string }
   observations: Observation[]
 }
 
