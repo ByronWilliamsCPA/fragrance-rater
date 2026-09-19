@@ -57,6 +57,22 @@ function disabledOnNonDetection(name: string) {
   return name === 'intensity' || name === 'liking'
 }
 
+/**
+ * Orders a sample's observations into a readable log.
+ *
+ * Blotter screens precede skin tests, and within a stage the timepoints run
+ * earliest first. The API does not guarantee an order, and an out-of-sequence
+ * row in an evaporation curve is actively misleading rather than merely untidy.
+ */
+function timeOrdered(observations: Enrollment['presentations'][number]['observations']) {
+  const stageRank = (stage: string) => (stage === 'SKIN' ? 1 : 0)
+  return [...observations].sort(
+    (first, second) =>
+      stageRank(first.stage) - stageRank(second.stage) ||
+      first.elapsed_minutes - second.elapsed_minutes
+  )
+}
+
 export function CalibrationPage({ assignments, programs, reviewers }: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [assignmentId, setAssignmentId] = useState('')
@@ -365,18 +381,45 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                 )}
                 <h3>Saved observations</h3>
                 {sample.observations.length ? (
-                  sample.observations.map((observation) => (
-                    <article key={observation.id}>
-                      <strong>
-                        {observation.stage} · {observation.elapsed_minutes} min ·{' '}
-                        {observation.phase.replace(/_/g, ' ')}
-                      </strong>
-                      <p>
-                        Liking: {observation.liking ?? 'Unanswered'}
-                        {observation.comments ? ` · ${observation.comments}` : ''}
-                      </p>
-                    </article>
-                  ))
+                  /*
+                   * A blotter log: one row per timepoint, ordered by elapsed
+                   * time, so the evaporation curve is legible at a glance.
+                   * Every professional evaluation sheet this interface is
+                   * modelled on is laid out this way, and the previous
+                   * unordered list of prose lines made a sequence of
+                   * observations read as unrelated entries.
+                   */
+                  <div className="log-scroll">
+                    <table className="log">
+                      <caption className="visually-hidden">
+                        Saved observations for this sample, earliest first
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Time</th>
+                          <th scope="col">Stage</th>
+                          <th scope="col">Phase</th>
+                          <th scope="col">Intensity</th>
+                          <th scope="col">Liking</th>
+                          <th scope="col">Comment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {timeOrdered(sample.observations).map((observation) => (
+                          <tr key={observation.id}>
+                            <th scope="row" data-numeric>
+                              {observation.elapsed_minutes} min
+                            </th>
+                            <td>{observation.stage === 'SKIN' ? 'Skin' : 'Blotter'}</td>
+                            <td>{observation.phase.replace(/_/g, ' ')}</td>
+                            <td data-numeric>{observation.intensity ?? '—'}</td>
+                            <td data-numeric>{observation.liking ?? '—'}</td>
+                            <td>{observation.comments || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
                   <EmptyState title="No observations yet">
                     Save a timepoint to begin this sample history.

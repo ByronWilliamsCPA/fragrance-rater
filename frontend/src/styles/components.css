@@ -855,3 +855,62 @@ article {
   font-size: var(--text-caption);
   color: var(--color-ink-muted);
 }
+
+/* ---- Log table --------------------------------------------------------- */
+
+/*
+ * A blotter log. Ruled rows, tabular figures, a time column that reads as the
+ * index. This is the one place a real table is the right structure: the whole
+ * point is comparing a row against the rows above and below it.
+ */
+.log-scroll {
+  /*
+   * 1.4.10 Reflow permits two-dimensional scrolling for content that needs a
+   * two-dimensional layout to be meaningful, which a data table does. The
+   * alternative, collapsing to stacked cards on a phone, destroys exactly the
+   * down-column comparison the table exists for.
+   */
+  overflow-x: auto;
+  margin-top: var(--space-4);
+}
+
+.log {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-label);
+}
+
+.log caption {
+  text-align: left;
+}
+
+.log th,
+.log td {
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.log thead th {
+  border-bottom: var(--rule-section) solid var(--color-ink);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.log tbody th {
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.log td:last-child,
+.log th:last-child {
+  padding-right: 0;
+}
+
+.log [data-numeric] {
+  font-variant-numeric: tabular-nums;
+}

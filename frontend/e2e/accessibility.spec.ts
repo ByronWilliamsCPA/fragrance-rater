@@ -8,6 +8,7 @@ import {
   enrollmentFixture,
   recommendationRunFixture,
 } from './support/mock-api'
+import type { Observation } from '../src/api/types'
 
 // #ASSUME: data-integrity: each routeChecks entry's `heading` was verified against the
 // real page component source (not the plan's guessed text) before this test was written.
@@ -89,6 +90,93 @@ for (const colorScheme of ['light', 'dark'] as const) {
     }
   })
 }
+
+test.describe('Observation log', () => {
+  /*
+   * The shared enrollment fixture carries no observations, so every other scan
+   * renders this route with the log's empty state. The log is a data table
+   * with row headers and a caption, which is exactly the kind of structure an
+   * axe scan is good at checking, so it gets its own populated case.
+   */
+  const blank = {
+    detected: true,
+    confidence: null,
+    sweetness: null,
+    freshness: null,
+    density: null,
+    familiarity: null,
+    dryness: null,
+    clean_soapy: null,
+    earthy_rooty: null,
+    bodily_animalic: null,
+    discomfort: null,
+    opening_liking: null,
+    drydown_liking: null,
+    would_wear: null,
+    would_buy: null,
+    artistic_appreciation: null,
+    projection: null,
+    longevity_minutes: null,
+    perceived_notes: null,
+    likes: null,
+    dislikes: null,
+    reminds_me_of: null,
+  }
+
+  // Deliberately out of order, so the spec proves the component sorts rather
+  // than that the fixture happened to arrive sorted.
+  const timepoints: Observation[] = [
+    {
+      ...blank,
+      id: 'o2',
+      phase: 'blind',
+      stage: 'BLOTTER',
+      elapsed_minutes: 30,
+      intensity: 3,
+      liking: 6,
+      comments: 'Softer now',
+    },
+    {
+      ...blank,
+      id: 'o1',
+      phase: 'blind',
+      stage: 'BLOTTER',
+      elapsed_minutes: 0,
+      intensity: 5,
+      liking: 4,
+      comments: null,
+    },
+    {
+      ...blank,
+      id: 'o3',
+      phase: 'blind',
+      stage: 'SKIN',
+      elapsed_minutes: 15,
+      intensity: 4,
+      liking: 7,
+      comments: null,
+    },
+  ]
+
+  test('renders timepoints earliest first and scans clean', async ({ page }) => {
+    await mockApi(page, {
+      ...bootstrapRoutes(managerAccess),
+      '/calibration/enrollments/enr1': enrollmentFixture(false, timepoints),
+    })
+    await page.goto('/calibration')
+    await expect(page.getByRole('heading', { name: 'Fragrance Rater' })).toBeVisible()
+    await page.getByLabel('Evaluator and program').selectOption('enr1')
+    await page.getByRole('button', { name: 'ABC-123' }).click()
+
+    // Fixture order is 30, 0, 15-on-skin; the log must show blotter timepoints
+    // in ascending time, then the skin test.
+    const rowHeaders = await page.locator('.log tbody th').allTextContents()
+    expect(rowHeaders).toEqual(['0 min', '30 min', '15 min'])
+
+    const results = await new AxeBuilder({ page }).withTags(axeTags).analyze()
+    expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([])
+  })
+})
 
 test.describe('Target size (WCAG 2.2 AA, 2.5.8)', () => {
   for (const { path, heading, populate } of routeChecks) {

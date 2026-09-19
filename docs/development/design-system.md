@@ -225,6 +225,24 @@ reveal is what ADR-005 exists to prevent. Imagery can only appear post-reveal, i
 and in the catalog, so it cannot carry the app's visual identity the way it does on a commercial
 perfume site. The fragrance model also has no image field of any kind today.
 
+## The observation log
+
+A sample's saved timepoints render as a table, ordered blotter-then-skin and earliest-first within
+each stage. Every professional evaluation sheet this interface is modelled on is laid out this way,
+because the point of recording several timepoints is reading the evaporation curve *down a column*:
+intensity falling while liking rises is the whole signal, and it is invisible in a list of prose
+lines.
+
+This is the one place a real `<table>` is the right structure, and the one place two-dimensional
+scrolling is allowed on a narrow screen. WCAG 1.4.10 Reflow exempts content that needs a
+two-dimensional layout to be meaningful, and collapsing the log into stacked cards on a phone would
+destroy exactly the down-column comparison it exists for.
+
+The API does not guarantee an order, so the component sorts. An out-of-sequence row in an
+evaporation curve is actively misleading rather than merely untidy, and
+`e2e/accessibility.spec.ts` supplies deliberately unsorted rows to prove the component sorts them
+rather than that the fixture arrived sorted.
+
 ## Conventions
 
 - **No literal colours outside `tokens.css`.** Add a token, and add its pair to the contrast test.

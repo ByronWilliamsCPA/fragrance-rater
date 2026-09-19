@@ -3,7 +3,14 @@ import type {
   EnrollmentApiV1CalibrationEnrollmentsEnrollmentIdGetResponse,
   RunView,
 } from '../../src/client/types.gen'
-import type { Access, Assignment, Enrollment, Person, Program } from '../../src/api/types'
+import type {
+  Access,
+  Assignment,
+  Enrollment,
+  Observation,
+  Person,
+  Program,
+} from '../../src/api/types'
 
 export interface MockRoutes {
   [path: string]: unknown | ((route: Route) => Promise<void> | void)
@@ -28,7 +35,11 @@ export async function mockApi(page: Page, routes: MockRoutes): Promise<void> {
       await handler(route)
       return
     }
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(handler) })
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(handler),
+    })
   })
 }
 
@@ -40,13 +51,16 @@ export const managerAccess = { username: 'manager', manager: true } satisfies Ac
  * useAppData fetches these four endpoints on mount for EVERY route. Any
  * spec that omits one gets an ErrorState render instead of its target page.
  */
-export function bootstrapRoutes(access: typeof participantAccess | typeof managerAccess = participantAccess): MockRoutes {
+export function bootstrapRoutes(
+  access: typeof participantAccess | typeof managerAccess = participantAccess
+): MockRoutes {
   return {
     '/reviewers': reviewers,
     '/calibration/access': access,
-    '/calibration/programs': [
-      { id: 'p1', name: 'Baseline', version: '1' },
-    ] satisfies Pick<Program, 'id' | 'name' | 'version'>[],
+    '/calibration/programs': [{ id: 'p1', name: 'Baseline', version: '1' }] satisfies Pick<
+      Program,
+      'id' | 'name' | 'version'
+    >[],
     '/calibration/enrollments': [
       { id: 'enr1', program_id: 'p1', reviewer_id: 'r1' },
     ] satisfies Assignment[],
@@ -65,7 +79,16 @@ export const fragranceCatalog = [
 // confirming the generated operation type still exists.
 type EnrollmentFixture = Enrollment & EnrollmentApiV1CalibrationEnrollmentsEnrollmentIdGetResponse
 
-export function enrollmentFixture(revealed: boolean) {
+export function enrollmentFixture(
+  revealed: boolean,
+  /**
+   * Saved timepoints for the single presentation. Defaults to none, which is
+   * the state most specs want; pass rows to exercise the observation log.
+   * Typed as `Observation[]` so the fixture-contract check (ADR-014) still
+   * catches drift in the rows a spec supplies, not just the ones declared here.
+   */
+  observations: Observation[] = []
+) {
   return {
     id: 'enr1',
     program_id: 'p1',
@@ -86,7 +109,7 @@ export function enrollmentFixture(revealed: boolean) {
         identity: revealed
           ? { fragrance_id: 'f1', brand: 'House', name: 'Signature', concentration: 'EDP' }
           : undefined,
-        observations: [],
+        observations,
       },
     ],
     // #ASSUME: data-integrity: `Enrollment` (frontend/src/api/types.ts) is hand-written
