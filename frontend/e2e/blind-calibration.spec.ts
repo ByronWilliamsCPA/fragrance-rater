@@ -2,9 +2,9 @@ import { test, expect, type Route } from '@playwright/test'
 import { mockApi, bootstrapRoutes, enrollmentFixture } from './support/mock-api'
 
 // #ASSUME: data-integrity: the interaction sequence and text assertions below were
-// verified against the real CalibrationPage.tsx source (not the plan's guessed code),
-// following the same corrections documented in task-5-report.md and
-// e2e/accessibility.spec.ts:
+// verified against the real CalibrationPage.tsx source (not the plan's guessed code,
+// see docs/superpowers/plans/2026-09-18-frontend-testing-and-docs.md), following the
+// same corrections documented in e2e/accessibility.spec.ts:
 // - The "Evaluator and program" select's option text is "<reviewer name> · <program
 //   name>" (CalibrationPage.tsx renders both), not just the program name, so selecting
 //   by value ('enr1') is used instead of a label match.

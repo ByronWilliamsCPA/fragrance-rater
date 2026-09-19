@@ -11,7 +11,8 @@ import {
 
 // #ASSUME: data-integrity: each routeChecks entry's `heading` was verified against the
 // real page component source (not the plan's guessed text) before this test was written.
-// See frontend/e2e/accessibility.spec.ts history / task-5-report.md for the corrections:
+// Corrections vs. the plan's guessed text (verified headed against the real rendered page,
+// see docs/superpowers/plans/2026-09-18-frontend-testing-and-docs.md for the original brief):
 // - '/calibration' and '/recommendations' render their plan-guessed heading only after a
 //   user interaction (selecting an assignment/sample, or starting a recommendation run),
 //   so `populate` drives that interaction before the heading assertion.
@@ -87,8 +88,8 @@ test.describe('Keyboard operability', () => {
     await expect(page.getByLabel('Evaluator and program')).toBeVisible()
 
     // #ASSUME: timing dependencies: this Tab sequence was verified by running the test
-    // headed against the real rendered page (see task-5-report.md) rather than guessed;
-    // it depends on the DOM order of focusable elements before the assignment select:
+    // headed against the real rendered page rather than guessed; it depends on the DOM
+    // order of focusable elements before the assignment select:
     // 1) skip link, 2) "Home" nav link, 3) "Calibration" nav link (current page, still
     // focusable), 4) "Recommendations" nav link, 5) "My Ratings" nav link, then the
     // "Evaluator and program" <select>. Selecting the only option and pressing Enter/

@@ -3,8 +3,8 @@ import { mockApi, bootstrapRoutes, recommendationRunFixture } from './support/mo
 
 // #ASSUME: data-integrity: the interaction sequence and text assertions below were
 // verified against the real RecommendationsPage.tsx source (not the plan's guessed
-// code), following the same corrections documented in task-5/6/7-report.md and
-// e2e/accessibility.spec.ts:
+// code, see docs/superpowers/plans/2026-09-18-frontend-testing-and-docs.md), following
+// the same corrections documented in e2e/accessibility.spec.ts:
 // - recommendationRunFixture() (mock-api.ts) already returns `impressions` (not
 //   `.items`), with impression id `imp1` and `fragrance_name: 'Signature'`; this was
 //   fixed for Task 6/7 and needed no further change here.
