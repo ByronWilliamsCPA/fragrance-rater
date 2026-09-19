@@ -1,4 +1,8 @@
 import type { Page, Route } from '@playwright/test'
+import type {
+  EnrollmentApiV1CalibrationEnrollmentsEnrollmentIdGetResponse,
+  RunView,
+} from '../../src/client/types.gen'
 
 export interface MockRoutes {
   [path: string]: unknown | ((route: Route) => Promise<void> | void)
@@ -67,24 +71,47 @@ export function enrollmentFixture(revealed: boolean) {
         observations: [],
       },
     ],
-  }
+    // #ASSUME: data-integrity: GET /calibration/enrollments/{id} returns `dict[str, object]`
+    // (src/fragrance_rater/api/calibration.py::enrollment), so the generated client has no
+    // structured response type here, only an index signature. `satisfies` below cannot catch
+    // field-level drift for this fixture; it only guards the import path/operation still exists.
+    // #VERIFY: if the backend ever gains a typed response_model for this endpoint, switch this
+    // `satisfies` target to the new named type so field-level checks start applying.
+  } satisfies EnrollmentApiV1CalibrationEnrollmentsEnrollmentIdGetResponse
 }
 
 export function recommendationRunFixture(interested = false) {
   return {
     id: 'run1',
     reviewer_id: 'r1',
+    algorithm_version: 'affinity-v1',
+    candidate_strategy: 'catalog-affinity',
     created_at: '2026-09-18T00:00:00Z',
     impressions: [
       {
         id: 'imp1',
-        rank: 1,
+        fragrance_id: 'f1',
         fragrance_name: 'Signature',
         fragrance_brand: 'House',
+        rank: 1,
+        score_type: 'uncalibrated-affinity',
+        score_value: 0.87,
         match_percent: 87,
         shown_at: '2026-09-18T00:00:00Z',
-        responses: interested ? [{ id: 'resp1', impression_id: 'imp1', interested: true, sampling_state: null, created_at: '2026-09-18T00:00:01Z' }] : [],
+        responses: interested
+          ? [
+              {
+                id: 'resp1',
+                impression_id: 'imp1',
+                revision: 1,
+                interested: true,
+                sampling_state: null,
+                created_at: '2026-09-18T00:00:01Z',
+                recorded_by: null,
+              },
+            ]
+          : [],
       },
     ],
-  }
+  } satisfies RunView
 }
