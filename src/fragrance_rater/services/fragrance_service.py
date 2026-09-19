@@ -9,17 +9,20 @@ from fastapi import HTTPException
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
-from fragrance_rater.core.exceptions import DatabaseError
+from fragrance_rater.core.exceptions import DatabaseError, ValidationError
 from fragrance_rater.models.calibration import Membership
 from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
     FragranceNote,
     Note,
+    TrainingEligibility,
 )
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from sqlalchemy.ext.asyncio import AsyncSession
 
     from fragrance_rater.schemas.fragrance import (
@@ -104,7 +107,11 @@ class FragranceService:
         """Create a new fragrance with notes and accords.
 
         Args:
-            data (FragranceCreate): Fragrance creation data.
+            data (FragranceCreate): Fragrance creation data. If
+                `data.training_eligibility_code` is set, it is validated via
+                `_validate_training_eligibility_code` before the fragrance is
+                built, which raises `ValidationError` if the code does not
+                exist or is inactive in `training_eligibilities`.
 
         Returns:
             Fragrance: Created fragrance.
@@ -112,6 +119,10 @@ class FragranceService:
         Raises:
             DatabaseError: If the flushed fragrance cannot be read back.
         """
+        if data.training_eligibility_code is not None:
+            await self._validate_training_eligibility_code(
+                data.training_eligibility_code
+            )
         fragrance = Fragrance(
             id=str(uuid4()),
             name=data.name,
@@ -123,6 +134,7 @@ class FragranceService:
             primary_family=data.primary_family,
             subfamily=data.subfamily,
             intensity=data.intensity,
+            training_eligibility_code=data.training_eligibility_code,
             data_source="manual",
         )
         self.session.add(fragrance)
@@ -162,7 +174,12 @@ class FragranceService:
 
         Args:
             fragrance_id (str): UUID of the fragrance.
-            data (FragranceUpdate): Update data.
+            data (FragranceUpdate): Update data. If
+                `data.training_eligibility_code` is explicitly set to a
+                non-null value, it is validated via
+                `_validate_training_eligibility_code` before the update is
+                applied, which raises `ValidationError` if the code does not
+                exist or is inactive in `training_eligibilities`.
 
         Returns:
             Fragrance | None: Updated fragrance if found, None otherwise.
@@ -176,6 +193,12 @@ class FragranceService:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+        new_eligibility_code = update_data.get("training_eligibility_code")
+        if (
+            "training_eligibility_code" in update_data
+            and new_eligibility_code is not None
+        ):
+            await self._validate_training_eligibility_code(new_eligibility_code)
         identity_fields = {
             "name",
             "brand",
@@ -279,3 +302,75 @@ class FragranceService:
             await self.session.flush()
 
         return note
+
+    async def _validate_training_eligibility_code(self, code: str) -> None:
+        """Ensure a training_eligibility_code exists and is active.
+
+        A portable, driver-independent pre-check by query, deliberately
+        unlike the catch-and-discriminate style `create()`/`update()` use
+        for the `uq_fragrance_name_brand` uniqueness constraint elsewhere in
+        this codebase: that style exists specifically to avoid a
+        check-then-insert race on a user-controlled uniqueness constraint,
+        which does not apply here. `training_eligibilities` is a small,
+        rarely-mutated reference table, so a pre-check carries no such race
+        and avoids sniffing `IntegrityError.orig` constraint names, which is
+        fragile across the asyncpg/sqlite backends this project's test
+        suite uses.
+
+        Args:
+            code (str): The candidate `training_eligibility_code` value to
+                validate against the `training_eligibilities` lookup table.
+
+        Raises:
+            ValidationError: If no row for `code` exists, or the matching
+                row's `active` flag is False.
+        """
+        eligibility = await self.session.get(TrainingEligibility, code)
+        if eligibility is None or not eligibility.active:
+            msg = f"training_eligibility_code {code!r} does not exist or is inactive"
+            raise ValidationError(
+                msg,
+                field="training_eligibility_code",
+                value=code,
+                error_code="INVALID_TRAINING_ELIGIBILITY_CODE",
+            )
+
+    async def get_training_eligibility_display_label(
+        self, code: str | None
+    ) -> str | None:
+        """Look up the display label for a single training eligibility code.
+
+        Args:
+            code (str | None): A fragrance's `training_eligibility_code`,
+                or None when the fragrance has no eligibility override.
+
+        Returns:
+            str | None: The lookup row's `display_label`, or None if `code`
+                is None or no matching row exists.
+        """
+        if code is None:
+            return None
+        eligibility = await self.session.get(TrainingEligibility, code)
+        return eligibility.display_label if eligibility else None
+
+    async def get_training_eligibility_labels(
+        self, codes: Iterable[str]
+    ) -> dict[str, str]:
+        """Batch look up display labels for several training eligibility codes.
+
+        Args:
+            codes (Iterable[str]): Codes to look up; typically the distinct
+                non-null `training_eligibility_code` values across a page
+                of search results.
+
+        Returns:
+            dict[str, str]: Mapping of code to `display_label` for each
+                code with a matching row; a code with no matching row is
+                simply absent from the result.
+        """
+        code_set = set(codes)
+        if not code_set:
+            return {}
+        stmt = select(TrainingEligibility).where(TrainingEligibility.code.in_(code_set))
+        result = await self.session.execute(stmt)
+        return {row.code: row.display_label for row in result.scalars().all()}

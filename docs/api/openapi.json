@@ -3326,6 +3326,18 @@
             ],
             "title": "Intensity"
           },
+          "training_eligibility_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Eligibility Code"
+          },
           "notes": {
             "items": {
               "$ref": "#/components/schemas/FragranceNoteCreate"
@@ -3460,6 +3472,17 @@
             ],
             "title": "Intensity"
           },
+          "training_eligibility_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Eligibility Code"
+          },
           "data_source": {
             "type": "string",
             "title": "Data Source"
@@ -3512,6 +3535,7 @@
           "primary_family",
           "subfamily",
           "intensity",
+          "training_eligibility_code",
           "data_source",
           "external_id",
           "created_at",
@@ -3627,6 +3651,18 @@
               }
             ],
             "title": "Intensity"
+          },
+          "training_eligibility_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Training Eligibility Code"
           }
         },
         "type": "object",

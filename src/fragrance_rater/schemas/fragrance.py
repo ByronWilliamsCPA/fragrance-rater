@@ -74,6 +74,19 @@ class FragranceCreate(BaseModel):
     primary_family: str = Field(..., min_length=1, max_length=50)
     subfamily: str = Field(..., min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
+    # #ASSUME: security: any authenticated identity may set
+    # `training_eligibility_code` here (and in `FragranceUpdate` below),
+    # with no additional authorization tier. This is a deliberate,
+    # pre-existing posture, not a gap this field introduces: every other
+    # mutable `Fragrance` field (`primary_family`, `intensity`, etc.) is
+    # writable by the same single-tier trust model, which treats the
+    # Authentik/Traefik forward-auth boundary (`core/auth.py`) as the only
+    # authorization layer this app has.
+    # #VERIFY: if a role-scoped write tier is ever added, review
+    # `training_eligibility_code` alongside every other mutable `Fragrance`
+    # field for whether it should move behind it, rather than singling this
+    # field out alone.
+    training_eligibility_code: str | None = Field(None, max_length=50)
     notes: list[FragranceNoteCreate] = Field(default_factory=list)
     accords: list[FragranceAccordCreate] = Field(default_factory=list)
 
@@ -100,6 +113,9 @@ class FragranceUpdate(BaseModel):
     primary_family: str | None = Field(None, min_length=1, max_length=50)
     subfamily: str | None = Field(None, min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
+    # See FragranceCreate.training_eligibility_code above: same deliberate
+    # single-tier authorization posture applies to this PATCH field.
+    training_eligibility_code: str | None = Field(None, max_length=50)
 
     # #CRITICAL: data-integrity: `name`, `brand`, `concentration`,
     # `gender_target`, `primary_family`, and `subfamily` all back NOT NULL
@@ -168,6 +184,8 @@ class FragranceResponse(BaseModel):
     primary_family: str
     subfamily: str
     intensity: str | None
+    training_eligibility_code: str | None
+    training_eligibility_display_label: str | None = None
     data_source: str
     external_id: str | None
     created_at: datetime
