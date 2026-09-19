@@ -7,6 +7,11 @@ import math
 
 import pytest
 
+from fragrance_rater.ml.model import (
+    AFFINITY_V2_SPEC,
+    AffinityV1,
+    AffinityV2,
+)
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
     Fragrance,
@@ -199,7 +204,7 @@ class TestCalculateMatchScore:
         """No notes, no accords, no family match: raw_score is 0.0, which
         sigmoid-normalizes to exactly 0.5 (50%), and the result is not vetoed.
         """
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = UserProfile(reviewer_id="empty-profile")
         fragrance = self._fragrance(
             primary_family="unmatched-family", subfamily="unmatched-sub"
@@ -216,7 +221,7 @@ class TestCalculateMatchScore:
         """A family-only affinity match is weighted at COMPONENT_WEIGHTS['family']
         (0.20) with no contribution from notes/accords/subfamily.
         """
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = UserProfile(
             reviewer_id="family-profile",
             family_affinities={"woody": 5.0},
@@ -240,7 +245,7 @@ class TestCalculateMatchScore:
         notes/accords, each weighted by their COMPONENT_WEIGHTS entry, and
         combined with family/subfamily into the sigmoid-normalized score.
         """
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = UserProfile(
             reviewer_id="full-profile",
             note_affinities={"n1": 4.0, "n2": 0.0},
@@ -273,7 +278,7 @@ class TestCalculateMatchScore:
         """A note affinity strictly below VETO_THRESHOLD short-circuits scoring
         to the fixed vetoed result, regardless of other components.
         """
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = UserProfile(
             reviewer_id="veto-profile",
             note_affinities={"n-veto": VETO_THRESHOLD - 0.5},
@@ -295,7 +300,7 @@ class TestCalculateMatchScore:
         """A note affinity exactly at VETO_THRESHOLD does not trigger the veto
         (the check is strictly `< VETO_THRESHOLD`, not `<=`).
         """
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = UserProfile(
             reviewer_id="boundary-profile",
             note_affinities={"n-boundary": VETO_THRESHOLD},
@@ -313,7 +318,7 @@ class TestCalculateMatchScore:
         affinity (plausible after many evaluations accumulate) must still
         produce a valid, non-overflowing score that saturates at ~1.0.
         """
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = UserProfile(
             reviewer_id="extreme-positive-profile",
             family_affinities={"woody": 1_000_000.0},
@@ -333,7 +338,7 @@ class TestCalculateMatchScore:
         affinity must still produce a valid, non-overflowing score that
         saturates at ~0.0 instead of raising OverflowError.
         """
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = UserProfile(
             reviewer_id="extreme-negative-profile",
             family_affinities={"woody": -1_000_000.0},
@@ -350,12 +355,81 @@ class TestCalculateMatchScore:
 
 
 @pytest.mark.asyncio
+class TestCalculateMatchScoreDefaultModel:
+    """Pin the shipping default (AffinityV2) through RecommendationService.
+
+    Every other test in this file constructs ``RecommendationService`` with
+    an explicit ``model=AffinityV1()``, so a bug confined to ``AffinityV2``
+    (the actual ``DEFAULT_SCORER_FACTORY``, ADR-004's 2026-09-19 amendment)
+    could pass the entire suite. These tests use ``RecommendationService``'s
+    real default and hand-compute expectations from AffinityV2's own
+    formula, so a regression in shrinkage, the separated family/subfamily
+    namespaces, ``link_scale``, or the v2 veto threshold fails here even
+    though every AffinityV1-pinned test above stays green.
+    """
+
+    _fragrance = TestCalculateMatchScore._fragrance
+
+    async def test_recommendation_service_defaults_to_affinity_v2(self, async_session):
+        """No explicit model means RecommendationService.model is AffinityV2."""
+        service = RecommendationService(async_session)
+
+        assert isinstance(service.model, AffinityV2)
+        assert service.model.spec is AFFINITY_V2_SPEC
+
+    async def test_family_and_subfamily_use_separate_namespaces(self, async_session):
+        """AffinityV2's M-12 fix: family and subfamily affinities are kept in
+        separate dicts, so a subfamily label does not need to avoid
+        colliding with a family label and both contribute independently.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="v2-family-subfamily-profile",
+            family_affinities={"woody": 5.0},
+            subfamily_affinities={"amber": 3.0},
+        )
+        fragrance = self._fragrance(primary_family="woody", subfamily="amber")
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        expected_raw = (
+            COMPONENT_WEIGHTS["family"] * 5.0 + COMPONENT_WEIGHTS["subfamily"] * 3.0
+        )
+        expected_normalized = 1 / (1 + math.exp(-(expected_raw * 2.0)))  # link_scale
+
+        assert result.vetoed is False
+        assert result.components["family"] == 5.0
+        assert result.components["subfamily"] == 3.0
+        assert result.components["raw"] == pytest.approx(expected_raw)
+        assert result.score == pytest.approx(expected_normalized)
+        assert result.score_percent == int(expected_normalized * 100)
+
+    async def test_veto_uses_v2_threshold_not_v1(self, async_session):
+        """AffinityV2's veto threshold (-1.25, on the shrunk -2..2 scale) is
+        not AffinityV1's (-3.0, on the unbounded scale). A note affinity that
+        would not veto under v1 must still veto under the shipping default.
+        """
+        service = RecommendationService(async_session)
+        profile = UserProfile(
+            reviewer_id="v2-veto-profile",
+            note_affinities={"n-veto": -1.5},  # below v2's -1.25, above v1's -3.0
+        )
+        fragrance = self._fragrance(notes=[("n-veto", "Patchouli")])
+
+        result = await service.calculate_match_score(profile, fragrance)
+
+        assert result.vetoed is True
+        assert result.veto_note == "Patchouli"
+        assert result.score == 0.1
+
+
+@pytest.mark.asyncio
 class TestRecommendationServiceIntegration:
     """Integration tests for RecommendationService with database."""
 
     async def test_build_preference_profile_empty(self, async_session):
         """Test building profile with no evaluations."""
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = await service.build_preference_profile("nonexistent-user")
 
         assert profile.evaluation_count == 0
@@ -401,7 +475,7 @@ class TestRecommendationServiceIntegration:
         await async_session.commit()
 
         # Build profile
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = await service.build_preference_profile("reviewer-001")
 
         assert profile.evaluation_count == 1
@@ -450,7 +524,7 @@ class TestRecommendationServiceIntegration:
         async_session.add(eval_on_others)
         await async_session.commit()
 
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = await service.build_preference_profile("rater-worn-by")
 
         assert profile.evaluation_count == 0
@@ -487,7 +561,7 @@ class TestRecommendationServiceIntegration:
         async_session.add(eval1)
         await async_session.commit()
 
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = await service.build_preference_profile("reviewer-nosub")
 
         assert "" not in profile.family_affinities
@@ -569,7 +643,7 @@ class TestRecommendationServiceIntegration:
         )
         await async_session.commit()
 
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         profile = await service.build_preference_profile("reviewer-ghost")
 
         # The soft-deleted evaluation must be excluded entirely: only the
@@ -610,7 +684,7 @@ class TestRecommendationServiceIntegration:
 
         await async_session.commit()
 
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
 
         with pytest.raises(InsufficientDataError):
             await service.get_recommendations("reviewer-002")
@@ -659,7 +733,7 @@ class TestRecommendationServiceIntegration:
 
         await async_session.commit()
 
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         recommendations = await service.get_recommendations(
             "reviewer-003",
             limit=10,
@@ -726,7 +800,7 @@ class TestRecommendationServiceIntegration:
         )
         await async_session.commit()
 
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         recommendations = await service.get_recommendations(
             "reviewer-worn-by-candidate",
             limit=10,
@@ -795,7 +869,7 @@ class TestRecommendationServiceIntegration:
         async_session.add_all([eval1, eval2])
         await async_session.commit()
 
-        service = RecommendationService(async_session)
+        service = RecommendationService(async_session, model=AffinityV1())
         summary = await service.get_reviewer_profile_summary("reviewer-004")
 
         assert summary["evaluation_count"] == 2

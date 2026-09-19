@@ -126,7 +126,7 @@ async def test_impression_precedes_append_only_feedback_and_metrics(
     assert metrics.pop("reviewer_population") == [reviewer_id]
     assert metrics.pop("exclusion_policy") == ["current assigned holdout versions"]
     assert metrics.pop("excluded_impressions") == 0
-    assert metrics.pop("algorithm_versions") == ["affinity-v1"]
+    assert metrics.pop("algorithm_versions") == ["affinity-v2"]
     assert metrics.pop("candidate_strategies") == ["catalog-affinity"]
     assert metrics.pop("run_filters") == [{"exclude_rated": True, "limit": 1}]
     source_snapshots = metrics.pop("source_snapshots")

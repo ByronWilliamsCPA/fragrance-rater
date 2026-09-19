@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from click.testing import CliRunner
 
 from fragrance_rater.cli import CLIContext, cli, mask_database_url, run_async
+from fragrance_rater.ml.model import AffinityV1
+from fragrance_rater.ml.predict import PredictionRunResult
 
 
 class TestCLIContext:
@@ -758,3 +760,112 @@ class TestImportFragellaUsageCommand:
 
             assert result.exit_code == 1
             assert "Could not retrieve Fragella usage" in result.output
+
+
+class TestMlCommands:
+    """Tests for the ml command group."""
+
+    def test_models_lists_the_registered_baseline(self) -> None:
+        """Should print each registry key with its frozen identity."""
+        runner = CliRunner()
+        result = runner.invoke(cli, ["ml", "models"])
+
+        assert result.exit_code == 0
+        assert "affinity-v1" in result.output
+        assert "param_digest" in result.output
+        assert AffinityV1.spec.digest in result.output
+        assert "fs-v1" in result.output
+
+    @patch("fragrance_rater.cli.get_session")
+    @patch("fragrance_rater.cli.predict_and_freeze")
+    def test_predict_prints_created_and_skipped(
+        self, mock_predict: MagicMock, mock_get_session: MagicMock
+    ) -> None:
+        """Should report the run's identity, created ids and skip reasons."""
+        session = AsyncMock()
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_predict.return_value = PredictionRunResult(
+            model_key="affinity-v1",
+            algorithm_version="affinity-v1",
+            param_digest="digest-abc",
+            feature_space_version="fs-v1",
+            reviewer_id="owner",
+            created=["snap-1"],
+            skipped=[("holdout", "existing-prediction")],
+            n_evidence=3,
+            input_digest="input-xyz",
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["ml", "predict", "owner", "--recorded-by", "me"])
+
+        assert result.exit_code == 0
+        assert "digest-abc" in result.output
+        assert "input-xyz" in result.output
+        assert "snap-1" in result.output
+        assert "holdout: existing-prediction" in result.output
+        session.rollback.assert_not_awaited()
+        kwargs = mock_predict.call_args.kwargs
+        assert kwargs["model_key"] == "affinity-v2"
+        assert kwargs["reviewer_id"] == "owner"
+        assert kwargs["fragrance_ids"] is None
+        assert kwargs["recorded_by"] == "me"
+
+    @patch("fragrance_rater.cli.get_session")
+    @patch("fragrance_rater.cli.predict_and_freeze")
+    def test_predict_dry_run_rolls_back(
+        self, mock_predict: MagicMock, mock_get_session: MagicMock
+    ) -> None:
+        """Should undo the run rather than let get_session commit it."""
+        session = AsyncMock()
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_predict.return_value = PredictionRunResult(
+            model_key="affinity-v1",
+            algorithm_version="affinity-v1",
+            param_digest="digest-abc",
+            feature_space_version="fs-v1",
+            reviewer_id="owner",
+        )
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "ml",
+                "predict",
+                "owner",
+                "--fragrance",
+                "a",
+                "--fragrance",
+                "b",
+                "--scale",
+                "1-5",
+                "--dry-run",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "[DRY RUN]" in result.output
+        session.rollback.assert_awaited_once()
+        kwargs = mock_predict.call_args.kwargs
+        assert kwargs["fragrance_ids"] == ["a", "b"]
+        assert kwargs["predicted_scale"] == "1-5"
+
+    @patch("fragrance_rater.cli.get_session")
+    @patch("fragrance_rater.cli.predict_and_freeze")
+    def test_predict_reports_an_unknown_model(
+        self, mock_predict: MagicMock, mock_get_session: MagicMock
+    ) -> None:
+        """Should exit non-zero when the registry rejects the key."""
+        session = AsyncMock()
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_predict.side_effect = KeyError("unknown model 'gbm-v9'")
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["ml", "predict", "owner", "--model", "gbm-v9"])
+
+        assert result.exit_code == 1
+        assert "gbm-v9" in result.output

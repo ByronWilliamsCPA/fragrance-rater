@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from fragrance_rater.ml.model import DEFAULT_SCORER_FACTORY
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -46,8 +47,10 @@ class MeasurementConflictError(ValueError):
 class RecommendationMeasurementService:
     """Create immutable runs and append-only response revisions."""
 
-    ALGORITHM_VERSION = "affinity-v1"
-    SCORE_TYPE = "uncalibrated-affinity"
+    # Derived from the frozen model spec so a parameter change without a
+    # version bump cannot hide behind an unchanged label (review M-04).
+    ALGORITHM_VERSION = DEFAULT_SCORER_FACTORY.spec.algorithm_version
+    SCORE_TYPE = str(DEFAULT_SCORER_FACTORY.spec.params["score_type"])
     DEFAULT_METRICS_WINDOW = timedelta(days=90)
 
     def __init__(self, db: AsyncSession) -> None:

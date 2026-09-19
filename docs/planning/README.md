@@ -13,6 +13,9 @@ This directory contains the governing documents for Fragrance Rater.
 | [ADR Index](adr/README.md) | Records durable architectural and policy decisions |
 | [Controlled Calibration V1](../calibration-v1.md) | Defines the implemented controlled workflow and its deployment constraints |
 | [Data Model Gap Analysis](data-model-gap-analysis.md) | Reviews the schema against preference-learning, scenario, and future-ML requirements; captured as ADR-010, partially implemented |
+| [Architecture and Design Review 2026-09](architecture-review-2026-09.md) | Advisory critical review of design, architecture, and evidence integrity with sequenced remediation workstreams; proposes work, does not change plan status |
+| [ML Structure Review 2026-09](ml-structure-review-2026-09.md) | Advisory review of whether data, features, labels, evaluation protocol, and code can produce a successful learned preference model, with ranked structural changes |
+| [ML Decisions 2026-09](ml-decisions-2026-09.md) | Options and recommendations for the eight decisions the ML review requires, with the owner's recorded answers |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
 behavior but does not silently supersede an accepted ADR.
@@ -22,10 +25,12 @@ behavior but does not silently supersede an accepted ADR.
 ```text
 P0 ┬→ P1 Calibration release readiness --------------------------┐
    └→ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
-                                                                    └→ P6 Pilot readiness
-                                                                        └→ F1 Family pilot
-                                                                            └→ D1 → D2 ┬→ D3
-                                                                                        └→ D4 → D5
+                                                                    └→ R1 ┬→ R2
+                                                                            └→ R3 ┴→ R4
+                                                                                    └→ P6 Pilot readiness
+                                                                                        └→ F1 Family pilot
+                                                                                            └→ D1 → D2 ┬→ D3
+                                                                                                        └→ D4 → D5
 ```
 
 P1 evidence can proceed alongside P3-P5, but P6 must close P1 against the final deployed UI.

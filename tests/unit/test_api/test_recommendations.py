@@ -1,7 +1,5 @@
 """Tests for recommendation API endpoints."""
 
-import math
-
 import pytest
 from sqlalchemy import select
 
@@ -332,12 +330,27 @@ class TestRecommendationExplainAPI:
         data = response.json()
         assert data["fragrance_id"] == target_id
 
-        # The target's real raw_score is COMPONENT_WEIGHTS["family"] * 6.0
-        # (3 five-star ratings x +2.0 family affinity each) = 1.2, which
-        # sigmoid-normalizes to a percent distinctly different from the old
-        # 50% fabricated placeholder.
-        expected_raw_score = 0.20 * 6.0
-        expected_percent = int((1 / (1 + math.exp(-expected_raw_score))) * 100)
+        # The target's real score under the default scorer: three five-star
+        # ratings (+2.0 each) on the same family and nothing else, scored
+        # against a candidate in that family with no notes or accords. Compute
+        # it through the model object so this test follows the default
+        # scorer rather than hardcoding one version's arithmetic; it must be
+        # distinctly different from the old 50% fabricated placeholder.
+        from fragrance_rater.ml.feature_space import FeatureVector
+        from fragrance_rater.ml.model import DEFAULT_SCORER_FACTORY
+
+        scorer = DEFAULT_SCORER_FACTORY()
+        family_vector = FeatureVector(
+            fragrance_id=None,
+            version_key=None,
+            concentration=None,
+            primary_family="woody",
+            subfamily="",
+        )
+        expected_profile = scorer.build_profile(
+            reviewer_id, [(family_vector, [2.0])] * 3
+        )
+        expected_percent = scorer.score(expected_profile, family_vector).score_percent
         assert expected_percent != 50
 
         explanation = data["explanation"]

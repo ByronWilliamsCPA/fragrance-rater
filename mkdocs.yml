@@ -168,6 +168,7 @@ nav:
 
   - Development:
       - Architecture: development/architecture.md
+      - ML Pipeline: development/ml-pipeline.md
       - Testing: development/testing.md
       - Code Quality: development/code-quality.md
       - Contributing: development/contributing.md
@@ -197,7 +198,11 @@ nav:
       - F1 Initial Family Pilot Gate: planning/gates/f1.md
       - Controlled Calibration V1: calibration-v1.md
       - Scent chords Analysis: research/scent-chords-analysis.md
+      - Scent Evaluation Protocol Research Prompt: research/scent-evaluation-protocol-research-prompt.md
       - Data Model Gap Analysis: planning/data-model-gap-analysis.md
+      - Architecture and Design Review 2026-09: planning/architecture-review-2026-09.md
+      - ML Structure Review 2026-09: planning/ml-structure-review-2026-09.md
+      - ML Decisions 2026-09: planning/ml-decisions-2026-09.md
 
   - Deployment:
       - P1 Release Readiness: deployment/p1-release-readiness.md
