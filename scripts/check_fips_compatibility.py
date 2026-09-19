@@ -131,10 +131,20 @@ class FipsCodeVisitor(ast.NodeVisitor):
                             )
                         )
 
-            # Check for Crypto/Cryptodome cipher usage
-            if func_name in NON_FIPS_CIPHERS or any(
-                c in func_name for c in NON_FIPS_CIPHERS
-            ):
+            # Check for Crypto/Cryptodome cipher usage.
+            # #ASSUME: data-integrity: an exact match against NON_FIPS_CIPHERS
+            # (not a substring containment check) is required here. A prior
+            # `any(c in func_name for c in NON_FIPS_CIPHERS)` variant matched
+            # "des" inside the common variable/call name "desc" (e.g.
+            # SQLAlchemy's `.desc()` ordering call) and "seed" as a prefix of
+            # unrelated function names like `seed_default_reviewers`,
+            # producing dozens of false-positive "Non-FIPS cipher detected"
+            # errors on code with no cryptographic content at all.
+            # #VERIFY: if a real cipher call is ever missed because its
+            # attribute name isn't an exact NON_FIPS_CIPHERS entry, add the
+            # exact spelling used (e.g. a wrapper method name) rather than
+            # reintroducing substring matching.
+            if func_name in NON_FIPS_CIPHERS:
                 self.issues.append(
                     FipsIssue(
                         file_path=self.file_path,

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
 from fragrance_rater.core.database import get_db
+from fragrance_rater.core.exceptions import ValidationError
 from fragrance_rater.schemas.fragrance import (
     FragranceAccordResponse,
     FragranceCreate,
@@ -65,6 +66,10 @@ async def list_fragrances(
         offset=offset,
     )
     fragrances = await service.search(params)
+    codes = {
+        f.training_eligibility_code for f in fragrances if f.training_eligibility_code
+    }
+    labels = await service.get_training_eligibility_labels(codes) if codes else {}
 
     return [
         FragranceResponse(
@@ -78,6 +83,12 @@ async def list_fragrances(
             primary_family=f.primary_family,
             subfamily=f.subfamily,
             intensity=f.intensity,
+            training_eligibility_code=f.training_eligibility_code,
+            training_eligibility_display_label=(
+                labels.get(f.training_eligibility_code)
+                if f.training_eligibility_code
+                else None
+            ),
             data_source=f.data_source,
             external_id=f.external_id,
             created_at=f.created_at,
@@ -102,6 +113,10 @@ async def get_fragrance(
             detail={"error": "FRAGRANCE_NOT_FOUND", "message": "Fragrance not found"},
         )
 
+    display_label = await service.get_training_eligibility_display_label(
+        fragrance.training_eligibility_code
+    )
+
     return FragranceResponse(
         id=fragrance.id,
         name=fragrance.name,
@@ -113,6 +128,8 @@ async def get_fragrance(
         primary_family=fragrance.primary_family,
         subfamily=fragrance.subfamily,
         intensity=fragrance.intensity,
+        training_eligibility_code=fragrance.training_eligibility_code,
+        training_eligibility_display_label=display_label,
         data_source=fragrance.data_source,
         external_id=fragrance.external_id,
         created_at=fragrance.created_at,
@@ -149,7 +166,11 @@ async def create_fragrance(
 
     Rejects a (name, brand) pair that already exists (Major finding 8's
     `uq_fragrance_name_brand` constraint) with a 409 rather than letting the
-    resulting IntegrityError surface as an unhandled 500.
+    resulting IntegrityError surface as an unhandled 500. Rejects an
+    unknown or inactive `training_eligibility_code` with a 422, distinct
+    from that 409, rather than letting it also raise an IntegrityError
+    (via the `fk_fragrances_training_eligibility_code` foreign key) that
+    would otherwise be misreported as a name/brand collision.
     """
     # #ASSUME: data-integrity: this has no pre-check, only a catch of the
     # IntegrityError the new UNIQUE(name, brand) constraint raises, since a
@@ -159,6 +180,14 @@ async def create_fragrance(
     # is left usable for the next request on this connection.
     try:
         fragrance = await service.create(data)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": exc.error_code or "INVALID_TRAINING_ELIGIBILITY_CODE",
+                "message": exc.message,
+            },
+        ) from None
     except IntegrityError:
         await service.session.rollback()
         raise HTTPException(
@@ -192,6 +221,8 @@ async def update_fragrance(
     Rejects a rename that collides with an existing (name, brand) pair
     (the `uq_fragrance_name_brand` constraint) with a 409 rather than
     letting the resulting IntegrityError surface as an unhandled 500.
+    Rejects an unknown or inactive `training_eligibility_code` with a 422,
+    distinct from that 409, the same way `create_fragrance` does.
     """
     # #ASSUME: data-integrity: no pre-check, only a catch of the
     # IntegrityError `uq_fragrance_name_brand` raises on flush, mirroring
@@ -201,6 +232,14 @@ async def update_fragrance(
     # is left usable for the next request on this connection.
     try:
         fragrance = await service.update(fragrance_id, data)
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "error": exc.error_code or "INVALID_TRAINING_ELIGIBILITY_CODE",
+                "message": exc.message,
+            },
+        ) from None
     except IntegrityError:
         await service.session.rollback()
         raise HTTPException(

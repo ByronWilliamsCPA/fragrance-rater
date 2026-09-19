@@ -12,6 +12,14 @@ type HomePageProps = {
   navigate: (route: Route) => void
 }
 
+/**
+ * The single next step for one assignment, in the evaluator's terms.
+ *
+ * Derived from `reveal_blocker`, which the API sets to whichever gate is
+ * currently holding the enrollment closed. The strings deliberately name an
+ * action rather than the blocker code, because the code is a protocol detail
+ * (ADR-005) and the evaluator only needs to know what to do next.
+ */
 function nextAction(enrollment: Enrollment): string {
   if (enrollment.revealed) return 'Review revealed results or add a post-reveal observation.'
   if (enrollment.reveal_blocker === 'SKIN_PLAN') return 'Finalize the skin-test plan.'
@@ -56,6 +64,13 @@ function primaryAction(enrollments: Enrollment[]) {
   }
 }
 
+/**
+ * Small counts as words, larger ones as digits.
+ *
+ * A family pilot has single-digit enrollments, so the words cover every
+ * realistic value; the numeric fallback exists so an unexpected count renders
+ * correctly rather than as `undefined`.
+ */
 function countInWords(count: number): string {
   return ['None', 'One', 'Two', 'Three', 'Four', 'Five'][count] ?? String(count)
 }

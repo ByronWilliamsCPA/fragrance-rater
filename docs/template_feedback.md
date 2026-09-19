@@ -131,6 +131,52 @@ the generic project-plan template in project navigation by default.
 
 - `{{cookiecutter.project_slug}}/.gitignore`
 
+### FIPS compatibility checker matches cipher names as substrings, and cannot fail the workflow
+
+- **Priority**: High
+- **Category**: Tooling
+- **Discovered**: 2026-09-19
+
+**Issue**: `scripts/check_fips_compatibility.py`'s cipher-detection visitor flags a function/method
+call as a non-FIPS cipher if the call's attribute name merely *contains* an entry from
+`NON_FIPS_CIPHERS` as a substring (`any(c in func_name for c in NON_FIPS_CIPHERS)`), rather than
+matching it as a whole identifier. `"des"` and `"seed"` are both real entries in that set, and both
+are common substrings of ordinary, non-cryptographic identifiers: SQLAlchemy's `.desc()` ordering
+call contains `"des"`, and any function named with a `seed_`/`_seed` prefix (e.g.
+`seed_default_reviewers`, a normal database-seeding helper) contains `"seed"`. The `FIPS Compliance
+Check` CI job is non-blocking (its gating "Check result" step is configured to not fail the job), so
+this produces a persistently red-looking report ("❌ FAILED") on the PR timeline without ever
+blocking merge, training reviewers to ignore it. Separately,
+`.github/workflows/fips-compatibility.yml` captures `EXIT_CODE=$?` after piping the checker
+through `tee`, which yields `tee`'s own status rather than the checker's, so `exit_code` is
+always `0` and the "Check result" step that is meant to fail the job never runs regardless of
+how many errors the checker reports.
+
+**Context**: Discovered independently on two PRs. On fragrance-rater PR #104, the bot comment
+reported 28 errors (25 on the branch, 23 already on `main`) although the check run reported
+success. On PR #105, discovered while running `/pr-fix`: the job's PR comment reported 26 errors,
+"Status: FAILED"; every single flagged site was either a `.desc()` call or a call to
+`seed_default_reviewers`, neither of which touches cryptography. Re-running
+`scripts/check_fips_compatibility.py --fix-hints` locally after removing the substring-containment
+branch (keeping only the exact-match `func_name in NON_FIPS_CIPHERS` check, which already covers a
+literal `des()`/`rc4()`/etc. call) reduced the report to 0 errors on the same code.
+
+**Suggested Fix**: In `FipsCodeVisitor.visit_Call`, drop the `or any(c in func_name for c in
+NON_FIPS_CIPHERS)` clause and rely on the exact-match check alone (`if func_name in
+NON_FIPS_CIPHERS:`), or match cipher names as whole tokens (word boundaries, or an allowlist of
+module-qualified call targets such as `Crypto.Cipher.DES`) if a broader match than exact-string
+is still wanted. The `visit_Import` module-name check a few lines below has the same
+substring-matching shape but is already gated behind `"crypto" in module`, which keeps its false-
+positive surface much smaller (it only fires on imports that already mention "crypto"); it does
+not need the same fix but is worth a second look if this pattern class recurs. Separately, use
+`set -o pipefail` or `${PIPESTATUS[0]}` when capturing the checker's exit status in the workflow
+so the "Check result" step actually reflects the checker's verdict instead of `tee`'s.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/scripts/check_fips_compatibility.py`
+- `{{cookiecutter.project_slug}}/.github/workflows/fips-compatibility.yml`
+
 ---
 
 ### PlanningFM `component` enum is domain-specific and has no general-engineering category

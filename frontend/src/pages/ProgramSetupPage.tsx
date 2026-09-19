@@ -511,7 +511,16 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
                 <span>
                   {item.program_name} · {item.program_version}
                 </span>
-                <progress value={item.blotter_complete} max={item.total_presentations} />
+                {/*
+                  A bare <progress> is announced as a percentage and nothing
+                  else, so with one bar per enrollment a screen-reader user
+                  cannot tell which evaluator and program a value belongs to.
+                */}
+                <progress
+                  value={item.blotter_complete}
+                  max={item.total_presentations}
+                  aria-label={`Blotter samples complete for ${item.reviewer_name} on ${item.program_name}`}
+                />
                 <small>
                   {item.blotter_complete} of {item.total_presentations} blotter samples complete
                 </small>

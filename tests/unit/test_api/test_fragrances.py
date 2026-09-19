@@ -349,6 +349,83 @@ class TestFragranceAPI:
         assert unchanged.status_code == 200
         assert unchanged.json()["name"] == "Second Scent"
 
+    async def test_create_fragrance_rejects_unknown_training_eligibility_code(
+        self, test_app
+    ):
+        """An unknown training_eligibility_code is a 422, not the 409 a
+        client would otherwise see from the underlying foreign-key
+        IntegrityError, and not an unhandled 500.
+        """
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "Bad Eligibility Scent",
+                "brand": "Test Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+                "training_eligibility_code": "not-a-real-code",
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "INVALID_TRAINING_ELIGIBILITY_CODE"
+
+    async def test_create_fragrance_accepts_valid_training_eligibility_code(
+        self, test_app
+    ):
+        """A valid, active training_eligibility_code succeeds and the
+        response carries both the code and its display label.
+        """
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "Manually Excluded Scent",
+                "brand": "Test Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+                "training_eligibility_code": "excluded_manual",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["training_eligibility_code"] == "excluded_manual"
+        assert (
+            data["training_eligibility_display_label"] == "Excluded: manually flagged"
+        )
+
+    async def test_update_fragrance_rejects_unknown_training_eligibility_code(
+        self, test_app
+    ):
+        """The same 422, not 409/500, applies to PATCH."""
+        create_response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "Eligibility Patch Target",
+                "brand": "Test Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+            },
+        )
+        fragrance_id = create_response.json()["id"]
+
+        response = await test_app.patch(
+            f"{API_PREFIX}/fragrances/{fragrance_id}",
+            json={"training_eligibility_code": "not-a-real-code"},
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"]["error"] == "INVALID_TRAINING_ELIGIBILITY_CODE"
+
+        # The rejected update must not have been applied, and the session
+        # must still be usable after the rollback path.
+        unchanged = await test_app.get(f"{API_PREFIX}/fragrances/{fragrance_id}")
+        assert unchanged.status_code == 200
+        assert unchanged.json()["training_eligibility_code"] is None
+
 
 @pytest.mark.asyncio
 class TestFragranceAuthentikRequired:

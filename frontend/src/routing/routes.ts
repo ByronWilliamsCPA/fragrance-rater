@@ -53,6 +53,13 @@ export const navigationItems: NavigationItem[] = [
   },
 ]
 
+/**
+ * The full `document.title` for a route: page name, then the site name.
+ *
+ * Page-first so the distinguishing part survives truncation in a crowded tab
+ * strip, which is the case WCAG 2.4.2 is useful in. Falls back to the site
+ * name alone for a route with no navigation entry.
+ */
 export function documentTitleFor(route: Route): string {
   const item = navigationItems.find((entry) => entry.route === route)
   return item ? `${item.documentTitle} · ${siteName}` : siteName

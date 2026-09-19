@@ -335,13 +335,17 @@ section {
 
 /*
  * 2.5.8 Target Size: a link on its own line is not covered by the inline-text
- * exception, and at caption size its line box lands just under the 24px
- * minimum.
+ * exception, and at caption size its line box lands well under the minimum.
+ *
+ * Uses the shared token rather than the 24px WCAG floor. 24px would conform,
+ * but this project's stated target size is 44px, and a hand-rolled value here
+ * would be a magic number contradicting the contract the rest of the
+ * interface is held to.
  */
 .colophon a {
   display: inline-flex;
   align-items: center;
-  min-height: 1.5rem;
+  min-height: var(--target-min);
 }
 
 /* ---- Workspace sidebar ------------------------------------------------- */

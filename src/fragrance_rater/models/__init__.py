@@ -13,6 +13,7 @@ from fragrance_rater.models.fragrance import (
     FragranceAccord,
     FragranceNote,
     Note,
+    TrainingEligibility,
 )
 from fragrance_rater.models.prediction import PredictionSnapshot
 from fragrance_rater.models.recommendation_measurement import (
@@ -38,4 +39,5 @@ __all__ = [
     "RecommendationResponseRevision",
     "RecommendationRun",
     "Reviewer",
+    "TrainingEligibility",
 ]

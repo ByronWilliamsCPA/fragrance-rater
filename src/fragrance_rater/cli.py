@@ -17,7 +17,9 @@ import click
 from structlog.stdlib import BoundLogger
 
 from fragrance_rater.core.config import settings
-from fragrance_rater.core.database import async_session_maker
+from fragrance_rater.core.database import async_session_maker, get_session
+from fragrance_rater.ml.predict import predict_and_freeze
+from fragrance_rater.ml.registry import DEFAULT_MODEL_KEY, available, resolve
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.kaggle_importer import KaggleImporter
 from fragrance_rater.services.parfumo_scraper import ParfumoScraper, SearchResult
@@ -574,6 +576,113 @@ def profile(name: str) -> None:
         run_async(show_profile())
     except Exception as e:
         logger.exception("Profile command failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+# =============================================================================
+# ML Commands
+# =============================================================================
+
+
+@cli.group()
+def ml() -> None:
+    """Inspect registered models and freeze prospective predictions."""
+
+
+@ml.command(name="models")
+def ml_models() -> None:
+    """List every registered scoring model and its frozen identity."""
+    try:
+        for key in available():
+            spec = resolve(key).spec
+            click.echo(key)
+            click.echo(f"  algorithm_version:     {spec.algorithm_version}")
+            click.echo(f"  feature_space_version: {spec.feature_space_version}")
+            click.echo(f"  param_digest:          {spec.digest}")
+    except Exception as e:
+        logger.exception("Listing models failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+@ml.command(name="predict")
+@click.argument("reviewer_id", type=str)
+@click.option("--model", "model_key", default=DEFAULT_MODEL_KEY, help="Registry key")
+@click.option(
+    "--fragrance",
+    "fragrance_ids",
+    multiple=True,
+    help="Target version id; repeatable. Default: the reviewer's holdouts.",
+)
+@click.option("--checkpoint", "checkpoint_id", default=None, help="Checkpoint id")
+@click.option("--scale", default="0-10", help="Declared outcome scale (0-10 or 1-5)")
+@click.option("--recorded-by", default=None, help="Actor recorded on each snapshot")
+@click.option("--dry-run", is_flag=True, help="Score and report without persisting")
+# PLR0917: Click always invokes a command's callback with keyword
+# arguments built from the decorators above, so the "too many positional
+# arguments" trap this rule guards against cannot occur here; collapsing
+# these into an options dataclass would only hide the command's own
+# `--help` contract.
+def ml_predict(  # noqa: PLR0917
+    reviewer_id: str,
+    model_key: str,
+    fragrance_ids: tuple[str, ...],
+    checkpoint_id: str | None,
+    scale: str,
+    recorded_by: str | None,
+    dry_run: bool,
+) -> None:
+    """Freeze one model's prospective predictions for REVIEWER_ID.
+
+    REVIEWER_ID: The evaluator to predict for.
+
+    With no --fragrance the reviewer's currently assigned holdouts are the
+    targets, since holdouts are what prospective prediction exists for
+    (ADR-009). The frozen value is a monotone rescaling of an uncalibrated
+    affinity, not a calibrated liking prediction (ADR-007).
+    """
+
+    async def do_predict() -> None:
+        async with get_session() as session:
+            result = await predict_and_freeze(
+                session,
+                model_key=model_key,
+                reviewer_id=reviewer_id,
+                fragrance_ids=list(fragrance_ids) or None,
+                checkpoint_id=checkpoint_id,
+                recorded_by=recorded_by,
+                predicted_scale=scale,
+            )
+            if dry_run:
+                # get_session() commits on a clean exit, so the run has to be
+                # undone here; a rolled-back session leaves that commit a no-op.
+                await session.rollback()
+            click.echo(f"{'[DRY RUN] ' if dry_run else ''}Model: {model_key}")
+            click.echo(f"  algorithm_version: {result.algorithm_version}")
+            click.echo(f"  param_digest:      {result.param_digest}")
+            click.echo(f"  input_digest:      {result.input_digest}")
+            click.echo(f"  n_evidence:        {result.n_evidence}")
+            click.echo(
+                f"  database:          {mask_database_url(settings.database_url)}"
+            )
+            click.echo(f"\nCreated ({len(result.created)}):")
+            for snapshot_id in result.created:
+                click.echo(f"  - {snapshot_id}")
+            click.echo(f"\nSkipped ({len(result.skipped)}):")
+            for fragrance_id, reason in result.skipped:
+                click.echo(f"  - {fragrance_id}: {reason}")
+
+    try:
+        run_async(do_predict())
+        logger.info(
+            "Prediction run completed",
+            reviewer_id=reviewer_id,
+            model_key=model_key,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        logger.exception("Prediction run failed", error=str(e))
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
 
