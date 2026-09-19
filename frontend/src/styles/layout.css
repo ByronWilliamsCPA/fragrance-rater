@@ -1,0 +1,302 @@
+/*
+ * Page frame and the repeating grids. Anything that answers "where does this
+ * sit" lives here; anything that answers "what does this look like" lives in
+ * components.css.
+ */
+
+.app {
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-6) var(--space-12);
+}
+
+/* ---- Header ----------------------------------------------------------- */
+
+.app-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-4) 0 var(--space-6);
+}
+
+.app-header__brand {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.app-header__title {
+  font-size: var(--text-title);
+  margin: 0;
+}
+
+.app-header__tagline {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+  margin: 0;
+}
+
+.app-header__aside {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ---- Navigation ------------------------------------------------------- */
+
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  margin-bottom: var(--space-8);
+  background: var(--color-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.app-nav a {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.app-nav a:hover {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.app-nav a[aria-current='page'] {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--shadow-sm);
+}
+
+/* The current page is marked by aria-current, not by colour alone (1.4.1). */
+.app-nav a[aria-current='page']::before {
+  content: '';
+  width: 0.375rem;
+  height: 0.375rem;
+  margin-right: var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--color-brand);
+}
+
+/* ---- Main and footer -------------------------------------------------- */
+
+main {
+  display: block;
+}
+
+main:focus {
+  outline: none;
+}
+
+.app-footer {
+  margin-top: var(--space-12);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+
+.app-footer p {
+  max-width: var(--measure);
+  margin-bottom: var(--space-2);
+}
+
+/* ---- Page headings ---------------------------------------------------- */
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+.page-heading h2,
+.page-heading h3 {
+  margin: 0;
+}
+
+/* ---- Repeating grids -------------------------------------------------- */
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0 var(--space-5);
+}
+
+.fields-compact {
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.manager-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: var(--space-8);
+}
+
+.progress-grid,
+.label-grid,
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: var(--space-4);
+}
+
+.recommendation-grid {
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  margin-top: var(--space-5);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-5) 0;
+}
+
+.search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.search-row label {
+  margin-bottom: 0;
+}
+
+.flex-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* ---- Responsive ------------------------------------------------------- */
+
+@media (max-width: 60rem) {
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 40rem) {
+  .app {
+    padding: var(--space-4) var(--space-4) var(--space-10);
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .app-header__aside {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .app-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-heading {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .search-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- Print ------------------------------------------------------------ */
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    inset: 0;
+    padding: 12mm;
+  }
+
+  .no-print {
+    display: none;
+  }
+
+  .label-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sample-label {
+    break-inside: avoid;
+  }
+}
+
+/* ---- Scale stack ------------------------------------------------------- */
+
+/*
+ * The calibration dimensions.
+ *
+ * Single column on purpose. A scale is only readable if its whole run of
+ * options sits on one line under one pair of anchors; in a two-up grid a 0-5
+ * scale wrapped after "3" and a 0-10 scale after "5", which reads as two
+ * separate controls and invites a misplaced answer. The max-width keeps the
+ * anchors tied to the ends of the options on a wide display.
+ */
+.scale-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: var(--space-5);
+}
+
+.scale-stack .scale-field,
+.scale-stack > label {
+  max-width: 48rem;
+}
+
+/*
+ * 2.5.8 Target Size: a footer link on its own line is not covered by the
+ * inline-text exception, and at caption size its line box lands just under
+ * the 24px minimum.
+ */
+.app-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+}

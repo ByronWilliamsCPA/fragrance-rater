@@ -225,7 +225,7 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
     <section>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">MANAGER</div>
+          <p className="eyebrow">Manager</p>
           <h2>Program setup</h2>
         </div>
         <span className="status-chip">Restricted</span>

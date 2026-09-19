@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import './App.css'
 import { AppShell } from './components/AppShell'
 import { ErrorState, LoadingState } from './components/PageState'
 import { useAppData } from './hooks/useAppData'

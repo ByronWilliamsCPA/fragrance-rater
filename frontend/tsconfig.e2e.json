@@ -2,7 +2,10 @@
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo",
     "target": "ES2022",
-    "lib": ["ES2022"],
+    // "DOM" is required because Playwright's page.evaluate() callbacks are
+    // serialised and executed in the browser, so they legitimately reference
+    // document and window even though the spec file itself runs in Node.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",

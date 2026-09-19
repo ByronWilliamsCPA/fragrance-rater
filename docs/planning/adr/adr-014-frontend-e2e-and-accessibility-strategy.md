@@ -1,12 +1,12 @@
 # ADR-014: Frontend E2E and Accessibility Testing Strategy
 
-> **Status**: Accepted
+> **Status**: Accepted; amended 2026-09-19 (conformance target raised to WCAG 2.2 AA)
 >
 > **Date**: 2026-09-18
 
 ## TL;DR
 
-Adopt Playwright (`@playwright/test`) as the frontend e2e framework with a two-tier strategy: network-mocked specs for the fast per-PR gate, plus a thin real-backend smoke tier for exactly the two invariants a mock cannot prove (pre-reveal identity omission, manager-endpoint rejection of non-managers). Enforce WCAG 2.1 AA via an automated axe-core scan in the same mocked suite, plus `eslint-plugin-jsx-a11y` at lint time.
+Adopt Playwright (`@playwright/test`) as the frontend e2e framework with a two-tier strategy: network-mocked specs for the fast per-PR gate, plus a thin real-backend smoke tier for exactly the two invariants a mock cannot prove (pre-reveal identity omission, manager-endpoint rejection of non-managers). Enforce WCAG 2.2 AA (raised from 2.1 AA on 2026-09-19) via an automated axe-core scan in the same mocked suite, plus `eslint-plugin-jsx-a11y` at lint time, plus token-level contrast and document-title tests for the criteria axe cannot evaluate.
 
 ## Context
 
@@ -26,7 +26,7 @@ Sets the pattern every future e2e and accessibility spec follows.
 
 **E2E**: `@playwright/test` in `frontend/e2e/`, with a shared `mockApi()` helper (`frontend/e2e/support/mock-api.ts`) intercepting `**/api/v1/**`, mirroring the existing Vitest `vi.mock('axios', ...)` convention at the network layer. Fixtures are pinned to the generated OpenAPI client's types via TypeScript `satisfies` assertions, so a backend schema change that regenerates the client also surfaces any fixture drift as a type error. A second, separate suite (`frontend/e2e-smoke/`, `playwright.smoke.config.ts`) runs against a real `docker compose` stack and asserts exactly two invariants: the API never returns identity data before reveal, and the API rejects non-manager calls to manager-only endpoints. This tier is intended to run nightly or pre-deploy, not on every PR; no such workflow exists yet.
 
-**Accessibility**: WCAG 2.1 AA, enforced as a single blocking tier inside the mocked e2e suite (`frontend/e2e/accessibility.spec.ts`) using `@axe-core/playwright` against every route with populated fixtures (not empty ones, which would scan a blank shell), plus one keyboard-only journey test, since automated rule scanning does not check keyboard operability. `eslint-plugin-jsx-a11y`'s recommended rules run at lint time.
+**Accessibility**: WCAG 2.1 AA (superseded by the 2026-09-19 amendment below, which raises this to WCAG 2.2 AA and adds two tiers axe cannot replace), enforced as a single blocking tier inside the mocked e2e suite (`frontend/e2e/accessibility.spec.ts`) using `@axe-core/playwright` against every route with populated fixtures (not empty ones, which would scan a blank shell), plus one keyboard-only journey test, since automated rule scanning does not check keyboard operability. `eslint-plugin-jsx-a11y`'s recommended rules run at lint time.
 
 ### Rationale
 
@@ -64,6 +64,67 @@ No CI wiring exists yet for the real-backend smoke tier's cadence (nightly/pre-d
 ## Validation
 
 Re-review if a production incident traces to a frontend/backend contract mismatch the fixture-contract check should have caught but didn't, if the smoke tier's two invariants prove insufficient after a real incident, or when planning work that adds meaningful new manager-side functionality to `ProgramSetupPage`.
+
+## Amendment, 2026-09-19: WCAG 2.2 AA and the limits of automated scanning
+
+### What changed
+
+The conformance target is **WCAG 2.2 AA**, replacing 2.1 AA. 2.2 is a superset of 2.1, so nothing
+previously conformant regressed; the additions that bind this application are 2.4.11 Focus Not
+Obscured, 2.5.8 Target Size (Minimum), and 3.3.7 Redundant Entry. The DOJ ADA Title II rule cites
+WCAG 2.1 AA, so this target clears that benchmark with margin rather than merely meeting it.
+
+The mocked axe suite now scans with the `wcag22aa` tag, and scans **every route in both colour
+schemes**, because the 2026-09-19 design pass introduced a dark theme and a palette scanned in one
+theme says nothing about the other.
+
+### Why two non-axe tiers were added
+
+This ADR's original Consequences section conceded that "automated axe-core scanning catches a
+meaningful but partial subset of real accessibility issues". The design pass measured how partial.
+
+Starting from a suite in which axe reported **zero violations** on all six routes, widened to
+`wcag22aa` and `best-practice` at both 1280px and 360px, five genuine WCAG failures were still
+present:
+
+| Failure | Measured | Guideline | Why axe missed it |
+| :--- | :--- | :--- | :--- |
+| Focus ring vs page background | 2.88:1 | 1.4.11, 2.4.11 | axe does not evaluate focus-indicator contrast |
+| Focus ring vs filled brand button | 2.88:1 | 1.4.11, 2.4.11 | as above |
+| Input border on white | 1.73:1 | 1.4.11 | axe does not evaluate control-boundary contrast |
+| `aria-pressed` state outline | 1.85:1 | 1.4.11, 1.4.1 | as above |
+| Identical `document.title` on all six routes | n/a | 2.4.2 | a title was present on every route; axe does not compare them |
+
+Two blocking tiers therefore join the axe scan:
+
+- `frontend/src/test/contrast.test.ts` parses the real token values out of `tokens.css` and
+  re-derives every declared pair in both themes, against 4.5:1 for text and 3:1 for UI boundaries
+  and state. It also asserts the two dark-theme declaration blocks stay identical, since custom
+  properties cannot be aliased across an `@media` boundary and remain overridable.
+- `frontend/src/test/documentTitle.test.tsx` asserts a distinct, descriptive title per route and
+  across in-app navigation.
+
+The e2e suite additionally asserts no interactive target falls below 24px at a 360px viewport
+(2.5.8) and that keyboard focus paints both tones of the indicator.
+
+### Consequence for the focus indicator
+
+No single colour clears 3:1 against both a pale paper surface and a filled dark-green button, so
+the indicator is a two-tone ring (technique G195): `--color-focus-ring` carries light surfaces and
+`--color-focus-halo` carries filled buttons. Reducing it to a single-colour outline reintroduces
+the original failure, and the contrast test is what prevents that.
+
+### Still not covered
+
+No manual assistive-technology testing. Cognitive-load and plain-language review of the calibration
+scale wording is a human judgement the maintainer still owes before F1; see
+[the design system](../../development/design-system.md) for the sign-off this depends on.
+
+### Re-review triggers
+
+In addition to those in Validation below: re-review if WCAG 2.3 reaches Recommendation, if a manual
+assistive-technology audit finds a class of defect none of these tiers covers, or if the design
+system gains a second colour theme beyond light and dark.
 
 ## Related
 

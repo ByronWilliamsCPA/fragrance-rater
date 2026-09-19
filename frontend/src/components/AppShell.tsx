@@ -1,6 +1,8 @@
 import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import type { Access, Capabilities } from '../api/types'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { navigationItems, type Route } from '../routing/routes'
+import { ThemeToggle } from './ThemeToggle'
 
 type AppShellProps = {
   access: Access
@@ -20,6 +22,8 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       ? 'Recorder'
       : 'Participant'
 
+  useDocumentTitle(route)
+
   useEffect(() => {
     if (previousRoute.current !== route) mainContent.current?.focus()
     previousRoute.current = route
@@ -38,17 +42,31 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
         Skip to content
       </a>
       <header className="app-header">
-        <div>
-          <div className="eyebrow">PERSONAL SCENT JOURNAL</div>
-          <h1>Fragrance Rater</h1>
-          <p>Explore your preferences, one encounter at a time.</p>
+        <div className="app-header__brand">
+          <p className="eyebrow">Personal scent journal</p>
+          <h1 className="app-header__title">Fragrance Rater</h1>
+          <p className="app-header__tagline">Explore your preferences, one encounter at a time.</p>
         </div>
-        <div className="identity" aria-label="Current access">
-          <span>{access.username || 'Verified family account'}</span>
-          <strong>{role}</strong>
+        <div className="app-header__aside">
+          <ThemeToggle />
+          {/*
+            The value of each row is kept in its own element so the
+            visually-hidden prefix names it for a screen reader without
+            becoming part of the visible string.
+          */}
+          <div className="identity">
+            <span className="identity__name">
+              <span className="visually-hidden">Signed in as </span>
+              <span>{access.username || 'Verified family account'}</span>
+            </span>
+            <strong>
+              <span className="visually-hidden">Role: </span>
+              <span>{role}</span>
+            </strong>
+          </div>
         </div>
       </header>
-      <nav aria-label="Main navigation">
+      <nav className="app-nav" aria-label="Main navigation">
         {navigationItems
           .filter(
             (item) => !item.hiddenFromNav && (!item.managerOnly || capabilities.canManagePrograms)
@@ -67,12 +85,14 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <main ref={mainContent} id="main-content" tabIndex={-1}>
         {children}
       </main>
-      <footer>
-        Ordinary encounters and controlled observations share one preference history.{' '}
+      <footer className="app-footer">
+        <p>Ordinary encounters and controlled observations share one preference history.</p>
         {aboutNavItem && (
-          <a href={aboutNavItem.path} onClick={(event) => follow(event, aboutNavItem.route)}>
-            About this project
-          </a>
+          <p>
+            <a href={aboutNavItem.path} onClick={(event) => follow(event, aboutNavItem.route)}>
+              About this project
+            </a>
+          </p>
         )}
       </footer>
     </div>

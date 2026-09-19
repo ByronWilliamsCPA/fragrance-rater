@@ -47,31 +47,120 @@ const routeChecks: {
   { path: '/programs', heading: 'Program setup' },
 ]
 
-test.describe('Accessibility (WCAG 2.1 AA)', () => {
-  for (const { path, heading, populate } of routeChecks) {
-    test(`${path} has no automatically detectable violations`, async ({ page }) => {
-      await mockApi(page, {
-        ...bootstrapRoutes(managerAccess),
-        [`/calibration/enrollments/enr1`]: enrollmentFixture(false),
-        '/fragrances': fragranceCatalog,
-        '/evaluations': [],
-        '/recommendation-measurement/runs': recommendationRunFixture(),
+async function setUpRoute(page: Page, path: string, populate?: (page: Page) => Promise<void>) {
+  await mockApi(page, {
+    ...bootstrapRoutes(managerAccess),
+    [`/calibration/enrollments/enr1`]: enrollmentFixture(false),
+    '/fragrances': fragranceCatalog,
+    '/evaluations': [],
+    '/recommendation-measurement/runs': recommendationRunFixture(),
+  })
+
+  await page.goto(path)
+  await expect(page.getByRole('heading', { name: 'Fragrance Rater' })).toBeVisible()
+  if (populate) await populate(page)
+}
+
+/*
+ * ADR-014 sets WCAG 2.2 AA as the conformance target (amended from 2.1 AA in
+ * the 2026-09-19 design pass). The `wcag22aa` tag is what brings 2.5.8 Target
+ * Size and the other 2.2 additions into the scan; the earlier tags are
+ * retained because 2.2 is a superset, not a replacement.
+ *
+ * Both colour schemes are scanned. The palette is theme-dependent, so a scan
+ * of one theme says nothing about the other, and dark mode is the one an
+ * evaluator is most likely to use in the low light this app gets used in.
+ */
+const axeTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test.describe(`Accessibility (WCAG 2.2 AA, ${colorScheme} theme)`, () => {
+    test.use({ colorScheme })
+
+    for (const { path, heading, populate } of routeChecks) {
+      test(`${path} has no automatically detectable violations`, async ({ page }) => {
+        await setUpRoute(page, path, populate)
+        await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+
+        const results = await new AxeBuilder({ page }).withTags(axeTags).analyze()
+
+        expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([])
       })
+    }
+  })
+}
 
-      await page.goto(path)
-      await expect(page.getByRole('heading', { name: 'Fragrance Rater' })).toBeVisible()
-
-      if (populate) await populate(page)
-
+test.describe('Target size (WCAG 2.2 AA, 2.5.8)', () => {
+  for (const { path, heading, populate } of routeChecks) {
+    test(`${path} has no interactive target under 24px`, async ({ page }) => {
+      // 360px is the narrowest viewport the P3 gate commits to, and the one
+      // where controls are most likely to be squeezed below the minimum.
+      await page.setViewportSize({ width: 360, height: 740 })
+      await setUpRoute(page, path, populate)
       await expect(page.getByRole('heading', { name: heading })).toBeVisible()
 
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-        .analyze()
+      const undersized = await page.evaluate(() => {
+        const selector =
+          'a[href], button, select, input:not([type="radio"]):not([type="hidden"]), textarea, summary'
+        return [...document.querySelectorAll(selector)]
+          .filter((element) => {
+            const box = element.getBoundingClientRect()
+            // Off-screen controls (the skip link at rest, the visually hidden
+            // radio inputs) are not rendered targets.
+            if (box.width === 0 && box.height === 0) return false
+            return box.width < 24 || box.height < 24
+          })
+          .map((element) => {
+            const box = element.getBoundingClientRect()
+            return `${element.tagName.toLowerCase()} "${(element.textContent ?? '')
+              .trim()
+              .slice(0, 40)}" ${Math.round(box.width)}x${Math.round(box.height)}`
+          })
+      })
 
-      expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([])
+      expect(undersized, undersized.join('\n')).toEqual([])
     })
   }
+
+  test('scale options meet the minimum target size', async ({ page }) => {
+    await setUpRoute(page, '/calibration', async (target) => {
+      await target.getByLabel('Evaluator and program').selectOption('enr1')
+      await target.getByRole('button', { name: 'ABC-123' }).click()
+    })
+
+    // The radio inputs themselves are visually hidden; the rendered target is
+    // the span the label paints in their place.
+    const option = page.locator('.scale-field__option span').first()
+    const box = await option.boundingBox()
+
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual(24)
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(24)
+  })
+})
+
+test.describe('Focus visibility (WCAG 2.2 AA, 1.4.11 and 2.4.11)', () => {
+  test('keyboard focus paints a two-tone indicator', async ({ page }) => {
+    await setUpRoute(page, '/ratings')
+
+    await page.keyboard.press('Tab')
+    const indicator = await page.evaluate(() => {
+      const active = document.activeElement
+      if (!active) return null
+      const style = window.getComputedStyle(active)
+      return {
+        outlineWidth: style.outlineWidth,
+        outlineStyle: style.outlineStyle,
+        boxShadow: style.boxShadow,
+      }
+    })
+
+    expect(indicator).not.toBeNull()
+    expect(indicator?.outlineStyle).not.toBe('none')
+    expect(parseFloat(indicator?.outlineWidth ?? '0')).toBeGreaterThanOrEqual(2)
+    // The halo is what carries 3:1 on filled brand buttons, where the ring
+    // alone cannot. Its absence would silently drop the contrast contract.
+    expect(indicator?.boxShadow).not.toBe('none')
+  })
 })
 
 test.describe('Keyboard operability', () => {
@@ -90,12 +179,14 @@ test.describe('Keyboard operability', () => {
     // #ASSUME: timing dependencies: this Tab sequence was verified by running the test
     // headed against the real rendered page rather than guessed; it depends on the DOM
     // order of focusable elements before the assignment select:
-    // 1) skip link, 2) "Home" nav link, 3) "Calibration" nav link (current page, still
-    // focusable), 4) "Recommendations" nav link, 5) "My Ratings" nav link, then the
-    // "Evaluator and program" <select>. Selecting the only option and pressing Enter/
-    // Space on the resulting sample button reaches the blind observation form.
-    // #VERIFY: re-run headed if AppShell's nav items or their order change.
-    for (let i = 0; i < 6; i++) await page.keyboard.press('Tab')
+    // 1) skip link, 2) theme toggle, 3) "Home" nav link, 4) "Calibration" nav link
+    // (current page, still focusable), 5) "Recommendations" nav link, 6) "My Ratings"
+    // nav link, then the "Evaluator and program" <select>. Selecting the only option
+    // and pressing Enter/Space on the resulting sample button reaches the blind
+    // observation form.
+    // #VERIFY: re-run headed if AppShell's nav items, the header controls, or their
+    // order change.
+    for (let i = 0; i < 7; i++) await page.keyboard.press('Tab')
     await expect(page.getByLabel('Evaluator and program')).toBeFocused()
     await page.keyboard.press('ArrowDown')
     await expect(page.getByRole('heading', { name: 'Sessions' })).toBeVisible()
@@ -106,5 +197,21 @@ test.describe('Keyboard operability', () => {
 
     await expect(page.getByRole('heading', { name: 'ABC-123' })).toBeVisible()
     await expect(page.getByText('Blind observation')).toBeVisible()
+  })
+
+  test('a calibration scale is one tab stop with arrow-key selection', async ({ page }) => {
+    await setUpRoute(page, '/calibration', async (target) => {
+      await target.getByLabel('Evaluator and program').selectOption('enr1')
+      await target.getByRole('button', { name: 'ABC-123' }).click()
+    })
+
+    // A radio group is reached once and traversed with arrow keys, so the ten
+    // perceptual dimensions no longer cost ten tab stops each to skip past.
+    const intensity = page.getByRole('radio', { name: 'Not answered' }).first()
+    await intensity.focus()
+    await expect(intensity).toBeChecked()
+
+    await page.keyboard.press('ArrowRight')
+    await expect(page.getByRole('radio', { name: '0', exact: true }).first()).toBeChecked()
   })
 })

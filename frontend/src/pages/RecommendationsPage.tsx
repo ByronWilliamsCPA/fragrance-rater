@@ -180,7 +180,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
     <section>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">DISCOVER</div>
+          <p className="eyebrow">Discover</p>
           <h2>Recommendations</h2>
         </div>
         {recommendationRun && <span className="status-chip">Saved set</span>}
@@ -252,10 +252,12 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                 })
                 return (
                   <>
-                    <div className="eyebrow">CHOICE {item.rank}</div>
+                    <p className="eyebrow">Choice {item.rank}</p>
                     <h3>{item.fragrance_name}</h3>
-                    <p>
-                      {item.fragrance_brand} · {item.match_percent}% affinity
+                    <p className="affinity">
+                      <span>{item.fragrance_brand}</span>
+                      <strong data-numeric>{item.match_percent}%</strong>
+                      <span>affinity</span>
                     </p>
                     <button
                       className="secondary"

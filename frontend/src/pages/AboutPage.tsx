@@ -4,7 +4,7 @@ export function AboutPage() {
       <section>
         <div className="page-heading">
           <div>
-            <div className="eyebrow">ABOUT THIS PROJECT</div>
+            <p className="eyebrow">About this project</p>
             <h2>How this project learns your taste</h2>
           </div>
         </div>

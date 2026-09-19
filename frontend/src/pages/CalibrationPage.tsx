@@ -4,6 +4,14 @@ import type { Assignment, Enrollment, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { EmptyState } from '../components/PageState'
+import { ScaleField } from '../components/ScaleField'
+import {
+  intensityScale,
+  likingScale,
+  observationNotes,
+  perceptualScales,
+  skinScales,
+} from '../content/calibrationScales'
 import { useTask } from '../hooks/useTask'
 
 type CalibrationPageProps = {
@@ -12,17 +20,18 @@ type CalibrationPageProps = {
   reviewers: Person[]
 }
 
-const dimensions = [
-  'confidence',
-  'sweetness',
-  'freshness',
-  'density',
-  'familiarity',
-  'dryness',
-  'clean_soapy',
-  'earthy_rooty',
-  'bodily_animalic',
-  'discomfort',
+/**
+ * Response field names, in the order the API expects them.
+ *
+ * Derived from the scale definitions rather than repeated as literals, so a
+ * renamed or added dimension cannot be rendered but left out of the payload.
+ */
+const numericFields = [
+  likingScale.name,
+  intensityScale.name,
+  ...perceptualScales.map((scale) => scale.name),
+  ...skinScales.map((scale) => scale.name),
+  'longevity_minutes',
 ]
 
 export function CalibrationPage({ assignments, programs, reviewers }: CalibrationPageProps) {
@@ -58,22 +67,6 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       setEnrollment(response.data)
   }
 
-  function scale(name: string, max: number, disabled = false) {
-    return (
-      <label key={name}>
-        {name.replace(/_/g, ' ')}
-        <select name={name} defaultValue="" disabled={disabled}>
-          <option value="">Unanswered</option>
-          {Array.from({ length: max + 1 }, (_, index) => (
-            <option key={index} value={index}>
-              {index}
-            </option>
-          ))}
-        </select>
-      </label>
-    )
-  }
-
   async function save(form: HTMLFormElement) {
     if (!sample) return
     const values = Object.fromEntries(new FormData(form))
@@ -82,25 +75,12 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       elapsed_minutes: Number(values.elapsed_minutes || 0),
       detected: detected === '' ? null : detected === 'yes',
     }
-    for (const name of [
-      'liking',
-      'intensity',
-      ...dimensions,
-      'opening_liking',
-      'drydown_liking',
-      'would_wear',
-      'would_buy',
-      'artistic_appreciation',
-      'projection',
-      'longevity_minutes',
-    ])
-      data[name] = !values[name] ? null : Number(values[name])
+    for (const name of numericFields) data[name] = !values[name] ? null : Number(values[name])
     if (detected === 'no') {
       data.intensity = 0
       data.liking = null
     }
-    for (const name of ['likes', 'dislikes', 'reminds_me_of', 'comments'])
-      data[name] = values[name] || null
+    for (const note of observationNotes) data[note.name] = values[note.name] || null
     data.perceived_notes = values.perceived_notes
       ? String(values.perceived_notes)
           .split(',')
@@ -122,7 +102,7 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       <section>
         <div className="page-heading">
           <div>
-            <div className="eyebrow">BLIND EVALUATION</div>
+            <p className="eyebrow">Blind evaluation</p>
             <h2>Your calibration</h2>
           </div>
           {enrollment && (
@@ -232,8 +212,8 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
           <section>
             {sample ? (
               <>
-                <div className="eyebrow">SAMPLE {sample.position}</div>
-                <h2>{sample.blind_code}</h2>
+                <p className="eyebrow">Sample {sample.position}</p>
+                <h2 className="blind-code">{sample.blind_code}</h2>
                 {sample.identity && (
                   <p className="notice">
                     {sample.identity.brand} · {sample.identity.name} ·{' '}
@@ -285,7 +265,7 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                     <legend>
                       {sample.identity ? 'Post-reveal observation' : 'Blind observation'}
                     </legend>
-                    <div className="fields">
+                    <div className="fields fields-compact">
                       <label>
                         Elapsed minutes
                         <input name="elapsed_minutes" type="number" min="0" defaultValue="0" />
@@ -301,23 +281,24 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                           <option value="no">No</option>
                         </select>
                       </label>
-                      {scale('intensity', 5, detected === 'no')}
-                      {scale('liking', 10, detected === 'no')}
-                      {dimensions.map((dimension) => scale(dimension, 5))}
                     </div>
                     {detected === 'no' && (
-                      <p>Intensity will be saved as 0; liking will remain unanswered.</p>
+                      <p className="notice">
+                        Intensity will be saved as 0; liking will remain unanswered.
+                      </p>
                     )}
+                    <div className="scale-stack">
+                      <ScaleField scale={intensityScale} disabled={detected === 'no'} />
+                      <ScaleField scale={likingScale} disabled={detected === 'no'} />
+                      {perceptualScales.map((dimension) => (
+                        <ScaleField key={dimension.name} scale={dimension} />
+                      ))}
+                    </div>
                     {stage === 'SKIN' && (
-                      <div className="fields">
-                        {[
-                          'opening_liking',
-                          'drydown_liking',
-                          'would_wear',
-                          'would_buy',
-                          'artistic_appreciation',
-                        ].map((dimension) => scale(dimension, 10))}
-                        {scale('projection', 5)}
+                      <div className="scale-stack">
+                        {skinScales.map((dimension) => (
+                          <ScaleField key={dimension.name} scale={dimension} />
+                        ))}
                         <label>
                           Longevity (minutes)
                           <input name="longevity_minutes" type="number" min="0" />
@@ -331,10 +312,10 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                         placeholder="Your own words, separated by commas"
                       />
                     </label>
-                    {['likes', 'dislikes', 'reminds_me_of', 'comments'].map((name) => (
-                      <label key={name}>
-                        {name.replace(/_/g, ' ')}
-                        <textarea name={name} rows={2} />
+                    {observationNotes.map((note) => (
+                      <label key={note.name}>
+                        {note.label}
+                        <textarea name={note.name} rows={2} />
                       </label>
                     ))}
                     <button>Save observation</button>

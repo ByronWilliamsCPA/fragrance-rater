@@ -1,0 +1,345 @@
+/*
+ * Element-level defaults. Component classes live in components.css; this file
+ * only sets what a bare HTML element should look like, so pages that use plain
+ * semantic markup (the About narrative, saved-observation lists) are readable
+ * without reaching for a class.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* 1.4.10 Reflow: the layout must survive 320px with no horizontal scroll. */
+  min-width: 320px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: var(--weight-normal);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  letter-spacing: -0.015em;
+}
+
+h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-title);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--space-4);
+}
+
+/*
+ * The previous stylesheet rendered h3 at 16px, identical to body text, which
+ * collapsed section hierarchy on every page that used one. h3 and h4 are now
+ * unambiguously above body size and switch to the UI face so they read as
+ * structure rather than prose.
+ */
+h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.005em;
+  margin: var(--space-8) 0 var(--space-3);
+}
+
+h4 {
+  font-size: var(--text-subheading);
+  font-weight: var(--weight-semibold);
+  margin: 0 0 var(--space-2);
+}
+
+/* A heading that opens a card or section should not push itself down. */
+section > h2:first-child,
+section > h3:first-child,
+aside > h2:first-child,
+aside > h3:first-child,
+article > h3:first-child,
+article > h4:first-child {
+  margin-top: 0;
+}
+
+p {
+  line-height: var(--leading-relaxed);
+  max-width: var(--measure);
+  margin: 0 0 var(--space-4);
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+a {
+  color: var(--color-brand);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  border-radius: var(--radius-sm);
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+strong {
+  font-weight: var(--weight-semibold);
+}
+
+small {
+  font-size: var(--text-caption);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--color-border-subtle);
+  margin: var(--space-10) 0;
+}
+
+ul,
+ol {
+  line-height: var(--leading-relaxed);
+  max-width: var(--measure);
+}
+
+/*
+ * #CRITICAL: security: a keyboard-only evaluator must always be able to see
+ * which control is focused before locking a blind observation. Two-tone ring
+ * (WCAG technique G195): the dark/light `--color-focus-ring` carries 3:1 on
+ * page and card surfaces, and `--color-focus-halo` carries it on filled brand
+ * buttons, where the ring alone would not. Both tones are asserted in
+ * src/test/contrast.test.ts.
+ * #VERIFY: contrast.test.ts + the axe/keyboard e2e pass in both themes.
+ */
+:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--color-focus-halo);
+}
+
+/* Numbers that are read as data should line up and never be mistaken. */
+progress,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Forms ------------------------------------------------------------ */
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  color: var(--color-text-secondary);
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: var(--target-min);
+  padding: var(--space-3);
+  font: inherit;
+  font-weight: var(--weight-normal);
+  color: var(--color-text-primary);
+  background: var(--color-field);
+  /*
+   * 1.4.11 Non-text Contrast: a control's visual boundary needs 3:1. The
+   * previous #bbc8bf border measured 1.73:1 against white.
+   */
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  transition: border-color var(--motion-fast) var(--motion-ease);
+}
+
+textarea {
+  min-height: calc(var(--target-min) * 1.75);
+  line-height: var(--leading-normal);
+  resize: vertical;
+}
+
+select {
+  appearance: none;
+  padding-right: var(--space-8);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.25rem) 55%,
+    calc(100% - 0.85rem) 55%;
+  background-size:
+    0.4rem 0.4rem,
+    0.4rem 0.4rem;
+  background-repeat: no-repeat;
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--color-sunken);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: var(--space-6) 0 0;
+  min-width: 0;
+}
+
+legend {
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-heading);
+  color: var(--color-text-primary);
+}
+
+form {
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-6);
+}
+
+form:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+  margin-bottom: 0;
+}
+
+/* ---- Buttons ---------------------------------------------------------- */
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* 2.5.8 Target Size (Minimum): 24px is the AA floor; 44px is what a phone
+     in a bathroom at 6am actually needs. */
+  min-height: var(--target-min);
+  padding: var(--space-3) var(--space-5);
+  font: inherit;
+  font-weight: var(--weight-medium);
+  color: var(--color-on-brand);
+  background: var(--color-brand);
+  border: 1px solid var(--color-brand);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease);
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-brand-hover);
+  border-color: var(--color-brand-hover);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- Disclosure ------------------------------------------------------- */
+
+details {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
+  padding: 0 var(--space-4);
+}
+
+summary {
+  /* 2.5.8: the bare summary measured 19px tall. */
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+  margin: 0 calc(var(--space-4) * -1);
+  padding: var(--space-2) var(--space-4);
+  font-weight: var(--weight-medium);
+  color: var(--color-brand);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+}
+
+details[open] summary {
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: var(--space-4);
+}
+
+details > :last-child {
+  margin-bottom: var(--space-4);
+}
+
+/* ---- Tables and progress --------------------------------------------- */
+
+progress {
+  width: 100%;
+  height: 0.5rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-sunken);
+  accent-color: var(--color-brand);
+}
+
+progress::-webkit-progress-bar {
+  background: var(--color-sunken);
+  border-radius: var(--radius-pill);
+}
+
+progress::-webkit-progress-value {
+  background: var(--color-brand);
+  border-radius: var(--radius-pill);
+}
+
+progress::-moz-progress-bar {
+  background: var(--color-brand);
+  border-radius: var(--radius-pill);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

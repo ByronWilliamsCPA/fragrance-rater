@@ -6,18 +6,57 @@ export type NavigationItem = {
   route: Route
   label: string
   path: string
+  /**
+   * Distinct `document.title` for the route.
+   *
+   * WCAG 2.4.2 (Page Titled) applies per URL, and these are real pushState
+   * URLs a family member can bookmark, reload, and hold several of in tabs
+   * at once. Every route previously rendered the same "Fragrance Rater"
+   * title, which made those tabs indistinguishable and gave a screen-reader
+   * user no confirmation that navigation had happened.
+   */
+  documentTitle: string
   managerOnly?: boolean
   hiddenFromNav?: boolean
 }
 
+export const siteName = 'Fragrance Rater'
+
 export const navigationItems: NavigationItem[] = [
-  { route: 'home', label: 'Home', path: '/' },
-  { route: 'calibration', label: 'Calibration', path: '/calibration' },
-  { route: 'recommendations', label: 'Recommendations', path: '/recommendations' },
-  { route: 'ratings', label: 'My Ratings', path: '/ratings' },
-  { route: 'programs', label: 'Program setup', path: '/programs', managerOnly: true },
-  { route: 'about', label: 'About', path: '/about', hiddenFromNav: true },
+  { route: 'home', label: 'Home', path: '/', documentTitle: 'Home' },
+  {
+    route: 'calibration',
+    label: 'Calibration',
+    path: '/calibration',
+    documentTitle: 'Blind calibration',
+  },
+  {
+    route: 'recommendations',
+    label: 'Recommendations',
+    path: '/recommendations',
+    documentTitle: 'Recommendations',
+  },
+  { route: 'ratings', label: 'My Ratings', path: '/ratings', documentTitle: 'My ratings' },
+  {
+    route: 'programs',
+    label: 'Program setup',
+    path: '/programs',
+    documentTitle: 'Program setup',
+    managerOnly: true,
+  },
+  {
+    route: 'about',
+    label: 'About',
+    path: '/about',
+    documentTitle: 'About this project',
+    hiddenFromNav: true,
+  },
 ]
+
+export function documentTitleFor(route: Route): string {
+  const item = navigationItems.find((entry) => entry.route === route)
+  return item ? `${item.documentTitle} · ${siteName}` : siteName
+}
 
 export function routeFromPath(pathname: string): Route {
   return navigationItems.find((item) => item.path === pathname)?.route ?? 'home'
