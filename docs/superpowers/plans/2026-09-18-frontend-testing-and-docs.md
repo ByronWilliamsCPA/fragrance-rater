@@ -46,7 +46,7 @@ This plan was reviewed by a principal-level architecture reviewer (opus) before 
 ## Decisions Locked By This Plan
 
 1. **E2E backend strategy = network-layer mocking for the fast per-PR tier, plus a thin real-backend smoke tier for exactly two disclosure/authorization invariants** (not a full duplicate real-backend suite). Documented in ADR-014.
-2. **Coverage mechanism = a single `frontend` Codecov surface flag**, per `.claude/standards/testing.md` §16.2's exception for a Vitest frontend that can't split by test type in one run.
+2. **Coverage mechanism = a single `frontend` Codecov surface flag**, per the single-surface-flag exception for a Vitest frontend that can't split by test type in one run. This convention is documented in the operator's global Claude standards (`~/.claude/standards/testing.md`), not a file checked into this repo.
 3. **Accessibility target = WCAG 2.1 AA, single blocking CI tier**, documented as a section within ADR-014 rather than a separate ADR, since it shares the same Playwright suite and CI job as the e2e strategy.
 
 ---
@@ -1097,7 +1097,7 @@ Expected: file exists (`frontend/vite.config.ts`'s `test.coverage.reporter` alre
 
 - [ ] **Step 2: Add the `frontend` flag to `codecov.yml`**
 
-Read the current `codecov.yml` in full first, then add a `frontend` entry alongside the existing `unit`/`integration`/`security` flags, per the single-surface-flag exception in `.claude/standards/testing.md` §16.2:
+Read the current `codecov.yml` in full first, then add a `frontend` entry alongside the existing `unit`/`integration`/`security` flags, per the single-surface-flag exception documented in the operator's global Claude standards (`~/.claude/standards/testing.md`), not a file checked into this repo:
 ```yaml
 flags:
   frontend:
@@ -1179,7 +1179,7 @@ Sets the pattern every future e2e and accessibility spec follows.
 
 ### Rationale
 
-Per `.claude/rules/design.md`, the committed e2e suite belongs in `frontend/e2e/` using `@playwright/test`. Network-layer mocking keeps the per-PR CI loop fast and deterministic. The smoke tier exists because this app's controlled-disclosure design (ADR-005) makes premature identity reveal a genuine trust failure for a family-use product, not a cosmetic bug, and only a real backend call can prove the API itself withholds identity, a property the frontend's mocked tests structurally cannot verify. axe-core is the industry-standard automated ruleset and integrates directly with the same Playwright suite, avoiding a second test runner.
+Per the operator's global Claude rules (`~/.claude/rules/design.md`, not a file checked into this repo), the committed e2e suite belongs in `frontend/e2e/` using `@playwright/test`. Network-layer mocking keeps the per-PR CI loop fast and deterministic. The smoke tier exists because this app's controlled-disclosure design (ADR-005) makes premature identity reveal a genuine trust failure for a family-use product, not a cosmetic bug, and only a real backend call can prove the API itself withholds identity, a property the frontend's mocked tests structurally cannot verify. axe-core is the industry-standard automated ruleset and integrates directly with the same Playwright suite, avoiding a second test runner.
 
 ## Options Considered
 
