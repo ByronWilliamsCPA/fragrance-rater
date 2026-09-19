@@ -836,6 +836,83 @@ class TestRecommendationServiceIntegration:
         assert len(recommendations) == 1
         assert recommendations[0].fragrance_id == "frag-r3"
 
+    async def test_get_recommendations_excludes_training_ineligible_candidate(
+        self, async_session
+    ):
+        """ADR-014: a candidate fragrance flagged
+        `training_eligibility_code="excluded_manual"` must never be
+        recommended, even though it is unrated and would otherwise qualify.
+        `build_preference_profile` already keeps such a fragrance from
+        CONTRIBUTING to the trained profile; this covers the separate gap
+        where it was still SHOWN as a recommendation candidate.
+        """
+        reviewer = Reviewer(id="reviewer-ineligible-candidate", name="Active User")
+        async_session.add(reviewer)
+
+        note = Note(id="note-ineligible-candidate", name="Vanilla", category="sweet")
+        async_session.add(note)
+
+        for i in range(3):
+            frag = Fragrance(
+                id=f"frag-ic-{i}",
+                name=f"Fragrance {i}",
+                brand="Brand",
+                concentration="EDP",
+                gender_target="unisex",
+                primary_family="oriental",
+                subfamily="vanilla",
+                data_source="manual",
+            )
+            async_session.add(frag)
+            async_session.add(
+                FragranceNote(
+                    fragrance_id=f"frag-ic-{i}",
+                    note_id="note-ineligible-candidate",
+                    position="base",
+                )
+            )
+            async_session.add(
+                Evaluation(
+                    id=f"eval-ic-{i}",
+                    fragrance_id=f"frag-ic-{i}",
+                    reviewer_id="reviewer-ineligible-candidate",
+                    rating=5,
+                )
+            )
+
+        # Unrated candidate that would otherwise be recommended (same notes,
+        # never rated by this reviewer), but is flagged training-ineligible.
+        ineligible_candidate = Fragrance(
+            id="frag-ic-excluded",
+            name="Excluded Candidate",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="unisex",
+            primary_family="oriental",
+            subfamily="vanilla",
+            data_source="manual",
+            training_eligibility_code="excluded_manual",
+        )
+        async_session.add(ineligible_candidate)
+        async_session.add(
+            FragranceNote(
+                fragrance_id="frag-ic-excluded",
+                note_id="note-ineligible-candidate",
+                position="base",
+            )
+        )
+
+        await async_session.commit()
+
+        service = RecommendationService(async_session)
+        recommendations = await service.get_recommendations(
+            "reviewer-ineligible-candidate",
+            limit=10,
+            exclude_rated=True,
+        )
+
+        assert all(r.fragrance_id != "frag-ic-excluded" for r in recommendations)
+
     async def test_get_recommendations_worn_by_evaluation_does_not_exclude_candidate(
         self, async_session
     ):

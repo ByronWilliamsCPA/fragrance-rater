@@ -2,7 +2,8 @@
 
 import pytest
 
-from fragrance_rater.models.fragrance import Fragrance
+from fragrance_rater.core.exceptions import ValidationError
+from fragrance_rater.models.fragrance import Fragrance, TrainingEligibility
 from fragrance_rater.schemas.fragrance import (
     FragranceAccordCreate,
     FragranceCreate,
@@ -92,6 +93,145 @@ class TestFragranceService:
         await async_session.commit()
 
         assert fragrance.training_eligibility_code is None
+
+    async def test_create_fragrance_rejects_unknown_training_eligibility_code(
+        self, async_session
+    ):
+        """A `training_eligibility_code` with no matching
+        `training_eligibilities` row must raise `ValidationError` (mapped
+        by the API layer to a 422) rather than reach the database and
+        surface as a raw `IntegrityError` on the foreign key.
+        """
+        service = FragranceService(async_session)
+        data = FragranceCreate(
+            name="Bad Code Scent",
+            brand="Test Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            training_eligibility_code="not-a-real-code",
+        )
+
+        with pytest.raises(ValidationError):
+            await service.create(data)
+
+    async def test_create_fragrance_rejects_inactive_training_eligibility_code(
+        self, async_session
+    ):
+        """A `training_eligibility_code` that exists but has `active=False`
+        must be rejected the same way an unknown code is; the FK alone
+        would allow it through, since `active` is a service-level rule, not
+        a database constraint.
+        """
+        async_session.add(
+            TrainingEligibility(
+                code="deprecated_code",
+                display_label="No longer assignable",
+                sort_order=30,
+                active=False,
+            )
+        )
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        data = FragranceCreate(
+            name="Deprecated Code Scent",
+            brand="Test Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            training_eligibility_code="deprecated_code",
+        )
+
+        with pytest.raises(ValidationError):
+            await service.create(data)
+
+    async def test_update_fragrance_rejects_unknown_training_eligibility_code(
+        self, async_session
+    ):
+        """The same pre-check applies to `update()`."""
+        fragrance = Fragrance(
+            id="update-bad-eligibility-001",
+            name="Update Target",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(fragrance)
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        update_data = FragranceUpdate(training_eligibility_code="not-a-real-code")
+
+        with pytest.raises(ValidationError):
+            await service.update("update-bad-eligibility-001", update_data)
+
+    async def test_update_fragrance_rejects_inactive_training_eligibility_code(
+        self, async_session
+    ):
+        """`update()` must also reject a code that exists but is inactive."""
+        async_session.add(
+            TrainingEligibility(
+                code="deprecated_code_update",
+                display_label="No longer assignable",
+                sort_order=31,
+                active=False,
+            )
+        )
+        fragrance = Fragrance(
+            id="update-inactive-eligibility-001",
+            name="Update Target Two",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+        )
+        async_session.add(fragrance)
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        update_data = FragranceUpdate(
+            training_eligibility_code="deprecated_code_update"
+        )
+
+        with pytest.raises(ValidationError):
+            await service.update("update-inactive-eligibility-001", update_data)
+
+    async def test_update_fragrance_allows_clearing_training_eligibility_code(
+        self, async_session
+    ):
+        """Explicitly clearing `training_eligibility_code` (setting it back
+        to null) must not trigger the lookup pre-check, since null always
+        means "eligible" and needs no row to validate against.
+        """
+        fragrance = Fragrance(
+            id="update-clear-eligibility-001",
+            name="Clear Target",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            data_source="manual",
+            training_eligibility_code="excluded_manual",
+        )
+        async_session.add(fragrance)
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        update_data = FragranceUpdate(training_eligibility_code=None)
+        updated = await service.update("update-clear-eligibility-001", update_data)
+        await async_session.commit()
+
+        assert updated is not None
+        assert updated.training_eligibility_code is None
 
     async def test_create_fragrance_with_notes(self, async_session):
         """Test creating a fragrance with notes."""

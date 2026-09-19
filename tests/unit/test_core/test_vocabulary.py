@@ -36,5 +36,13 @@ class TestTrainingIneligibleCodes:
     def test_training_ineligible_codes_excludes_eligible(self):
         assert "eligible" not in vocabulary.TRAINING_INELIGIBLE_CODES
 
+    def test_training_ineligible_codes_excludes_none(self):
+        """Regression tripwire: `None` (the implicit "eligible" state for
+        every fragrance with no override) must never be added to this
+        frozenset, or every explicitly-eligible fragrance would silently
+        stop training affinities.
+        """
+        assert None not in vocabulary.TRAINING_INELIGIBLE_CODES
+
     def test_training_ineligible_codes_is_frozenset(self):
         assert isinstance(vocabulary.TRAINING_INELIGIBLE_CODES, frozenset)

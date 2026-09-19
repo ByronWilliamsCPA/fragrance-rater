@@ -40,6 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import Session, sessionmaker
 
 from fragrance_rater.core.database import Base
+from fragrance_rater.models.fragrance import TrainingEligibility
 
 # ============================================================================
 # Test Fixture Paths
@@ -218,6 +219,51 @@ def _reset_slowapi_limiter() -> Generator[None, None, None]:
 ASYNC_SQLITE_URL = "sqlite+aiosqlite:///:memory:"
 SYNC_SQLITE_URL = "sqlite:///:memory:"
 
+# Mirrors the three rows alembic/versions/7daf681ed339_training_eligibility_lookup.py
+# seeds in every real deployment (ADR-014). Test fixtures build schema from
+# `Base.metadata.create_all`, not the migration itself, so this lookup table
+# would otherwise come up empty, and FragranceService's
+# training_eligibility_code pre-check (see fragrance_service.py) would reject
+# every code, including "eligible" itself.
+_TRAINING_ELIGIBILITY_SEED_ROWS = (
+    {
+        "code": "eligible",
+        "display_label": "Eligible for training",
+        "sort_order": 0,
+        "active": True,
+    },
+    {
+        "code": "excluded_pending_classification",
+        "display_label": "Excluded: awaiting real taxonomy classification",
+        "sort_order": 10,
+        "active": True,
+    },
+    {
+        "code": "excluded_manual",
+        "display_label": "Excluded: manually flagged",
+        "sort_order": 20,
+        "active": True,
+    },
+)
+
+
+async def _seed_training_eligibilities(conn) -> None:
+    """Insert the standard training_eligibilities rows into a test database.
+
+    Args:
+        conn: Open ``AsyncConnection`` whose schema already includes the
+            `training_eligibilities` table (i.e. called after
+            `Base.metadata.create_all`).
+    """
+
+    def _insert(sync_conn):
+        sync_conn.execute(
+            TrainingEligibility.__table__.insert(),
+            list(_TRAINING_ELIGIBILITY_SEED_ROWS),
+        )
+
+    await conn.run_sync(_insert)
+
 
 @pytest_asyncio.fixture(scope="function")
 async def async_engine():
@@ -229,6 +275,7 @@ async def async_engine():
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _seed_training_eligibilities(conn)
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -379,6 +426,7 @@ async def test_app(tmp_path):
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await _seed_training_eligibilities(conn)
 
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         async_session_maker = async_sessionmaker(
