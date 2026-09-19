@@ -148,6 +148,16 @@ test.describe('Real-backend disclosure and authorization invariants', () => {
     // leak anywhere else in the payload either.
     expect(bodyText).not.toContain(fragranceName)
     expect(bodyText).not.toContain(fragranceBrand)
+
+    // Perfumer attribution is disclosed on the same condition as name and
+    // brand, because knowing the perfumer often identifies the sample.
+    //
+    // This is a structural check, not a data one: nothing in the API can write
+    // a perfumer row (only the Parfumo scraper does), so the seeded fragrance
+    // has no attribution and a value-based assertion would pass vacuously.
+    // What this catches is the realistic regression, the key being serialised
+    // onto the presentation row instead of into the gated identity block.
+    expect(bodyText.toLowerCase()).not.toContain('perfumer')
   })
 
   test('rejects a non-manager call to a manager-only endpoint with 403', async ({ request }) => {

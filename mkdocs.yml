@@ -168,6 +168,7 @@ nav:
 
   - Development:
       - Architecture: development/architecture.md
+      - Design System: development/design-system.md
       - ML Pipeline: development/ml-pipeline.md
       - Testing: development/testing.md
       - Code Quality: development/code-quality.md

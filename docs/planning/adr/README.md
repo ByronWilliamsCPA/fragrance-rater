@@ -38,7 +38,16 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-011](./adr-011-worn-by-evidence-dimension.md) | Worn-By Evidence Dimension | Accepted | 2026-09-12 |
 | [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md) | Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance | Accepted | 2026-09-15 |
 | [ADR-013](./adr-013-external-ontology-and-standards-crosswalk.md) | External Ontology and Standards Crosswalk | Accepted; amends ADR-004, ADR-010 | 2026-09-15 |
-| [ADR-014](./adr-014-training-eligibility-and-unclassified-family.md) | Training Eligibility and the Unclassified Family Sentinel | Proposed | 2026-09-19 |
+| [ADR-014](./adr-014-frontend-e2e-and-accessibility-strategy.md) | Frontend E2E and Accessibility Testing Strategy | Accepted; amended 2026-09-19 to WCAG 2.2 AA | 2026-09-18 |
+| [ADR-014](./adr-014-training-eligibility-and-unclassified-family.md) | Training Eligibility and the Unclassified Family Sentinel ⚠️ **duplicate number** | Proposed | 2026-09-19 |
+| [ADR-016](./adr-016-per-dimension-preference-capture.md) | Per-Dimension Preference Capture and Perfumer as an Evaluable Dimension | Proposed; perfumer read path implemented, scoring use undecided | 2026-09-19 |
+
+> ⚠️ **Two records share the number ADR-014.** PR #103 merged
+> `adr-014-frontend-e2e-and-accessibility-strategy.md` without adding a row here, so the index
+> stopped at ADR-013 and PR #105 took 014 for an unrelated decision. Both are now in `main`.
+> Renaming a merged record is the owner's call, not something to do incidentally, so both are
+> listed rather than silently reconciled. ADR-015 is free; renumbering the training-eligibility
+> record to it would resolve the clash.
 
 ## Creating ADRs
 

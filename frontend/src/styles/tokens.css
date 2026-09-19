@@ -1,0 +1,240 @@
+/*
+ * Design tokens.
+ *
+ * The interface is modelled on the artifact it replaces: a sensory-evaluation
+ * score sheet. That decision drives everything here. Ink on paper, one weight
+ * of rule, squared corners, tabular figures, no decorative colour.
+ *
+ * Colour carries exactly two meanings:
+ *
+ *   ink    (near-black)  something you read, or an action you take
+ *   sealed (deep blue)   something the system is deliberately withholding:
+ *                        a blind code, a pre-reveal sample (ADR-005)
+ *
+ * Red, amber and green appear only in error, confirmation and success
+ * messages. There is no brand accent, no tint used for emphasis, and no
+ * gradient. If a new colour seems necessary, the layout is probably wrong.
+ *
+ * Every pair below is verified against its WCAG 2.2 AA threshold by
+ * `src/test/contrast.test.ts`, which parses THIS FILE and re-derives the
+ * ratios in both themes.
+ *
+ * #CRITICAL: security: the focus indicator is the only way a keyboard-only
+ * evaluator can tell where they are before locking a blind observation. It is
+ * a two-tone ring (technique G195): `--color-focus-ring` carries the 3:1 on
+ * paper, and `--color-focus-halo` carries it on the ink-filled buttons the
+ * ring cannot contrast against.
+ * #VERIFY: contrast.test.ts asserts both tones against both surface families.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Type families -------------------------------------------------- */
+
+  /*
+   * A humanist sans, not a neo-grotesque.
+   *
+   * The first score-sheet pass set everything in Helvetica, which reads as a
+   * laboratory form but also reads cold. A humanist face keeps the structural
+   * discipline while carrying the editorial warmth the reference survey asks
+   * for (Wikiparfum, NOSE Paris).
+   *
+   * No webfont: the repository is REUSE-compliant, so shipping a font means
+   * adding its licence to LICENSES/ and annotating REUSE.toml, which is a
+   * licensing decision rather than a styling one. Every entry below is
+   * humanist, so the face has a consistent character across platforms even
+   * though the exact cut differs: Seravek on macOS, Gill Sans Nova or Segoe UI
+   * on Windows, Ubuntu/Cantarell/DejaVu on Linux.
+   */
+  --font-ui:
+    Seravek, 'Gill Sans Nova', 'Segoe UI', Ubuntu, Cantarell, 'DejaVu Sans', system-ui, sans-serif;
+
+  /* Blind codes, figures, timings: anything that must not be misread. */
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /*
+   * Confined to continuous prose (the About narrative). It is not a heading
+   * face. Using a serif for headings is most of what made the first pass read
+   * as a marketing template.
+   */
+  --font-prose: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+
+  /* ---- Type scale ------------------------------------------------------ */
+
+  /* Deliberately compressed. A form is dense; a hero is not. */
+  --text-masthead: 1.25rem;
+  --text-title: 1.75rem;
+  --text-heading: 1.125rem;
+  --text-body: 1rem;
+  --text-label: 0.875rem;
+  --text-caption: 0.8125rem;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.55;
+  --leading-prose: 1.7;
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-bold: 700;
+
+  /* ---- Spacing (4px rhythm) -------------------------------------------- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* ---- Radius ---------------------------------------------------------- */
+
+  /* Squared. 2px is the most a printed control ever gets. */
+  --radius: 2px;
+
+  /* ---- Rules ----------------------------------------------------------- */
+  --rule-hairline: 1px;
+  --rule-section: 2px;
+
+  /* ---- Sizing ---------------------------------------------------------- */
+
+  /* WCAG 2.2 AA 2.5.8 sets 24px. 44px is what a phone in poor light needs. */
+  --target-min: 2.75rem;
+  --measure: 66ch;
+  --sheet-max: 60rem;
+  --label-column: 12rem;
+
+  /* ---- Motion ---------------------------------------------------------- */
+  --motion-fast: 100ms;
+  --motion-ease: linear;
+
+  /* ---- Colour: light ("paper") ----------------------------------------- */
+  --color-paper: #faf8f3;
+  --color-paper-raised: #ffffff;
+  --color-tint: #f0ede4;
+
+  --color-ink: #1c1a16;
+  --color-ink-secondary: #45413a;
+  --color-ink-muted: #5e594f;
+
+  --color-rule-hairline: #d5d0c4;
+  --color-rule: #7d776a;
+  --color-rule-strong: #57524a;
+
+  /* Actions are set in ink, not in a brand colour. */
+  --color-mark: #1c1a16;
+  --color-mark-hover: #3a362e;
+  --color-on-mark: #faf8f3;
+  --color-mark-tint: #e8e4d9;
+  --color-mark-tint-ink: #1c1a16;
+
+  /* The sealed register. Reserved for withheld identity. Never decorative. */
+  --color-sealed-ink: #1e3a63;
+  --color-sealed-tint: #e4e9f2;
+  --color-sealed-rule: #5e7ba6;
+
+  --color-error-ink: #8f2b14;
+  --color-error-bg: #f8e3dc;
+  --color-error-rule: #b85c3c;
+
+  --color-warn-ink: #7a4a08;
+  --color-warn-bg: #f7ebd5;
+  --color-warn-rule: #a8802c;
+
+  --color-ok-ink: #1f5236;
+  --color-ok-bg: #e2ebe2;
+  --color-ok-rule: #4b7f5c;
+
+  --color-focus-ring: #1c1a16;
+  --color-focus-halo: #faf8f3;
+}
+
+/* Automatic dark theme, overridable by an explicit `data-theme` choice. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --color-paper: #131311;
+    --color-paper-raised: #1d1c19;
+    --color-tint: #201f1b;
+
+    --color-ink: #edeae2;
+    --color-ink-secondary: #bab5a9;
+    --color-ink-muted: #97917f;
+
+    --color-rule-hairline: #34322c;
+    --color-rule: #6e6a5e;
+    --color-rule-strong: #948e7f;
+
+    --color-mark: #edeae2;
+    --color-mark-hover: #ffffff;
+    --color-on-mark: #131311;
+    --color-mark-tint: #2a2822;
+    --color-mark-tint-ink: #dcd7c9;
+
+    --color-sealed-ink: #a9c2e8;
+    --color-sealed-tint: #1a2230;
+    --color-sealed-rule: #5e7ba6;
+
+    --color-error-ink: #f0ae98;
+    --color-error-bg: #331a12;
+    --color-error-rule: #a8664c;
+
+    --color-warn-ink: #e8be80;
+    --color-warn-bg: #2e2410;
+    --color-warn-rule: #a07e36;
+
+    --color-ok-ink: #9bd2ae;
+    --color-ok-bg: #14271c;
+    --color-ok-rule: #4c8461;
+
+    --color-focus-ring: #edeae2;
+    --color-focus-halo: #131311;
+  }
+}
+
+/* Explicit dark choice, regardless of system preference. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-paper: #131311;
+  --color-paper-raised: #1d1c19;
+  --color-tint: #201f1b;
+
+  --color-ink: #edeae2;
+  --color-ink-secondary: #bab5a9;
+  --color-ink-muted: #97917f;
+
+  --color-rule-hairline: #34322c;
+  --color-rule: #6e6a5e;
+  --color-rule-strong: #948e7f;
+
+  --color-mark: #edeae2;
+  --color-mark-hover: #ffffff;
+  --color-on-mark: #131311;
+  --color-mark-tint: #2a2822;
+  --color-mark-tint-ink: #dcd7c9;
+
+  --color-sealed-ink: #a9c2e8;
+  --color-sealed-tint: #1a2230;
+  --color-sealed-rule: #5e7ba6;
+
+  --color-error-ink: #f0ae98;
+  --color-error-bg: #331a12;
+  --color-error-rule: #a8664c;
+
+  --color-warn-ink: #e8be80;
+  --color-warn-bg: #2e2410;
+  --color-warn-rule: #a07e36;
+
+  --color-ok-ink: #9bd2ae;
+  --color-ok-bg: #14271c;
+  --color-ok-rule: #4c8461;
+
+  --color-focus-ring: #edeae2;
+  --color-focus-halo: #131311;
+}

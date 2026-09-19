@@ -1,0 +1,322 @@
+/*
+ * Element defaults.
+ *
+ * The page is the sheet. There is no card layer, so bare semantic markup has
+ * to be readable on its own: rules and space do the separating that borders
+ * and shadows did before.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* 1.4.10 Reflow: the layout must survive 320px with no horizontal scroll. */
+  min-width: 320px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--font-ui);
+  line-height: var(--leading-tight);
+}
+
+h1 {
+  font-size: var(--text-masthead);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: var(--text-title);
+  font-weight: var(--weight-normal);
+  letter-spacing: -0.015em;
+}
+
+/*
+ * Section headings on a form are labels, not display type: small, bold, set
+ * against a rule rather than sized up. The previous pass rendered h3 at body
+ * size, which erased the hierarchy entirely.
+ */
+h3 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-bold);
+  margin: var(--space-10) 0 var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--rule-section) solid var(--color-ink);
+}
+
+h4 {
+  font-size: var(--text-body);
+  font-weight: var(--weight-bold);
+  margin: 0 0 var(--space-1);
+}
+
+section > h3:first-child,
+aside > h3:first-child {
+  margin-top: 0;
+}
+
+p {
+  margin: 0 0 var(--space-5);
+  max-width: var(--measure);
+  line-height: var(--leading-normal);
+}
+
+p:last-child {
+  margin-bottom: 0;
+}
+
+a {
+  color: var(--color-mark);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.18em;
+}
+
+a:hover {
+  text-decoration-thickness: 2px;
+}
+
+strong {
+  font-weight: var(--weight-bold);
+}
+
+small {
+  font-size: var(--text-caption);
+}
+
+hr {
+  border: 0;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+  margin: var(--space-8) 0;
+}
+
+ul,
+ol {
+  max-width: var(--measure);
+  line-height: var(--leading-normal);
+}
+
+/* Figures are read off the sheet and compared down a column. */
+progress,
+.blind-code,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * #CRITICAL: security: a keyboard-only evaluator must always be able to see
+ * which control is focused before locking a blind observation. Two-tone ring
+ * (WCAG technique G195): the ring carries 3:1 on paper, the halo carries it
+ * on the ink-filled buttons, where the ring alone cannot.
+ * #VERIFY: contrast.test.ts + the axe/keyboard e2e pass in both themes.
+ */
+:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--color-focus-halo);
+}
+
+/* ---- Forms ------------------------------------------------------------ */
+
+label {
+  display: block;
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  color: var(--color-ink-secondary);
+}
+
+input,
+select,
+textarea {
+  display: block;
+  width: 100%;
+  margin-top: var(--space-1);
+  min-height: var(--target-min);
+  padding: var(--space-3);
+  font: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-normal);
+  color: var(--color-ink);
+  background: var(--color-paper-raised);
+  /*
+   * 1.4.11 Non-text Contrast: a control's visual boundary needs 3:1. The
+   * original #bbc8bf border measured 1.73:1 against white.
+   */
+  border: var(--rule-hairline) solid var(--color-rule);
+  border-radius: var(--radius);
+}
+
+textarea {
+  min-height: calc(var(--target-min) * 1.6);
+  line-height: var(--leading-normal);
+  resize: vertical;
+}
+
+select {
+  appearance: none;
+  padding-right: var(--space-8);
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.1rem) 55%,
+    calc(100% - 0.75rem) 55%;
+  background-size:
+    0.35rem 0.35rem,
+    0.35rem 0.35rem;
+  background-repeat: no-repeat;
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--color-rule-strong);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: var(--color-tint);
+  color: var(--color-ink-muted);
+  cursor: not-allowed;
+}
+
+::placeholder {
+  color: var(--color-ink-muted);
+  opacity: 1;
+}
+
+fieldset {
+  min-width: 0;
+  margin: var(--space-6) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+legend {
+  padding: 0;
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink);
+}
+
+form {
+  margin: 0 0 var(--space-6);
+}
+
+/* ---- Buttons ---------------------------------------------------------- */
+
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* 2.5.8 Target Size: 24px is the AA floor, 44px is what a phone needs. */
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-5);
+  font: inherit;
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border: var(--rule-hairline) solid var(--color-mark);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--motion-ease);
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-mark-hover);
+  border-color: var(--color-mark-hover);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---- Disclosure ------------------------------------------------------- */
+
+details {
+  margin: var(--space-4) 0;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+summary {
+  /* 2.5.8: the bare summary measured 19px tall. */
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  color: var(--color-mark);
+  cursor: pointer;
+}
+
+details[open] summary {
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+details > :last-child {
+  margin-bottom: var(--space-4);
+}
+
+/* ---- Progress --------------------------------------------------------- */
+
+progress {
+  display: block;
+  width: 100%;
+  height: 0.375rem;
+  border: var(--rule-hairline) solid var(--color-rule);
+  border-radius: 0;
+  /* A filled track: an empty outline reads as a rendering artifact at zero. */
+  background: var(--color-tint);
+}
+
+progress::-webkit-progress-bar {
+  background: var(--color-tint);
+}
+
+progress::-webkit-progress-value {
+  background: var(--color-ink);
+}
+
+progress::-moz-progress-bar {
+  background: var(--color-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

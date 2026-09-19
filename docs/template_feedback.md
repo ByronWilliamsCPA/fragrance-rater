@@ -206,6 +206,93 @@ schema isn't implicitly scoped to one project type.
 
 ---
 
+### `__PROJECT_CREATION_DATE__` placeholder is never substituted in `template_feedback.md`
+
+- **Priority**: Low
+- **Category**: Documentation
+- **Discovered**: 2026-09-19
+
+**Issue**: `docs/template_feedback.md` ships the literal string `__PROJECT_CREATION_DATE__` on its
+`Project Created` line; no cookiecutter substitution replaces it. Besides leaving a visible
+placeholder in published documentation, the surrounding double underscores parse as emphasis, so
+the file fails the template's own `MD050/strong-style` rule from the moment it is generated. The
+failure is present on an untouched checkout, which trains contributors to ignore markdownlint
+output on this file.
+
+**Context**: Running `markdownlint-cli2` over this file after appending feedback entries, and
+confirming against `git show HEAD:docs/template_feedback.md` that both errors predate the edit.
+
+**Suggested Fix**: Render the line as `{{ cookiecutter.creation_date }}` (or drop it, since
+`.cruft.json` already records the commit the project was generated from). If a placeholder must
+remain, use a form that does not parse as emphasis, such as `TODO: project creation date`.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/docs/template_feedback.md`
+
+---
+
+### Frontend `format:check` can never pass because Prettier lints the generated API client
+
+- **Priority**: Medium
+- **Category**: Tooling
+- **Discovered**: 2026-09-19
+
+**Issue**: With `include_frontend: react`, the generated `frontend/package.json` defines
+`"format:check": "prettier --check \"src/**/*.{ts,tsx,css,json}\""` and `generate-client` writes
+`@hey-api/openapi-ts` output to `./src/client`. No `frontend/.prettierignore` is generated, so
+Prettier checks that generated output. `frontend/eslint.config.js` *does* ignore `src/client`, so
+the two tools disagree about whether generated code is the project's to format. The first time a
+developer runs `npm run generate-client`, `npm run format:check` starts failing on a file nobody
+should hand-edit, and it cannot be fixed by reformatting because the next client regeneration
+reverts it.
+
+**Context**: Running `npm run format:check` while verifying a frontend redesign. The only two
+failures were `src/client/types.gen.ts` (generated) and a pre-existing source file; the generated
+one is unfixable by design.
+
+**Suggested Fix**: Generate a `frontend/.prettierignore` containing `src/client/` and `dist/`, so
+Prettier and ESLint agree on the same ignore set. Alternatively, scope the `format`/`format:check`
+globs to exclude the client-output directory that `generate-client` already targets.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/frontend/package.json`
+- `{{cookiecutter.project_slug}}/frontend/eslint.config.js`
+- `{{cookiecutter.project_slug}}/frontend/.prettierignore` (missing)
+
+---
+
+### React scaffold ships no design-token layer, theme support, or contrast contract
+
+- **Priority**: Low
+- **Category**: Structure
+- **Discovered**: 2026-09-19
+
+**Issue**: The `include_frontend: react` scaffold generates `src/App.css` and `src/index.css` with
+literal colour values and no custom-property layer. Projects that later need a coherent palette,
+dark mode, or a WCAG conformance target have to retrofit all three at once, and by then literal
+colours are spread across every component. The scaffold also has no accessibility conformance
+target, so a project inherits none until somebody chooses one.
+
+**Context**: A design pass on this project replaced the scaffold's two stylesheets with a
+token layer plus base/layout/component files, and added a unit test that parses the token file and
+re-derives every colour pair's contrast ratio in both themes. That test caught four WCAG 2.2 AA
+failures that a fully passing axe-core suite could not see, because axe does not evaluate focus
+indicator or control-boundary contrast and only ever sees one theme.
+
+**Suggested Fix**: Generate a minimal `src/styles/tokens.css` with `--color-*`, spacing and radius
+custom properties plus a `prefers-color-scheme` dark block, and have the scaffold's stylesheets
+consume it. Optionally include the token-parsing contrast test as a starting example; it is about
+80 lines and is the only tier that covers the non-text contrast criteria.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/frontend/src/App.css`
+- `{{cookiecutter.project_slug}}/frontend/src/index.css`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

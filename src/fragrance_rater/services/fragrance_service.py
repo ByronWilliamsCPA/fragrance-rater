@@ -56,6 +56,7 @@ class FragranceService:
             .where(Fragrance.id == fragrance_id, Fragrance.deleted_at.is_(None))
             .options(selectinload(Fragrance.notes).selectinload(FragranceNote.note))
             .options(selectinload(Fragrance.accords))
+            .options(selectinload(Fragrance.perfumers))
         )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
@@ -77,6 +78,9 @@ class FragranceService:
             .options(
                 selectinload(Fragrance.notes).selectinload(FragranceNote.note),
                 selectinload(Fragrance.accords),
+                # Eager-loaded with the rest: a search returning 100 rows would
+                # otherwise issue a query per fragrance for its attribution.
+                selectinload(Fragrance.perfumers),
             )
         )
 

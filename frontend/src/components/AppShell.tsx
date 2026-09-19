@@ -1,6 +1,8 @@
 import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import type { Access, Capabilities } from '../api/types'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { navigationItems, type Route } from '../routing/routes'
+import { ThemeToggle } from './ThemeToggle'
 
 type AppShellProps = {
   access: Access
@@ -20,6 +22,8 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       ? 'Recorder'
       : 'Participant'
 
+  useDocumentTitle(route)
+
   useEffect(() => {
     if (previousRoute.current !== route) mainContent.current?.focus()
     previousRoute.current = route
@@ -37,18 +41,28 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <header className="app-header">
-        <div>
-          <div className="eyebrow">PERSONAL SCENT JOURNAL</div>
+      {/*
+        The masthead is a form's identification block: what this document is on
+        the left, who is filling it in on the right. A description list is the
+        honest markup for that, and it gives each value a real name for a
+        screen reader without a visible colon-and-label in the layout.
+      */}
+      <header className="masthead">
+        <div className="masthead__name">
           <h1>Fragrance Rater</h1>
-          <p>Explore your preferences, one encounter at a time.</p>
+          <span className="masthead__qualifier">Sensory evaluation record</span>
         </div>
-        <div className="identity" aria-label="Current access">
-          <span>{access.username || 'Verified family account'}</span>
-          <strong>{role}</strong>
+        <div className="masthead__aside">
+          <dl className="masthead__particulars">
+            <dt>Account</dt>
+            <dd>{access.username || 'Verified family account'}</dd>
+            <dt>Role</dt>
+            <dd>{role}</dd>
+          </dl>
+          <ThemeToggle />
         </div>
       </header>
-      <nav aria-label="Main navigation">
+      <nav className="app-nav" aria-label="Main navigation">
         {navigationItems
           .filter(
             (item) => !item.hiddenFromNav && (!item.managerOnly || capabilities.canManagePrograms)
@@ -67,12 +81,14 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <main ref={mainContent} id="main-content" tabIndex={-1}>
         {children}
       </main>
-      <footer>
-        Ordinary encounters and controlled observations share one preference history.{' '}
+      <footer className="colophon">
+        <p>Ordinary encounters and controlled observations share one preference history.</p>
         {aboutNavItem && (
-          <a href={aboutNavItem.path} onClick={(event) => follow(event, aboutNavItem.route)}>
-            About this project
-          </a>
+          <p>
+            <a href={aboutNavItem.path} onClick={(event) => follow(event, aboutNavItem.route)}>
+              About this project
+            </a>
+          </p>
         )}
       </footer>
     </div>

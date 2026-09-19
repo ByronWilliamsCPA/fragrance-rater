@@ -180,14 +180,23 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
     <section>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">DISCOVER</div>
           <h2>Recommendations</h2>
         </div>
-        {recommendationRun && <span className="status-chip">Saved set</span>}
+        {recommendationRun && <span className="tally">Saved set</span>}
       </div>
       <p>
         Start a new set when you want fresh choices. Opening this saved set again does not count as
         another impression.
+      </p>
+      {/*
+        ADR-007 requires the 0-100 display value be labelled "affinity score"
+        and never as a probability, confidence, predicted liking, or accuracy.
+        Stated once here rather than on each card, so the qualification is not
+        competing with ten copies of itself.
+      */}
+      <p className="disclosure">
+        An affinity score ranks candidates against the preferences already in your record. It is not
+        a prediction of how much you will like a fragrance, and not a probability that you will.
       </p>
       <FeedbackBanner error={task.error} notice={task.notice} />
       <label>
@@ -252,10 +261,12 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                 })
                 return (
                   <>
-                    <div className="eyebrow">CHOICE {item.rank}</div>
+                    <p className="eyebrow">Choice {item.rank}</p>
                     <h3>{item.fragrance_name}</h3>
-                    <p>
-                      {item.fragrance_brand} · {item.match_percent}% affinity
+                    <p className="affinity">
+                      <span>{item.fragrance_brand}</span>
+                      <strong data-numeric>{item.match_percent}%</strong>
+                      <span>affinity score</span>
                     </p>
                     <button
                       className="secondary"

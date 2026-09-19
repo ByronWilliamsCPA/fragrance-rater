@@ -43,6 +43,9 @@ test.describe('Blind calibration', () => {
     await expect(page.getByRole('heading', { name: 'ABC-123' })).toBeVisible()
     await expect(page.getByText('House')).toHaveCount(0)
     await expect(page.getByText('Signature')).toHaveCount(0)
+    // Perfumer identifies a sample as surely as its name does, so it is gated
+    // on reveal exactly like brand, name and concentration (ADR-005).
+    await expect(page.getByText('Fixture Nose')).toHaveCount(0)
     await expect(page.getByText('Blind observation')).toBeVisible()
 
     await page.getByRole('button', { name: 'Lock blotter responses' }).click()
@@ -52,6 +55,12 @@ test.describe('Blind calibration', () => {
     await page.getByRole('button', { name: 'Confirm reveal' }).click()
 
     await expect(page.getByText('House · Signature · EDP')).toBeVisible()
+    // The attribution links to the source that supports it (ADR-006); a name
+    // rendered without its evidence reads as established fact.
+    await expect(page.getByRole('link', { name: /Fixture Nose/ })).toHaveAttribute(
+      'href',
+      'https://example.invalid/attribution'
+    )
     // #ASSUME: data-integrity: 'Post-reveal observation' also appears as a substring of
     // the sidebar guidance text ("Identities are revealed. You may add post-reveal
     // observations."), so an exact match is required to target the fieldset legend

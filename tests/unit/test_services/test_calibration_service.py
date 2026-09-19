@@ -10,7 +10,13 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import select
 
-from fragrance_rater.models.calibration import Observation, Program, SourceSnapshot
+from fragrance_rater.models.calibration import (
+    Observation,
+    Perfumer,
+    Program,
+    SourceSnapshot,
+    VersionPerfumer,
+)
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.calibration import (
@@ -781,3 +787,62 @@ async def test_holdout_remains_blind_after_baseline_reveal_until_own_lock(protoc
         post_reveal=True,
     )
     assert informed.phase == "POST_REVEAL"
+
+
+@pytest.mark.asyncio
+async def test_perfumer_is_concealed_until_reveal(protocol):
+    """Perfumer attribution is disclosed on the same condition as the name.
+
+    #CRITICAL: security: an attribution narrows a fragrance as sharply as its
+    name. A family member who recognises the perfumer can often identify a
+    coded sample outright, which is the exact failure ADR-005's blind protocol
+    exists to prevent, so perfumer must live inside the identity block and
+    nowhere else in the participant payload.
+    #VERIFY: this test drives a real enrollment through to reveal and asserts
+    the string is absent from the whole pre-reveal payload, not merely that the
+    identity key is missing.
+    """
+    service, _, base, repeat, _ = protocol
+    perfumer = Perfumer(name="Testable Nose")
+    service.db.add(perfumer)
+    await service.db.flush()
+    service.db.add(
+        VersionPerfumer(
+            fragrance_id=base.fragrance_id,
+            perfumer_id=perfumer.id,
+            source_url="https://example.invalid/attribution",
+        )
+    )
+    await service.db.flush()
+
+    enrollment = await enroll(protocol)
+    presentations = {
+        row.membership_id: row for row in await service.presentations(enrollment.id)
+    }
+
+    before = await service.participant_view(enrollment)
+    # Whole-payload check, not just the identity key: a regression that hoists
+    # the attribution up to the presentation row would still omit `identity`.
+    # Both the name and the source_url are checked independently: a leak that
+    # drops the name (e.g. a silently swallowed `perfumer.name` lookup) but
+    # still serializes a working attribution link would defeat a name-only
+    # assertion while still disclosing identity-narrowing evidence.
+    before_json = json.dumps(before, default=str)
+    assert "Testable Nose" not in before_json
+    assert "https://example.invalid/attribution" not in before_json
+    for row in before["presentations"]:
+        assert "identity" not in row
+        assert "perfumers" not in row
+
+    await answer_and_lock(service, presentations[base.id])
+    await answer_and_lock(service, presentations[repeat.id])
+    enrollment.skin_plan_locked_at = now_naive_utc()
+    await service.db.flush()
+    await service.reveal(enrollment.id, "family-recorder", admin=False)
+
+    after = await service.participant_view(enrollment)
+    revealed = {row["id"]: row for row in after["presentations"]}
+    identity = revealed[presentations[base.id].id]["identity"]
+    assert identity["perfumers"] == [
+        {"name": "Testable Nose", "source_url": "https://example.invalid/attribution"}
+    ]

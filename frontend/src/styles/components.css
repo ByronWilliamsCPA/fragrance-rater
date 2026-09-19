@@ -1,0 +1,936 @@
+/*
+ * Components.
+ *
+ * Two registers, and unlike the first pass they are visibly different rather
+ * than the same box in two colours:
+ *
+ *   open    ink on paper, sans, ordinary sentence case. Anything the
+ *           evaluator owns and can read: encounters, recommendations,
+ *           revealed identities.
+ *   sealed  blue, monospace, letterspaced, ruled box. Blind codes and every
+ *           surface where identity is deliberately withheld (ADR-005).
+ *
+ * The separation is a data-integrity feature: a coded sample must not be
+ * mistakable for a named one at a glance. `--color-sealed-*` belongs to the
+ * sealed register and must not be borrowed for ordinary UI.
+ */
+
+/* ---- Skip link --------------------------------------------------------- */
+
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: -6rem;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-radius: var(--radius);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: var(--space-3);
+}
+
+/* ---- Small label ------------------------------------------------------- */
+
+/*
+ * A form's field-caption. Sentence case, muted, no letterspacing and no
+ * colour of its own. It replaces the uppercase tracked "eyebrow" that sat
+ * above every heading in the first pass; four of them on one screen is a tic,
+ * not a hierarchy.
+ */
+.eyebrow {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--color-ink-muted);
+}
+
+/* ---- Theme toggle ------------------------------------------------------ */
+
+.theme-toggle {
+  min-height: var(--target-min);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--color-ink-secondary);
+  background: transparent;
+  border-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.theme-toggle:hover:not(:disabled) {
+  color: var(--color-ink);
+  background: transparent;
+  border-color: transparent;
+}
+
+/* ---- Buttons ----------------------------------------------------------- */
+
+button.secondary {
+  color: var(--color-ink);
+  background: transparent;
+  border-color: var(--color-rule);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: var(--color-tint);
+  border-color: var(--color-ink);
+}
+
+/*
+ * Selected state. The original #9bbcaf outline measured 1.85:1 and was the
+ * only cue a toggle was pressed. State is now a filled box with a check,
+ * which survives greyscale and low contrast sensitivity (1.4.1, 1.4.11).
+ *
+ * The hovered variants are listed explicitly and must stay listed: a pressed
+ * control sets its own foreground, so any hover rule that outranks this one
+ * repaints the background under that foreground. A hovered, selected sample
+ * measured 1.2:1 before these were added.
+ */
+button[aria-pressed='true'],
+button[aria-pressed='true']:hover:not(:disabled),
+button.secondary[aria-pressed='true'],
+button.secondary[aria-pressed='true']:hover:not(:disabled) {
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-color: var(--color-mark);
+}
+
+/*
+ * Drawn from borders, not a text glyph: CSS generated content contributes to
+ * the accessible name in Chromium, and `content: '✓'` renamed every pressed
+ * button to "✓Interested".
+ */
+button[aria-pressed='true']::before {
+  content: '';
+  width: 0.3rem;
+  height: 0.55rem;
+  margin-top: -0.2rem;
+  border: solid currentcolor;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.interest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0;
+}
+
+/* ---- Feedback ---------------------------------------------------------- */
+
+/*
+ * Stamped onto the sheet: a heavy left rule and a flat tint, no rounded
+ * corners and no shadow.
+ */
+.error,
+.notice {
+  display: block;
+  max-width: none;
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-left: var(--space-1) solid;
+  font-size: var(--text-label);
+  line-height: var(--leading-normal);
+}
+
+.error {
+  color: var(--color-error-ink);
+  background: var(--color-error-bg);
+  border-left-color: var(--color-error-rule);
+}
+
+.notice {
+  color: var(--color-ok-ink);
+  background: var(--color-ok-bg);
+  border-left-color: var(--color-ok-rule);
+}
+
+.confirm-action {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-warn-ink);
+  background: var(--color-warn-bg);
+  border-left: var(--space-1) solid var(--color-warn-rule);
+}
+
+.confirm-action p {
+  margin-top: 0;
+  color: inherit;
+  font-size: var(--text-label);
+}
+
+.confirm-action .button-row {
+  margin-bottom: 0;
+}
+
+/* ---- Page-level states ------------------------------------------------- */
+
+.page-state {
+  max-width: 32rem;
+  margin: 18vh auto 0;
+  text-align: center;
+}
+
+.page-state p {
+  margin-inline: auto;
+}
+
+/*
+ * A blank row on a sheet, not a dashed box. The rule keeps the record's place
+ * in the column while saying there is nothing in it yet.
+ */
+.empty-state {
+  margin-top: var(--space-4);
+  padding: var(--space-4) 0;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  color: var(--color-ink-muted);
+}
+
+.empty-state h3 {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  border: 0;
+  font-size: var(--text-body);
+  color: var(--color-ink);
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: var(--text-label);
+}
+
+.loading-mark {
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0 auto var(--space-3);
+  border: 2px solid var(--color-rule-hairline);
+  border-top-color: var(--color-ink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Ruled records ----------------------------------------------------- */
+
+.data-list {
+  display: grid;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.data-list li {
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  font-size: var(--text-label);
+}
+
+.data-list li:first-child {
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+article {
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.progress-card,
+.service-status,
+.metric-contract {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.data-list small,
+.progress-card small,
+.service-status small {
+  color: var(--color-ink-muted);
+}
+
+.metric-contract {
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.metric-contract > div {
+  display: grid;
+  gap: 0;
+}
+
+.metric-contract > div strong {
+  font-size: var(--text-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-normal);
+}
+
+.metric-contract p,
+.metric-contract button {
+  grid-column: 1 / -1;
+}
+
+/* Status is carried by the leading word as well as the rule (1.4.1). */
+.service-status {
+  margin: var(--space-4) 0;
+  padding: var(--space-3) var(--space-4);
+  border-top: 0;
+  border-left: var(--space-1) solid var(--color-ok-rule);
+  background: var(--color-ok-bg);
+  color: var(--color-ok-ink);
+  font-size: var(--text-label);
+}
+
+.service-status.attention {
+  background: var(--color-warn-bg);
+  border-left-color: var(--color-warn-rule);
+  color: var(--color-warn-ink);
+}
+
+.service-status small {
+  color: inherit;
+}
+
+.fragella-usage {
+  color: var(--color-ink-muted);
+  font-size: var(--text-caption);
+}
+
+.fragella-status {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+/* ---- Sealed register --------------------------------------------------- */
+
+.blind-code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+}
+
+/* A coded sample: a ruled blue box, never a rounded chip. */
+.sample {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  margin-bottom: -1px;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-weight: var(--weight-normal);
+  letter-spacing: 0.1em;
+  color: var(--color-sealed-ink);
+  background: var(--color-sealed-tint);
+  border: var(--rule-hairline) solid var(--color-sealed-rule);
+  border-radius: 0;
+}
+
+.sample:hover:not(:disabled):not([aria-pressed='true']) {
+  background: var(--color-sealed-tint);
+  border-color: var(--color-sealed-ink);
+  position: relative;
+  z-index: 1;
+}
+
+.sample small {
+  font-family: var(--font-ui);
+  font-size: var(--text-caption);
+  letter-spacing: normal;
+  color: inherit;
+}
+
+.sample[aria-pressed='true'],
+.sample[aria-pressed='true']:hover:not(:disabled) {
+  position: relative;
+  z-index: 1;
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-color: var(--color-mark);
+  font-weight: var(--weight-bold);
+}
+
+.sample[aria-pressed='true']::before {
+  content: none;
+}
+
+/* The heading of the sample currently being evaluated. */
+.sample-heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-sealed-ink);
+  background: var(--color-sealed-tint);
+  border: var(--rule-hairline) solid var(--color-sealed-rule);
+  font-family: var(--font-mono);
+  font-size: var(--text-title);
+  letter-spacing: 0.1em;
+}
+
+.sample-label {
+  display: grid;
+  gap: var(--space-1);
+  min-height: 6.5rem;
+  padding: var(--space-3);
+  border: 2px solid var(--color-ink);
+}
+
+.sample-label strong {
+  font-family: var(--font-mono);
+  font-size: 1.375rem;
+  letter-spacing: 0.1em;
+}
+
+/* ---- Scales ------------------------------------------------------------ */
+
+/*
+ * A printed tick-box row. The boxes share borders so the run reads as one
+ * scale rather than a row of separate buttons, and the anchors are printed
+ * directly under its ends.
+ */
+.scale-field {
+  margin: 0;
+  padding: var(--space-5) 0;
+  border: 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.scale-field__legend {
+  padding: 0;
+  font-family: var(--font-ui);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-ink);
+}
+
+.scale-field__hint {
+  max-width: var(--measure);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-normal);
+  color: var(--color-ink-muted);
+}
+
+.scale-field__scale {
+  display: inline-grid;
+  gap: var(--space-1);
+  max-width: 100%;
+  margin-top: var(--space-3);
+}
+
+.scale-field__options {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.scale-field__option {
+  position: relative;
+  flex: 0 0 auto;
+  margin: 0 0 0 -1px;
+}
+
+.scale-field__option:first-child {
+  margin-left: 0;
+}
+
+/* Visually replaced by the box, but still in the accessibility tree and
+   still a native radio group for arrow-key traversal. */
+.scale-field__option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.scale-field__option span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--target-min);
+  min-width: var(--target-min);
+  padding: var(--space-2);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--color-ink-secondary);
+  background: var(--color-paper-raised);
+  border: var(--rule-hairline) solid var(--color-rule);
+  cursor: pointer;
+}
+
+/* The escape option sits after the run and is set apart from it. */
+.scale-field__option--none {
+  margin-left: var(--space-3);
+}
+
+.scale-field__option--none span {
+  min-width: 0;
+  padding-inline: var(--space-3);
+  color: var(--color-ink-muted);
+  background: transparent;
+  border-style: dashed;
+}
+
+/*
+ * "Not answered" is checked on every untouched scale, so filling it the way a
+ * chosen value is filled put a heavy black box on all twelve rows and made the
+ * empty state the loudest thing on the form. Selected-but-empty reads as a
+ * ticked box, not as an answer.
+ *
+ * Scoped through `.scale-field__options` on purpose: without that ancestor it
+ * ties on specificity with the generic checked rule below and loses on source
+ * order.
+ */
+.scale-field__options .scale-field__option--none input:checked + span {
+  color: var(--color-ink);
+  background: var(--color-tint);
+  border-color: var(--color-ink);
+  border-style: solid;
+  font-weight: var(--weight-medium);
+}
+
+.scale-field__option input:hover + span {
+  background: var(--color-tint);
+}
+
+.scale-field__option input:checked + span {
+  position: relative;
+  z-index: 1;
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-color: var(--color-mark);
+  font-weight: var(--weight-bold);
+}
+
+.scale-field__option input:focus-visible + span {
+  position: relative;
+  z-index: 2;
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--color-focus-halo);
+}
+
+.scale-field__option input:disabled + span {
+  color: var(--color-ink-muted);
+  background: var(--color-tint);
+  cursor: not-allowed;
+}
+
+.scale-field__anchors {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: none;
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}
+
+/* ---- Recommendations --------------------------------------------------- */
+
+.recommendation-card {
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--space-3);
+  border-top: var(--rule-section) solid var(--color-ink);
+}
+
+.recommendation-card h3 {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  border: 0;
+  font-size: var(--text-heading);
+}
+
+.recommendation-card form {
+  margin-top: var(--space-3);
+}
+
+.affinity {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-label);
+  color: var(--color-ink-muted);
+}
+
+.affinity strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+
+.worn-by {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}
+
+/* ---- Prose ------------------------------------------------------------- */
+
+/*
+ * The only place the serif appears. The About page is continuous argument,
+ * not interface, and it is the one surface where a reading face earns itself.
+ */
+.prose p,
+.prose li {
+  max-width: var(--measure);
+  font-family: var(--font-prose);
+  font-size: 1.0625rem;
+  line-height: var(--leading-prose);
+}
+
+/*
+ * Set in the interface face, not the reading face. The serif is reserved for
+ * the About essay; using it here made one paragraph read as a pull-quote
+ * floating above an otherwise sans page.
+ */
+.hero-statement {
+  max-width: var(--measure);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  color: var(--color-ink-secondary);
+}
+
+/* ---- Numbered procedure ------------------------------------------------ */
+
+/*
+ * The five calibration stages. A numbered sequence on a ruled sheet, which is
+ * how a protocol is actually written down, rather than a row of feature
+ * cards with an arrow between them.
+ */
+.flow-steps {
+  display: grid;
+  gap: 0;
+  margin: var(--space-4) 0;
+  counter-reset: flow;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.flow-step {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0 var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  counter-increment: flow;
+}
+
+.flow-step::before {
+  content: counter(flow) '.';
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--color-ink-muted);
+}
+
+.flow-step strong {
+  font-size: var(--text-body);
+}
+
+.flow-step p {
+  grid-column: 2;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-label);
+  color: var(--color-ink-secondary);
+}
+
+.flow-arrow {
+  display: none;
+}
+
+/* ---- Landing ----------------------------------------------------------- */
+
+/*
+ * The standing record, not a hero. A definition-list of what is open, set in
+ * the same idiom as the masthead's particulars.
+ */
+.standing {
+  display: grid;
+  grid-template-columns: var(--label-column) minmax(0, 1fr);
+  gap: 0;
+  margin: 0 0 var(--space-6);
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.standing dt {
+  padding: var(--space-3) var(--space-3) var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  font-size: var(--text-label);
+  color: var(--color-ink-muted);
+}
+
+.standing dd {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  font-size: var(--text-label);
+}
+
+.standing dd strong {
+  font-weight: var(--weight-bold);
+}
+
+.assignment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-6);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.assignment-row:first-of-type {
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.assignment-row h4 {
+  margin: 0;
+}
+
+.assignment-row p {
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--color-ink-secondary);
+}
+
+.assignment-row__meter {
+  display: grid;
+  gap: var(--space-1);
+  width: 11rem;
+  justify-items: end;
+}
+
+.assignment-row__meter small {
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.assignment-row__action {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.assignment-row__action p {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--color-ink);
+}
+
+@media (max-width: 40rem) {
+  .standing {
+    grid-template-columns: 1fr;
+  }
+
+  .standing dt {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .assignment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .assignment-row__meter {
+    width: 100%;
+    justify-items: start;
+  }
+}
+
+/* ---- Visually hidden ---------------------------------------------------- */
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Tally ------------------------------------------------------------- */
+
+/*
+ * A running count set beside a section heading: "3 / 13 locked". Mono and
+ * tabular so it can be read down a column, and no pill around it. This
+ * replaces the rounded status chip the first pass put in every heading row.
+ */
+.tally {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
+}
+
+.tally--sealed {
+  color: var(--color-sealed-ink);
+}
+
+/* The About page's opening line, which sets up the essay that follows. */
+.prose .hero-statement {
+  margin-bottom: var(--space-5);
+  font-size: 1.25rem;
+  line-height: var(--leading-prose);
+  color: var(--color-ink);
+}
+
+/* ---- Scale groups ------------------------------------------------------ */
+
+/*
+ * The descriptive / affective / meta split (SCA Coffee Value Assessment).
+ * The heading is the whole point: without it the twelve scales read as one
+ * undifferentiated run and nothing tells the evaluator that "Discomfort" is a
+ * fact about them rather than about the fragrance.
+ */
+.scale-group {
+  margin-top: var(--space-12);
+}
+
+.scale-group__legend {
+  margin: 0;
+  padding-bottom: var(--space-1);
+  border-bottom-width: var(--rule-hairline);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.scale-group__description {
+  max-width: var(--measure);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}
+
+.scale-group .scale-stack {
+  margin-top: var(--space-2);
+  border-top: 0;
+}
+
+/*
+ * A standing qualification on what a figure does and does not mean. Set apart
+ * from ordinary prose by a rule so it reads as a footnote on the sheet rather
+ * than as instructions.
+ */
+.disclosure {
+  max-width: var(--measure);
+  margin: var(--space-4) 0;
+  padding-left: var(--space-4);
+  border-left: var(--rule-hairline) solid var(--color-rule);
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}
+
+/* ---- Log table --------------------------------------------------------- */
+
+/*
+ * A blotter log. Ruled rows, tabular figures, a time column that reads as the
+ * index. This is the one place a real table is the right structure: the whole
+ * point is comparing a row against the rows above and below it.
+ */
+.log-scroll {
+  /*
+   * 1.4.10 Reflow permits two-dimensional scrolling for content that needs a
+   * two-dimensional layout to be meaningful, which a data table does. The
+   * alternative, collapsing to stacked cards on a phone, destroys exactly the
+   * down-column comparison the table exists for.
+   */
+  overflow-x: auto;
+  margin-top: var(--space-4);
+}
+
+.log {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-label);
+}
+
+.log caption {
+  text-align: left;
+}
+
+.log th,
+.log td {
+  padding: var(--space-3) var(--space-4) var(--space-3) 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.log thead th {
+  border-bottom: var(--rule-section) solid var(--color-ink);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.log tbody th {
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+
+.log td:last-child,
+.log th:last-child {
+  padding-right: 0;
+}
+
+.log [data-numeric] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Attribution ------------------------------------------------------- */
+
+/*
+ * Perfumer credit on a revealed sample. Part of the open register: it appears
+ * only after reveal, never beside a blind code. Each name links to the source
+ * that attributes it, because a claim and its evidence belong together
+ * (ADR-006).
+ */
+.attribution {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-label);
+}
+
+.attribution__label {
+  color: var(--color-ink-muted);
+}

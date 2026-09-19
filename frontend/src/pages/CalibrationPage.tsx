@@ -4,6 +4,14 @@ import type { Assignment, Enrollment, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { EmptyState } from '../components/PageState'
+import { ScaleField } from '../components/ScaleField'
+import {
+  blotterGroups,
+  numericFieldNames,
+  observationNotes,
+  skinGroups,
+  type ScaleGroup,
+} from '../content/calibrationScales'
 import { useTask } from '../hooks/useTask'
 
 type CalibrationPageProps = {
@@ -12,18 +20,58 @@ type CalibrationPageProps = {
   reviewers: Person[]
 }
 
-const dimensions = [
-  'confidence',
-  'sweetness',
-  'freshness',
-  'density',
-  'familiarity',
-  'dryness',
-  'clean_soapy',
-  'earthy_rooty',
-  'bodily_animalic',
-  'discomfort',
-]
+/**
+ * Renders one group of scales under a shared heading.
+ *
+ * The heading is what carries the descriptive/affective separation: without
+ * it the twelve scales read as one undifferentiated run, and an evaluator has
+ * no cue that "Discomfort" is a fact about them rather than about the scent.
+ */
+function ScaleGroupFields({
+  group,
+  isDisabled,
+}: {
+  group: ScaleGroup
+  isDisabled?: (name: string) => boolean
+}) {
+  return (
+    <div className="scale-group">
+      <h3 className="scale-group__legend">{group.legend}</h3>
+      <p className="scale-group__description">{group.description}</p>
+      <div className="scale-stack">
+        {group.scales.map((item) => (
+          <ScaleField key={item.name} scale={item} disabled={isDisabled?.(item.name)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Non-detection forces intensity to 0 and clears liking, so those two must not
+ * accept input. The perceptual dimensions stay enabled, which is the behaviour
+ * this form already had: whether they should also be closed off when nothing
+ * was smelled is a data-model question, not a presentational one.
+ */
+function disabledOnNonDetection(name: string) {
+  return name === 'intensity' || name === 'liking'
+}
+
+/**
+ * Orders a sample's observations into a readable log.
+ *
+ * Blotter screens precede skin tests, and within a stage the timepoints run
+ * earliest first. The API does not guarantee an order, and an out-of-sequence
+ * row in an evaporation curve is actively misleading rather than merely untidy.
+ */
+function timeOrdered(observations: Enrollment['presentations'][number]['observations']) {
+  const stageRank = (stage: string) => (stage === 'SKIN' ? 1 : 0)
+  return [...observations].sort(
+    (first, second) =>
+      stageRank(first.stage) - stageRank(second.stage) ||
+      first.elapsed_minutes - second.elapsed_minutes
+  )
+}
 
 export function CalibrationPage({ assignments, programs, reviewers }: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
@@ -58,22 +106,6 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       setEnrollment(response.data)
   }
 
-  function scale(name: string, max: number, disabled = false) {
-    return (
-      <label key={name}>
-        {name.replace(/_/g, ' ')}
-        <select name={name} defaultValue="" disabled={disabled}>
-          <option value="">Unanswered</option>
-          {Array.from({ length: max + 1 }, (_, index) => (
-            <option key={index} value={index}>
-              {index}
-            </option>
-          ))}
-        </select>
-      </label>
-    )
-  }
-
   async function save(form: HTMLFormElement) {
     if (!sample) return
     const values = Object.fromEntries(new FormData(form))
@@ -82,25 +114,12 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       elapsed_minutes: Number(values.elapsed_minutes || 0),
       detected: detected === '' ? null : detected === 'yes',
     }
-    for (const name of [
-      'liking',
-      'intensity',
-      ...dimensions,
-      'opening_liking',
-      'drydown_liking',
-      'would_wear',
-      'would_buy',
-      'artistic_appreciation',
-      'projection',
-      'longevity_minutes',
-    ])
-      data[name] = !values[name] ? null : Number(values[name])
+    for (const name of numericFieldNames) data[name] = !values[name] ? null : Number(values[name])
     if (detected === 'no') {
       data.intensity = 0
       data.liking = null
     }
-    for (const name of ['likes', 'dislikes', 'reminds_me_of', 'comments'])
-      data[name] = values[name] || null
+    for (const note of observationNotes) data[note.name] = values[note.name] || null
     data.perceived_notes = values.perceived_notes
       ? String(values.perceived_notes)
           .split(',')
@@ -122,12 +141,11 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       <section>
         <div className="page-heading">
           <div>
-            <div className="eyebrow">BLIND EVALUATION</div>
             <h2>Your calibration</h2>
           </div>
           {enrollment && (
-            <span className="status-chip">
-              {enrollment.presentations.filter((item) => item.blotter_locked).length}/
+            <span className="tally">
+              {enrollment.presentations.filter((item) => item.blotter_locked).length} /{' '}
               {enrollment.presentations.length} locked
             </span>
           )}
@@ -232,13 +250,41 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
           <section>
             {sample ? (
               <>
-                <div className="eyebrow">SAMPLE {sample.position}</div>
-                <h2>{sample.blind_code}</h2>
+                <p className="eyebrow">Sample {sample.position}</p>
+                <h2 className="sample-heading">
+                  <span className="visually-hidden">Blind code </span>
+                  {sample.blind_code}
+                </h2>
                 {sample.identity && (
-                  <p className="notice">
-                    {sample.identity.brand} · {sample.identity.name} ·{' '}
-                    {sample.identity.concentration}
-                  </p>
+                  <>
+                    <p className="notice">
+                      {sample.identity.brand} · {sample.identity.name} ·{' '}
+                      {sample.identity.concentration}
+                    </p>
+                    {/*
+                      Rendered only inside this `identity` branch, which the
+                      backend populates only after reveal. Each name links to
+                      the source that attributes it: ADR-006 keeps a claim and
+                      its evidence together, and an attribution presented
+                      without a source reads as established fact when it is not.
+                    */}
+                    {sample.identity.perfumers && sample.identity.perfumers.length > 0 && (
+                      <p className="attribution">
+                        <span className="attribution__label">
+                          {sample.identity.perfumers.length === 1 ? 'Perfumer' : 'Perfumers'}
+                        </span>
+                        {sample.identity.perfumers.map((attribution, index) => (
+                          <span key={attribution.name}>
+                            {index > 0 && ', '}
+                            <a href={attribution.source_url} target="_blank" rel="noreferrer">
+                              {attribution.name}
+                              <span className="visually-hidden"> (opens the source)</span>
+                            </a>
+                          </span>
+                        ))}
+                      </p>
+                    )}
+                  </>
                 )}
                 <label>
                   Stage
@@ -285,7 +331,7 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                     <legend>
                       {sample.identity ? 'Post-reveal observation' : 'Blind observation'}
                     </legend>
-                    <div className="fields">
+                    <div className="fields fields-compact">
                       <label>
                         Elapsed minutes
                         <input name="elapsed_minutes" type="number" min="0" defaultValue="0" />
@@ -301,28 +347,29 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                           <option value="no">No</option>
                         </select>
                       </label>
-                      {scale('intensity', 5, detected === 'no')}
-                      {scale('liking', 10, detected === 'no')}
-                      {dimensions.map((dimension) => scale(dimension, 5))}
                     </div>
                     {detected === 'no' && (
-                      <p>Intensity will be saved as 0; liking will remain unanswered.</p>
+                      <p className="notice">
+                        Intensity will be saved as 0; liking will remain unanswered.
+                      </p>
                     )}
+                    {blotterGroups.map((group) => (
+                      <ScaleGroupFields
+                        key={group.key}
+                        group={group}
+                        isDisabled={detected === 'no' ? disabledOnNonDetection : undefined}
+                      />
+                    ))}
                     {stage === 'SKIN' && (
-                      <div className="fields">
-                        {[
-                          'opening_liking',
-                          'drydown_liking',
-                          'would_wear',
-                          'would_buy',
-                          'artistic_appreciation',
-                        ].map((dimension) => scale(dimension, 10))}
-                        {scale('projection', 5)}
+                      <>
+                        {skinGroups.map((group) => (
+                          <ScaleGroupFields key={group.key} group={group} />
+                        ))}
                         <label>
                           Longevity (minutes)
                           <input name="longevity_minutes" type="number" min="0" />
                         </label>
-                      </div>
+                      </>
                     )}
                     <label>
                       Perceived notes
@@ -331,10 +378,10 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                         placeholder="Your own words, separated by commas"
                       />
                     </label>
-                    {['likes', 'dislikes', 'reminds_me_of', 'comments'].map((name) => (
-                      <label key={name}>
-                        {name.replace(/_/g, ' ')}
-                        <textarea name={name} rows={2} />
+                    {observationNotes.map((note) => (
+                      <label key={note.name}>
+                        {note.label}
+                        <textarea name={note.name} rows={2} />
                       </label>
                     ))}
                     <button>Save observation</button>
@@ -359,18 +406,45 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                 )}
                 <h3>Saved observations</h3>
                 {sample.observations.length ? (
-                  sample.observations.map((observation) => (
-                    <article key={observation.id}>
-                      <strong>
-                        {observation.stage} · {observation.elapsed_minutes} min ·{' '}
-                        {observation.phase.replace(/_/g, ' ')}
-                      </strong>
-                      <p>
-                        Liking: {observation.liking ?? 'Unanswered'}
-                        {observation.comments ? ` · ${observation.comments}` : ''}
-                      </p>
-                    </article>
-                  ))
+                  /*
+                   * A blotter log: one row per timepoint, ordered by elapsed
+                   * time, so the evaporation curve is legible at a glance.
+                   * Every professional evaluation sheet this interface is
+                   * modelled on is laid out this way, and the previous
+                   * unordered list of prose lines made a sequence of
+                   * observations read as unrelated entries.
+                   */
+                  <div className="log-scroll">
+                    <table className="log">
+                      <caption className="visually-hidden">
+                        Saved observations for this sample, earliest first
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Time</th>
+                          <th scope="col">Stage</th>
+                          <th scope="col">Phase</th>
+                          <th scope="col">Intensity</th>
+                          <th scope="col">Liking</th>
+                          <th scope="col">Comment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {timeOrdered(sample.observations).map((observation) => (
+                          <tr key={observation.id}>
+                            <th scope="row" data-numeric>
+                              {observation.elapsed_minutes} min
+                            </th>
+                            <td>{observation.stage === 'SKIN' ? 'Skin' : 'Blotter'}</td>
+                            <td>{observation.phase.replace(/_/g, ' ')}</td>
+                            <td data-numeric>{observation.intensity ?? 'n/a'}</td>
+                            <td data-numeric>{observation.liking ?? 'n/a'}</td>
+                            <td>{observation.comments || 'n/a'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
                   <EmptyState title="No observations yet">
                     Save a timepoint to begin this sample history.

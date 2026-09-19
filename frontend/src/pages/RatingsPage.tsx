@@ -82,7 +82,6 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     <section>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">JOURNAL</div>
           <h2>Ordinary encounters</h2>
         </div>
       </div>
@@ -203,7 +202,7 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
             </strong>
             <p>{formatUtc(encounter.evaluated_at)}</p>
             {encounter.worn_by_reviewer_id && (
-              <p className="eyebrow">
+              <p className="worn-by">
                 On{' '}
                 {reviewers.find((reviewer) => reviewer.id === encounter.worn_by_reviewer_id)
                   ?.name || 'another reviewer'}

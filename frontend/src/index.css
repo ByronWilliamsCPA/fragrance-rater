@@ -1,10 +1,10 @@
-html {
-  min-width: 320px;
-}
-a {
-  color: #234f45;
-}
-:focus-visible {
-  outline: 3px solid #b3893e;
-  outline-offset: 3px;
-}
+/*
+ * Single stylesheet entry point, imported once from main.tsx.
+ *
+ * Order matters: tokens define the custom properties everything else reads,
+ * base styles bare elements, layout places them, components dress them.
+ */
+@import './styles/tokens.css';
+@import './styles/base.css';
+@import './styles/layout.css';
+@import './styles/components.css';

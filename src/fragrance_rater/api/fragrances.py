@@ -95,6 +95,12 @@ async def list_fragrances(
             updated_at=f.updated_at,
             notes=[],  # Simplified for list view
             accords=[],
+            # perfumers intentionally omitted: FragranceService.search()
+            # already eager-loads Fragrance.perfumers, but this constructor
+            # does not read `f.perfumers`, so the field falls back to its
+            # schema default of []. The catalog list view does not surface
+            # perfumer attribution yet; see get_fragrance() below for the
+            # single-record read path, which has the same gap.
         )
         for f in fragrances
     ]
@@ -153,6 +159,14 @@ async def get_fragrance(
             )
             for acc in fragrance.accords
         ],
+        # perfumers intentionally omitted: FragranceService.get_by_id()
+        # already eager-loads Fragrance.perfumers (see fragrance_service.py),
+        # but this constructor does not read `fragrance.perfumers`, so the
+        # field falls back to its schema default of []. The single-record
+        # read path does not surface perfumer attribution yet; see
+        # list_fragrances() above for the catalog list path, which has the
+        # same gap. Wiring this through is tracked as a follow-up, not done
+        # here to keep this fix scoped to documenting the current behavior.
     )
 
 
