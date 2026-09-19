@@ -21,12 +21,15 @@ reintroduce exactly the drift ``ModelSpec.digest`` exists to detect.
 
 from __future__ import annotations
 
-from fragrance_rater.ml.model import AffinityV1, Scorer
+from fragrance_rater.ml.model import AffinityV1, AffinityV2, Scorer
 
-DEFAULT_MODEL_KEY = "affinity-v1"
+DEFAULT_MODEL_KEY = "affinity-v2"
 """Key of the baseline every candidate model is compared against (ADR-009)."""
 
-MODELS: dict[str, Scorer] = {AffinityV1.spec.algorithm_version: AffinityV1()}
+MODELS: dict[str, Scorer] = {
+    AffinityV1.spec.algorithm_version: AffinityV1(),
+    AffinityV2.spec.algorithm_version: AffinityV2(),
+}
 """Registered scorers keyed by ``ModelSpec.algorithm_version``."""
 
 

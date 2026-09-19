@@ -17,9 +17,9 @@ from sqlalchemy.orm import selectinload
 from fragrance_rater.ml.feature_space import vectorize
 from fragrance_rater.ml.model import (
     COMPONENT_WEIGHTS,
+    DEFAULT_SCORER_FACTORY,
     RATING_WEIGHTS,
     VETO_THRESHOLD,
-    AffinityV1,
     Scorer,
     UserProfile,
 )
@@ -100,6 +100,9 @@ class RecommendationService:
 
     Args:
         session (AsyncSession): Async database session.
+        model (Scorer | None): Scoring model; defaults to the registered default
+            scorer (``affinity-v2``). Inject ``AffinityV1()`` for reference
+            comparisons.
     """
 
     def __init__(self, session: AsyncSession, model: Scorer | None = None) -> None:
@@ -107,7 +110,7 @@ class RecommendationService:
         # The scoring model. Defaults to the frozen affinity-v1 heuristic; a
         # registered alternative can be injected to score the same eligible
         # evidence under the same rules (ML structure review, M-03/M-11).
-        self.model: Scorer = model if model is not None else AffinityV1()
+        self.model: Scorer = model if model is not None else DEFAULT_SCORER_FACTORY()
 
     async def build_preference_profile(
         self, reviewer_id: str, *, excluded: set[str] | None = None

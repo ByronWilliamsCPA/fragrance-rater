@@ -20,22 +20,25 @@ refer to that document.
 ## What is fixed and what is a parameter
 
 The declared learning problem (unit, primary target, feature basis, model class, metrics, splits,
-decision rule) is a proposal awaiting the owner's acceptance (review Section 3 and Q1). The code
-therefore treats the target as a parameter: `build_examples(..., target=...)` accepts any
-supported target and defaults to the proposed primary outcome, controlled `liking` on its
-original 0-10 scale (ordinary rows keep `rating` on 1-5, never pooled).
+decision rule) is recorded in ADR-009's 2026-09-19 amendment (ML Decisions Q1). The code still
+treats the target as a parameter: `build_examples(..., target=...)` accepts any supported target
+and defaults to the declared primary outcome, controlled `liking` on its original 0-10 scale
+(ordinary rows keep `rating` on 1-5, never pooled).
 
-affinity-v1 is frozen exactly as it behaved before the extraction, defects included (review Q6).
-Its parameters are serialized and digested; the test `test_affinity_v1_parameters_are_pinned`
-fails when any tunable changes without a version bump.
+The default scorer is `affinity-v2`, which corrects the three structural defects the review
+found in the original heuristic (separate family and subfamily namespaces, accord intensity
+applied once, evidence-count shrinkage with a stationary veto threshold; ADR-004 amendment
+2026-09-19). `affinity-v1` is frozen exactly as it behaved before the extraction and stays
+registered for reference comparisons. Both specs are digested; the pinned-digest tests fail when
+any tunable changes without a version bump.
 
 ## Modules
 
 | Module | Responsibility | Depends on |
 | :--- | :--- | :--- |
 | `ml.feature_space` | `FeatureVector`, `vectorize(fragrance)`, `from_source_features(dict)`, `FEATURE_SPACE_VERSION` | ORM models only |
-| `ml.model` | `ModelSpec` (identity, version, params, digest), `Scorer` protocol, `ScoredResult`, `UserProfile`, `AffinityV1` | `feature_space` |
-| `ml.registry` | `MODELS`, `register`, `resolve`, `available`, `DEFAULT_MODEL_KEY` | `model` |
+| `ml.model` | `ModelSpec` (identity, version, params, digest), `Scorer` protocol, `ScoredResult`, `UserProfile`, `AffinityV1`, `AffinityV2` (default) | `feature_space` |
+| `ml.registry` | `MODELS` (v1 and v2), `register`, `resolve`, `available`, `DEFAULT_MODEL_KEY` (`affinity-v2`) | `model` |
 | `ml.dataset` | `TrainingRow`, `build_examples(session, reviewer_id, target=...)`, `to_arrays(rows, feature_space=...)`, `split_for(role)` | `PreferenceHistoryService` |
 | `ml.reliability` | Hidden-repeat pairs, pooled agreement, bootstrap intervals: the noise ceiling | ORM models |
 | `ml.evaluate` | Linked prediction outcomes, holdout scorecards (MAE, RMSE, Spearman with intervals), precision@k | `reliability` |
@@ -44,7 +47,7 @@ fails when any tunable changes without a version bump.
 `RecommendationService` now delegates to the model object: it selects eligible evidence, calls
 `vectorize`, and hands `(features, weights)` pairs to `Scorer.build_profile`; `calculate_match_score`
 calls `Scorer.score`. `RecommendationMeasurementService.ALGORITHM_VERSION` is derived from
-`AffinityV1.spec`, so the label written on runs cannot drift from the code that scores.
+the default scorer's spec, so the label written on runs cannot drift from the code that scores.
 
 ## Feature space
 
@@ -94,7 +97,7 @@ basis are identifiable; see review Section 4 before choosing a model class.
 
 ```bash
 uv run fragrance-rater ml models
-uv run fragrance-rater ml predict <reviewer_id> --model affinity-v1 --dry-run
+uv run fragrance-rater ml predict <reviewer_id> --model affinity-v2 --dry-run
 ```
 
 ## What this package deliberately does not do yet

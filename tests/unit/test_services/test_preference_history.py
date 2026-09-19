@@ -6,6 +6,7 @@ from datetime import timedelta
 import pytest
 import pytest_asyncio
 
+from fragrance_rater.ml.model import AffinityV1
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -129,7 +130,9 @@ async def test_holdouts_excluded_across_workflows_and_scoped_to_evaluator(histor
     assert await service.excluded_versions("owner") == {"holdout"}
     assert await service.excluded_versions("other") == set()
     assert await service.training_manifest("owner") == []
-    profile = await RecommendationService(service.db).build_preference_profile("owner")
+    profile = await RecommendationService(
+        service.db, model=AffinityV1()
+    ).build_preference_profile("owner")
     assert profile.evaluation_count == 0
     assert profile.family_affinities == {}
 
@@ -160,7 +163,9 @@ async def test_latest_ordinary_encounter_contributes_once(history_data):
     manifest = await service.training_manifest("owner")
     assert [row["id"] for row in manifest] == ["new"]
     assert manifest[0]["scale"] == "1-5"
-    profile = await RecommendationService(service.db).build_preference_profile("owner")
+    profile = await RecommendationService(
+        service.db, model=AffinityV1()
+    ).build_preference_profile("owner")
     assert profile.evaluation_count == 1
     assert profile.family_affinities["woody"] == 2
 
@@ -183,7 +188,9 @@ async def test_worn_by_evaluation_excluded_from_training_manifest(history_data):
     )
     await service.db.flush()
     assert await service.training_manifest("owner") == []
-    profile = await RecommendationService(service.db).build_preference_profile("owner")
+    profile = await RecommendationService(
+        service.db, model=AffinityV1()
+    ).build_preference_profile("owner")
     assert profile.evaluation_count == 0
 
 
@@ -273,7 +280,7 @@ async def test_controlled_recommendation_contributes_after_reveal_once_per_versi
     service.db.add(observation(base, liking=10))
     service.db.add(observation(presentations["HIDDEN_REPEAT"], liking=0))
     await service.db.flush()
-    recommender = RecommendationService(service.db)
+    recommender = RecommendationService(service.db, model=AffinityV1())
     blind = await recommender.build_preference_profile("owner")
     assert blind.evaluation_count == 0
     assert blind.family_affinities == {}
@@ -316,7 +323,9 @@ async def test_newest_skin_rating_wins_across_presentations(history_data):
     newest.stage = "SKIN"
     service.db.add(newest)
     await service.db.flush()
-    profile = await RecommendationService(service.db).build_preference_profile("owner")
+    profile = await RecommendationService(
+        service.db, model=AffinityV1()
+    ).build_preference_profile("owner")
     assert profile.evaluation_count == 1
     assert profile.family_affinities["woody"] == 2.0
 
@@ -344,7 +353,7 @@ async def test_revealed_controlled_fragrance_excluded_from_unrated_recommendatio
         await service.db.flush()
         service.db.add(Evaluation(fragrance_id=key, reviewer_id="owner", rating=4))
     await service.db.flush()
-    recommender = RecommendationService(service.db)
+    recommender = RecommendationService(service.db, model=AffinityV1())
     all_candidates = await recommender.get_recommendations("owner", exclude_rated=False)
     assert "baseline" in {row.fragrance_id for row in all_candidates}
     unrated = await recommender.get_recommendations("owner", exclude_rated=True)

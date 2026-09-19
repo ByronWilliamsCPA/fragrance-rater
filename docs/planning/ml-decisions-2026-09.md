@@ -152,5 +152,6 @@ recorded there and in an ADR-005 amendment.
 1. ADR-009 amendment recording Q1.
 2. Vocabulary migration and shared resolver for the 43 versions (Q2).
 3. Pairwise and behavioral tables with the session ranking prompt (Q3, Q8).
-4. affinity-v2 as the default scorer, v1 retained for comparison (Q6, Q4).
+4. affinity-v2 as the default scorer, v1 retained for comparison (Q6, Q4). Implemented 2026-09-19;
+   see the ADR-004 amendment.
 5. Intensity-source flag (Q5) and the optional dependency group (Q7).

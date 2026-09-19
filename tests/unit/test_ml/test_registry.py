@@ -63,7 +63,7 @@ def test_affinity_v1_is_registered_under_its_algorithm_version():
 
 
 def test_default_model_key_resolves():
-    assert DEFAULT_MODEL_KEY == "affinity-v1"
+    assert DEFAULT_MODEL_KEY == "affinity-v2"
     assert resolve(DEFAULT_MODEL_KEY).spec.model_id == "affinity"
 
 
@@ -93,7 +93,7 @@ def test_register_rejects_a_duplicate_key(isolated_registry):
     with pytest.raises(ValueError, match="already registered"):
         register(_StubScorer())
     # The rejected second call must not have replaced the first entry.
-    assert sorted(isolated_registry) == ["affinity-v1", "stub-v1"]
+    assert sorted(isolated_registry) == ["affinity-v1", "affinity-v2", "stub-v1"]
 
 
 def test_register_rejects_replacing_the_frozen_baseline(isolated_registry):

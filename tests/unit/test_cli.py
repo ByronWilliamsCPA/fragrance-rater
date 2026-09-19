@@ -807,7 +807,7 @@ class TestMlCommands:
         assert "holdout: existing-prediction" in result.output
         session.rollback.assert_not_awaited()
         kwargs = mock_predict.call_args.kwargs
-        assert kwargs["model_key"] == "affinity-v1"
+        assert kwargs["model_key"] == "affinity-v2"
         assert kwargs["reviewer_id"] == "owner"
         assert kwargs["fragrance_ids"] is None
         assert kwargs["recorded_by"] == "me"

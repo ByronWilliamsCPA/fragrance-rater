@@ -16,10 +16,16 @@ from fragrance_rater.ml.feature_space import (
 )
 from fragrance_rater.ml.model import (
     AFFINITY_V1_SPEC,
+    AFFINITY_V2_SPEC,
     COMPONENT_WEIGHTS,
+    DEFAULT_SCORER_FACTORY,
+    V2_LINK_SCALE,
+    V2_SHRINKAGE_K,
+    V2_VETO_THRESHOLD,
     VETO_SCORE,
     VETO_THRESHOLD,
     AffinityV1,
+    AffinityV2,
     ModelSpec,
     UserProfile,
 )
@@ -35,6 +41,7 @@ from fragrance_rater.services.recommendation_service import RecommendationServic
 # tunable changed: either revert it, or bump ModelSpec.version to "v2" (and
 # update this pin) so the change is a recorded version, per ADR-009.
 AFFINITY_V1_DIGEST = "a7ac4c6b12484c662e2521603c00cc62d7d97c1edbb77b1c6c05cabb7300834e"
+AFFINITY_V2_DIGEST = "b658f750649712642b19c7b73615b7c99b85cd60682217d149d1eac2d2b2e63c"
 
 
 def _vector(
@@ -81,6 +88,95 @@ class TestModelSpec:
         assert AffinityV1.spec.digest == AFFINITY_V1_DIGEST, (
             "affinity-v1 parameters changed; bump ModelSpec.version and the pin"
         )
+
+
+class TestAffinityV2:
+    """The corrected default scorer (ML Decisions Q6; ADR-004 amendment)."""
+
+    def test_v2_is_the_default_and_pinned(self) -> None:
+        assert DEFAULT_SCORER_FACTORY is AffinityV2
+        assert AffinityV2.spec is AFFINITY_V2_SPEC
+        assert AffinityV2.spec.algorithm_version == "affinity-v2"
+        assert AffinityV2.spec.digest == AFFINITY_V2_DIGEST, (
+            "affinity-v2 parameters changed; bump ModelSpec.version and the pin"
+        )
+        assert AffinityV2.spec.digest != AffinityV1.spec.digest
+
+    def test_family_and_subfamily_do_not_collide(self) -> None:
+        """M-12: a subfamily label equal to a family label is not double counted."""
+        model = AffinityV2()
+        features = _vector(family="woody", subfamily="woody")
+        profile = model.build_profile("r", [(features, [2.0])])
+        assert profile.family_affinities["woody"] == pytest.approx(
+            2.0 / (1 + V2_SHRINKAGE_K)
+        )
+        assert profile.subfamily_affinities["woody"] == pytest.approx(
+            2.0 * 0.5 / (1 + V2_SHRINKAGE_K)
+        )
+        # v1 pooled both into one dictionary; v2 keeps them apart.
+        v1_profile = AffinityV1().build_profile("r", [(features, [2.0])])
+        assert v1_profile.family_affinities["woody"] == pytest.approx(3.0)
+
+    def test_accord_intensity_enters_once(self) -> None:
+        """M-13: intensity is a feature value at scoring time, not evidence weight."""
+        model = AffinityV2()
+        rated = _vector(accords=[("citrus", 0.5)], family="", subfamily="")
+        profile = model.build_profile("r", [(rated, [2.0])])
+        # Profile stores the shrunk rating weight only.
+        assert profile.accord_affinities["citrus"] == pytest.approx(
+            2.0 / (1 + V2_SHRINKAGE_K)
+        )
+        weak = model.score(
+            profile, _vector(accords=[("citrus", 0.2)], family="", subfamily="")
+        )
+        strong = model.score(
+            profile, _vector(accords=[("citrus", 1.0)], family="", subfamily="")
+        )
+        assert strong.components["accords"] == pytest.approx(
+            5 * weak.components["accords"]
+        )
+
+    def test_scores_are_stationary_in_history_length(self) -> None:
+        """M-14: the same average preference does not saturate as evidence accumulates."""
+        model = AffinityV2()
+        liked = _vector(notes=[("n1", "Rose")], family="floral", subfamily="")
+        few = model.build_profile("r", [(liked, [2.0])] * 3)
+        many = model.build_profile("r", [(liked, [2.0])] * 30)
+        s_few = model.score(few, liked).score
+        s_many = model.score(many, liked).score
+        assert 0.5 < s_few < s_many < 0.99
+        # Both shrunk affinities stay inside the bounded -2..2 scale.
+        assert many.note_affinities["n1"] <= 2.0
+        # Under v1 the same history grows without bound and saturates.
+        v1 = AffinityV1()
+        v1_many = v1.build_profile("r", [(liked, [2.0])] * 30)
+        assert v1_many.note_affinities["n1"] == pytest.approx(60.0)
+
+    def test_veto_uses_shrunk_threshold(self) -> None:
+        model = AffinityV2()
+        hated = _vector(notes=[("n1", "Lemon")], family="", subfamily="")
+        profile = model.build_profile("r", [(hated, [-2.0])] * 4)
+        assert profile.note_affinities["n1"] == pytest.approx(
+            -8.0 / (4 + V2_SHRINKAGE_K)
+        )
+        assert profile.note_affinities["n1"] < V2_VETO_THRESHOLD
+        result = model.score(profile, hated)
+        assert result.vetoed
+        assert result.veto_note == "Lemon"
+        # Two dislikes are not yet enough evidence to veto.
+        light = model.build_profile("r", [(hated, [-2.0])] * 2)
+        assert not model.score(light, hated).vetoed
+
+    def test_link_scale_and_counts_are_reported(self) -> None:
+        model = AffinityV2()
+        liked = _vector(notes=[("n1", "Rose")], family="floral", subfamily="")
+        profile = model.build_profile("r", [(liked, [2.0])] * 2)
+        assert profile.note_counts == {"n1": 2}
+        assert profile.family_counts == {"floral": 2}
+        result = model.score(profile, liked)
+        expected = 1 / (1 + math.exp(-(result.components["raw"] * V2_LINK_SCALE)))
+        assert result.score == pytest.approx(expected)
+        assert result.n_evidence == 2
 
 
 class TestAffinityV1Scoring:
@@ -238,7 +334,9 @@ class TestServiceDelegation:
             reviewer_id="r", note_affinities={"n-berg": 1.5}, evaluation_count=2
         )
         via_service = await service.calculate_match_score(profile, fragrance)
-        direct = AffinityV1().score(profile, vectorize(fragrance))
+        direct = service.model.score(profile, vectorize(fragrance))
         assert via_service.score == direct.score
         assert via_service.components == direct.components
-        assert service.model.spec.algorithm_version == "affinity-v1"
+        assert service.model.spec.algorithm_version == "affinity-v2"
+        pinned = RecommendationService(async_session, model=AffinityV1())
+        assert pinned.model.spec.algorithm_version == "affinity-v1"

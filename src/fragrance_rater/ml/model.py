@@ -80,6 +80,16 @@ class UserProfile:
             name, for display.
         top_disliked_notes (list[tuple[str, float]]): Lowest-affinity notes
             by name, for display.
+        subfamily_affinities (dict[str, float]): affinity-v2 only; subfamily
+            evidence kept apart from family evidence.
+        note_counts (dict[str, int]): affinity-v2 only; contributing versions
+            per note id.
+        accord_counts (dict[str, int]): affinity-v2 only; contributing
+            versions per accord label.
+        family_counts (dict[str, int]): affinity-v2 only; contributing
+            versions per family label.
+        subfamily_counts (dict[str, int]): affinity-v2 only; contributing
+            versions per subfamily label.
     """
 
     reviewer_id: str
@@ -91,6 +101,15 @@ class UserProfile:
     # For preference display
     top_liked_notes: list[tuple[str, float]] = field(default_factory=list)
     top_disliked_notes: list[tuple[str, float]] = field(default_factory=list)
+
+    # affinity-v2 additions (empty under affinity-v1): subfamily evidence in
+    # its own namespace, and per-key evidence counts so shrunk affinities can
+    # be audited and reported with their n.
+    subfamily_affinities: dict[str, float] = field(default_factory=dict)
+    note_counts: dict[str, int] = field(default_factory=dict)
+    accord_counts: dict[str, int] = field(default_factory=dict)
+    family_counts: dict[str, int] = field(default_factory=dict)
+    subfamily_counts: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -380,6 +399,215 @@ class AffinityV1:
             },
             n_evidence=profile.evaluation_count,
         )
+
+
+# affinity-v2 parameters. Each corrects a defect the ML structure review found
+# in v1 (M-12, M-13, M-14); see ADR-004's 2026-09-19 amendment.
+V2_SHRINKAGE_K = 2.0
+"""Pseudo-count for evidence shrinkage: affinity = sum / (n + k)."""
+
+V2_VETO_THRESHOLD = -1.25
+"""Veto when a note's shrunk affinity falls below this (scale is now -2..2)."""
+
+V2_LINK_SCALE = 2.0
+"""Multiplier on the bounded raw score before the sigmoid."""
+
+AFFINITY_V2_SPEC = ModelSpec(
+    model_id="affinity",
+    version="v2",
+    params={
+        "rating_weights": {str(k): v for k, v in RATING_WEIGHTS.items()},
+        "component_weights": COMPONENT_WEIGHTS,
+        "shrinkage_k": V2_SHRINKAGE_K,
+        "veto_threshold": V2_VETO_THRESHOLD,
+        "veto_score": VETO_SCORE,
+        "subfamily_factor": SUBFAMILY_FACTOR,
+        "link_scale": V2_LINK_SCALE,
+        "sigmoid_clamp": SIGMOID_CLAMP,
+        "controlled_liking_offset": CONTROLLED_LIKING_OFFSET,
+        "controlled_liking_divisor": CONTROLLED_LIKING_DIVISOR,
+        "accord_intensity_role": "feature value at scoring time only",
+        "family_namespaces": "separate family and subfamily dictionaries",
+        "evidence_selection": AFFINITY_V1_SPEC.params["evidence_selection"],
+        "score_type": "uncalibrated-affinity",
+    },
+)
+"""Identity and parameters of the corrected heuristic (the default scorer)."""
+
+
+class AffinityV2(AffinityV1):
+    """The ADR-004 heuristic with the review's three structural defects fixed.
+
+    Compared with :class:`AffinityV1`:
+
+    - Family and subfamily evidence live in separate dictionaries, so a
+      subfamily label that collides with a family label is no longer counted
+      twice (review M-12).
+    - Accord intensity is a feature value applied once, at scoring time; the
+      profile accumulates the rating weight only (review M-13).
+    - Every affinity is shrunk by its evidence count, ``sum / (n + k)``, so it
+      is bounded in ``[-2, 2]`` and does not grow with history length; the
+      veto threshold and the sigmoid input are therefore stationary (review
+      M-14). A ``link_scale`` restores a usable dynamic range before the
+      sigmoid.
+
+    The evidence-selection rules (ADR-007) are unchanged from v1. This is
+    still an uncalibrated affinity, not predicted liking.
+    """
+
+    spec: ModelSpec = AFFINITY_V2_SPEC
+
+    def build_profile(
+        self,
+        reviewer_id: str,
+        contributions: Iterable[tuple[FeatureVector, Sequence[float]]],
+    ) -> UserProfile:
+        """Accumulate shrunk note, accord, family, and subfamily affinities.
+
+        Args:
+            reviewer_id (str): The evaluator the profile belongs to.
+            contributions (Iterable[tuple[FeatureVector, Sequence[float]]]):
+                Per-version ``(features, weights)`` pairs; weights are
+                averaged so a version contributes once (ADR-007).
+
+        Returns:
+            UserProfile: Shrunk affinities, per-key evidence counts, and
+                display summaries.
+        """
+        note_sums: defaultdict[str, float] = defaultdict(float)
+        note_counts: defaultdict[str, int] = defaultdict(int)
+        note_names: dict[str, str] = {}
+        accord_sums: defaultdict[str, float] = defaultdict(float)
+        accord_counts: defaultdict[str, int] = defaultdict(int)
+        family_sums: defaultdict[str, float] = defaultdict(float)
+        family_counts: defaultdict[str, int] = defaultdict(int)
+        subfamily_sums: defaultdict[str, float] = defaultdict(float)
+        subfamily_counts: defaultdict[str, int] = defaultdict(int)
+        count = 0
+
+        for features, weights in contributions:
+            count += 1
+            weight = sum(weights) / len(weights)
+            seen_notes: set[str] = set()
+            for note in features.notes:
+                if note.note_id is None or note.note_id in seen_notes:
+                    continue
+                seen_notes.add(note.note_id)
+                note_sums[note.note_id] += weight
+                note_counts[note.note_id] += 1
+                note_names[note.note_id] = note.name
+            seen_accords: set[str] = set()
+            for accord in features.accords:
+                if accord.name in seen_accords:
+                    continue
+                seen_accords.add(accord.name)
+                accord_sums[accord.name] += weight
+                accord_counts[accord.name] += 1
+            if features.primary_family:
+                family_sums[features.primary_family] += weight
+                family_counts[features.primary_family] += 1
+            if features.subfamily:
+                subfamily_sums[features.subfamily] += weight * SUBFAMILY_FACTOR
+                subfamily_counts[features.subfamily] += 1
+
+        def shrink(sums: dict[str, float], counts: dict[str, int]) -> dict[str, float]:
+            return {
+                key: total / (counts[key] + V2_SHRINKAGE_K)
+                for key, total in sums.items()
+            }
+
+        note_affinities = shrink(note_sums, note_counts)
+        sorted_notes = sorted(
+            [
+                (note_names.get(nid, nid), score)
+                for nid, score in note_affinities.items()
+            ],
+            key=lambda x: x[1],
+            reverse=True,
+        )
+        top_liked = [(name, score) for name, score in sorted_notes if score > 0][:5]
+        top_disliked = [(name, score) for name, score in sorted_notes if score < 0][-5:]
+
+        return UserProfile(
+            reviewer_id=reviewer_id,
+            note_affinities=note_affinities,
+            accord_affinities=shrink(accord_sums, accord_counts),
+            family_affinities=shrink(family_sums, family_counts),
+            subfamily_affinities=shrink(subfamily_sums, subfamily_counts),
+            evaluation_count=count,
+            top_liked_notes=top_liked,
+            top_disliked_notes=list(reversed(top_disliked)),
+            note_counts=dict(note_counts),
+            accord_counts=dict(accord_counts),
+            family_counts=dict(family_counts),
+            subfamily_counts=dict(subfamily_counts),
+        )
+
+    def score(self, profile: UserProfile, features: FeatureVector) -> ScoredResult:
+        """Score a fragrance version against a shrunk-affinity profile.
+
+        Args:
+            profile (UserProfile): Profile built by :meth:`build_profile`.
+            features (FeatureVector): The candidate's published features.
+
+        Returns:
+            ScoredResult: Bounded score, veto state, and components.
+        """
+        for note in features.notes:
+            if note.note_id is None:
+                continue
+            if profile.note_affinities.get(note.note_id, 0.0) < V2_VETO_THRESHOLD:
+                return ScoredResult(
+                    score=VETO_SCORE,
+                    score_percent=int(VETO_SCORE * 100),
+                    vetoed=True,
+                    veto_note=note.name,
+                    n_evidence=profile.evaluation_count,
+                )
+
+        note_scores = [
+            profile.note_affinities.get(note.note_id, 0.0)
+            for note in features.notes
+            if note.note_id is not None
+        ]
+        note_score = sum(note_scores) / max(len(note_scores), 1)
+
+        accord_scores = [
+            profile.accord_affinities.get(accord.name, 0.0) * accord.intensity
+            for accord in features.accords
+        ]
+        accord_score = sum(accord_scores) / max(len(accord_scores), 1)
+
+        family_score = profile.family_affinities.get(features.primary_family or "", 0.0)
+        subfamily_score = profile.subfamily_affinities.get(
+            features.subfamily or "", 0.0
+        )
+
+        raw_score = (
+            COMPONENT_WEIGHTS["notes"] * note_score
+            + COMPONENT_WEIGHTS["accords"] * accord_score
+            + COMPONENT_WEIGHTS["family"] * family_score
+            + COMPONENT_WEIGHTS["subfamily"] * subfamily_score
+        )
+        clamped = max(-SIGMOID_CLAMP, min(SIGMOID_CLAMP, raw_score * V2_LINK_SCALE))
+        normalized = 1 / (1 + math.exp(-clamped))
+
+        return ScoredResult(
+            score=normalized,
+            score_percent=int(normalized * 100),
+            components={
+                "notes": note_score,
+                "accords": accord_score,
+                "family": family_score,
+                "subfamily": subfamily_score,
+                "raw": raw_score,
+            },
+            n_evidence=profile.evaluation_count,
+        )
+
+
+DEFAULT_SCORER_FACTORY = AffinityV2
+"""The scorer the application uses when none is injected (ML Decisions Q6)."""
 
 
 __all__ = [

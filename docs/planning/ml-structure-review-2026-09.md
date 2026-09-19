@@ -29,7 +29,9 @@ skeleton: `feature_space.py` (M-02), `model.py` with `ModelSpec`, the `Scorer` p
 (M-01, M-20, M-22; the target is a parameter defaulting to the Section 3 proposal),
 `reliability.py` (M-19), `evaluate.py` (M-10), `registry.py` and `predict.py` (M-05, M-09, X-18,
 and the M-11 registry half). `RecommendationService` delegates to the model object and the
-measurement service derives `ALGORITHM_VERSION` from the spec. Not implemented: the schema
+measurement service derives `ALGORITHM_VERSION` from the spec. Per ML Decisions Q6, `affinity-v2`
+(M-12, M-13, M-14 corrected; ADR-004 amendment 2026-09-19) is the default scorer and v1 is
+retained for comparison. Not implemented: the schema
 items (M-07, M-08, X-16, X-17, X-05 view), registry validation of `candidate_strategy` and
 `CheckpointInput.algorithm_version` (M-11 API half), Tier 1 vocabulary work, and any learned
 model. See [ML Pipeline](../development/ml-pipeline.md).

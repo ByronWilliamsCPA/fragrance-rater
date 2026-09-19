@@ -1,7 +1,8 @@
 # ADR-004: V1 Recommendation Scoring Algorithm
 
 > **Status**: Partially superseded by ADR-007; candidate discovery extended by the 2026-09-15
-> amendment (Fragella-sourced candidates, bounded by ADR-012)
+> amendment (Fragella-sourced candidates, bounded by ADR-012); scoring corrected by the 2026-09-19
+> amendment (affinity-v2)
 >
 > **Date**: 2025-12-28
 
@@ -181,6 +182,35 @@ Consequences of this amendment:
   redefined or renamed a term without needing a fully versioned row per provider value the way
   ADR-006 tracks source facts; `verified_at` alone only answers when a mapping was last checked,
   not whether the provider has since changed underneath it.
+
+## 2026-09-19 amendment: affinity-v2 corrects three structural defects
+
+The ML structure review found three defects in the scoring specified below that would corrupt
+any comparison between this heuristic and a learned model (findings M-12, M-13, M-14). The
+product owner decided (ML Decisions 2026-09, Q6) to fix them now, before any family rating
+exists, and to make the corrected scorer the application default. The original scorer remains
+registered as `affinity-v1` for reference comparisons; both live in `fragrance_rater.ml.model`
+with serialized, digested parameters.
+
+`affinity-v2` changes exactly three things:
+
+1. **Separate family and subfamily namespaces.** Step 1 below accumulated both into one
+   `family_affinities` dictionary, so a subfamily label equal to a family label was counted at
+   0.20 plus 0.10 on the same value. v2 keeps `subfamily_affinities` apart.
+2. **Accord intensity enters once.** Step 1 multiplied the rating weight by the rated
+   fragrance's intensity and Step 2 multiplied again by the candidate's intensity. v2 treats
+   intensity as a feature value applied at scoring time only; the profile accumulates the rating
+   weight.
+3. **Evidence-count shrinkage.** Every affinity is `sum / (n + k)` with `k = 2`, so it is
+   bounded in `[-2, 2]` and does not grow with history length. The veto threshold becomes
+   `-1.25` on that scale (four consistent one-star encounters veto; two do not), and a
+   `link_scale` of `2.0` restores the sigmoid's dynamic range. The display value is still an
+   uncalibrated affinity score (ADR-007), now stationary in the amount of evidence.
+
+Evidence selection (ADR-007), the veto mechanism, the component weights, and the 1-5 rating
+weights are unchanged. `k`, the threshold, and the link scale are heuristic choices recorded in
+the model spec and are candidates for the prospective comparison ADR-009 requires, not tuned
+values.
 
 ## Context
 
