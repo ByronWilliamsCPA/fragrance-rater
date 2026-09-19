@@ -44,7 +44,7 @@ The committed e2e suite belongs in `frontend/e2e/` using `@playwright/test`, per
 ### Positive
 
 - Fast, deterministic per-PR CI, with the one property that actually needs a real backend (disclosure/authorization) verified by a real backend, not assumed.
-- Fixture-contract check catches API drift before it silently produces a passing-but-wrong mocked spec.
+- Fixture-contract check (`tsc -b` against the committed `frontend/src/client/types.gen.ts` snapshot) catches e2e fixtures that drift from that committed snapshot before they silently produce a passing-but-wrong mocked spec. This is narrower than catching live backend schema drift: nothing in this repo or its CI regenerates the snapshot from the running backend, so the check can only prove fixture-to-snapshot consistency, not fixture-to-live-backend consistency.
 - Directly closes the e2e portion of PROJECT-PLAN P1.8.
 
 ### Trade-offs
@@ -55,7 +55,7 @@ The committed e2e suite belongs in `frontend/e2e/` using `@playwright/test`, per
 
 ### Technical Debt
 
-No CI wiring exists yet for the real-backend smoke tier's cadence (nightly/pre-deploy); no manual accessibility audit process is defined; `ProgramSetupPage`'s internal actions beyond authorization have no test coverage of any kind.
+No CI wiring exists yet for the real-backend smoke tier's cadence (nightly/pre-deploy); no manual accessibility audit process is defined; `ProgramSetupPage`'s internal actions beyond authorization have no test coverage of any kind. The generated API client snapshot (`frontend/src/client/types.gen.ts`) that the fixture-contract check pins against has no automated freshness check against the live backend schema (no CI step runs `generate-client`), so it can silently drift stale over time without anything failing.
 
 ## Implementation
 

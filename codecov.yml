@@ -21,8 +21,11 @@ coverage:
         threshold: 2%
         if_ci_failed: error
 
-      # Single-surface flag for the frontend (React/TypeScript) test suite;
-      # see .claude/standards/testing.md (single-surface-flag exception).
+      # Single-surface flag for the frontend (React/TypeScript) test suite, mirroring
+      # the single-surface convention already used for the Python coverage flags
+      # above (unit/integration/security share one project, not per-file flags).
+      # This convention is documented in the operator's global Claude standards
+      # (~/.claude/standards/testing.md), not a file checked into this repo.
       # No per-test-type flags (frontend-unit, frontend-e2e) by design.
       frontend:
         target: auto
