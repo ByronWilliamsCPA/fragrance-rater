@@ -105,13 +105,19 @@ in this ADR closes it.
 ## Decision
 
 1. **`training_eligibilities` lookup table.** A small reference table
-   following the stable-code/display-label/sort_order/active pattern that
-   `core/vocabulary.py` already documents and the `fragella_lookups`
-   migration (`2c341c369192`) already established structurally. Seeded by
-   migration with exactly three rows: `eligible` (sort 0), and two ways to
-   be excluded, `excluded_pending_classification` (sort 10, no real
-   classification exists yet) and `excluded_manual` (sort 20, a reviewer or
-   maintainer has flagged the fragrance for some other reason).
+   using the stable-code/display-label/sort_order/active shape ADR-010
+   proposed for it (Context above). No existing table or migration already
+   implements that exact shape: `core/vocabulary.py` holds Python-level
+   constants (a `Literal` and frozensets), not a lookup table with
+   `display_label`/`sort_order`/`active` columns, and the `fragella_lookups`
+   migration (`2c341c369192`) creates a reference-lookup attempt log
+   (id/fragrance_id/status/results), not a seeded code/label lookup. This
+   migration is the first concrete instance of the pattern ADR-010
+   described, not a repeat of an established one. Seeded by migration with
+   exactly three rows: `eligible` (sort 0), and two ways to be excluded,
+   `excluded_pending_classification` (sort 10, no real classification
+   exists yet) and `excluded_manual` (sort 20, a reviewer or maintainer has
+   flagged the fragrance for some other reason).
 
 2. **Nullable `Fragrance.training_eligibility_code` FK, defaulting to
    NULL meaning eligible.** `NULL` is not a third state to reason about
@@ -195,6 +201,36 @@ two lists that can silently diverge.
   not a bug: resolving it properly means giving `UNCLASSIFIED_FAMILY`
   first-class handling in the scoring algorithm (or, better, replacing it
   entirely once `ClassificationSystem` exists), which is out of scope here.
+- **`UNCLASSIFIED_FAMILY` has zero production call sites today, and the
+  places that would eventually need to handle it are broader than
+  `family_affinities` alone.** This ADR deliberately leaves the sentinel
+  inert pending `ClassificationSystem` (see Alternatives above), but every
+  place that currently reads `primary_family`/`subfamily` as if they were
+  always real Wheel values would need review once a caller actually starts
+  writing `UNCLASSIFIED_FAMILY`, not only the scoring algorithm named above.
+  Known examples in the current codebase:
+  - `RecommendationService.build_preference_profile`'s `family_affinities`
+    accumulation (already named above).
+  - `PreferenceHistoryService.training_manifest()`, which copies
+    `primary_family`/`subfamily` verbatim into each row's
+    `source_features` for the frozen ML training manifest; a downstream
+    model trained on that manifest would see `"Unclassified"` as an
+    ordinary family value with no signal that it means "no real
+    classification."
+  - `api/recommendations.py`'s `FragranceDetails` construction, which
+    already falls back to the literal string `"Unknown"` when
+    `primary_family`/`subfamily` is falsy
+    (`fragrance.primary_family or "Unknown"`). That fallback and
+    `UNCLASSIFIED_FAMILY` are two different unclassified-ish strings
+    (`"Unknown"` vs. `"Unclassified"`) that a future caller could easily
+    conflate; reconciling them is follow-up work this ADR does not do.
+  - Any future export, reporting, or classification-management UI that
+    groups or displays fragrances by family would need the same review
+    before `UNCLASSIFIED_FAMILY` is wired into an actual write path.
+  This list is provided for scope disclosure only; no code in this ADR
+  changes any of the sites above, and none of them raises, misbehaves, or
+  needs to change today, because no write path yet produces
+  `UNCLASSIFIED_FAMILY` for them to encounter.
 - **No management API for `training_eligibilities` in this pass.** The
   table is seeded once by migration and has no CRUD endpoints; changing a
   fragrance's `training_eligibility_code` today requires a direct write
@@ -236,9 +272,6 @@ All of the above are implemented and passing as of this ADR; see
 
 - [ADR-004](./adr-004-recommendation-algorithm.md): the affinity-scoring
   algorithm this ADR adds a skip-gate to.
-- [ADR-006](./adr-006-version-identity-and-source-provenance.md): the
-  stable-code/display-label/sort_order/active lookup pattern this ADR
-  reuses.
 - [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md): the
   source of both the `training_eligibility` lookup table and the
   `ClassificationSystem`/`FragranceClassification` proposals; this ADR

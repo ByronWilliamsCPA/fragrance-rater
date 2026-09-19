@@ -10,8 +10,11 @@ closes the gap where the first fragrance outside the Michael Edwards Wheel
 taxonomy would otherwise have no way to opt out of affinity scoring.
 
 Follows the stable-code/display-label/sort_order/active lookup pattern
-`core/vocabulary.py` already documents, and the `fragella_lookups` migration
-(`2c341c369192`) as the structural template for a small reference table.
+ADR-010 proposed for it. No existing migration already implements that
+exact shape: `2c341c369192` (`fragella_lookups`) creates a reference-lookup
+attempt log (id/fragrance_id/status/results), not a seeded code/label
+lookup table, so this migration is the first concrete instance of the
+pattern, not a repeat of an established one.
 
 Uses `op.batch_alter_table` for the `fragrances` column/index/FK addition,
 matching `da7c14f4a129`'s own rationale: SQLite (used by this migration's
@@ -29,7 +32,7 @@ down_revision = "da7c14f4a129"
 branch_labels = None
 depends_on = None
 
-_SEED_ROWS = (
+_SEED_ROWS: tuple[dict[str, str | int | bool], ...] = (
     {
         "code": "eligible",
         "display_label": "Eligible for training",
@@ -100,9 +103,20 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop the FK, index, and column, then the lookup table.
 
-    Safely reversible (unlike ADR-010's typed-observation migration): every
-    change here is additive/nullable, so there is no lossy data to preserve
-    on the way back down.
+    Safely reversible in the sense ADR-010's typed-observation migration is
+    not: no backfill or data transformation is needed before this downgrade
+    can run, because every change `upgrade()` made was additive/nullable.
+
+    #ASSUME: data-integrity: this still drops the `training_eligibility_code`
+    column outright, so any fragrance already assigned a non-NULL code
+    (e.g. `excluded_manual`) loses that value for good if this downgrade
+    runs after such an assignment exists; "safely reversible" describes the
+    migration mechanics (no transformation needed), not a guarantee that no
+    assigned data is lost.
+    #VERIFY: before running this downgrade against an environment where the
+    training-eligibility feature has actually been used, confirm no
+    `fragrances` row has a non-NULL `training_eligibility_code`, or capture
+    those codes externally first.
     """
     with op.batch_alter_table("fragrances") as batch_op:
         batch_op.drop_index("ix_fragrances_training_eligibility_code")

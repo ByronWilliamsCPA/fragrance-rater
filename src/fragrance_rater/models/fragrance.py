@@ -26,11 +26,17 @@ class TrainingEligibility(Base):
     """Lookup table for whether a fragrance's evaluations may train affinities.
 
     ADR-014: the stable-code/display-label/sort_order/active lookup pattern
-    ADR-010 already proposed but never built, following the same shape as
-    `FragellaLookup`'s table-creation migration. Seeded by migration data
-    insert only (`eligible`, `excluded_pending_classification`,
-    `excluded_manual`); no management API is added for this table in this
-    pass, matching the fragella_lookups precedent.
+    ADR-010 already proposed but never built. No existing table already
+    implements that exact shape: `FragellaLookup`/`fragella_lookups` is a
+    reference-lookup attempt log (id, fragrance_id, status, results), not a
+    seeded code/display_label/sort_order/active lookup, so this table is the
+    first concrete instance of the pattern ADR-010 described, not a repeat
+    of an existing one. Seeded by migration data insert only (`eligible`,
+    `excluded_pending_classification`, `excluded_manual`); no management API
+    is added for this table in this pass, matching `fragella_lookups`' own
+    lack of a dedicated CRUD API (though that table is written by
+    `FragellaLookupService`, not migration seed data, for an unrelated
+    reason: it holds a growing operational log, not a fixed vocabulary).
 
     Attributes:
         code (Mapped[str]): Stable machine-readable code; primary key.
@@ -153,6 +159,17 @@ class Fragrance(Base):
     # affinity accumulation. No relationship object is declared here (the
     # service layer only needs the code string, not the full
     # TrainingEligibility row), keeping this addition minimal.
+    # #ASSUME: data-integrity: "NULL means eligible" is defined only here
+    # and in ADR-014, not enforced by any CHECK/default at the schema
+    # level; a future migration that adds a real default (e.g. explicitly
+    # writing "eligible") would need to keep this NULL-means-eligible
+    # reading consistent, or update every reader (RecommendationService,
+    # this column's own comment, ADR-014) in the same change.
+    # #VERIFY: any new code path reading this column treats NULL the same
+    # as an explicit "eligible" row rather than as a third, unhandled
+    # state; see RecommendationService.build_preference_profile's check
+    # against TRAINING_INELIGIBLE_CODES (NULL is never a member of that
+    # frozenset, so it always falls through to "eligible" by construction).
     training_eligibility_code: Mapped[str | None] = mapped_column(
         String(50),
         ForeignKey("training_eligibilities.code", ondelete="RESTRICT"),
