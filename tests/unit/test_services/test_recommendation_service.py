@@ -662,7 +662,11 @@ class TestRecommendationServiceIntegration:
         because it has no real Michael Edwards Wheel classification yet)
         must not contribute its notes/accords/family to the reviewer's
         affinity profile, even though its evaluation is otherwise live.
-        The NULL (eligible) fragrance's evaluation must still count.
+        The eligible fragrance's evaluation must still count, and it uses
+        the explicit "eligible" code rather than NULL as a regression
+        tripwire: a future refactor of the skip-gate to `if code is not
+        None` (instead of `not in TRAINING_INELIGIBLE_CODES`) would pass
+        every other test in this file but silently exclude this one.
         """
         reviewer = Reviewer(id="reviewer-ineligible", name="Ineligible Test User")
         async_session.add(reviewer)
@@ -680,7 +684,7 @@ class TestRecommendationServiceIntegration:
             primary_family="citrus",
             subfamily="fresh",
             data_source="manual",
-            training_eligibility_code=None,
+            training_eligibility_code="eligible",
         )
         ineligible_fragrance = Fragrance(
             id="frag-ineligible",
