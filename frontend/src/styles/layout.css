@@ -103,7 +103,7 @@
 
 /* ---- Main and colophon ------------------------------------------------ */
 
-main:focus {
+main:focus:not(:focus-visible) {
   outline: none;
 }
 
