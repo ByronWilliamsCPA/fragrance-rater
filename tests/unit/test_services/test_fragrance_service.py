@@ -54,6 +54,45 @@ class TestFragranceService:
         assert fragrance.launch_year == 2020
         assert fragrance.gender_target == "Masculine"
 
+    async def test_create_fragrance_with_training_eligibility_code(self, async_session):
+        """ADR-014: an explicit training_eligibility_code on creation must
+        reach the persisted Fragrance row, the same way `intensity` does.
+        """
+        service = FragranceService(async_session)
+        data = FragranceCreate(
+            name="Unclassified Scent",
+            brand="Test Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+            training_eligibility_code="excluded_pending_classification",
+        )
+        fragrance = await service.create(data)
+        await async_session.commit()
+
+        assert fragrance.training_eligibility_code == "excluded_pending_classification"
+
+    async def test_create_fragrance_training_eligibility_code_defaults_to_none(
+        self, async_session
+    ):
+        """Omitting training_eligibility_code on creation leaves it NULL
+        ("eligible"), matching every existing fragrance's implicit state.
+        """
+        service = FragranceService(async_session)
+        data = FragranceCreate(
+            name="Default Eligibility Scent",
+            brand="Test Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="aromatic",
+        )
+        fragrance = await service.create(data)
+        await async_session.commit()
+
+        assert fragrance.training_eligibility_code is None
+
     async def test_create_fragrance_with_notes(self, async_session):
         """Test creating a fragrance with notes."""
         service = FragranceService(async_session)

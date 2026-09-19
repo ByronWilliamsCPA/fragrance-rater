@@ -123,6 +123,7 @@ class FragranceService:
             primary_family=data.primary_family,
             subfamily=data.subfamily,
             intensity=data.intensity,
+            training_eligibility_code=data.training_eligibility_code,
             data_source="manual",
         )
         self.session.add(fragrance)

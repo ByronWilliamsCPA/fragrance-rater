@@ -74,6 +74,7 @@ class FragranceCreate(BaseModel):
     primary_family: str = Field(..., min_length=1, max_length=50)
     subfamily: str = Field(..., min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
+    training_eligibility_code: str | None = Field(None, max_length=50)
     notes: list[FragranceNoteCreate] = Field(default_factory=list)
     accords: list[FragranceAccordCreate] = Field(default_factory=list)
 
@@ -100,6 +101,7 @@ class FragranceUpdate(BaseModel):
     primary_family: str | None = Field(None, min_length=1, max_length=50)
     subfamily: str | None = Field(None, min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
+    training_eligibility_code: str | None = Field(None, max_length=50)
 
     # #CRITICAL: data-integrity: `name`, `brand`, `concentration`,
     # `gender_target`, `primary_family`, and `subfamily` all back NOT NULL
@@ -168,6 +170,7 @@ class FragranceResponse(BaseModel):
     primary_family: str
     subfamily: str
     intensity: str | None
+    training_eligibility_code: str | None
     data_source: str
     external_id: str | None
     created_at: datetime
