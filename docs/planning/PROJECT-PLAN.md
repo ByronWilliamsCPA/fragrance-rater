@@ -340,11 +340,12 @@ learning-problem amendment (Q1), and the protocol research prompt (Q8).
 ### Model selection for sprints
 
 Each sprint names the model that leads it, following the Model Selection table in `CLAUDE.md`.
-The rule: Haiku for mechanical or read-only work, Sonnet for well-specified implementation, Opus
-where a mistake is expensive to reverse (schema, security boundary, cross-cutting refactors, or
-design that later agents build on), and Fable only for the one design spike where the reasoning
-itself is the deliverable. A sprint's review model is one tier above its lead where the lead is
-Sonnet or Haiku. Every sprint reads its cited findings before starting and updates this plan,
+The rule: Haiku only for read-only retrieval (file scanning, structure mapping, lookups) and
+never for editing files or preparing deliverables; Sonnet for well-specified implementation,
+including documentation; Opus where a mistake is expensive to reverse (schema, security boundary,
+cross-cutting refactors, or design that later agents build on); and Fable only for the one design
+spike where the reasoning itself is the deliverable. A sprint's review model is one tier above its
+lead where the lead is Sonnet. Every sprint reads its cited findings before starting and updates this plan,
 the review's implementation-status section, and the relevant ADR in the same pull request.
 
 ### Sprints
@@ -364,7 +365,7 @@ the review's implementation-status section, and the relevant ADR in the same pul
 | R11 | Typed calibration contract and generated client | Pydantic response models with `response_model=` on all calibration routes; provenance fields (`algorithm_version`, `candidate_strategy`, `score_type`, `score_value`, `recorded_by`), `fragrance_name` and `fragrance_brand` on `EvaluationResponse`, RFC 3339 offsets on timestamps; client generated from `docs/api/openapi.json` and committed; a CI diff between the committed spec and a fresh export (F-03, F-04, F-05, B-13, F-20, Appendix A) | none | Sonnet | Opus | 2 PRs |
 | R12 | Frontend decomposition and state | Split `ProgramSetupPage`; hoist `RecommendationCard`; typed route params with a not-found route; keyed data store with invalidation after mutations; 401 interceptor; per-action task state; error boundary; design tokens with dark mode; type-aware ESLint with `jsx-a11y`; server-side progress summary for Home (F-06 to F-09, F-12, F-16 to F-21, F-23 to F-26) | none | Sonnet | Opus | 3 PRs |
 | R13 | End-to-end and accessibility harness | Playwright with a compose-backed fixture and a forward-auth stub covering the five P4 journeys and the P5 manager journey with interruption and retry; MSW in Vitest; `vitest-axe` on every route; a 360 px assertion; P4 and P5 gate records re-closed or amended per architecture review Q13 (G-01, F-10, F-11, F-13) | P6 (per Q13) | Sonnet | Opus | 2 PRs |
-| R14 | Operations, observability, and documentation | Secrets plumbed from the prod override; topology validator extended; digest-pinned base images and cosign; runtime hardening; `.env.example` and build-arg fixes; scheduled backup with a restore check and `pre_migration_inventory.py` and `verify_restore.py`; documentation consolidation (delete `CONFIG_TEMPLATES_SUMMARY.md`, archive `concept.md`, merge ADR directories, rewrite README, regenerate the CLAUDE.md structure section, supersede `SECURITY-FINDINGS.md`, update the gap analysis to v1.1) (S-04, S-08, S-12, S-13, S-16, S-20, S-27, S-28, D-18, G-04, G-05, G-08, G-10, G-12, D-14) | P6 for secrets, validator, and backups; none for docs | Sonnet for operations; Haiku for documentation | Opus | 3 PRs |
+| R14 | Operations, observability, and documentation | Secrets plumbed from the prod override; topology validator extended; digest-pinned base images and cosign; runtime hardening; `.env.example` and build-arg fixes; scheduled backup with a restore check and `pre_migration_inventory.py` and `verify_restore.py`; documentation consolidation (delete `CONFIG_TEMPLATES_SUMMARY.md`, archive `concept.md`, merge ADR directories, rewrite README, regenerate the CLAUDE.md structure section, supersede `SECURITY-FINDINGS.md`, update the gap analysis to v1.1) (S-04, S-08, S-12, S-13, S-16, S-20, S-27, S-28, D-18, G-04, G-05, G-08, G-10, G-12, D-14) | P6 for secrets, validator, and backups; none for docs | Sonnet (Haiku may be used only for read-only discovery of stale references) | Opus | 3 PRs |
 | R15 | First learned model and comparison | Design spike: a written model spec for a partially pooled linear or ordinal model on the R6 reduced basis with a population prior, the evaluation plan against the repeat ceiling, and the decision rule instance; then `ml` optional dependency group (`numpy`, `scipy`, `scikit-learn`), the model registered beside `affinity-v2`, `predict_and_freeze` on the same holdouts, and a scorecard report; no tuning on holdouts (ML Decisions Q7; review Tier 4 items 17 and 18) | D5 entry; may start after R6 and R8 | Fable for the design spike (one session); Opus implements | Sonnet tests | 1 doc + 2 PRs |
 
 ### Sequencing

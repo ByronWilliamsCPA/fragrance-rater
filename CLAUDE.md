@@ -54,8 +54,9 @@ Use the right model for the task to balance quality and cost:
 | Standard development work | Sonnet 4.6 (default) | Most coding, editing, PR descriptions |
 | Read-only exploration | Haiku 4.5 | File scanning, structure mapping, quick lookups |
 
-In subagent configuration, set `model: haiku` for the built-in `Explore` subagent
-(read-only codebase discovery). The built-in `Plan` subagent inherits the caller's
+Haiku is limited to read-only retrieval: file scanning, structure mapping, and lookups. It never
+edits files or prepares deliverables, including documentation. In subagent configuration, set
+`model: haiku` for the built-in `Explore` subagent (read-only codebase discovery). The built-in `Plan` subagent inherits the caller's
 model automatically; do not set it explicitly. Agents that write code or produce
 deliverables default to `sonnet` unless the task requires deep reasoning, in
 which case specify `model: opus` in the agent prompt.
