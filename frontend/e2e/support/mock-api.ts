@@ -3,6 +3,7 @@ import type {
   EnrollmentApiV1CalibrationEnrollmentsEnrollmentIdGetResponse,
   RunView,
 } from '../../src/client/types.gen'
+import type { Access, Assignment, Enrollment, Person, Program } from '../../src/api/types'
 
 export interface MockRoutes {
   [path: string]: unknown | ((route: Route) => Promise<void> | void)
@@ -31,9 +32,9 @@ export async function mockApi(page: Page, routes: MockRoutes): Promise<void> {
   })
 }
 
-export const reviewers = [{ id: 'r1', name: 'Evaluator One' }]
-export const participantAccess = { username: 'family-member', manager: false }
-export const managerAccess = { username: 'manager', manager: true }
+export const reviewers = [{ id: 'r1', name: 'Evaluator One' }] satisfies Person[]
+export const participantAccess = { username: 'family-member', manager: false } satisfies Access
+export const managerAccess = { username: 'manager', manager: true } satisfies Access
 
 /**
  * useAppData fetches these four endpoints on mount for EVERY route. Any
@@ -43,8 +44,12 @@ export function bootstrapRoutes(access: typeof participantAccess | typeof manage
   return {
     '/reviewers': reviewers,
     '/calibration/access': access,
-    '/calibration/programs': [{ id: 'p1', name: 'Baseline', version: '1' }],
-    '/calibration/enrollments': [{ id: 'enr1', program_id: 'p1', reviewer_id: 'r1' }],
+    '/calibration/programs': [
+      { id: 'p1', name: 'Baseline', version: '1' },
+    ] satisfies Pick<Program, 'id' | 'name' | 'version'>[],
+    '/calibration/enrollments': [
+      { id: 'enr1', program_id: 'p1', reviewer_id: 'r1' },
+    ] satisfies Assignment[],
   }
 }
 
@@ -52,12 +57,23 @@ export const fragranceCatalog = [
   { id: 'f1', brand: 'House', name: 'Signature', concentration: 'EDP', version_key: '1' },
 ]
 
+// The generated client type is `dict[str, object]` with only an index signature
+// (src/fragrance_rater/api/calibration.py::enrollment has no response_model), so it
+// cannot enforce field shape on its own. Intersecting it with the hand-written
+// `Enrollment` type (frontend/src/api/types.ts, which mirrors what CalibrationPage.tsx
+// actually reads) gives this fixture a real, field-level contract while still
+// confirming the generated operation type still exists.
+type EnrollmentFixture = Enrollment & EnrollmentApiV1CalibrationEnrollmentsEnrollmentIdGetResponse
+
 export function enrollmentFixture(revealed: boolean) {
   return {
     id: 'enr1',
+    program_id: 'p1',
+    reviewer_id: 'r1',
     revealed,
     reveal_eligible: true,
     reveal_blocker: null,
+    skin_plan_locked: false,
     presentations: [
       {
         id: 'samp1',
@@ -67,17 +83,21 @@ export function enrollmentFixture(revealed: boolean) {
         blotter_locked: revealed,
         skin_locked: false,
         skin_planned: false,
-        identity: revealed ? { brand: 'House', name: 'Signature', concentration: 'EDP' } : null,
+        identity: revealed
+          ? { fragrance_id: 'f1', brand: 'House', name: 'Signature', concentration: 'EDP' }
+          : undefined,
         observations: [],
       },
     ],
-    // #ASSUME: data-integrity: GET /calibration/enrollments/{id} returns `dict[str, object]`
-    // (src/fragrance_rater/api/calibration.py::enrollment), so the generated client has no
-    // structured response type here, only an index signature. `satisfies` below cannot catch
-    // field-level drift for this fixture; it only guards the import path/operation still exists.
-    // #VERIFY: if the backend ever gains a typed response_model for this endpoint, switch this
-    // `satisfies` target to the new named type so field-level checks start applying.
-  } satisfies EnrollmentApiV1CalibrationEnrollmentsEnrollmentIdGetResponse
+    // #ASSUME: data-integrity: `Enrollment` (frontend/src/api/types.ts) is hand-written
+    // against what the frontend reads, not generated from the backend's untyped
+    // `dict[str, object]` response, so it can still drift from the real payload if the
+    // backend response-assembly function (participant_view in
+    // src/fragrance_rater/services/calibration_service.py) changes independently.
+    // #VERIFY: if the backend ever gains a typed response_model for this endpoint, add
+    // that generated type to the `EnrollmentFixture` intersection above so both the
+    // hand-written and backend-derived contracts are checked together.
+  } satisfies EnrollmentFixture
 }
 
 export function recommendationRunFixture(interested = false) {
