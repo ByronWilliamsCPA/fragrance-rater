@@ -960,6 +960,334 @@ describe('Calibration participant workflow', () => {
     expect(window.location.pathname).toBe('/programs')
   })
 
+  const metricsFixture = {
+    reviewer_id: 'r',
+    window_start: '2026-08-01T00:00:00Z',
+    window_end: '2026-09-15T23:59:59Z',
+    reviewer_population: ['r'],
+    exclusion_policy: ['duplicate_impression'],
+    excluded_impressions: 2,
+    algorithm_versions: ['affinity-v3'],
+    candidate_strategies: ['similar'],
+    run_filters: [{ min_score: 0.5 }],
+    source_snapshots: [{ id: 'snap-1' }],
+    eligible_impressions: 10,
+    explicit_interest_responses: 6,
+    positive_interest_responses: 4,
+    response_coverage: 0.6,
+    interest_rate: 0.4,
+    sampled_recommendations: 3,
+    sampling_conversion: 0.5,
+    linked_outcomes: 2,
+    connectivity_failures: 0,
+    manual_recoveries: 1,
+  }
+
+  it('enrolls an evaluator with parsed recorder usernames and a numeric session size', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Family pilot', version: '1', status: 'active' }],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/programs/p/members': [],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
+
+    const enrollmentSection = screen.getByRole('heading', { name: '2. Enrollment' }).closest('div')!
+    const enrollButton = within(enrollmentSection).getByRole('button', { name: 'Enroll evaluator' })
+    // Selecting the program kicks off its own task.run() to load members;
+    // the enroll button stays disabled (shared task.busy state) until that
+    // settles, and it also requires an active program to be selected.
+    await waitFor(() => expect(enrollButton).toBeEnabled())
+
+    fireEvent.change(within(enrollmentSection).getByLabelText('Evaluator'), {
+      target: { value: 'r' },
+    })
+    fireEvent.change(within(enrollmentSection).getByLabelText('Authorized recorder usernames'), {
+      target: { value: ' alice , bob ,, ' },
+    })
+    fireEvent.change(within(enrollmentSection).getByLabelText('Samples per session'), {
+      target: { value: '5' },
+    })
+    fireEvent.click(enrollButton)
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/calibration/programs/p/enroll', {
+        reviewer_id: 'r',
+        recorder_usernames: ['alice', 'bob'],
+        session_size: 5,
+      })
+    )
+    expect(
+      await screen.findByText('Evaluator enrolled; sessions and blind codes are ready.')
+    ).toBeInTheDocument()
+    expect(within(enrollmentSection).getByLabelText('Authorized recorder usernames')).toHaveValue('')
+  })
+
+  it('reveals identities for an enrollment that has cleared all prerequisites', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Family pilot', version: '1', status: 'active' }],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/manager/enrollments': [
+          {
+            id: 'enrollment-1',
+            program_name: 'Family pilot',
+            program_version: '1',
+            reviewer_name: 'Evaluator',
+            recorder_usernames: ['recorder'],
+            total_presentations: 2,
+            blotter_complete: 2,
+            skin_planned: 0,
+            skin_complete: 0,
+            reveal_eligible: true,
+            reveal_blocker: null,
+            revealed: false,
+          },
+        ],
+        '/recommendation-measurement/operational-events': [],
+        '/recommendation-measurement/operational-status': {
+          status: 'available',
+          unresolved_reviewer_ids: [],
+          guidance: 'No unresolved pilot connectivity incidents.',
+        },
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh operations' }))
+    await screen.findByText('Ready to reveal')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reveal identities' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm reveal' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/calibration/enrollments/enrollment-1/reveal')
+    )
+    await waitFor(() =>
+      expect(
+        get.mock.calls.filter(([path]) => path === '/calibration/manager/enrollments')
+      ).toHaveLength(2)
+    )
+    expect(
+      await screen.findByText('Identities revealed after all prerequisites passed.')
+    ).toBeInTheDocument()
+  })
+
+  it('disables the reveal action while a reveal-blocking prerequisite remains', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Family pilot', version: '1', status: 'active' }],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/manager/enrollments': [
+          {
+            id: 'enrollment-1',
+            program_name: 'Family pilot',
+            program_version: '1',
+            reviewer_name: 'Evaluator',
+            recorder_usernames: ['recorder'],
+            total_presentations: 2,
+            blotter_complete: 1,
+            skin_planned: 0,
+            skin_complete: 0,
+            reveal_eligible: false,
+            reveal_blocker: 'BLOTTER',
+            revealed: false,
+          },
+        ],
+        '/recommendation-measurement/operational-events': [],
+        '/recommendation-measurement/operational-status': {
+          status: 'available',
+          unresolved_reviewer_ids: [],
+          guidance: 'No unresolved pilot connectivity incidents.',
+        },
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh operations' }))
+
+    expect(await screen.findByText('Blotter responses remain')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reveal identities' })).toBeDisabled()
+  })
+
+  it('calculates metrics for the selected evaluator and window', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/recommendation-measurement/reviewers/r/metrics': metricsFixture,
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    const metricsSection = screen
+      .getByRole('heading', { name: '4. Recommendation metrics' })
+      .closest('div')!
+    fireEvent.change(within(metricsSection).getByLabelText('Evaluator'), {
+      target: { value: 'r' },
+    })
+    fireEvent.change(within(metricsSection).getByLabelText('Window start'), {
+      target: { value: '2026-08-01' },
+    })
+    fireEvent.change(within(metricsSection).getByLabelText('Window end'), {
+      target: { value: '2026-09-15' },
+    })
+    fireEvent.click(within(metricsSection).getByRole('button', { name: 'Calculate metrics' }))
+
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/recommendation-measurement/reviewers/r/metrics', {
+        params: { window_start: '2026-08-01T00:00:00Z', window_end: '2026-09-15T23:59:59Z' },
+      })
+    )
+    expect(await within(metricsSection).findByText('10')).toBeInTheDocument()
+    expect(within(metricsSection).getByText('Download evidence JSON')).toBeInTheDocument()
+  })
+
+  it('downloads the loaded metrics as a timestamped JSON file', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/recommendation-measurement/reviewers/r/metrics': metricsFixture,
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    const metricsSection = screen
+      .getByRole('heading', { name: '4. Recommendation metrics' })
+      .closest('div')!
+    fireEvent.change(within(metricsSection).getByLabelText('Evaluator'), {
+      target: { value: 'r' },
+    })
+    fireEvent.click(within(metricsSection).getByRole('button', { name: 'Calculate metrics' }))
+    await within(metricsSection).findByRole('button', { name: 'Download evidence JSON' })
+
+    // jsdom does not implement URL.createObjectURL/revokeObjectURL, so they
+    // are stubbed here to let downloadMetrics's Blob-based download flow run.
+    const createObjectURL = vi.fn(() => 'blob:mock-metrics')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: createObjectURL,
+      writable: true,
+      configurable: true,
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      value: revokeObjectURL,
+      writable: true,
+      configurable: true,
+    })
+    let downloadName = ''
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadName = this.download
+      })
+
+    // The revoke call is scheduled on a real 1s timer inside downloadMetrics;
+    // fake timers let the test advance past it deterministically.
+    vi.useFakeTimers()
+    fireEvent.click(within(metricsSection).getByRole('button', { name: 'Download evidence JSON' }))
+    expect(createObjectURL).toHaveBeenCalledWith(expect.any(Blob))
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+    expect(downloadName).toBe('pilot-metrics-2026-09-15.json')
+    expect(revokeObjectURL).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1000)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock-metrics')
+    vi.useRealTimers()
+  })
+
+  it('records an operational event and reloads the events list', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+        '/calibration/manager/enrollments': [],
+        '/recommendation-measurement/operational-events': [
+          {
+            id: 'event-1',
+            reviewer_id: 'r',
+            event_type: 'MANUAL_RECOVERY',
+            details: 'Router rebooted after outage',
+            occurred_at: '2026-09-15T10:00:00Z',
+            recorded_by: 'manager-user',
+          },
+        ],
+        '/recommendation-measurement/operational-status': {
+          status: 'available',
+          unresolved_reviewer_ids: [],
+          guidance: 'No unresolved pilot connectivity incidents.',
+        },
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    const eventsSection = screen
+      .getByRole('heading', { name: '5. Operational events' })
+      .closest('div')!
+    fireEvent.change(within(eventsSection).getByLabelText('Evaluator'), { target: { value: 'r' } })
+    fireEvent.change(within(eventsSection).getByLabelText('Event'), {
+      target: { value: 'MANUAL_RECOVERY' },
+    })
+    fireEvent.change(within(eventsSection).getByLabelText('Details'), {
+      target: { value: 'Router rebooted after outage' },
+    })
+    fireEvent.click(within(eventsSection).getByRole('button', { name: 'Record event' }))
+
+    await waitFor(() =>
+      expect(post).toHaveBeenCalledWith('/recommendation-measurement/operational-events', {
+        reviewer_id: 'r',
+        event_type: 'MANUAL_RECOVERY',
+        details: 'Router rebooted after outage',
+      })
+    )
+    await waitFor(() =>
+      expect(get).toHaveBeenCalledWith('/recommendation-measurement/operational-events')
+    )
+    expect(within(eventsSection).getByLabelText('Details')).toHaveValue('')
+    const recordedEvent = await within(eventsSection).findByRole('listitem')
+    expect(within(recordedEvent).getByText(/MANUAL RECOVERY/)).toBeInTheDocument()
+    expect(within(recordedEvent).getByText(/Router rebooted after outage/)).toBeInTheDocument()
+  })
+
   it('keeps a saved recommendation set when creating a replacement fails', async () => {
     window.history.replaceState({}, '', '/recommendations?recommendation_run=run-1')
     get.mockImplementation((path: string) => {
