@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, TypedDict
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.core.vocabulary import TRAINING_INELIGIBLE_CODES
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -214,7 +215,15 @@ class RecommendationService:
         contributions = await self._contributions(
             reviewer_id, evaluations, history, excluded
         )
+        eligible_count = 0
         for fragrance, weights in contributions.values():
+            # ADR-014: a fragrance flagged as not yet eligible to train
+            # affinities (e.g. no real Michael Edwards Wheel classification
+            # yet) must not contribute its notes/accords/family here. NULL
+            # (every fragrance as of this ADR) means "eligible".
+            if fragrance.training_eligibility_code in TRAINING_INELIGIBLE_CODES:
+                continue
+            eligible_count += 1
             weight = sum(weights) / len(weights)
 
             # Accumulate note affinities
@@ -252,7 +261,7 @@ class RecommendationService:
             note_affinities=dict(note_affinities),
             accord_affinities=dict(accord_affinities),
             family_affinities=dict(family_affinities),
-            evaluation_count=len(contributions),
+            evaluation_count=eligible_count,
             top_liked_notes=top_liked,
             top_disliked_notes=list(reversed(top_disliked)),
         )

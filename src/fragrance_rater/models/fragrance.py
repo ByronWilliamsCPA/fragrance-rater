@@ -22,6 +22,31 @@ if TYPE_CHECKING:
     from fragrance_rater.models.evaluation import Evaluation
 
 
+class TrainingEligibility(Base):
+    """Lookup table for whether a fragrance's evaluations may train affinities.
+
+    ADR-014: the stable-code/display-label/sort_order/active lookup pattern
+    ADR-010 already proposed but never built, following the same shape as
+    `FragellaLookup`'s table-creation migration. Seeded by migration data
+    insert only (`eligible`, `excluded_pending_classification`,
+    `excluded_manual`); no management API is added for this table in this
+    pass, matching the fragella_lookups precedent.
+
+    Attributes:
+        code (Mapped[str]): Stable machine-readable code; primary key.
+        display_label (Mapped[str]): Human-readable label for display.
+        sort_order (Mapped[int]): Display ordering among active rows.
+        active (Mapped[bool]): Whether this code may still be assigned.
+    """
+
+    __tablename__ = "training_eligibilities"
+
+    code: Mapped[str] = mapped_column(String(50), primary_key=True)
+    display_label: Mapped[str] = mapped_column(String(100))
+    sort_order: Mapped[int] = mapped_column()
+    active: Mapped[bool] = mapped_column(default=True, server_default=text("true"))
+
+
 class Fragrance(Base):
     """Fragrance entity with classification data.
 
@@ -44,6 +69,11 @@ class Fragrance(Base):
         updated_at (Mapped[datetime]): Last update timestamp.
         deleted_at (Mapped[datetime | None]): Soft-delete timestamp; NULL
             means active. Set by DELETE routes instead of removing the row.
+        training_eligibility_code (Mapped[str | None]): FK to
+            ``training_eligibilities.code``. NULL (every row as of ADR-014)
+            means "eligible"; see ADR-014 and `core/vocabulary.py`'s
+            `TRAINING_INELIGIBLE_CODES` for the codes that exclude a
+            fragrance from affinity scoring.
         notes (Mapped[list[FragranceNote]]): Note associations with pyramid
             position.
         accords (Mapped[list[FragranceAccord]]): Accord associations with
@@ -115,6 +145,19 @@ class Fragrance(Base):
     # live rows only.
     deleted_at: Mapped[datetime | None] = mapped_column(
         nullable=True, default=None, index=True
+    )
+
+    # ADR-014: nullable, no default, no backfill. NULL means "eligible" for
+    # every existing row; only a future write path that explicitly assigns
+    # an excluded code opts a fragrance out of RecommendationService's
+    # affinity accumulation. No relationship object is declared here (the
+    # service layer only needs the code string, not the full
+    # TrainingEligibility row), keeping this addition minimal.
+    training_eligibility_code: Mapped[str | None] = mapped_column(
+        String(50),
+        ForeignKey("training_eligibilities.code", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
     )
 
     # Relationships
