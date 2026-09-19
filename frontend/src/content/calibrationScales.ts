@@ -44,6 +44,12 @@ function scale(
   highAnchor: string,
   hint?: string
 ): ScaleDefinition {
+  if (max <= 0) {
+    throw new Error(`scale("${name}"): max must be positive, got ${max}`)
+  }
+  if (lowAnchor === highAnchor) {
+    throw new Error(`scale("${name}"): lowAnchor and highAnchor must differ`)
+  }
   return { name, label, max, lowAnchor, highAnchor, hint }
 }
 
