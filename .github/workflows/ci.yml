@@ -45,14 +45,48 @@ jobs:
       # `editable+.`. Override to false so uv can build the package.
       no-build: false
 
+  frontend:
+    name: Frontend CI
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npm run typecheck
+      - name: Unit tests with coverage
+        run: npm run test:coverage
+      - name: Build
+        run: npm run build
+
   # Top-level gate that emits the bare "CI Gate" check name the org
   # ruleset requires. The reusable workflow's internal "CI Gate" job
   # surfaces as "CI Pipeline / CI Gate" because of the caller-job
   # prefix; this aggregate job re-publishes the same pass/fail signal
-  # under the canonical name the ruleset matches on.
+  # under the canonical name the ruleset matches on. Also gates on the
+  # frontend job so a frontend lint/typecheck/test/build failure blocks
+  # the same required check, not just the Python pipeline.
   ci-gate:
     name: CI Gate
-    needs: ci
+    needs: [ci, frontend]
     runs-on: ubuntu-latest
     if: always()
     permissions:
@@ -65,9 +99,10 @@ jobs:
       - name: Aggregate CI result
         env:
           CI_RESULT: ${{ needs.ci.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
         run: |
-          if [ "$CI_RESULT" != "success" ]; then
-            echo "::error::CI reusable workflow did not succeed: $CI_RESULT"
+          if [ "$CI_RESULT" != "success" ] || [ "$FRONTEND_RESULT" != "success" ]; then
+            echo "::error::CI did not succeed (backend=$CI_RESULT, frontend=$FRONTEND_RESULT)"
             exit 1
           fi
           echo "CI Gate: all upstream checks succeeded."
