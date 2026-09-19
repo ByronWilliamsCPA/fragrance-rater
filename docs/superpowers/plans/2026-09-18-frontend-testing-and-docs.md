@@ -330,6 +330,111 @@ git commit -S -m "test(frontend): pin e2e fixtures to the generated API client t
 
 ---
 
+### Finding from execution: Task 3's Step 3 verification command does not verify anything
+
+Task 3's implementer discovered, and the controller independently confirmed, that `frontend/tsconfig.json` is a solution-style config (`files: []` plus `references`). `npx tsc --noEmit -p .` silently exits 0 regardless of real type errors anywhere in the project; this is a pre-existing repo bug, not something this plan introduced, and it also means Tasks 1 and 2's own "verify it compiles" steps never checked anything either (independently confirmed harmless in both cases: neither introduced a real type error). Additionally, neither `tsconfig.app.json` nor `tsconfig.node.json` includes `e2e/`, so nothing in the existing build (`tsc -b && vite build`) or any task in this plan's original CI design (Tasks 11-13) would ever type-check `frontend/e2e/*.ts`, meaning the `satisfies` guardrail Task 3 just added would have zero automatic enforcement. Separately, `frontend/src/client/` is gitignored and only produced by `npm run generate-client` against a live backend, and that script's pinned `--client axios` flag was independently verified to silently generate zero files with `@hey-api/openapi-ts@0.99.0` (confirmed against both the real backend schema and a minimal synthetic spec); the working invocation for this pinned version is `-p @hey-api/typescript` (types only; the app's runtime code does not import the generated client, confirmed by a clean `npm run build` with `src/client/` entirely removed).
+
+Presented to the human partner as a batched question mid-execution (a real cross-task conflict discovered by implementation, not a pre-flight scan item); decision: wire the guardrail into CI for real rather than documenting it as a permanent known gap. Task 3b below is the fix, dispatched immediately after Task 3 and before Task 4.
+
+## Task 3b: Make the fixture-contract guardrail CI-enforced
+
+**depends-on: Task3 [output]**
+
+**Files:**
+- Create: `frontend/tsconfig.e2e.json`
+- Modify: `frontend/tsconfig.json` (add the new project reference)
+- Modify: `frontend/package.json` (fix the broken `generate-client` script; fix the repo-wide no-op `typecheck` script)
+- Modify: `frontend/.gitignore` (remove `src/client/` so the generated types snapshot can be committed)
+- Create/commit: `frontend/src/client/types.gen.ts` (the file already sitting on disk from Task 3's investigation, generated against the real backend schema with the corrected `-p @hey-api/typescript` invocation)
+
+- [ ] **Step 1: Create a dedicated e2e project config**
+
+Create `frontend/tsconfig.e2e.json`:
+```json
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["e2e"]
+}
+```
+
+- [ ] **Step 2: Wire it into the solution-style root config**
+
+Modify `frontend/tsconfig.json`, adding a third reference:
+```json
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.e2e.json" }
+  ]
+}
+```
+
+- [ ] **Step 3: Fix the repo's broken standalone typecheck script**
+
+Modify `frontend/package.json`'s `scripts` block: change
+```json
+"typecheck": "tsc --noEmit"
+```
+to
+```json
+"typecheck": "tsc -b"
+```
+`-b` (build mode) is what actually respects `references` and checks every project; the existing `"build": "tsc -b && vite build"` script already uses build mode correctly, this just brings the standalone `typecheck` script in line with it. This also means `npm run build`'s existing `tsc -b` step will now type-check `e2e/*.ts` as a side effect of every build, and every task from here on that says "run `cd frontend && npx tsc --noEmit -p .` to verify it compiles" should instead run `cd frontend && npx tsc -b` (or `npm run typecheck`) to get a real answer.
+
+- [ ] **Step 4: Fix the broken generate-client script**
+
+Modify `frontend/package.json`'s `scripts` block: change
+```json
+"generate-client": "openapi-ts --input http://localhost:8000/openapi.json --output ./src/client --client axios"
+```
+to
+```json
+"generate-client": "openapi-ts --input http://localhost:8000/openapi.json --output ./src/client -p @hey-api/typescript"
+```
+`--client axios` was independently verified to silently produce zero output files against `@hey-api/openapi-ts@0.99.0` (confirmed against both the real backend schema and a minimal synthetic spec). `-p @hey-api/typescript` (types only) matches what this project actually needs: the app's runtime code does not import the generated client anywhere (confirmed: `npm run build` succeeds with `src/client/` entirely removed), only `frontend/e2e/support/mock-api.ts`'s `satisfies` checks do, and those are type-only imports.
+
+- [ ] **Step 5: Commit the generated types as a checked-in snapshot instead of gitignoring them**
+
+Modify `frontend/.gitignore`: remove the `src/client/` line.
+
+The file `frontend/src/client/types.gen.ts` already exists on disk (generated during Task 3's investigation against the live backend schema with the corrected command from Step 4). Committing it, rather than requiring a live backend in CI, is the deliberate tradeoff chosen here: this app's OpenAPI schema changes rarely enough that manual regeneration (`npm run generate-client`, then commit the diff) when the backend changes is acceptable, and it avoids standing up a database-backed backend just to typecheck the frontend in CI.
+
+- [ ] **Step 6: Verify the wiring is real, not cosmetic**
+
+Run: `cd frontend && rm -rf node_modules/.tmp && npx tsc -b`
+Expected: PASS (clean exit 0) on the real, correct fixtures.
+
+Then inject a synthetic error to prove the check actually fires: temporarily add an unknown field (e.g. `bogus_field: true`) to `enrollmentFixture()`'s return object in `frontend/e2e/support/mock-api.ts`, run `cd frontend && npx tsc -b` again, and confirm it now fails with a real type error referencing the fixture. Revert the temporary edit (confirm `git diff frontend/e2e/support/mock-api.ts` is empty afterward) before continuing.
+
+Run `cd frontend && npm run build` once more from a clean `node_modules/.tmp` to confirm the full build still succeeds end to end with the new reference wired in.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add frontend/tsconfig.e2e.json frontend/tsconfig.json frontend/package.json frontend/.gitignore frontend/src/client/types.gen.ts
+git commit -S -m "fix(frontend): wire e2e/ into the TypeScript project graph and fix the broken typecheck/generate-client scripts"
+```
+
+---
+
 ## Task 4: Lint-time accessibility rules
 
 **Files:**
