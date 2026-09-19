@@ -131,6 +131,34 @@ the generic project-plan template in project navigation by default.
 
 - `{{cookiecutter.project_slug}}/.gitignore`
 
+### FIPS compatibility checker reports false positives and cannot fail the workflow
+
+- **Priority**: Medium
+- **Category**: Tooling
+- **Discovered**: 2026-09-19
+
+**Issue**: `scripts/check_fips_compatibility.py` matches non-FIPS cipher names by substring
+(`any(c in func_name for c in NON_FIPS_CIPHERS)`), so ordinary identifiers such as SQLAlchemy's
+`.desc()` are reported as the DES cipher and a function named `seed_default_reviewers` as the SEED
+cipher. This project's `main` branch reports 23 such errors with no cryptographic code involved.
+Separately, `.github/workflows/fips-compatibility.yml` captures `EXIT_CODE=$?` after piping the
+checker through `tee`, which yields `tee`'s status, so `exit_code` is always `0` and the
+"Check result" step that is meant to fail the job never runs. The PR comment therefore says
+"FAILED" while the check run reports success.
+
+**Context**: Found while driving pull request #104, where the bot comment reported 28 errors
+(25 on the branch, 23 already on `main`) although the check passed.
+
+**Suggested Fix**: Match cipher names as whole tokens (word boundaries on attribute and function
+names, or an allowlist of module-qualified call targets such as `Crypto.Cipher.DES`), and use
+`set -o pipefail` or `${PIPESTATUS[0]}` when capturing the checker's exit status so the workflow
+result reflects the checker's verdict.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/scripts/check_fips_compatibility.py`
+- `{{cookiecutter.project_slug}}/.github/workflows/fips-compatibility.yml`
+
 ---
 
 ## Submitting Feedback
