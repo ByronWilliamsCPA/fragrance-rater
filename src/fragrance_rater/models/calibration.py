@@ -15,7 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
 from fragrance_rater.utils.timestamps import now_naive_utc
@@ -330,3 +330,16 @@ class VersionPerfumer(Base):
         ForeignKey("calibration_perfumers.id", ondelete="RESTRICT"), primary_key=True
     )
     source_url: Mapped[str] = mapped_column(String(1000))
+
+    perfumer: Mapped[Perfumer] = relationship(lazy="joined")
+
+    @property
+    def name(self) -> str:
+        """The attributed perfumer's name.
+
+        Exposed on the association rather than reached through it so the API
+        schema can read an attribution as one object: a name and the source
+        that supports it. The two belong together (ADR-006) and separating
+        them invites a name being rendered without its evidence.
+        """
+        return self.perfumer.name

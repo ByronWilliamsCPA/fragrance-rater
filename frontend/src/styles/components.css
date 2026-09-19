@@ -914,3 +914,23 @@ article {
 .log [data-numeric] {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---- Attribution ------------------------------------------------------- */
+
+/*
+ * Perfumer credit on a revealed sample. Part of the open register: it appears
+ * only after reveal, never beside a blind code. Each name links to the source
+ * that attributes it, because a claim and its evidence belong together
+ * (ADR-006).
+ */
+.attribution {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-label);
+}
+
+.attribution__label {
+  color: var(--color-ink-muted);
+}

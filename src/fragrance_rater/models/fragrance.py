@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from fragrance_rater.core.database import Base
 
 if TYPE_CHECKING:
+    from fragrance_rater.models.calibration import VersionPerfumer
     from fragrance_rater.models.evaluation import Evaluation
 
 
@@ -126,6 +127,21 @@ class Fragrance(Base):
     )
     evaluations: Mapped[list[Evaluation]] = relationship(
         back_populates="fragrance", cascade="all, delete-orphan"
+    )
+    # Perfumer attribution lives in calibration_version_perfumers, which carries
+    # its own source_url per ADR-006's requirement that every claim keep its
+    # provenance. The tables have existed since c731b42e9a01 but nothing could
+    # reach them from Fragrance, so the attribution was write-only: populated by
+    # the Parfumo scraper and readable by nothing.
+    #
+    # viewonly: the association row is provenance evidence, not a join table the
+    # ORM may invent or delete rows in. Attribution is written deliberately by an
+    # ingestion path that supplies source_url, never as a side effect of editing
+    # a fragrance.
+    perfumers: Mapped[list["VersionPerfumer"]] = relationship(
+        "VersionPerfumer",
+        primaryjoin="Fragrance.id == VersionPerfumer.fragrance_id",
+        viewonly=True,
     )
 
 

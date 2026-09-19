@@ -256,10 +256,35 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                   {sample.blind_code}
                 </h2>
                 {sample.identity && (
-                  <p className="notice">
-                    {sample.identity.brand} · {sample.identity.name} ·{' '}
-                    {sample.identity.concentration}
-                  </p>
+                  <>
+                    <p className="notice">
+                      {sample.identity.brand} · {sample.identity.name} ·{' '}
+                      {sample.identity.concentration}
+                    </p>
+                    {/*
+                      Rendered only inside this `identity` branch, which the
+                      backend populates only after reveal. Each name links to
+                      the source that attributes it: ADR-006 keeps a claim and
+                      its evidence together, and an attribution presented
+                      without a source reads as established fact when it is not.
+                    */}
+                    {sample.identity.perfumers && sample.identity.perfumers.length > 0 && (
+                      <p className="attribution">
+                        <span className="attribution__label">
+                          {sample.identity.perfumers.length === 1 ? 'Perfumer' : 'Perfumers'}
+                        </span>
+                        {sample.identity.perfumers.map((attribution, index) => (
+                          <span key={attribution.name}>
+                            {index > 0 && ', '}
+                            <a href={attribution.source_url} target="_blank" rel="noreferrer">
+                              {attribution.name}
+                              <span className="visually-hidden"> (opens the source)</span>
+                            </a>
+                          </span>
+                        ))}
+                      </p>
+                    )}
+                  </>
                 )}
                 <label>
                   Stage

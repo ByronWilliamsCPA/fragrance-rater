@@ -107,7 +107,15 @@ export function enrollmentFixture(
         skin_locked: false,
         skin_planned: false,
         identity: revealed
-          ? { fragrance_id: 'f1', brand: 'House', name: 'Signature', concentration: 'EDP' }
+          ? {
+              fragrance_id: 'f1',
+              brand: 'House',
+              name: 'Signature',
+              concentration: 'EDP',
+              perfumers: [
+                { name: 'Fixture Nose', source_url: 'https://example.invalid/attribution' },
+              ],
+            }
           : undefined,
         observations,
       },

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, NoReturn
 
 from fastapi import HTTPException
 from sqlalchemy import or_, select
+from sqlalchemy.orm import selectinload
 
 from fragrance_rater.models.calibration import (
     CalibrationSession,
@@ -512,7 +513,12 @@ class CalibrationService:
             {
                 fragrance.id: fragrance
                 for fragrance in await self.db.scalars(
-                    select(Fragrance).where(Fragrance.id.in_(fragrance_ids))
+                    select(Fragrance)
+                    .where(Fragrance.id.in_(fragrance_ids))
+                    # Required, not an optimisation: this session is async, so a
+                    # lazy load of `perfumers` while building the payload raises
+                    # MissingGreenlet rather than issuing a query.
+                    .options(selectinload(Fragrance.perfumers))
                 )
             }
             if enrollment.revealed_at
@@ -537,11 +543,25 @@ class CalibrationService:
                 member.role != "HOLDOUT" or obj.blotter_locked_at
             ):
                 fragrance = fragrances[member.fragrance_id]
+                # #CRITICAL: security: perfumer belongs inside this block and
+                # nowhere else in the participant payload. An attribution
+                # narrows a fragrance as sharply as its name does -- a family
+                # member who knows the perfumer can often identify the sample
+                # outright -- so it is disclosed on exactly the same condition
+                # as brand, name and concentration (ADR-005), never alongside
+                # a blind code.
+                # #VERIFY: e2e-smoke/disclosure-and-authorization.spec.ts
+                # asserts the pre-reveal payload carries no perfumer, against a
+                # real backend rather than a mock.
                 row["identity"] = {
                     "fragrance_id": fragrance.id,
                     "name": fragrance.name,
                     "brand": fragrance.brand,
                     "concentration": fragrance.concentration,
+                    "perfumers": [
+                        {"name": attribution.name, "source_url": attribution.source_url}
+                        for attribution in fragrance.perfumers
+                    ],
                 }
             result.append(row)
         reveal_blocker = (

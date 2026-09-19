@@ -155,6 +155,20 @@ class FragranceUpdate(BaseModel):
         return value
 
 
+class PerfumerResponse(BaseModel):
+    """A perfumer attributed to a fragrance version, with its provenance.
+
+    `source_url` travels with the name because ADR-006 keeps every claim
+    attached to the evidence for it; an attribution with no source cannot be
+    verified and must not be presented as though it were established.
+    """
+
+    name: str
+    source_url: str
+
+    model_config = {"from_attributes": True}
+
+
 class FragranceResponse(BaseModel):
     """Schema for fragrance response."""
 
@@ -174,6 +188,7 @@ class FragranceResponse(BaseModel):
     updated_at: datetime
     notes: list[FragranceNoteResponse] = Field(default_factory=list)
     accords: list[FragranceAccordResponse] = Field(default_factory=list)
+    perfumers: list[PerfumerResponse] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

@@ -1,4 +1,4 @@
-# ADR-016: Per-Dimension Preference Capture
+# ADR-016: Per-Dimension Preference Capture and Perfumer as an Evaluable Dimension
 
 > **Status**: Proposed — requires maintainer decision, not implemented
 >
@@ -127,6 +127,53 @@ checkpoints exist to avoid.
 Recommended: land after F1 closes and before D1, so the first pilot is internally consistent and the
 second wave collects the richer signal.
 
+## Perfumer as an evaluable dimension
+
+Added 2026-09-19 at the maintainer's request. Related to the above because both ask the same
+question: what is the model allowed to reason over, and on what evidence.
+
+### What already existed
+
+`Perfumer` and `VersionPerfumer` have been in `models/calibration.py` since migration
+`c731b42e9a01`, with `VersionPerfumer.source_url` carrying provenance per ADR-006. The Parfumo
+scraper has been populating them. But `Fragrance` had no relationship reaching them, no schema
+exposed them and no endpoint returned them, so the attribution was **write-only**: recorded and
+readable by nothing.
+
+That gap is now closed. No migration was required, and none was added.
+
+### The disclosure consequence
+
+Perfumer is identity-revealing. An evaluator who recognises the perfumer can often name a coded
+sample outright, which is the exact failure ADR-005's blind protocol exists to prevent. The
+attribution is therefore disclosed on precisely the same condition as brand, name and
+concentration: inside the `identity` block that `participant_view` populates only once
+`revealed_at` is set, and nowhere else in the participant payload.
+
+Three tiers now hold that line: a unit test that drives an enrollment to reveal and asserts the
+name is absent from the entire pre-reveal payload (verified to fail when the gate is removed), a
+mocked e2e assertion, and a structural check in the real-backend smoke tier.
+
+### The provenance problem, which is not solved
+
+**The only writer of perfumer rows is the Parfumo scraper, and ADR-012 deprecates Parfumo as a
+data source.** The Kaggle importer does not supply perfumer at all, and there is no API to enter
+an attribution by hand. So in practice this dimension will be either empty or populated from a
+source the project has already decided not to rely on.
+
+Reading the field is now possible; having trustworthy data in it is a separate problem, and it
+blocks any evaluation that depends on it. The realistic options are a manual manufacturer-sourced
+entry path (consistent with ADR-012's preference for manufacturer provenance), or accepting
+Parfumo attribution as evidence-of-claim with its `source_url` shown, which is what the interface
+currently does.
+
+### What was deliberately not done
+
+Perfumer is **not** wired into affinity scoring. ADR-004 defines the weighted score over notes,
+accords and families; adding a fourth dimension changes recommendation output, which ADR-009's
+frozen checkpoints depend on being stable. That is a decision to take explicitly, not a change to
+slip in because the data became readable.
+
 ## Open questions for the maintainer
 
 1. Signed direction (pushed up / pushed down) or a graded preference score?
@@ -134,6 +181,11 @@ second wave collects the richer signal.
 3. Does a stated preference outrank observed liking in the affinity weighting, and by how much?
    (ADR-004 follow-up.)
 4. Does this apply to ordinary encounters too, or only to controlled observations?
+5. Where does trustworthy perfumer data come from, given ADR-012? A manual entry path, or accept
+   Parfumo attribution as evidence-of-claim?
+6. Does perfumer become a scoring dimension in ADR-004, and if so, does it land before or after F1?
+7. Should attribution be recorded per fragrance *version*, as it is now, or per fragrance? A
+   reformulation can change the perfumer, and the current shape already allows for that.
 
 ## Related
 

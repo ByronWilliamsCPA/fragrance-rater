@@ -80,9 +80,23 @@ export type Sample = {
   skin_planned: boolean
   blotter_locked: boolean
   skin_locked: boolean
-  identity?: { fragrance_id: string; name: string; brand: string; concentration: string }
+  /**
+   * Present only after reveal. The backend omits the whole key while an
+   * enrollment is blind, so its absence is the disclosure state (ADR-005) and
+   * nothing here may be rendered without checking for it.
+   */
+  identity?: {
+    fragrance_id: string
+    name: string
+    brand: string
+    concentration: string
+    perfumers?: PerfumerAttribution[]
+  }
   observations: Observation[]
 }
+
+/** A perfumer credited for a fragrance version, with the source that says so. */
+export type PerfumerAttribution = { name: string; source_url: string }
 
 export type Enrollment = Assignment & {
   revealed: boolean

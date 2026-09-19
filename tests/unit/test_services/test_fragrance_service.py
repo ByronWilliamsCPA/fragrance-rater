@@ -2,11 +2,13 @@
 
 import pytest
 
+from fragrance_rater.models.calibration import Perfumer, VersionPerfumer
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.schemas.fragrance import (
     FragranceAccordCreate,
     FragranceCreate,
     FragranceNoteCreate,
+    FragranceResponse,
     FragranceSearchParams,
     FragranceUpdate,
 )
@@ -123,6 +125,54 @@ class TestFragranceService:
 
         assert found is not None
         assert found.name == "Get Test"
+
+    async def test_get_by_id_returns_perfumer_attribution_with_provenance(
+        self, async_session
+    ):
+        """Perfumer attribution is readable, and carries its source.
+
+        The `calibration_perfumers` and `calibration_version_perfumers` tables
+        have existed since migration `c731b42e9a01`, and the Parfumo scraper has
+        been writing to them, but nothing could reach them from `Fragrance`: the
+        attribution was write-only. This asserts the whole read path, through to
+        the response schema.
+
+        #ASSUME: data-integrity: `source_url` is required on every attribution,
+        so a name can never be served without the evidence supporting it
+        (ADR-006).
+        #VERIFY: the assertion below reads the serialised response, not the ORM
+        object, so a schema that dropped the field would fail here.
+        """
+        fragrance = Fragrance(
+            id="perfumer-frag-001",
+            name="Attributed",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="amber",
+            data_source="manual",
+        )
+        perfumer = Perfumer(id="perfumer-001", name="Recorded Nose")
+        async_session.add_all([fragrance, perfumer])
+        await async_session.flush()
+        async_session.add(
+            VersionPerfumer(
+                fragrance_id=fragrance.id,
+                perfumer_id=perfumer.id,
+                source_url="https://example.invalid/evidence",
+            )
+        )
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        found = await service.get_by_id("perfumer-frag-001")
+
+        assert found is not None
+        serialised = FragranceResponse.model_validate(found)
+        assert [(entry.name, entry.source_url) for entry in serialised.perfumers] == [
+            ("Recorded Nose", "https://example.invalid/evidence")
+        ]
 
     async def test_get_by_id_not_found(self, async_session):
         """Test getting non-existent fragrance."""
