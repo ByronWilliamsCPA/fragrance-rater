@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypedDict
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.core.exceptions import BusinessLogicError
@@ -205,6 +205,18 @@ class RecommendationService:
         # affinities (e.g. no real Michael Edwards Wheel classification yet)
         # must not contribute its notes/accords/family here. NULL (every
         # fragrance as of this ADR) means "eligible".
+        # #ASSUME: data-integrity: `training_eligibility_code` is a trusted
+        # match against `TRAINING_INELIGIBLE_CODES` only because both sides
+        # are sourced from `core/vocabulary.py` (see that module's own RAD
+        # tag); a code that exists in the database but was removed from this
+        # frozenset would silently start contributing again instead of
+        # raising.
+        # #VERIFY: no direct write path assigns a code to
+        # `training_eligibility_code` outside the values seeded by
+        # `alembic/versions/7daf681ed339_training_eligibility_lookup.py`; the
+        # FK to `training_eligibilities.code` is the schema-level backstop
+        # against an unknown code, not against a known code later being
+        # dropped from `TRAINING_INELIGIBLE_CODES`.
         return self.model.build_profile(
             reviewer_id,
             [
@@ -344,9 +356,24 @@ class RecommendationService:
         # Get candidate fragrances
         # Critical finding 2: soft-delete filter on the recommendation
         # engine's catalog scan.
+        # ADR-014: a fragrance whose training_eligibility_code is in
+        # TRAINING_INELIGIBLE_CODES is correctly excluded from CONTRIBUTING
+        # to the trained profile (see build_preference_profile above), but
+        # that alone does not stop it being SHOWN as a candidate here; a
+        # known-bad/unclassifiable fragrance must not be recommendable
+        # either. NULL (eligible) fragrances pass this filter unchanged,
+        # since `NOT IN` never matches NULL in SQL.
         stmt = (
             select(Fragrance)
             .where(Fragrance.deleted_at.is_(None))
+            .where(
+                or_(
+                    Fragrance.training_eligibility_code.is_(None),
+                    Fragrance.training_eligibility_code.notin_(
+                        TRAINING_INELIGIBLE_CODES
+                    ),
+                )
+            )
             .options(
                 selectinload(Fragrance.notes).selectinload(FragranceNote.note),
                 selectinload(Fragrance.accords),
