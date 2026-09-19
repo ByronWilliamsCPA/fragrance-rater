@@ -21,6 +21,14 @@ coverage:
         threshold: 2%
         if_ci_failed: error
 
+      # Single-surface flag for the frontend (React/TypeScript) test suite;
+      # see .claude/standards/testing.md (single-surface-flag exception).
+      # No per-test-type flags (frontend-unit, frontend-e2e) by design.
+      frontend:
+        target: auto
+        flags: [frontend]
+        threshold: 2%
+
     patch:
       default:
         # AI-generated diff coverage gate per CLAUDE.md ("90% patch"). A wide
@@ -53,6 +61,13 @@ flags:
     carryforward: true
     paths:
       - src/fragrance_rater/
+
+  frontend:
+    # Frontend (React/TypeScript) coverage; one flag for the whole surface
+    # rather than per-test-type flags (frontend-unit, frontend-e2e).
+    carryforward: true
+    paths:
+      - frontend/src/
 
   # Python version flags (CI workflow uploads)
   python-3.10:
