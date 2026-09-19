@@ -55,6 +55,13 @@ async function expectOk(response: { ok(): boolean; status(): number; text(): Pro
 // (see models/reviewer.py, models/calibration.py, models/fragrance.py); a
 // fixed literal would 409 on the second run against docker compose's
 // persistent Postgres volume.
+// #ASSUME: data-integrity: there is no afterAll teardown, so each nightly or
+// pre-deploy run of this spec leaves one Reviewer, Fragrance, Program,
+// ProgramMember, and Enrollment row permanently in the smoke stack's
+// Postgres volume; the per-run token above only prevents collisions, it does
+// not bound growth.
+// #VERIFY: add teardown (delete the created rows in an afterAll) or a
+// periodic prune job before this tier runs unattended for an extended period.
 let enrollmentId: string
 let programId: string
 let fragranceName: string
