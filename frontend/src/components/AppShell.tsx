@@ -41,29 +41,25 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <a className="skip-link" href="#main-content">
         Skip to content
       </a>
-      <header className="app-header">
-        <div className="app-header__brand">
-          <p className="eyebrow">Personal scent journal</p>
-          <h1 className="app-header__title">Fragrance Rater</h1>
-          <p className="app-header__tagline">Explore your preferences, one encounter at a time.</p>
+      {/*
+        The masthead is a form's identification block: what this document is on
+        the left, who is filling it in on the right. A description list is the
+        honest markup for that, and it gives each value a real name for a
+        screen reader without a visible colon-and-label in the layout.
+      */}
+      <header className="masthead">
+        <div className="masthead__name">
+          <h1>Fragrance Rater</h1>
+          <span className="masthead__qualifier">Sensory evaluation record</span>
         </div>
-        <div className="app-header__aside">
+        <div className="masthead__aside">
+          <dl className="masthead__particulars">
+            <dt>Account</dt>
+            <dd>{access.username || 'Verified family account'}</dd>
+            <dt>Role</dt>
+            <dd>{role}</dd>
+          </dl>
           <ThemeToggle />
-          {/*
-            The value of each row is kept in its own element so the
-            visually-hidden prefix names it for a screen reader without
-            becoming part of the visible string.
-          */}
-          <div className="identity">
-            <span className="identity__name">
-              <span className="visually-hidden">Signed in as </span>
-              <span>{access.username || 'Verified family account'}</span>
-            </span>
-            <strong>
-              <span className="visually-hidden">Role: </span>
-              <span>{role}</span>
-            </strong>
-          </div>
         </div>
       </header>
       <nav className="app-nav" aria-label="Main navigation">
@@ -85,7 +81,7 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <main ref={mainContent} id="main-content" tabIndex={-1}>
         {children}
       </main>
-      <footer className="app-footer">
+      <footer className="colophon">
         <p>Ordinary encounters and controlled observations share one preference history.</p>
         {aboutNavItem && (
           <p>

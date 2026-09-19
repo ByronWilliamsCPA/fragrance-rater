@@ -180,10 +180,9 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
     <section>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Discover</p>
           <h2>Recommendations</h2>
         </div>
-        {recommendationRun && <span className="status-chip">Saved set</span>}
+        {recommendationRun && <span className="tally">Saved set</span>}
       </div>
       <p>
         Start a new set when you want fresh choices. Opening this saved set again does not count as

@@ -102,12 +102,11 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       <section>
         <div className="page-heading">
           <div>
-            <p className="eyebrow">Blind evaluation</p>
             <h2>Your calibration</h2>
           </div>
           {enrollment && (
-            <span className="status-chip">
-              {enrollment.presentations.filter((item) => item.blotter_locked).length}/
+            <span className="tally">
+              {enrollment.presentations.filter((item) => item.blotter_locked).length} /{' '}
               {enrollment.presentations.length} locked
             </span>
           )}
@@ -213,7 +212,10 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
             {sample ? (
               <>
                 <p className="eyebrow">Sample {sample.position}</p>
-                <h2 className="blind-code">{sample.blind_code}</h2>
+                <h2 className="sample-heading">
+                  <span className="visually-hidden">Blind code </span>
+                  {sample.blind_code}
+                </h2>
                 {sample.identity && (
                   <p className="notice">
                     {sample.identity.brand} · {sample.identity.name} ·{' '}

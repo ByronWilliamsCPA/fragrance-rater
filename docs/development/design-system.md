@@ -18,34 +18,64 @@ which sets **WCAG 2.2 AA** as the conformance target.
 
 ## Design intent
 
-The product holds two things at once: a measuring instrument with blind protocols and locked
-evidence, and a personal journal of what somebody actually smelled. The interface carries both,
-in two registers that are deliberately not interchangeable.
+The interface is modelled on the artifact it replaces: a **sensory-evaluation score sheet**.
+That is the whole design, and every rule below follows from it.
 
-| Register | Where it appears | Treatment |
+The first attempt at this design pass produced a stack of rounded cards on a sage-and-cream
+background, with an uppercase kicker above every heading, a pill-tray navigation component and a
+three-column feature grid. It was rejected for looking generically generated, which it did. The
+specific failures worth not repeating:
+
+- Cards inside cards inside a container, so nothing had a hierarchy of its own.
+- Four uppercase letterspaced kickers on one screen, which is a tic rather than a system.
+- A marketing feature-grid on a tool five family members will use.
+- A decorative gradient that carried no meaning.
+- A concept ("two registers") described only in code comments, while both registers rendered as
+  the same box in two colours.
+
+What replaced it:
+
+| | |
+| :--- | :--- |
+| **Surface** | The page is the sheet. There is no card layer at all: no element combines a background, a border and a shadow. Sections are separated by rules and space. |
+| **Type** | A grotesque (Helvetica and its metric clones) for the whole interface, because that is what printed forms are set in. Monospace for codes, figures and timings. A serif *only* inside `.prose`, which is the About essay. |
+| **Colour** | Ink on paper. Colour carries exactly two meanings, below. |
+| **Shape** | Squared. `--radius` is 2px, the most a printed control ever gets. |
+| **Density** | A form is dense. The type scale tops out at 1.5rem; there is no hero. |
+
+### The two registers
+
+These are now visibly different rather than the same box recoloured.
+
+| Register | Where | Treatment |
 | :--- | :--- | :--- |
-| **Journal** | Ordinary encounters, recommendations, revealed identities, the landing page | Warm paper surfaces, serif display type, brand green |
-| **Sealed** | Blind codes, coded samples, anything pre-reveal (ADR-005) | Cool slate, letterspaced monospace, no warm hues |
+| **Open** | Encounters, recommendations, revealed identities, every ordinary control | Ink on paper, grotesque, sentence case |
+| **Sealed** | Blind codes, coded samples, anything pre-reveal (ADR-005) | Deep blue, monospace, letterspaced, in a ruled box |
 
-Keeping the two apart is a data-integrity feature rather than decoration: a coded sample must never
-be mistakable for a named one at a glance. `--color-sealed-*` is reserved for the sealed register
-and must not be reused for ordinary UI.
+Keeping them apart is a data-integrity feature, not decoration: a coded sample must not be
+mistakable for a named one at a glance. `--color-sealed-*` belongs to the sealed register and must
+not be borrowed for ordinary UI.
+
+Red, amber and green appear only in error, confirmation and success messages. There is no brand
+accent. **If a new colour seems necessary, the layout is probably wrong.**
 
 ## Tokens
 
 All tokens live in `frontend/src/styles/tokens.css`. Nothing outside that file should contain a
-literal colour, spacing value, or font stack.
+literal colour, spacing value or font stack.
 
 | Group | Prefix | Notes |
 | :--- | :--- | :--- |
 | Colour | `--color-*` | Light and dark values; every pair is contrast-tested |
-| Type family | `--font-display`, `--font-ui`, `--font-mono` | Display is the editorial serif; UI is the instrument sans; mono is for blind codes |
-| Type scale | `--text-*` | `display` and `title` are fluid via `clamp()`; the rest are fixed |
-| Spacing | `--space-1` … `--space-16` | 4px rhythm |
-| Radius | `--radius-sm` … `--radius-pill` | |
-| Sizing | `--target-min`, `--measure`, `--shell-max` | `--target-min` is 44px, above the 24px WCAG 2.2 floor |
-| Elevation | `--shadow-sm/md/lg` | Re-tuned for dark, where the light values are invisible |
-| Motion | `--motion-fast/base/ease` | All transitions are disabled under `prefers-reduced-motion` |
+| Type family | `--font-ui`, `--font-mono`, `--font-prose` | `--font-prose` is for continuous prose, never for headings |
+| Type scale | `--text-masthead`, `--text-title`, `--text-heading`, `--text-body`, `--text-label`, `--text-caption` | Fixed, not fluid |
+| Spacing | `--space-1` … `--space-12` | 4px rhythm |
+| Radius | `--radius` | One value: 2px |
+| Rules | `--rule-hairline`, `--rule-section` | Hairline divides records; section rules sit under headings |
+| Sizing | `--target-min`, `--measure`, `--sheet-max`, `--label-column` | `--target-min` is 44px, above the 24px WCAG 2.2 floor |
+| Motion | `--motion-fast`, `--motion-ease` | Disabled entirely under `prefers-reduced-motion` |
+
+There is no elevation scale. Shadows were removed with the cards.
 
 ### Stylesheet layers
 
@@ -53,15 +83,15 @@ literal colour, spacing value, or font stack.
 
 1. `tokens.css` — custom properties only
 2. `base.css` — bare HTML elements
-3. `layout.css` — page frame and grids
+3. `layout.css` — the sheet, the masthead, the grids
 4. `components.css` — component classes
 
 ### Themes
 
-Dark mode is automatic from `prefers-color-scheme`, and an explicit choice from the header toggle
-pins `data-theme` on the root element and persists in `localStorage`.
+Dark mode is automatic from `prefers-color-scheme`, and an explicit choice from the masthead
+toggle pins `data-theme` on the root element and persists in `localStorage`.
 
-The dark palette is therefore declared twice: once under
+The dark palette is declared twice: once under
 `@media (prefers-color-scheme: dark) :root:not([data-theme='light'])` and once under
 `:root[data-theme='dark']`. Custom properties cannot be aliased across an `@media` boundary and
 still remain overridable, so the duplication is deliberate.
@@ -90,7 +120,7 @@ WCAG failures that axe structurally cannot see:
 | Failure | Measured | Guideline |
 | :--- | :--- | :--- |
 | Focus ring `#b3893e` vs page background | 2.88:1 | 1.4.11, 2.4.11 |
-| Focus ring `#b3893e` vs filled brand button | 2.88:1 | 1.4.11, 2.4.11 |
+| Focus ring `#b3893e` vs filled button | 2.88:1 | 1.4.11, 2.4.11 |
 | Input border `#bbc8bf` on white | 1.73:1 | 1.4.11 |
 | `aria-pressed` state outline `#9bbcaf` | 1.85:1 | 1.4.11, 1.4.1 |
 | `document.title` identical on all six routes | — | 2.4.2 |
@@ -111,14 +141,19 @@ A two-tone ring (WCAG technique G195):
 }
 ```
 
-No single colour can clear 3:1 against both a pale paper surface and a filled dark-green button.
-The ring carries light surfaces; the halo carries filled buttons. Both tones are asserted against
+No single colour can clear 3:1 against both paper and an ink-filled control. The ring carries the
+paper surfaces; the halo carries the filled controls. Both tones are asserted against
 both surface families in the contrast test. **Do not reduce this to a single-colour outline.**
 
 ### Selected state
 
 Pressed toggles must not signal state by colour alone. State is carried by fill, a border that
 clears 3:1, a weight change, a border-drawn check mark, and `aria-pressed`.
+
+The one exception is the scales' "Not answered" option, which is checked on every untouched scale.
+It is styled as a ticked box rather than a filled one, so an empty form does not put a heavy mark
+on all twelve rows; its rule is scoped through `.scale-field__options` because it otherwise ties
+on specificity with the generic checked rule and loses on source order.
 
 Two rules protect this and must stay:
 
@@ -157,11 +192,14 @@ keeps a deliberate zero distinguishable from an unanswered scale.
 
 ## Conventions
 
-- **No literal colours outside `tokens.css`.** Add a token instead, and add its pair to the
-  contrast test.
-- **Eyebrow text is written in sentence case** and uppercased in CSS. Literal all-caps source text
-  is read letter-by-letter by some screen readers.
+- **No literal colours outside `tokens.css`.** Add a token, and add its pair to the contrast test.
+- **No cards.** If a change adds an element with a background, a border and a shadow together, it
+  is reintroducing the layer this design removed. Use a rule.
+- **The serif is for `.prose` only.** It is a reading face, not a heading face.
+- **Kickers must carry data.** `Sample 1`, `Choice 3` and `Manager` earn their place; `Today`,
+  `Discover` and `Journal` above a heading that already says so do not.
 - **Every `<progress>` needs an accessible name.** A bare one is announced only as a percentage.
-- **Headings carry hierarchy.** `h3` is `--text-heading`, never body size.
 - **New interactive components** get a target-size check and, if they introduce a colour, a
   contrast-test entry.
+- **Copy follows the About page's register:** patient, concrete, precisely qualified. No
+  aphorisms, no three-item triads, no antithesis-shaped one-liners.

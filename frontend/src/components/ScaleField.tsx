@@ -44,16 +44,22 @@ export function ScaleField({ scale, disabled }: ScaleFieldProps) {
       */}
       <div className="scale-field__scale">
         <div className="scale-field__options">
-          <label className="scale-field__option">
-            <input type="radio" name={scale.name} value="" defaultChecked />
-            <span>Not answered</span>
-          </label>
           {Array.from({ length: scale.max + 1 }, (_, value) => (
             <label className="scale-field__option" key={value}>
               <input type="radio" name={scale.name} value={value} />
               <span>{value}</span>
             </label>
           ))}
+          {/*
+            The escape option follows the run rather than leading it, so 0 sits
+            at the left edge under the low anchor and the boxes read as one
+            uninterrupted scale. It stays inside the radio group, so it is
+            still reachable with the arrow keys and still clears a mistake.
+          */}
+          <label className="scale-field__option scale-field__option--none">
+            <input type="radio" name={scale.name} value="" defaultChecked />
+            <span>Not answered</span>
+          </label>
         </div>
         <p className="scale-field__anchors" id={anchorsId}>
           <span>0 — {scale.lowAnchor}</span>

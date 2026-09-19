@@ -1,16 +1,18 @@
 /*
- * Component language.
+ * Components.
  *
- * Two visual registers run through this file and they are deliberately not
- * interchangeable:
+ * Two registers, and unlike the first pass they are visibly different rather
+ * than the same box in two colours:
  *
- *   "journal"    warm paper, serif, brand green. Anything the evaluator owns:
- *                ordinary encounters, recommendations, revealed identities.
- *   "sealed"     cool slate, monospace, letterspaced. Blind codes and any
- *                surface where identity is deliberately withheld (ADR-005).
+ *   open    ink on paper, sans, ordinary sentence case. Anything the
+ *           evaluator owns and can read: encounters, recommendations,
+ *           revealed identities.
+ *   sealed  blue, monospace, letterspaced, ruled box. Blind codes and every
+ *           surface where identity is deliberately withheld (ADR-005).
  *
- * Keeping them apart is a data-integrity feature, not decoration: a coded
- * sample should never look like a named one at a glance.
+ * The separation is a data-integrity feature: a coded sample must not be
+ * mistakable for a named one at a glance. `--color-sealed-*` belongs to the
+ * sealed register and must not be borrowed for ordinary UI.
  */
 
 /* ---- Skip link --------------------------------------------------------- */
@@ -23,154 +25,90 @@
   display: inline-flex;
   align-items: center;
   min-height: var(--target-min);
-  padding: var(--space-3) var(--space-5);
-  font-weight: var(--weight-medium);
-  color: var(--color-text-primary);
-  background: var(--color-surface);
-  border: 2px solid var(--color-brand);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-lg);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-radius: var(--radius);
   text-decoration: none;
-  transition: top var(--motion-base) var(--motion-ease);
 }
 
 .skip-link:focus {
   top: var(--space-3);
 }
 
-/* ---- Surfaces ---------------------------------------------------------- */
-
-section,
-aside {
-  padding: var(--space-6);
-  margin-bottom: var(--space-5);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-}
-
-aside {
-  align-self: start;
-}
-
-article {
-  padding: var(--space-4) 0;
-  border-bottom: 1px solid var(--color-border-subtle);
-}
-
-article:last-child {
-  border-bottom: 0;
-}
-
-/* ---- Eyebrow ----------------------------------------------------------- */
+/* ---- Small label ------------------------------------------------------- */
 
 /*
- * Set in sentence case in the markup and uppercased here. Literal all-caps
- * source text is read letter-by-letter by some screen readers.
+ * A form's field-caption. Sentence case, muted, no letterspacing and no
+ * colour of its own. It replaces the uppercase tracked "eyebrow" that sat
+ * above every heading in the first pass; four of them on one screen is a tic,
+ * not a hierarchy.
  */
 .eyebrow {
-  font-size: var(--text-eyebrow);
-  font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-eyebrow);
-  text-transform: uppercase;
-  color: var(--color-accent);
-  margin: 0 0 var(--space-2);
-}
-
-/* ---- Identity and chips ------------------------------------------------ */
-
-.identity {
-  display: grid;
-  justify-items: end;
-  gap: var(--space-1);
-  padding-left: var(--space-5);
-  border-left: 1px solid var(--color-border-subtle);
-  font-size: var(--text-small);
-}
-
-.identity__name {
-  color: var(--color-text-secondary);
-}
-
-.status-chip,
-.identity strong {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-1);
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
-  letter-spacing: 0.02em;
-  color: var(--color-brand-subtle-text);
-  background: var(--color-brand-subtle-bg);
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  white-space: nowrap;
-}
-
-.status-chip--sealed {
-  color: var(--color-sealed-text);
-  background: var(--color-sealed-bg);
-  border-color: var(--color-sealed-border);
+  color: var(--color-ink-muted);
 }
 
 /* ---- Theme toggle ------------------------------------------------------ */
 
 .theme-toggle {
   min-height: var(--target-min);
-  min-width: var(--target-min);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-small);
-  color: var(--color-text-secondary);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  color: var(--color-ink-secondary);
   background: transparent;
-  border: 1px solid var(--color-border-default);
+  border-color: transparent;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
 }
 
 .theme-toggle:hover:not(:disabled) {
-  color: var(--color-text-primary);
-  background: var(--color-sunken);
-  border-color: var(--color-border-strong);
+  color: var(--color-ink);
+  background: transparent;
+  border-color: transparent;
 }
 
 /* ---- Buttons ----------------------------------------------------------- */
 
 button.secondary {
-  color: var(--color-brand);
+  color: var(--color-ink);
   background: transparent;
-  border-color: var(--color-border-default);
+  border-color: var(--color-rule);
 }
 
 button.secondary:hover:not(:disabled) {
-  background: var(--color-brand-subtle-bg);
-  border-color: var(--color-brand);
+  background: var(--color-tint);
+  border-color: var(--color-ink);
 }
 
 /*
- * Selected state. The previous #9bbcaf outline measured 1.85:1 and was the
- * only cue that a toggle was pressed. State is now carried by fill, a border
- * that clears 3:1, and a check mark, so it survives both low contrast
- * sensitivity and greyscale (1.4.1, 1.4.11).
+ * Selected state. The original #9bbcaf outline measured 1.85:1 and was the
+ * only cue a toggle was pressed. State is now a filled box with a check,
+ * which survives greyscale and low contrast sensitivity (1.4.1, 1.4.11).
  *
- * The hovered variants are listed explicitly and must stay listed. A pressed
- * button sets its own foreground, so any hover rule that outranks this one
- * repaints the background underneath that foreground and leaves white text on
- * a pale fill: pressed-and-hovered measured 1.2:1 before these were added.
+ * The hovered variants are listed explicitly and must stay listed: a pressed
+ * control sets its own foreground, so any hover rule that outranks this one
+ * repaints the background under that foreground. A hovered, selected sample
+ * measured 1.2:1 before these were added.
  */
 button[aria-pressed='true'],
 button[aria-pressed='true']:hover:not(:disabled),
 button.secondary[aria-pressed='true'],
 button.secondary[aria-pressed='true']:hover:not(:disabled) {
-  color: var(--color-on-brand);
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-  font-weight: var(--weight-semibold);
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-color: var(--color-mark);
 }
 
 /*
- * A check mark drawn from borders rather than a text glyph. CSS generated
- * content contributes to the accessible name in Chromium, so `content: '✓'`
- * renamed every pressed button to "✓Interested".
+ * Drawn from borders, not a text glyph: CSS generated content contributes to
+ * the accessible name in Chromium, and `content: '✓'` renamed every pressed
+ * button to "✓Interested".
  */
 button[aria-pressed='true']::before {
   content: '';
@@ -183,54 +121,53 @@ button[aria-pressed='true']::before {
 }
 
 .interest-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  margin: var(--space-4) 0;
-}
-
-.interest-actions button {
-  width: 100%;
+  margin: var(--space-3) 0;
 }
 
 /* ---- Feedback ---------------------------------------------------------- */
 
+/*
+ * Stamped onto the sheet: a heavy left rule and a flat tint, no rounded
+ * corners and no shadow.
+ */
 .error,
 .notice {
   display: block;
   max-width: none;
-  padding: var(--space-4);
   margin: var(--space-4) 0;
-  border-radius: var(--radius-md);
-  border: 1px solid;
-  font-size: var(--text-small);
+  padding: var(--space-3) var(--space-4);
+  border-left: var(--space-1) solid;
+  font-size: var(--text-label);
   line-height: var(--leading-normal);
 }
 
 .error {
-  color: var(--color-danger-text);
-  background: var(--color-danger-bg);
-  border-color: var(--color-danger-border);
+  color: var(--color-error-ink);
+  background: var(--color-error-bg);
+  border-left-color: var(--color-error-rule);
 }
 
 .notice {
-  color: var(--color-success-text);
-  background: var(--color-success-bg);
-  border-color: var(--color-success-border);
+  color: var(--color-ok-ink);
+  background: var(--color-ok-bg);
+  border-left-color: var(--color-ok-rule);
 }
 
 .confirm-action {
-  padding: var(--space-4);
   margin: var(--space-4) 0;
-  color: var(--color-warn-text);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-warn-ink);
   background: var(--color-warn-bg);
-  border: 1px solid var(--color-warn-border);
-  border-radius: var(--radius-md);
+  border-left: var(--space-1) solid var(--color-warn-rule);
 }
 
 .confirm-action p {
   margin-top: 0;
   color: inherit;
+  font-size: var(--text-label);
 }
 
 .confirm-action .button-row {
@@ -240,8 +177,8 @@ button[aria-pressed='true']::before {
 /* ---- Page-level states ------------------------------------------------- */
 
 .page-state {
-  max-width: 34rem;
-  margin: 12vh auto 0;
+  max-width: 32rem;
+  margin: 18vh auto 0;
   text-align: center;
 }
 
@@ -249,32 +186,37 @@ button[aria-pressed='true']::before {
   margin-inline: auto;
 }
 
+/*
+ * A blank row on a sheet, not a dashed box. The rule keeps the record's place
+ * in the column while saying there is nothing in it yet.
+ */
 .empty-state {
-  padding: var(--space-6);
   margin-top: var(--space-4);
-  text-align: center;
-  color: var(--color-text-muted);
-  background: var(--color-sunken);
-  border: 1px dashed var(--color-border-default);
-  border-radius: var(--radius-md);
+  padding: var(--space-4) 0;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  color: var(--color-ink-muted);
 }
 
 .empty-state h3 {
-  margin: 0 0 var(--space-2);
-  font-size: var(--text-subheading);
-  color: var(--color-text-primary);
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  border: 0;
+  font-size: var(--text-body);
+  color: var(--color-ink);
 }
 
 .empty-state p {
-  margin: 0 auto;
+  margin: 0;
+  font-size: var(--text-label);
 }
 
 .loading-mark {
-  width: 2rem;
-  height: 2rem;
-  margin: 0 auto var(--space-4);
-  border: 3px solid var(--color-border-subtle);
-  border-top-color: var(--color-brand);
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0 auto var(--space-3);
+  border: 2px solid var(--color-rule-hairline);
+  border-top-color: var(--color-ink);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -285,53 +227,61 @@ button[aria-pressed='true']::before {
   }
 }
 
-/* ---- Lists and data cards ---------------------------------------------- */
+/* ---- Ruled records ----------------------------------------------------- */
 
 .data-list {
   display: grid;
-  gap: var(--space-2);
-  padding: 0;
-  margin: 0;
-  list-style: none;
   max-width: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.data-list li,
+.data-list li {
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  font-size: var(--text-label);
+}
+
+.data-list li:first-child {
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+article {
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
 .progress-card,
 .service-status,
 .metric-contract {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  background: var(--color-sunken);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
 }
 
 .data-list small,
 .progress-card small,
 .service-status small {
-  color: var(--color-text-muted);
-}
-
-.progress-card strong {
-  font-size: var(--text-subheading);
+  color: var(--color-ink-muted);
 }
 
 .metric-contract {
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-4);
   margin-top: var(--space-4);
 }
 
 .metric-contract > div {
   display: grid;
-  gap: var(--space-1);
+  gap: 0;
 }
 
 .metric-contract > div strong {
-  font-family: var(--font-display);
   font-size: var(--text-title);
   font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-normal);
 }
 
 .metric-contract p,
@@ -339,148 +289,176 @@ button[aria-pressed='true']::before {
   grid-column: 1 / -1;
 }
 
-/* ---- Service status ---------------------------------------------------- */
-
+/* Status is carried by the leading word as well as the rule (1.4.1). */
 .service-status {
   margin: var(--space-4) 0;
-  border-left: 4px solid var(--color-success-border);
+  padding: var(--space-3) var(--space-4);
+  border-top: 0;
+  border-left: var(--space-1) solid var(--color-ok-rule);
+  background: var(--color-ok-bg);
+  color: var(--color-ok-ink);
+  font-size: var(--text-label);
 }
 
-/* Status is carried by the leading word ("Service available" / "Action
-   needed") as well as the bar colour, so it does not rely on colour (1.4.1). */
 .service-status.attention {
-  color: var(--color-warn-text);
   background: var(--color-warn-bg);
-  border-color: var(--color-warn-border);
-  border-left-width: 4px;
+  border-left-color: var(--color-warn-rule);
+  color: var(--color-warn-ink);
 }
 
-.service-status.attention small {
+.service-status small {
   color: inherit;
 }
 
 .fragella-usage {
-  color: var(--color-text-muted);
-  font-size: var(--text-small);
+  color: var(--color-ink-muted);
+  font-size: var(--text-caption);
 }
 
 .fragella-status {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   margin-top: var(--space-2);
 }
 
-/* ---- Sealed register: blind samples ------------------------------------ */
+/* ---- Sealed register --------------------------------------------------- */
 
+.blind-code {
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+}
+
+/* A coded sample: a ruled blue box, never a rounded chip. */
 .sample {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   width: 100%;
-  margin-bottom: var(--space-2);
-  padding: var(--space-3) var(--space-4);
+  margin-bottom: -1px;
+  padding: var(--space-2) var(--space-3);
   font-family: var(--font-mono);
-  font-size: var(--text-body);
-  letter-spacing: 0.08em;
-  color: var(--color-sealed-text);
-  background: var(--color-sealed-bg);
-  border: 1px solid var(--color-sealed-border);
+  font-size: var(--text-label);
+  font-weight: var(--weight-normal);
+  letter-spacing: 0.1em;
+  color: var(--color-sealed-ink);
+  background: var(--color-sealed-tint);
+  border: var(--rule-hairline) solid var(--color-sealed-rule);
+  border-radius: 0;
 }
 
 .sample:hover:not(:disabled):not([aria-pressed='true']) {
-  background: var(--color-sealed-bg);
-  border-color: var(--color-text-secondary);
+  background: var(--color-sealed-tint);
+  border-color: var(--color-sealed-ink);
+  position: relative;
+  z-index: 1;
 }
 
 .sample small {
   font-family: var(--font-ui);
+  font-size: var(--text-caption);
   letter-spacing: normal;
   color: inherit;
 }
 
 .sample[aria-pressed='true'],
 .sample[aria-pressed='true']:hover:not(:disabled) {
-  color: var(--color-on-brand);
-  background: var(--color-brand);
-  border-color: var(--color-brand);
+  position: relative;
+  z-index: 1;
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-color: var(--color-mark);
+  font-weight: var(--weight-bold);
 }
 
 .sample[aria-pressed='true']::before {
   content: none;
 }
 
-.blind-code {
+/* The heading of the sample currently being evaluated. */
+.sample-heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--color-sealed-ink);
+  background: var(--color-sealed-tint);
+  border: var(--rule-hairline) solid var(--color-sealed-rule);
   font-family: var(--font-mono);
-  letter-spacing: var(--tracking-code);
+  font-size: var(--text-title);
+  letter-spacing: 0.1em;
 }
 
 .sample-label {
   display: grid;
   gap: var(--space-1);
-  min-height: 7rem;
-  padding: var(--space-4);
-  background: var(--color-surface);
-  border: 2px solid var(--color-text-primary);
-  border-radius: var(--radius-sm);
+  min-height: 6.5rem;
+  padding: var(--space-3);
+  border: 2px solid var(--color-ink);
 }
 
 .sample-label strong {
   font-family: var(--font-mono);
-  font-size: 1.5rem;
-  letter-spacing: var(--tracking-code);
+  font-size: 1.375rem;
+  letter-spacing: 0.1em;
 }
 
-/* ---- Scale field (calibration dimensions) ------------------------------ */
+/* ---- Scales ------------------------------------------------------------ */
 
+/*
+ * A printed tick-box row. The boxes share borders so the run reads as one
+ * scale rather than a row of separate buttons, and the anchors are printed
+ * directly under its ends.
+ */
 .scale-field {
-  margin: 0 0 var(--space-5);
-  padding: 0;
+  margin: 0;
+  padding: var(--space-4) 0;
   border: 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
 }
 
 .scale-field__legend {
   padding: 0;
   font-family: var(--font-ui);
-  font-size: var(--text-small);
-  font-weight: var(--weight-semibold);
-  color: var(--color-text-primary);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-ink);
 }
 
 .scale-field__hint {
-  margin: var(--space-1) 0 var(--space-2);
-  font-size: var(--text-caption);
-  line-height: var(--leading-snug);
-  color: var(--color-text-muted);
   max-width: var(--measure);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-caption);
+  line-height: var(--leading-normal);
+  color: var(--color-ink-muted);
 }
 
-/* inline-grid so both rows take the width of the wider one: the options. */
 .scale-field__scale {
   display: inline-grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   max-width: 100%;
+  margin-top: var(--space-3);
 }
 
 .scale-field__options {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
 }
 
-/*
- * Fixed-size, never stretched. With `flex: 1 1 auto` a wrapped final option
- * grew to fill its whole row, so a 0-10 scale rendered as five chips and one
- * full-width bar, which read as a broken layout rather than a scale.
- */
 .scale-field__option {
   position: relative;
   flex: 0 0 auto;
-  margin: 0;
+  margin: 0 0 0 -1px;
 }
 
-/* The radio itself is visually replaced by its label but stays in the
-   accessibility tree and keeps native arrow-key group behaviour. */
+.scale-field__option:first-child {
+  margin-left: 0;
+}
+
+/* Visually replaced by the box, but still in the accessibility tree and
+   still a native radio group for arrow-key traversal. */
 .scale-field__option input {
   position: absolute;
   width: 1px;
@@ -498,55 +476,82 @@ button[aria-pressed='true']::before {
   justify-content: center;
   min-height: var(--target-min);
   min-width: var(--target-min);
-  padding: var(--space-2) var(--space-3);
-  white-space: nowrap;
-  font-size: var(--text-small);
+  padding: var(--space-2);
+  font-size: var(--text-label);
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-secondary);
-  background: var(--color-field);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  color: var(--color-ink-secondary);
+  background: var(--color-paper-raised);
+  border: var(--rule-hairline) solid var(--color-rule);
   cursor: pointer;
-  transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
+}
+
+/* The escape option sits after the run and is set apart from it. */
+.scale-field__option--none {
+  margin-left: var(--space-3);
+}
+
+.scale-field__option--none span {
+  min-width: 0;
+  padding-inline: var(--space-3);
+  color: var(--color-ink-muted);
+  background: transparent;
+  border-style: dashed;
+}
+
+/*
+ * "Not answered" is checked on every untouched scale, so filling it the way a
+ * chosen value is filled put a heavy black box on all twelve rows and made the
+ * empty state the loudest thing on the form. Selected-but-empty reads as a
+ * ticked box, not as an answer.
+ *
+ * Scoped through `.scale-field__options` on purpose: without that ancestor it
+ * ties on specificity with the generic checked rule below and loses on source
+ * order.
+ */
+.scale-field__options .scale-field__option--none input:checked + span {
+  color: var(--color-ink);
+  background: var(--color-tint);
+  border-color: var(--color-ink);
+  border-style: solid;
+  font-weight: var(--weight-medium);
 }
 
 .scale-field__option input:hover + span {
-  background: var(--color-brand-subtle-bg);
+  background: var(--color-tint);
 }
 
 .scale-field__option input:checked + span {
-  color: var(--color-on-brand);
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-  font-weight: var(--weight-semibold);
+  position: relative;
+  z-index: 1;
+  color: var(--color-on-mark);
+  background: var(--color-mark);
+  border-color: var(--color-mark);
+  font-weight: var(--weight-bold);
 }
 
 .scale-field__option input:focus-visible + span {
+  position: relative;
+  z-index: 2;
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
   box-shadow: 0 0 0 5px var(--color-focus-halo);
 }
 
 .scale-field__option input:disabled + span {
-  color: var(--color-text-muted);
-  background: var(--color-sunken);
+  color: var(--color-ink-muted);
+  background: var(--color-tint);
   cursor: not-allowed;
 }
 
 .scale-field__anchors {
   display: flex;
   justify-content: space-between;
-  gap: var(--space-3);
-  margin: 0;
+  gap: var(--space-4);
   max-width: none;
+  margin: 0;
   font-size: var(--text-caption);
-  color: var(--color-text-muted);
-}
-
-.scale-field__anchors span:last-child {
-  text-align: right;
+  color: var(--color-ink-muted);
 }
 
 /* ---- Recommendations --------------------------------------------------- */
@@ -554,210 +559,215 @@ button[aria-pressed='true']::before {
 .recommendation-card {
   display: flex;
   flex-direction: column;
-  padding: var(--space-5);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
+  padding-top: var(--space-3);
+  border-top: var(--rule-section) solid var(--color-ink);
 }
 
 .recommendation-card h3 {
-  font-family: var(--font-display);
-  font-size: var(--text-heading);
-  font-weight: var(--weight-normal);
   margin: 0 0 var(--space-1);
+  padding: 0;
+  border: 0;
+  font-size: var(--text-heading);
 }
 
 .recommendation-card form {
-  margin-top: var(--space-4);
-  border-bottom: 0;
-  padding-bottom: 0;
+  margin-top: var(--space-3);
 }
 
 .affinity {
   display: flex;
   align-items: baseline;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: var(--text-small);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-label);
+  color: var(--color-ink-muted);
 }
 
 .affinity strong {
   font-variant-numeric: tabular-nums;
-  color: var(--color-text-primary);
+  color: var(--color-ink);
 }
 
-/* ---- Editorial --------------------------------------------------------- */
+.worn-by {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}
 
+/* ---- Prose ------------------------------------------------------------- */
+
+/*
+ * The only place the serif appears. The About page is continuous argument,
+ * not interface, and it is the one surface where a reading face earns itself.
+ */
+.prose p,
+.prose li {
+  max-width: var(--measure);
+  font-family: var(--font-prose);
+  font-size: 1.0625rem;
+  line-height: var(--leading-prose);
+}
+
+/*
+ * Set in the interface face, not the reading face. The serif is reserved for
+ * the About essay; using it here made one paragraph read as a pull-quote
+ * floating above an otherwise sans page.
+ */
 .hero-statement {
-  font-family: var(--font-display);
-  font-size: clamp(1.25rem, 0.95rem + 1.2vw, 1.75rem);
-  line-height: var(--leading-snug);
-  color: var(--color-text-secondary);
-  max-width: 46ch;
+  max-width: var(--measure);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+  color: var(--color-ink-secondary);
 }
 
+/* ---- Numbered procedure ------------------------------------------------ */
+
+/*
+ * The five calibration stages. A numbered sequence on a ruled sheet, which is
+ * how a protocol is actually written down, rather than a row of feature
+ * cards with an arrow between them.
+ */
 .flow-steps {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  align-items: stretch;
-  gap: var(--space-3);
-  margin: var(--space-5) 0;
+  gap: 0;
+  margin: var(--space-4) 0;
   counter-reset: flow;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
 }
 
 .flow-step {
   display: grid;
-  gap: var(--space-2);
-  align-content: start;
-  padding: var(--space-4);
-  background: var(--color-sunken);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: 0 var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
   counter-increment: flow;
 }
 
 .flow-step::before {
-  content: counter(flow);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  font-size: var(--text-caption);
-  font-weight: var(--weight-semibold);
-  font-variant-numeric: tabular-nums;
-  color: var(--color-on-brand);
-  background: var(--color-brand);
-  border-radius: var(--radius-pill);
+  content: counter(flow) '.';
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--color-ink-muted);
 }
 
 .flow-step strong {
-  font-size: var(--text-subheading);
+  font-size: var(--text-body);
 }
 
 .flow-step p {
-  margin: 0;
-  font-size: var(--text-small);
-  color: var(--color-text-secondary);
+  grid-column: 2;
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-label);
+  color: var(--color-ink-secondary);
 }
 
-/* The arrow was a decorative separator between flex items; the numbered grid
-   now carries the sequence, so it is hidden rather than reflowed. */
 .flow-arrow {
   display: none;
 }
 
 /* ---- Landing ----------------------------------------------------------- */
 
-.landing-hero {
+/*
+ * The standing record, not a hero. A definition-list of what is open, set in
+ * the same idiom as the masthead's particulars.
+ */
+.standing {
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-8) var(--space-6);
-  background:
-    radial-gradient(120% 140% at 100% 0%, var(--color-brand-subtle-bg) 0%, transparent 60%),
-    var(--color-surface);
+  grid-template-columns: var(--label-column) minmax(0, 1fr);
+  gap: 0;
+  margin: 0 0 var(--space-6);
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
 }
 
-.landing-hero h2 {
-  font-size: var(--text-display);
-  max-width: 18ch;
+.standing dt {
+  padding: var(--space-3) var(--space-3) var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  font-size: var(--text-label);
+  color: var(--color-ink-muted);
 }
 
-.landing-next {
+.standing dd {
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  font-size: var(--text-label);
+}
+
+.standing dd strong {
+  font-weight: var(--weight-bold);
+}
+
+.assignment-row {
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-5);
-  margin: var(--space-5) 0 0;
-  background: var(--color-brand-subtle-bg);
-  border: 1px solid var(--color-brand);
-  border-radius: var(--radius-md);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2) var(--space-6);
+  align-items: start;
+  padding: var(--space-4) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
 }
 
-.landing-next .eyebrow {
-  color: var(--color-brand-subtle-text);
+.assignment-row:first-of-type {
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.assignment-row h4 {
   margin: 0;
 }
 
-.landing-next p {
+.assignment-row p {
   margin: 0;
-  color: var(--color-brand-subtle-text);
-  font-size: var(--text-subheading);
+  font-size: var(--text-label);
+  color: var(--color-ink-secondary);
 }
 
-.landing-next .button-row {
-  margin: var(--space-2) 0 0;
-}
-
-.assignment-card {
-  display: grid;
-  gap: var(--space-3);
-  align-content: start;
-  padding: var(--space-5);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-}
-
-.assignment-card h4 {
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-heading);
-  font-weight: var(--weight-normal);
-}
-
-.assignment-card p {
-  margin: 0;
-  font-size: var(--text-small);
-  color: var(--color-text-muted);
-}
-
-.assignment-card__action {
-  margin: 0;
-  font-size: var(--text-body);
-  color: var(--color-text-primary);
-}
-
-.assignment-card__meter {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.assignment-card .button-row {
-  margin: var(--space-1) 0 0;
-}
-
-.orientation-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: var(--space-4);
-  padding: 0;
-  margin: var(--space-4) 0 0;
-  list-style: none;
-  max-width: none;
-}
-
-.orientation-list li {
+.assignment-row__meter {
   display: grid;
   gap: var(--space-1);
-  align-content: start;
-  padding-top: var(--space-3);
-  border-top: 2px solid var(--color-brand);
+  width: 11rem;
+  justify-items: end;
 }
 
-.orientation-list strong {
-  font-size: var(--text-subheading);
+.assignment-row__meter small {
+  color: var(--color-ink-muted);
+  font-variant-numeric: tabular-nums;
 }
 
-.orientation-list span {
-  font-size: var(--text-small);
-  color: var(--color-text-secondary);
-  line-height: var(--leading-normal);
+.assignment-row__action {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
 }
 
-/* ---- Visually hidden --------------------------------------------------- */
+.assignment-row__action p {
+  margin: 0;
+  font-size: var(--text-body);
+  color: var(--color-ink);
+}
+
+@media (max-width: 40rem) {
+  .standing {
+    grid-template-columns: 1fr;
+  }
+
+  .standing dt {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .assignment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .assignment-row__meter {
+    width: 100%;
+    justify-items: start;
+  }
+}
+
+/* ---- Visually hidden ---------------------------------------------------- */
 
 .visually-hidden {
   position: absolute;
@@ -771,11 +781,29 @@ button[aria-pressed='true']::before {
   border: 0;
 }
 
-/* ---- Worn-by attribution (ADR-011) ------------------------------------- */
+/* ---- Tally ------------------------------------------------------------- */
 
-.worn-by {
-  margin: 0 0 var(--space-2);
+/*
+ * A running count set beside a section heading: "3 / 13 locked". Mono and
+ * tabular so it can be read down a column, and no pill around it. This
+ * replaces the rounded status chip the first pass put in every heading row.
+ */
+.tally {
+  font-family: var(--font-mono);
   font-size: var(--text-caption);
-  font-weight: var(--weight-medium);
-  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink-muted);
+  white-space: nowrap;
+}
+
+.tally--sealed {
+  color: var(--color-sealed-ink);
+}
+
+/* The About page's opening line, which sets up the essay that follows. */
+.prose .hero-statement {
+  margin-bottom: var(--space-5);
+  font-size: 1.25rem;
+  line-height: var(--leading-prose);
+  color: var(--color-ink);
 }

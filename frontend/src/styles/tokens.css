@@ -1,57 +1,74 @@
 /*
  * Design tokens.
  *
- * Every colour pair this file declares is verified against its WCAG 2.2 AA
- * threshold by `src/test/contrast.test.ts`, which parses THIS FILE for the
- * `--color-*` custom properties and re-computes the ratios. Both themes are
- * checked. Changing a colour here without keeping its pair above threshold
- * fails that test.
+ * The interface is modelled on the artifact it replaces: a sensory-evaluation
+ * score sheet. That decision drives everything here. Ink on paper, one weight
+ * of rule, squared corners, tabular figures, no decorative colour.
+ *
+ * Colour carries exactly two meanings:
+ *
+ *   ink    (near-black)  something you read, or an action you take
+ *   sealed (deep blue)   something the system is deliberately withholding:
+ *                        a blind code, a pre-reveal sample (ADR-005)
+ *
+ * Red, amber and green appear only in error, confirmation and success
+ * messages. There is no brand accent, no tint used for emphasis, and no
+ * gradient. If a new colour seems necessary, the layout is probably wrong.
+ *
+ * Every pair below is verified against its WCAG 2.2 AA threshold by
+ * `src/test/contrast.test.ts`, which parses THIS FILE and re-derives the
+ * ratios in both themes.
  *
  * #CRITICAL: security: the focus indicator is the only way a keyboard-only
- * evaluator can tell where they are before locking a blind observation. It
- * uses a two-tone ring (G195): a dark `--color-focus-ring` that carries the
- * 3:1 on light surfaces, plus a light `--color-focus-halo` that carries it on
- * the filled brand buttons the dark ring cannot contrast against.
- * #VERIFY: contrast.test.ts asserts both tones, on both surface families.
+ * evaluator can tell where they are before locking a blind observation. It is
+ * a two-tone ring (technique G195): `--color-focus-ring` carries the 3:1 on
+ * paper, and `--color-focus-halo` carries it on the ink-filled buttons the
+ * ring cannot contrast against.
+ * #VERIFY: contrast.test.ts asserts both tones against both surface families.
  */
 
 :root {
   color-scheme: light;
 
   /* ---- Type families -------------------------------------------------- */
-  /* Editorial voice: headings, the landing page, the About narrative. */
-  --font-display:
-    'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, 'Times New Roman',
-    serif;
-  /* Instrument voice: controls, data, everything the evaluator operates. */
-  --font-ui: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  /* Blind codes and any value that must not be misread. */
+
+  /*
+   * A grotesque, not a UI-kit geometric. Printed forms are set in Helvetica
+   * and its metric clones, and that is most of why they read as instruments
+   * rather than as products.
+   */
+  --font-ui: Helvetica, 'Helvetica Neue', 'Liberation Sans', Arial, sans-serif;
+
+  /* Blind codes, figures, timings: anything that must not be misread. */
   --font-mono:
     ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace;
 
-  /* ---- Type scale (fluid where it earns it) --------------------------- */
-  --text-display: clamp(2.25rem, 1.55rem + 2.8vw, 3.5rem);
-  --text-title: clamp(1.75rem, 1.4rem + 1.4vw, 2.25rem);
-  --text-heading: 1.375rem;
-  --text-subheading: 1.125rem;
+  /*
+   * Confined to continuous prose (the About narrative). It is not a heading
+   * face. Using a serif for headings is most of what made the first pass read
+   * as a marketing template.
+   */
+  --font-prose: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+
+  /* ---- Type scale ------------------------------------------------------ */
+
+  /* Deliberately compressed. A form is dense; a hero is not. */
+  --text-masthead: 1.25rem;
+  --text-title: 1.5rem;
+  --text-heading: 1.0625rem;
   --text-body: 1rem;
-  --text-small: 0.875rem;
-  --text-caption: 0.8125rem;
-  --text-eyebrow: 0.6875rem;
+  --text-label: 0.8125rem;
+  --text-caption: 0.75rem;
 
-  --leading-tight: 1.2;
-  --leading-snug: 1.35;
-  --leading-normal: 1.6;
-  --leading-relaxed: 1.7;
-
-  --tracking-eyebrow: 0.12em;
-  --tracking-code: 0.12em;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-prose: 1.65;
 
   --weight-normal: 400;
   --weight-medium: 500;
-  --weight-semibold: 600;
+  --weight-bold: 700;
 
-  /* ---- Spacing (4px rhythm) ------------------------------------------- */
+  /* ---- Spacing (4px rhythm) -------------------------------------------- */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -61,80 +78,67 @@
   --space-8: 2rem;
   --space-10: 2.5rem;
   --space-12: 3rem;
-  --space-16: 4rem;
 
   /* ---- Radius ---------------------------------------------------------- */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-xl: 1.25rem;
-  --radius-pill: 999px;
+
+  /* Squared. 2px is the most a printed control ever gets. */
+  --radius: 2px;
+
+  /* ---- Rules ----------------------------------------------------------- */
+  --rule-hairline: 1px;
+  --rule-section: 2px;
 
   /* ---- Sizing ---------------------------------------------------------- */
-  /* WCAG 2.2 AA 2.5.8 Target Size (Minimum) is 24px. 44px is the comfortable
-     touch target the family pilot actually uses on phones. */
-  --target-min: 2.75rem;
-  --measure: 68ch;
-  --shell-max: 76rem;
 
-  /* ---- Elevation ------------------------------------------------------- */
-  --shadow-sm: 0 1px 2px rgb(24 44 39 / 6%), 0 1px 3px rgb(24 44 39 / 4%);
-  --shadow-md: 0 2px 4px rgb(24 44 39 / 5%), 0 6px 16px rgb(24 44 39 / 7%);
-  --shadow-lg: 0 4px 8px rgb(24 44 39 / 6%), 0 16px 32px rgb(24 44 39 / 10%);
+  /* WCAG 2.2 AA 2.5.8 sets 24px. 44px is what a phone in poor light needs. */
+  --target-min: 2.75rem;
+  --measure: 66ch;
+  --sheet-max: 60rem;
+  --label-column: 12rem;
 
   /* ---- Motion ---------------------------------------------------------- */
-  --motion-fast: 120ms;
-  --motion-base: 200ms;
-  --motion-ease: cubic-bezier(0.2, 0, 0.13, 1);
+  --motion-fast: 100ms;
+  --motion-ease: linear;
 
   /* ---- Colour: light ("paper") ----------------------------------------- */
-  --color-canvas: #f4f2ea;
-  --color-surface: #fffdf7;
-  --color-sunken: #e9e6db;
-  --color-field: #ffffff;
+  --color-paper: #faf8f3;
+  --color-paper-raised: #ffffff;
+  --color-tint: #f0ede4;
 
-  --color-text-primary: #182c27;
-  --color-text-secondary: #3d514a;
-  --color-text-muted: #586a60;
+  --color-ink: #1c1a16;
+  --color-ink-secondary: #45413a;
+  --color-ink-muted: #5e594f;
 
-  --color-border-subtle: #d8d3c5;
-  --color-border-default: #7c8a81;
-  --color-border-strong: #5a6860;
+  --color-rule-hairline: #d5d0c4;
+  --color-rule: #7d776a;
+  --color-rule-strong: #57524a;
 
-  --color-brand: #1e4a3f;
-  --color-brand-hover: #143529;
-  --color-on-brand: #ffffff;
-  --color-brand-subtle-bg: #dde8e0;
-  --color-brand-subtle-text: #163c33;
+  /* Actions are set in ink, not in a brand colour. */
+  --color-mark: #1c1a16;
+  --color-mark-hover: #3a362e;
+  --color-on-mark: #faf8f3;
+  --color-mark-tint: #e8e4d9;
+  --color-mark-tint-ink: #1c1a16;
 
-  --color-accent: #8a5212;
-  --color-accent-subtle-bg: #fbeedc;
+  /* The sealed register. Reserved for withheld identity. Never decorative. */
+  --color-sealed-ink: #1e3a63;
+  --color-sealed-tint: #e4e9f2;
+  --color-sealed-rule: #5e7ba6;
 
-  --color-danger-text: #8a2e13;
-  --color-danger-bg: #fbe7e0;
-  --color-danger-border: #c4714f;
+  --color-error-ink: #8f2b14;
+  --color-error-bg: #f8e3dc;
+  --color-error-rule: #b85c3c;
 
-  --color-warn-text: #78480a;
-  --color-warn-bg: #fcf0da;
-  --color-warn-border: #b5852f;
+  --color-warn-ink: #7a4a08;
+  --color-warn-bg: #f7ebd5;
+  --color-warn-rule: #a8802c;
 
-  --color-success-text: #1c5439;
-  --color-success-bg: #dfede2;
-  --color-success-border: #4f8a67;
+  --color-ok-ink: #1f5236;
+  --color-ok-bg: #e2ebe2;
+  --color-ok-rule: #4b7f5c;
 
-  --color-info-text: #1f4b66;
-  --color-info-bg: #e0edf5;
-  --color-info-border: #4e7f9e;
-
-  /* "Sealed" is the blind-evaluation register: a deliberately cool, clinical
-     slate that never appears anywhere identity has been revealed, so a
-     coded sample can never be mistaken for a named one at a glance. */
-  --color-sealed-text: #3a4a54;
-  --color-sealed-bg: #e6eaee;
-  --color-sealed-border: #7a8b97;
-
-  --color-focus-ring: #11322a;
-  --color-focus-halo: #fffdf7;
+  --color-focus-ring: #1c1a16;
+  --color-focus-halo: #faf8f3;
 }
 
 /* Automatic dark theme, overridable by an explicit `data-theme` choice. */
@@ -142,54 +146,42 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --color-canvas: #111917;
-    --color-surface: #1a2420;
-    --color-sunken: #0c1311;
-    --color-field: #212d28;
+    --color-paper: #131311;
+    --color-paper-raised: #1d1c19;
+    --color-tint: #201f1b;
 
-    --color-text-primary: #e9eee9;
-    --color-text-secondary: #b7c4bc;
-    --color-text-muted: #94a69c;
+    --color-ink: #edeae2;
+    --color-ink-secondary: #bab5a9;
+    --color-ink-muted: #97917f;
 
-    --color-border-subtle: #2b3934;
-    --color-border-default: #687c72;
-    --color-border-strong: #8da096;
+    --color-rule-hairline: #34322c;
+    --color-rule: #6e6a5e;
+    --color-rule-strong: #948e7f;
 
-    --color-brand: #8fd3b3;
-    --color-brand-hover: #afe3c9;
-    --color-on-brand: #0b1c16;
-    --color-brand-subtle-bg: #1d3730;
-    --color-brand-subtle-text: #9fdcbd;
+    --color-mark: #edeae2;
+    --color-mark-hover: #ffffff;
+    --color-on-mark: #131311;
+    --color-mark-tint: #2a2822;
+    --color-mark-tint-ink: #dcd7c9;
 
-    --color-accent: #e5ae72;
-    --color-accent-subtle-bg: #33261a;
+    --color-sealed-ink: #a9c2e8;
+    --color-sealed-tint: #1a2230;
+    --color-sealed-rule: #5e7ba6;
 
-    --color-danger-text: #f2b5a0;
-    --color-danger-bg: #331b14;
-    --color-danger-border: #a8664c;
+    --color-error-ink: #f0ae98;
+    --color-error-bg: #331a12;
+    --color-error-rule: #a8664c;
 
-    --color-warn-text: #ebc183;
-    --color-warn-bg: #332612;
-    --color-warn-border: #a88437;
+    --color-warn-ink: #e8be80;
+    --color-warn-bg: #2e2410;
+    --color-warn-rule: #a07e36;
 
-    --color-success-text: #9ad8b0;
-    --color-success-bg: #152d20;
-    --color-success-border: #4e8a66;
+    --color-ok-ink: #9bd2ae;
+    --color-ok-bg: #14271c;
+    --color-ok-rule: #4c8461;
 
-    --color-info-text: #9fcce6;
-    --color-info-bg: #132833;
-    --color-info-border: #4c7f9e;
-
-    --color-sealed-text: #b4c3cd;
-    --color-sealed-bg: #1b242a;
-    --color-sealed-border: #6b808d;
-
-    --color-focus-ring: #f3efe4;
-    --color-focus-halo: #11322a;
-
-    --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%), 0 1px 3px rgb(0 0 0 / 30%);
-    --shadow-md: 0 2px 4px rgb(0 0 0 / 35%), 0 6px 16px rgb(0 0 0 / 40%);
-    --shadow-lg: 0 4px 8px rgb(0 0 0 / 35%), 0 16px 32px rgb(0 0 0 / 50%);
+    --color-focus-ring: #edeae2;
+    --color-focus-halo: #131311;
   }
 }
 
@@ -197,52 +189,40 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --color-canvas: #111917;
-  --color-surface: #1a2420;
-  --color-sunken: #0c1311;
-  --color-field: #212d28;
+  --color-paper: #131311;
+  --color-paper-raised: #1d1c19;
+  --color-tint: #201f1b;
 
-  --color-text-primary: #e9eee9;
-  --color-text-secondary: #b7c4bc;
-  --color-text-muted: #94a69c;
+  --color-ink: #edeae2;
+  --color-ink-secondary: #bab5a9;
+  --color-ink-muted: #97917f;
 
-  --color-border-subtle: #2b3934;
-  --color-border-default: #687c72;
-  --color-border-strong: #8da096;
+  --color-rule-hairline: #34322c;
+  --color-rule: #6e6a5e;
+  --color-rule-strong: #948e7f;
 
-  --color-brand: #8fd3b3;
-  --color-brand-hover: #afe3c9;
-  --color-on-brand: #0b1c16;
-  --color-brand-subtle-bg: #1d3730;
-  --color-brand-subtle-text: #9fdcbd;
+  --color-mark: #edeae2;
+  --color-mark-hover: #ffffff;
+  --color-on-mark: #131311;
+  --color-mark-tint: #2a2822;
+  --color-mark-tint-ink: #dcd7c9;
 
-  --color-accent: #e5ae72;
-  --color-accent-subtle-bg: #33261a;
+  --color-sealed-ink: #a9c2e8;
+  --color-sealed-tint: #1a2230;
+  --color-sealed-rule: #5e7ba6;
 
-  --color-danger-text: #f2b5a0;
-  --color-danger-bg: #331b14;
-  --color-danger-border: #a8664c;
+  --color-error-ink: #f0ae98;
+  --color-error-bg: #331a12;
+  --color-error-rule: #a8664c;
 
-  --color-warn-text: #ebc183;
-  --color-warn-bg: #332612;
-  --color-warn-border: #a88437;
+  --color-warn-ink: #e8be80;
+  --color-warn-bg: #2e2410;
+  --color-warn-rule: #a07e36;
 
-  --color-success-text: #9ad8b0;
-  --color-success-bg: #152d20;
-  --color-success-border: #4e8a66;
+  --color-ok-ink: #9bd2ae;
+  --color-ok-bg: #14271c;
+  --color-ok-rule: #4c8461;
 
-  --color-info-text: #9fcce6;
-  --color-info-bg: #132833;
-  --color-info-border: #4c7f9e;
-
-  --color-sealed-text: #b4c3cd;
-  --color-sealed-bg: #1b242a;
-  --color-sealed-border: #6b808d;
-
-  --color-focus-ring: #f3efe4;
-  --color-focus-halo: #11322a;
-
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%), 0 1px 3px rgb(0 0 0 / 30%);
-  --shadow-md: 0 2px 4px rgb(0 0 0 / 35%), 0 6px 16px rgb(0 0 0 / 40%);
-  --shadow-lg: 0 4px 8px rgb(0 0 0 / 35%), 0 16px 32px rgb(0 0 0 / 50%);
+  --color-focus-ring: #edeae2;
+  --color-focus-halo: #131311;
 }

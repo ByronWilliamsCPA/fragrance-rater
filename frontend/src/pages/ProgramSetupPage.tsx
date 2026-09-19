@@ -228,7 +228,7 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
           <p className="eyebrow">Manager</p>
           <h2>Program setup</h2>
         </div>
-        <span className="status-chip">Restricted</span>
+        <span className="tally">Restricted</span>
       </div>
       <p>Build frozen programs, prepare blind labels, and monitor the family pilot.</p>
       <FeedbackBanner error={task.error} notice={task.notice} />

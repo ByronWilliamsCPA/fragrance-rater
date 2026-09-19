@@ -18,8 +18,7 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={`Switch to ${next} theme`}
     >
-      <span aria-hidden="true">{next === 'dark' ? '◗' : '◖'}</span>
-      <span>{next === 'dark' ? 'Dark' : 'Light'}</span>
+      {next === 'dark' ? 'Dark' : 'Light'}
     </button>
   )
 }

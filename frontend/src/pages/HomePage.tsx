@@ -23,28 +23,29 @@ function nextAction(enrollment: Enrollment): string {
 /**
  * The one thing worth doing next, across every assignment.
  *
- * The landing page is the first surface a family member sees after the
- * authentication proxy, so it commits to a single primary action rather than
- * presenting an even field of choices. Unfinished blind work outranks
- * everything else, because a stalled calibration blocks the model; with none
- * outstanding, recording an ordinary encounter is always useful.
+ * This is the first surface a family member sees after the authentication
+ * proxy, so it commits to a single primary action rather than presenting an
+ * even field of choices. Unfinished blind work outranks everything else,
+ * because a stalled calibration holds up the model; with none outstanding,
+ * recording an ordinary encounter is always useful.
+ *
+ * The wording is deliberately not the same as any single assignment's own
+ * next action, which is stated on that assignment's row.
  */
 function primaryAction(enrollments: Enrollment[]) {
   const outstanding = enrollments.filter((enrollment) => !enrollment.revealed).length
-  // Deliberately a summary across assignments, not a repeat of any one card's
-  // instruction: the per-assignment sentence belongs on that assignment.
   if (outstanding)
     return {
       summary:
         outstanding === 1
-          ? 'One calibration is still in progress. Pick up where you left off.'
-          : `${outstanding} calibrations are still in progress. Pick up where you left off.`,
+          ? 'Carry on with the blind work on your open calibration.'
+          : 'Carry on with the blind work on your open calibrations.',
       label: 'Continue calibration',
       route: 'calibration' as Route,
     }
   if (enrollments.length)
     return {
-      summary: 'Your blind work is done. Revealed results are ready to review.',
+      summary: 'Identities are revealed. Review the results, or add a post-reveal observation.',
       label: 'Review calibration',
       route: 'calibration' as Route,
     }
@@ -53,6 +54,10 @@ function primaryAction(enrollments: Enrollment[]) {
     label: 'Record an encounter',
     route: 'ratings' as Route,
   }
+}
+
+function countInWords(count: number): string {
+  return ['None', 'One', 'Two', 'Three', 'Four', 'Five'][count] ?? String(count)
 }
 
 export function HomePage({ assignments, programs, reviewers, navigate }: HomePageProps) {
@@ -91,22 +96,23 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
   }, [assignments, reloadKey])
 
   const action = primaryAction(enrollments)
+  const open = enrollments.filter((enrollment) => !enrollment.revealed).length
 
   return (
     <>
-      <section className="landing-hero">
-        <div className="page-heading">
-          <div>
-            <p className="eyebrow">Today</p>
-            <h2>Your scent journal</h2>
-          </div>
-          <span className="status-chip">
-            {assignments.length} active {assignments.length === 1 ? 'assignment' : 'assignments'}
+      <section>
+        <div className="section-head">
+          <h2>Your scent journal</h2>
+          <span className="tally">
+            {assignments.length} {assignments.length === 1 ? 'assignment' : 'assignments'}
           </span>
         </div>
         <p className="hero-statement">
-          Record what you actually notice. That record, not a list of notes you think you like, is
-          what predicts the next fragrance worth your time.
+          Two kinds of record end up here. An ordinary encounter is anything you wore or smelled in
+          the course of a day, written down whenever you get to it. A calibration session is
+          deliberate: the samples arrive as codes, you are not told what they are, and the order is
+          arranged so that neither the bottle nor the sequence can steer what you write. Both feed
+          the same preference history.
         </p>
 
         <FeedbackBanner error={error} />
@@ -121,9 +127,15 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
         )}
 
         {!loading && !error && (
-          <div className="landing-next">
-            <p className="eyebrow">Next step</p>
-            <p>{action.summary}</p>
+          <>
+            <dl className="standing">
+              <dt>Calibrations open</dt>
+              <dd>{countInWords(open)}</dd>
+              <dt>Next</dt>
+              <dd>
+                <strong>{action.summary}</strong>
+              </dd>
+            </dl>
             <div className="button-row">
               <button onClick={() => navigate(action.route)}>{action.label}</button>
               {action.route !== 'ratings' && (
@@ -135,7 +147,7 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
                 View recommendations
               </button>
             </div>
-          </div>
+          </>
         )}
       </section>
 
@@ -144,44 +156,44 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
         {loading ? (
           <LoadingState label="Loading assignment progress…" />
         ) : enrollments.length ? (
-          <div className="recommendation-grid">
-            {enrollments.map((enrollment) => {
-              const assignment = assignments.find((item) => item.id === enrollment.id)
-              const locked = enrollment.presentations.filter((item) => item.blotter_locked).length
-              const total = enrollment.presentations.length
-              const evaluator =
-                reviewers.find((item) => item.id === assignment?.reviewer_id)?.name || 'Evaluator'
-              const program =
-                programs.find((item) => item.id === assignment?.program_id)?.name || 'Program'
-              return (
-                <article className="assignment-card" key={enrollment.id}>
+          enrollments.map((enrollment) => {
+            const assignment = assignments.find((item) => item.id === enrollment.id)
+            const locked = enrollment.presentations.filter((item) => item.blotter_locked).length
+            const total = enrollment.presentations.length
+            const evaluator =
+              reviewers.find((item) => item.id === assignment?.reviewer_id)?.name || 'Evaluator'
+            const program =
+              programs.find((item) => item.id === assignment?.program_id)?.name || 'Program'
+            return (
+              <article className="assignment-row" key={enrollment.id}>
+                <div>
                   <h4>{program}</h4>
                   <p>{evaluator}</p>
-                  <div className="assignment-card__meter">
-                    {/*
-                      The bar needs its own accessible name: a bare <progress>
-                      is announced only as a percentage, with no indication of
-                      what is being measured.
-                    */}
-                    <progress
-                      value={locked}
-                      max={total}
-                      aria-label={`Blind screens locked for ${evaluator} on ${program}`}
-                    />
-                    <small data-numeric>
-                      {locked} of {total} blind screens locked
-                    </small>
-                  </div>
-                  <p className="assignment-card__action">
+                </div>
+                <div className="assignment-row__meter">
+                  {/*
+                    The bar needs its own accessible name: a bare <progress> is
+                    announced only as a percentage, with nothing saying what is
+                    being measured.
+                  */}
+                  <progress
+                    value={locked}
+                    max={total}
+                    aria-label={`Blind screens locked for ${evaluator} on ${program}`}
+                  />
+                  <small data-numeric>
+                    {locked} of {total} blind screens locked
+                  </small>
+                </div>
+                <div className="assignment-row__action">
+                  <p>
                     <strong>{nextAction(enrollment)}</strong>
                   </p>
-                  <div className="button-row">
-                    <button onClick={() => navigate('calibration')}>Continue calibration</button>
-                  </div>
-                </article>
-              )
-            })}
-          </div>
+                  <button onClick={() => navigate('calibration')}>Continue calibration</button>
+                </div>
+              </article>
+            )
+          })
         ) : (
           <EmptyState title="No calibration work assigned">
             You can still record ordinary encounters and use recommendations.
@@ -190,31 +202,16 @@ export function HomePage({ assignments, programs, reviewers, navigate }: HomePag
       </section>
 
       <section>
-        <p className="eyebrow">New here</p>
-        <h3>How this works</h3>
-        <ul className="orientation-list">
-          <li>
-            <strong>Smell first, blind</strong>
-            <span>
-              Samples arrive as codes, not names. Nothing about the bottle can steer what you
-              record.
-            </span>
-          </li>
-          <li>
-            <strong>Rate honestly</strong>
-            <span>
-              Disliking something strongly is as useful as loving it. There is no answer here you
-              can get wrong.
-            </span>
-          </li>
-          <li>
-            <strong>The model commits first</strong>
-            <span>
-              Predictions are locked in writing before you smell a holdout, so the result means
-              something.
-            </span>
-          </li>
-        </ul>
+        <h3>There is nothing here you can get wrong</h3>
+        <p>
+          Disliking a fragrance, even strongly, is worth as much to the model as liking one. It
+          marks where your preferences stop, which is information nothing else in the record
+          supplies.
+        </p>
+        <p>
+          The same goes for being unsure. A scale left unanswered is a usable fact about that
+          sample; a guess entered to avoid leaving a blank is not.
+        </p>
       </section>
     </>
   )

@@ -1,181 +1,197 @@
 /*
- * Page frame and the repeating grids. Anything that answers "where does this
- * sit" lives here; anything that answers "what does this look like" lives in
- * components.css.
+ * The sheet.
+ *
+ * One column, one measure, wide margins. Sections are separated by rules and
+ * space, never by boxes; there is no container element with a background,
+ * border and shadow anywhere in this file. That is the whole point of the
+ * layout, and re-introducing a card is how it drifts back toward a template.
  */
 
 .app {
-  max-width: var(--shell-max);
+  max-width: var(--sheet-max);
   margin-inline: auto;
-  padding: var(--space-6) var(--space-6) var(--space-12);
+  padding: var(--space-8) var(--space-6) var(--space-12);
 }
 
-/* ---- Header ----------------------------------------------------------- */
+/* ---- Masthead --------------------------------------------------------- */
 
-.app-header {
+/*
+ * Modelled on a form's identification block: the document's name on the left,
+ * the particulars of who is filling it in on the right, separated from the
+ * body by a heavy rule.
+ */
+.masthead {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-6);
-  padding: var(--space-4) 0 var(--space-6);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--rule-section) solid var(--color-ink);
 }
 
-.app-header__brand {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.app-header__title {
-  font-size: var(--text-title);
-  margin: 0;
-}
-
-.app-header__tagline {
-  color: var(--color-text-muted);
-  font-size: var(--text-small);
-  margin: 0;
-}
-
-.app-header__aside {
+.masthead__name {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: var(--space-3);
+}
+
+.masthead__name h1 {
+  white-space: nowrap;
+}
+
+.masthead__qualifier {
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}
+
+.masthead__particulars {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 var(--space-3);
+  font-size: var(--text-caption);
+  line-height: 1.6;
+  text-align: right;
+}
+
+.masthead__particulars dt {
+  color: var(--color-ink-muted);
+}
+
+.masthead__particulars dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--color-ink);
 }
 
 /* ---- Navigation ------------------------------------------------------- */
 
+/*
+ * Text links on a rule, not a tray of pills. The current page is marked by a
+ * heavy underline drawn on the rule itself, plus aria-current.
+ */
 .app-nav {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1);
-  padding: var(--space-1);
+  gap: 0 var(--space-6);
   margin-bottom: var(--space-8);
-  background: var(--color-sunken);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
 }
 
 .app-nav a {
-  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   min-height: var(--target-min);
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-small);
+  margin-bottom: -1px;
+  padding: 0;
+  font-size: var(--text-label);
   font-weight: var(--weight-medium);
-  color: var(--color-text-secondary);
+  color: var(--color-ink-secondary);
   text-decoration: none;
-  white-space: nowrap;
-  border-radius: var(--radius-sm);
-  transition:
-    background-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
+  border-bottom: var(--rule-section) solid transparent;
 }
 
 .app-nav a:hover {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
+  color: var(--color-ink);
+  border-bottom-color: var(--color-rule);
 }
 
 .app-nav a[aria-current='page'] {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  font-weight: var(--weight-semibold);
-  box-shadow: var(--shadow-sm);
+  color: var(--color-ink);
+  font-weight: var(--weight-bold);
+  border-bottom-color: var(--color-ink);
 }
 
-/* The current page is marked by aria-current, not by colour alone (1.4.1). */
-.app-nav a[aria-current='page']::before {
-  content: '';
-  width: 0.375rem;
-  height: 0.375rem;
-  margin-right: var(--space-2);
-  border-radius: var(--radius-pill);
-  background: var(--color-brand);
-}
-
-/* ---- Main and footer -------------------------------------------------- */
-
-main {
-  display: block;
-}
+/* ---- Main and colophon ------------------------------------------------ */
 
 main:focus {
   outline: none;
 }
 
-.app-footer {
+.colophon {
   margin-top: var(--space-12);
-  padding-top: var(--space-6);
-  border-top: 1px solid var(--color-border-subtle);
-  color: var(--color-text-muted);
-  font-size: var(--text-small);
+  padding-top: var(--space-4);
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
 }
 
-.app-footer p {
+.colophon p {
   max-width: var(--measure);
-  margin-bottom: var(--space-2);
+  margin-bottom: var(--space-1);
 }
 
-/* ---- Page headings ---------------------------------------------------- */
+/* ---- Sections --------------------------------------------------------- */
 
+section {
+  margin: 0 0 var(--space-10);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--rule-section) solid var(--color-ink);
+}
+
+.section-head h2,
+.section-head h3 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Retained for pages that still use the older heading wrapper. */
 .page-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-5);
-  margin-bottom: var(--space-5);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--rule-section) solid var(--color-ink);
 }
 
 .page-heading h2,
 .page-heading h3 {
   margin: 0;
+  padding: 0;
+  border: 0;
 }
 
-/* ---- Repeating grids -------------------------------------------------- */
+/* ---- Form grids ------------------------------------------------------- */
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 20rem) minmax(0, 1fr);
-  gap: var(--space-6);
-  align-items: start;
-}
-
-.fields {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: 0 var(--space-5);
-}
-
+/*
+ * A form reads as a form when its labels line up in a column and its entries
+ * line up in another. This is the layout that replaced the card stack.
+ */
+.fields,
 .fields-compact {
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0 var(--space-6);
 }
 
 .manager-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
   gap: var(--space-8);
 }
 
-.progress-grid,
-.label-grid,
-.recommendation-grid {
+.workspace {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: var(--space-4);
-}
-
-.recommendation-grid {
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  margin-top: var(--space-5);
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  gap: var(--space-8);
+  align-items: start;
 }
 
 .button-row {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-3);
-  margin: var(--space-5) 0;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
 }
 
 .search-row {
@@ -198,9 +214,38 @@ main:focus {
   flex-wrap: wrap;
 }
 
+/* ---- Ruled lists ------------------------------------------------------ */
+
+/*
+ * Repeating records are rows on the sheet, divided by hairlines. Every one of
+ * these used to be a bordered, rounded, shadowed card inside another card.
+ */
+.progress-grid,
+.label-grid,
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+}
+
+/* ---- Scale stack ------------------------------------------------------ */
+
+/*
+ * Single column. A scale is only readable if its whole run of boxes sits on
+ * one line under one pair of anchors; in a two-up grid a 0-5 scale wrapped
+ * after "3", which reads as two controls and invites a misplaced answer.
+ */
+.scale-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: var(--space-4);
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
 /* ---- Responsive ------------------------------------------------------- */
 
-@media (max-width: 60rem) {
+@media (max-width: 58rem) {
   .workspace {
     grid-template-columns: 1fr;
   }
@@ -208,28 +253,28 @@ main:focus {
 
 @media (max-width: 40rem) {
   .app {
-    padding: var(--space-4) var(--space-4) var(--space-10);
+    padding: var(--space-5) var(--space-4) var(--space-10);
   }
 
-  .app-header {
+  .masthead {
     flex-direction: column;
     align-items: flex-start;
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 
-  .app-header__aside {
-    width: 100%;
-    justify-content: space-between;
+  .masthead__particulars {
+    justify-content: start;
+    text-align: left;
   }
 
   .app-nav {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 var(--space-4);
   }
 
+  .section-head,
   .page-heading {
     flex-direction: column;
-    gap: var(--space-3);
+    gap: var(--space-1);
   }
 
   .search-row {
@@ -268,35 +313,61 @@ main:focus {
   }
 }
 
-/* ---- Scale stack ------------------------------------------------------- */
-
 /*
- * The calibration dimensions.
- *
- * Single column on purpose. A scale is only readable if its whole run of
- * options sits on one line under one pair of anchors; in a two-up grid a 0-5
- * scale wrapped after "3" and a 0-10 scale after "5", which reads as two
- * separate controls and invites a misplaced answer. The max-width keeps the
- * anchors tied to the ends of the options on a wide display.
+ * Aligned to the title's baseline rather than stacked above it. As a grid
+ * column the particulars block was taller than the name block and floated
+ * clear of the page, reading as stray text rather than as the sheet's header.
  */
-.scale-stack {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: var(--space-5);
+.masthead__aside {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-5);
 }
 
-.scale-stack .scale-field,
-.scale-stack > label {
-  max-width: 48rem;
+@media (max-width: 40rem) {
+  .masthead__aside {
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
 }
 
 /*
- * 2.5.8 Target Size: a footer link on its own line is not covered by the
- * inline-text exception, and at caption size its line box lands just under
- * the 24px minimum.
+ * 2.5.8 Target Size: a link on its own line is not covered by the inline-text
+ * exception, and at caption size its line box lands just under the 24px
+ * minimum.
  */
-.app-footer a {
+.colophon a {
   display: inline-flex;
   align-items: center;
   min-height: 1.5rem;
+}
+
+/* ---- Workspace sidebar ------------------------------------------------- */
+
+/*
+ * The aside holds the session list and two irreversible actions. Its heading
+ * must not compete with the page title, and the actions must not stack into
+ * one solid block against the selected (filled) sample above them.
+ */
+.workspace aside h2 {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-bold);
+  margin-bottom: var(--space-2);
+}
+
+.workspace aside > button,
+.workspace aside > .confirm-action {
+  width: 100%;
+  margin-top: var(--space-3);
+}
+
+.workspace aside > button {
+  color: var(--color-ink);
+  background: transparent;
+  border-color: var(--color-rule);
+}
+
+.workspace aside > button:hover:not(:disabled) {
+  background: var(--color-tint);
+  border-color: var(--color-ink);
 }

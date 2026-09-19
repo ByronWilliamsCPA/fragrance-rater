@@ -1,10 +1,9 @@
 export function AboutPage() {
   return (
-    <>
+    <div className="prose">
       <section>
         <div className="page-heading">
           <div>
-            <p className="eyebrow">About this project</p>
             <h2>How this project learns your taste</h2>
           </div>
         </div>
@@ -224,6 +223,6 @@ export function AboutPage() {
           </ul>
         </details>
       </section>
-    </>
+    </div>
   )
 }

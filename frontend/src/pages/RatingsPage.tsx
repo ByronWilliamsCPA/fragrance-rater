@@ -82,7 +82,6 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     <section>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">Journal</p>
           <h2>Ordinary encounters</h2>
         </div>
       </div>
