@@ -15,6 +15,7 @@ This directory contains the governing documents for Fragrance Rater.
 | [Data Model Gap Analysis](data-model-gap-analysis.md) | Reviews the schema against preference-learning, scenario, and future-ML requirements; captured as ADR-010, partially implemented |
 | [Architecture and Design Review 2026-09](architecture-review-2026-09.md) | Advisory critical review of design, architecture, and evidence integrity with sequenced remediation workstreams; proposes work, does not change plan status |
 | [ML Structure Review 2026-09](ml-structure-review-2026-09.md) | Advisory review of whether data, features, labels, evaluation protocol, and code can produce a successful learned preference model, with ranked structural changes |
+| [ML Decisions 2026-09](ml-decisions-2026-09.md) | Options and recommendations for the eight decisions the ML review requires, with the owner's recorded answers |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
 behavior but does not silently supersede an accepted ADR.
