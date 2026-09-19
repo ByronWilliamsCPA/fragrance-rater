@@ -353,6 +353,47 @@ class TestFragranceService:
             ("Recorded Nose", "https://example.invalid/evidence")
         ]
 
+    async def test_search_returns_perfumer_attribution_with_provenance(
+        self, async_session
+    ):
+        """`search()` eager-loads perfumers the same way `get_by_id()` does.
+
+        `search()` declares its own `selectinload(Fragrance.perfumers)`
+        (fragrance_service.py, separate from `get_by_id`'s), so a divergence
+        between the two call sites would not be caught by the `get_by_id`
+        test above.
+        """
+        fragrance = Fragrance(
+            id="perfumer-frag-search-001",
+            name="Searchable Attributed",
+            brand="Brand",
+            concentration="EDP",
+            gender_target="Unisex",
+            primary_family="woody",
+            subfamily="amber",
+            data_source="manual",
+        )
+        perfumer = Perfumer(id="perfumer-search-001", name="Findable Nose")
+        async_session.add_all([fragrance, perfumer])
+        await async_session.flush()
+        async_session.add(
+            VersionPerfumer(
+                fragrance_id=fragrance.id,
+                perfumer_id=perfumer.id,
+                source_url="https://example.invalid/search-evidence",
+            )
+        )
+        await async_session.commit()
+
+        service = FragranceService(async_session)
+        results = await service.search(FragranceSearchParams(q="Searchable Attributed"))
+
+        assert len(results) == 1
+        serialised = FragranceResponse.model_validate(results[0])
+        assert [(entry.name, entry.source_url) for entry in serialised.perfumers] == [
+            ("Findable Nose", "https://example.invalid/search-evidence")
+        ]
+
     async def test_get_by_id_not_found(self, async_session):
         """Test getting non-existent fragrance."""
         service = FragranceService(async_session)

@@ -118,6 +118,38 @@ class TestFragranceAPI:
         data = response.json()
         assert "FRAGRANCE_NOT_FOUND" in str(data)
 
+    async def test_perfumers_not_yet_surfaced_by_catalog_endpoints(self, test_app):
+        """`perfumers` is currently always [] from the REST catalog routes.
+
+        FragranceService.get_by_id() and .search() both eager-load
+        Fragrance.perfumers, but neither list_fragrances() nor
+        get_fragrance() in api/fragrances.py reads that relationship when
+        building FragranceResponse, so the field falls back to its schema
+        default. This pins the current behavior so a future wiring change
+        is a deliberate test update, not a silent regression either way.
+        """
+        create_response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "Perfumer Gap Test",
+                "brand": "Test Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "amber",
+            },
+        )
+        assert create_response.status_code == 201
+        fragrance_id = create_response.json()["id"]
+
+        get_response = await test_app.get(f"{API_PREFIX}/fragrances/{fragrance_id}")
+        assert get_response.status_code == 200
+        assert get_response.json()["perfumers"] == []
+
+        list_response = await test_app.get(f"{API_PREFIX}/fragrances")
+        assert list_response.status_code == 200
+        assert all(entry["perfumers"] == [] for entry in list_response.json())
+
     async def test_search_fragrances_by_name(self, test_app):
         """Test searching fragrances by name."""
         # Create some fragrances

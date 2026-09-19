@@ -40,7 +40,12 @@ const observations = [
   { ...observation, id: 'obs-skin', stage: 'SKIN', elapsed_minutes: 15, comments: null },
 ]
 
-function revealedEnrollment() {
+function revealedEnrollment(
+  perfumers: { name: string; source_url: string }[] | undefined = [
+    { name: 'First Nose', source_url: 'https://example.invalid/one' },
+    { name: 'Second Nose', source_url: 'https://example.invalid/two' },
+  ]
+) {
   return {
     id: 'assignment',
     program_id: 'p',
@@ -63,10 +68,7 @@ function revealedEnrollment() {
           name: 'Signature',
           brand: 'House',
           concentration: 'EDP',
-          perfumers: [
-            { name: 'First Nose', source_url: 'https://example.invalid/one' },
-            { name: 'Second Nose', source_url: 'https://example.invalid/two' },
-          ],
+          perfumers,
         },
         observations,
       },
@@ -122,6 +124,30 @@ describe('Revealed sample', () => {
     )
     // Plural, because a co-created fragrance credits more than one person.
     expect(screen.getByText('Perfumers')).toBeInTheDocument()
+  })
+
+  it('uses the singular label for a single perfumer', async () => {
+    mockApi(
+      revealedEnrollment([{ name: 'Solo Nose', source_url: 'https://example.invalid/solo' }])
+    )
+    await openSample()
+
+    expect(screen.getByText('Perfumer')).toBeInTheDocument()
+    expect(screen.queryByText('Perfumers')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Solo Nose/ })).toHaveAttribute(
+      'href',
+      'https://example.invalid/solo'
+    )
+  })
+
+  it('renders no attribution when perfumers is empty', async () => {
+    mockApi(revealedEnrollment([]))
+    await openSample()
+
+    await screen.findByRole('table')
+    expect(screen.queryByText('Perfumer')).not.toBeInTheDocument()
+    expect(screen.queryByText('Perfumers')).not.toBeInTheDocument()
+    expect(screen.queryByText(/opens the source/)).not.toBeInTheDocument()
   })
 
   it('orders the observation log by stage, then by elapsed time', async () => {

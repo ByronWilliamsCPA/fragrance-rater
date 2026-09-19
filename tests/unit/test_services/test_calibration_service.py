@@ -823,7 +823,13 @@ async def test_perfumer_is_concealed_until_reveal(protocol):
     before = await service.participant_view(enrollment)
     # Whole-payload check, not just the identity key: a regression that hoists
     # the attribution up to the presentation row would still omit `identity`.
-    assert "Testable Nose" not in json.dumps(before, default=str)
+    # Both the name and the source_url are checked independently: a leak that
+    # drops the name (e.g. a silently swallowed `perfumer.name` lookup) but
+    # still serializes a working attribution link would defeat a name-only
+    # assertion while still disclosing identity-narrowing evidence.
+    before_json = json.dumps(before, default=str)
+    assert "Testable Nose" not in before_json
+    assert "https://example.invalid/attribution" not in before_json
     for row in before["presentations"]:
         assert "identity" not in row
         assert "perfumers" not in row
