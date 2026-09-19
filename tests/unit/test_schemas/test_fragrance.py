@@ -9,6 +9,9 @@ underlying column nullability in `fragrance_rater.models.fragrance.Fragrance`:
   be rejected.
 - `launch_year`, `intensity` back nullable columns: omission leaves the
   field unchanged, explicit null legitimately clears it.
+- `training_eligibility_code` (ADR-014) is also nullable and follows the
+  same "omit to leave unchanged, explicit null to clear" rule as
+  `intensity`.
 """
 
 from __future__ import annotations
@@ -16,7 +19,11 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from fragrance_rater.schemas.fragrance import FragranceUpdate
+from fragrance_rater.schemas.fragrance import (
+    FragranceCreate,
+    FragranceResponse,
+    FragranceUpdate,
+)
 
 NON_NULLABLE_FIELDS = [
     ("name", "Aventus"),
@@ -27,7 +34,7 @@ NON_NULLABLE_FIELDS = [
     ("subfamily", "Aromatic"),
 ]
 
-NULLABLE_FIELDS = ["launch_year", "intensity"]
+NULLABLE_FIELDS = ["launch_year", "intensity", "training_eligibility_code"]
 
 
 class TestFragranceUpdateOmittedFields:
@@ -84,3 +91,79 @@ class TestFragranceUpdateNonNullableFields:
         data = FragranceUpdate.model_validate({field_name: valid_value})
 
         assert data.model_dump(exclude_unset=True) == {field_name: valid_value}
+
+
+class TestTrainingEligibilityCodeField:
+    """ADR-014: `training_eligibility_code` round-trips through the create
+    and response schemas the same way `intensity` does: optional, nullable,
+    defaulting to `None` when omitted.
+    """
+
+    def test_create_defaults_to_none_when_omitted(self) -> None:
+        data = FragranceCreate(
+            name="Aventus",
+            brand="Creed",
+            concentration="EDP",
+            primary_family="Woody",
+            subfamily="Aromatic",
+        )
+
+        assert data.training_eligibility_code is None
+
+    def test_create_accepts_an_explicit_code(self) -> None:
+        data = FragranceCreate(
+            name="Aventus",
+            brand="Creed",
+            concentration="EDP",
+            primary_family="Woody",
+            subfamily="Aromatic",
+            training_eligibility_code="excluded_pending_classification",
+        )
+
+        assert data.training_eligibility_code == "excluded_pending_classification"
+
+    def test_response_round_trips_none(self) -> None:
+        payload = {
+            "id": "frag-1",
+            "name": "Aventus",
+            "brand": "Creed",
+            "concentration": "EDP",
+            "version_key": "legacy",
+            "launch_year": None,
+            "gender_target": "Masculine",
+            "primary_family": "Woody",
+            "subfamily": "Aromatic",
+            "intensity": None,
+            "training_eligibility_code": None,
+            "data_source": "manual",
+            "external_id": None,
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00",
+        }
+
+        data = FragranceResponse.model_validate(payload)
+
+        assert data.training_eligibility_code is None
+
+    def test_response_round_trips_a_code(self) -> None:
+        payload = {
+            "id": "frag-2",
+            "name": "Aventus",
+            "brand": "Creed",
+            "concentration": "EDP",
+            "version_key": "legacy",
+            "launch_year": None,
+            "gender_target": "Masculine",
+            "primary_family": "Woody",
+            "subfamily": "Aromatic",
+            "intensity": None,
+            "training_eligibility_code": "excluded_manual",
+            "data_source": "manual",
+            "external_id": None,
+            "created_at": "2026-01-01T00:00:00",
+            "updated_at": "2026-01-01T00:00:00",
+        }
+
+        data = FragranceResponse.model_validate(payload)
+
+        assert data.training_eligibility_code == "excluded_manual"
