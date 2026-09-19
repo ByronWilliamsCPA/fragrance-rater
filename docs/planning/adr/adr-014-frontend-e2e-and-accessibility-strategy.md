@@ -83,9 +83,14 @@ theme says nothing about the other.
 This ADR's original Consequences section conceded that "automated axe-core scanning catches a
 meaningful but partial subset of real accessibility issues". The design pass measured how partial.
 
-Starting from a suite in which axe reported **zero violations** on all six routes, widened to
-`wcag22aa` and `best-practice` at both 1280px and 360px, five genuine WCAG failures were still
-present:
+Starting from a suite in which axe reported **zero violations** on all six routes, the design pass
+widened its one-time investigative audit to `wcag22aa` and `best-practice` at both 1280px and
+360px; five genuine WCAG failures were still present. That widened/`best-practice`/360px pass was
+the investigation, not what the committed gate runs going forward: the persisted
+`e2e/accessibility.spec.ts` scans at `wcag22aa` only (no `best-practice` tag) at the default
+viewport, and 360px coverage is limited to the separate raw-DOM target-size assertion described
+below, not an axe pass at that width. A future widening of the automated gate to match the
+investigative pass is tracked as an open item, not implied by this paragraph.
 
 | Failure | Measured | Guideline | Why axe missed it |
 | :--- | :--- | :--- | :--- |

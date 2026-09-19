@@ -1,13 +1,13 @@
 # ADR-016: Per-Dimension Preference Capture and Perfumer as an Evaluable Dimension
 
-> **Status**: Proposed — requires maintainer decision, not implemented
+> **Status**: Proposed, requires maintainer decision, not implemented
 >
 > **Date**: 2026-09-19
 
 **Numbering note**: `main` already contains ADR-014 (frontend e2e and accessibility), merged in
-PR #103 without being added to the index. PR #105 proposes a second, unrelated ADR-014 and needs to
-renumber; ADR-015 is left free for it, since it was opened first. This record takes 016 to avoid a
-third collision.
+PR #103 without being added to the index. PR #105 has since merged a second, unrelated ADR-014
+without renumbering (see the duplicate-number callout in `docs/planning/adr/README.md`); ADR-015
+remains free. This record takes 016 to avoid a third collision.
 
 ## TL;DR
 

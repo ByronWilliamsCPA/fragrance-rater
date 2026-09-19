@@ -81,10 +81,10 @@ There is no elevation scale. Shadows were removed with the cards.
 
 `frontend/src/index.css` imports four files, in order. The order is load-bearing.
 
-1. `tokens.css` — custom properties only
-2. `base.css` — bare HTML elements
-3. `layout.css` — the sheet, the masthead, the grids
-4. `components.css` — component classes
+1. `tokens.css`: custom properties only
+2. `base.css`: bare HTML elements
+3. `layout.css`: the sheet, the masthead, the grids
+4. `components.css`: component classes
 
 ### Themes
 
@@ -123,7 +123,7 @@ WCAG failures that axe structurally cannot see:
 | Focus ring `#b3893e` vs filled button | 2.88:1 | 1.4.11, 2.4.11 |
 | Input border `#bbc8bf` on white | 1.73:1 | 1.4.11 |
 | `aria-pressed` state outline `#9bbcaf` | 1.85:1 | 1.4.11, 1.4.1 |
-| `document.title` identical on all six routes | — | 2.4.2 |
+| `document.title` identical on all six routes | n/a | 2.4.2 |
 
 axe checks rendered text contrast, not a palette, never focus-indicator contrast, and only the one
 theme the browser happens to be in. The contrast and title tests exist precisely to cover that gap.
