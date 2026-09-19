@@ -33,7 +33,7 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-006](./adr-006-version-identity-and-source-provenance.md) | Version Identity, Source Provenance, and Vocabulary | Accepted | 2026-09-11 |
 | [ADR-007](./adr-007-preference-evidence-and-score-semantics.md) | Preference Evidence and Score Semantics | Accepted | 2026-09-11 |
 | [ADR-008](./adr-008-authentication-and-production-boundary.md) | Authentication and Production Trust Boundary | Accepted | 2026-09-11 |
-| [ADR-009](./adr-009-prospective-evaluation-and-checkpoints.md) | Prospective Evaluation and Frozen Checkpoints | Accepted | 2026-09-11 |
+| [ADR-009](./adr-009-prospective-evaluation-and-checkpoints.md) | Prospective Evaluation and Frozen Checkpoints | Accepted; amended 2026-09-19 (declared learning problem) | 2026-09-11 |
 | [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md) | Preference-Learning and Scenario Data Model | Partially implemented | 2026-09-12 |
 | [ADR-011](./adr-011-worn-by-evidence-dimension.md) | Worn-By Evidence Dimension | Accepted | 2026-09-12 |
 | [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md) | Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance | Accepted | 2026-09-15 |

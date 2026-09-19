@@ -11,22 +11,23 @@ tags:
 ---
 
 > **Source**: [ML Structure Review 2026-09](ml-structure-review-2026-09.md), Section 8.
-> **Status**: awaiting the owner's decisions. Fill the Decision column; accepted items then enter
-> the plan through [PROJECT-PLAN.md](PROJECT-PLAN.md) change control and, for Q1, an ADR-009
-> amendment.
+> **Status**: decided 2026-09-19 by the product owner. Q1 is recorded as the 2026-09-19 amendment to
+> ADR-009. Q8 is provisional: the protocol is validated by the
+> [scent evaluation protocol research prompt](../research/scent-evaluation-protocol-research-prompt.md)
+> before F1, and its result may change the session structure, pacing, and judgment format.
 
 ## Decision record
 
 | # | Decision | Recommendation | Decision | Date |
 | :--- | :--- | :--- | :--- | :--- |
-| Q1 | Declared learning problem | A: accept Section 3; report would-wear beside liking | Pending | |
-| Q2 | Vocabulary work before F1 | A: do it now for the 43 versions with P1.1 | Pending | |
-| Q3 | Pairwise and behavioral tables before F1 | A: schema plus a session ranking prompt | Pending | |
-| Q4 | Subfamily as a feature | A: exclude from new bases; v1 untouched | Pending | |
-| Q5 | Kaggle positional accord intensities | A: keep, flag source, exclude by default | Pending | |
-| Q6 | Freeze v1, fix as v2 | A: v1 pinned; register v2; compare | Pending | |
-| Q7 | ML dependencies | A: optional dependency group in this repo | Pending | |
-| Q8 | Pairwise judgments during F1 | B: rank the three samples per session | Pending | |
+| Q1 | Declared learning problem | A: accept Section 3; report would-wear beside liking | A | 2026-09-19 |
+| Q2 | Vocabulary work before F1 | A: do it now for the 43 versions with P1.1 | A | 2026-09-19 |
+| Q3 | Pairwise and behavioral tables before F1 | A: schema plus a session ranking prompt | A | 2026-09-19 |
+| Q4 | Subfamily as a feature | A: exclude from new bases; v1 untouched | A (as recommended) | 2026-09-19 |
+| Q5 | Kaggle positional accord intensities | A: keep, flag source, exclude by default | A | 2026-09-19 |
+| Q6 | Freeze v1, fix as v2 | A: v1 pinned; register v2; compare | C, modified: fix now and make the corrected scorer (v2) the default because no family ratings exist; keep v1 registered as a reference model for the comparison harness | 2026-09-19 |
+| Q7 | ML dependencies | A: optional dependency group in this repo | A | 2026-09-19 |
+| Q8 | Pairwise judgments during F1 | B: rank the three samples per session | B provisionally; the session structure, pacing, and judgment format are contingent on the protocol research | 2026-09-19 |
 
 ## Q1. Declare the learning problem
 
@@ -137,10 +138,19 @@ Context: the participant-facing half of Q3.
 Unblocks: a training signal that does not depend on the absolute scale holding steady across the
 five-day protocol.
 
+## Q8 follow-up: protocol research
+
+The 5-day, 13-session, 3-sample protocol was designed in concept and has not been verified
+against users or sensory-evaluation practice. Before F1, run the
+[deep-research prompt](../research/scent-evaluation-protocol-research-prompt.md) and reconcile
+its recommendations with the calibration guide, the baseline evidence, and the data model. Any
+change to session size, daily load, calendar spread, judgment scales, or the ranking procedure is
+recorded there and in an ADR-005 amendment.
+
 ## Sequence once decided
 
 1. ADR-009 amendment recording Q1.
 2. Vocabulary migration and shared resolver for the 43 versions (Q2).
 3. Pairwise and behavioral tables with the session ranking prompt (Q3, Q8).
-4. affinity-v2 registered beside v1 and compared (Q6, Q4).
+4. affinity-v2 as the default scorer, v1 retained for comparison (Q6, Q4).
 5. Intensity-source flag (Q5) and the optional dependency group (Q7).

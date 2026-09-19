@@ -1,8 +1,8 @@
 # ADR-009: Prospective Evaluation and Frozen Checkpoints
 
-> **Status**: Accepted
+> **Status**: Accepted; amended 2026-09-19 (declared learning problem)
 >
-> **Date**: 2026-09-11
+> **Date**: 2026-09-11 | **Amended**: 2026-09-19
 
 ## Context
 
@@ -42,6 +42,32 @@ Evaluate new recommendation and candidate strategies prospectively.
 - Retrieved checkpoints retain their original manifest and source features after later mutations.
 - Reports declare counts, denominators, exclusions, strategy, and uncertainty.
 - Each D5 evaluation ends with an adopt, revise, or stop decision.
+
+## 2026-09-19 amendment: the declared learning problem
+
+The Decision above requires a target, eligibility, and decision rule to be declared before
+outcomes are collected. None had been written down. The product owner accepted the following
+declarations (ML Decisions 2026-09, Q1) as the `affinity-v1` and first learned-model contract.
+
+| Element | Declaration |
+| :--- | :--- |
+| Unit of prediction | One (evaluator, fragrance version) pair in a declared stage |
+| Primary target | The latest eligible pre-reveal controlled `liking` (0 to 10) for the pair, preferring a locked skin stage over a locked blotter stage, on its original scale |
+| Secondary targets | `would_wear` and `would_buy` (0 to 10) from the same observation, reported beside liking in every scorecard; never pooled with the boolean recommendation-feedback fields of the same names |
+| Ordinary ratings | A separate 1 to 5 outcome for the ordinary workflow, never mapped onto liking for evaluation; the `(liking - 5) / 2.5` map in ADR-007 is a scoring convenience, not an equivalence |
+| Feature basis | A versioned, low-dimensional representation (about 20 to 30 dimensions): controlled accord vocabulary, Michael Edwards family as a versioned classification, note-family groups from the versioned alias and taxonomy layer, later D2 co-occurrence factors |
+| Model class | Partially pooled (hierarchical) linear or ordinal models: shared coefficients fit across evaluators, per-evaluator deviations shrunk toward them |
+| Metrics | Paired mean absolute error on the 0 to 10 scale and Spearman rank correlation over each evaluator's holdouts, per evaluator and pooled, each with n and an interval, quoted against the hidden-repeat noise ceiling; precision@k on interest is a funnel metric only |
+| Splits | Development: baseline members. Validation: leave-one-out within the baseline. Final holdout: the assigned `HOLDOUT` members per evaluator, never tuned on |
+| Decision rule | A candidate model replaces the default only if its pooled holdout error improves on the default by more than the repeat-estimated noise, on the same eligibility set |
+| Baseline | The affinity heuristic with serialized, digested parameters (`fragrance_rater.ml.model`); the corrected `affinity-v2` is the default, `affinity-v1` is retained as a reference model |
+
+Consequences: `PredictionSnapshot` rows are produced by `fragrance_rater.ml.predict` with a
+server-built manifest, and `fragrance_rater.ml.evaluate` computes the metrics above. Reports that
+omit the ceiling, the n, or the interval are not valid evidence under this ADR.
+
+Related: [ML Structure Review 2026-09](../ml-structure-review-2026-09.md),
+[ML Decisions 2026-09](../ml-decisions-2026-09.md).
 
 ## Related
 
