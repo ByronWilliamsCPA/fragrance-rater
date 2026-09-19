@@ -265,7 +265,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                     <h3>{item.fragrance_name}</h3>
                     <p className="affinity">
                       <span>{item.fragrance_brand}</span>
-                      <strong data-numeric>{item.match_percent}</strong>
+                      <strong data-numeric>{item.match_percent}%</strong>
                       <span>affinity score</span>
                     </p>
                     <button
