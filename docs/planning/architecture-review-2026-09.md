@@ -629,6 +629,7 @@ SQLAlchemy directly (`api/calibration.py` eight model classes; `api/recommendati
 
 ## Related documents
 
+- [ML Structure Review 2026-09](ml-structure-review-2026-09.md)
 - [Authoritative Project Plan](PROJECT-PLAN.md)
 - [Technical Specification](tech-spec.md)
 - [ADR Index](adr/README.md)
