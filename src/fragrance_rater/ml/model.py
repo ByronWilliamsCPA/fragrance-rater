@@ -262,7 +262,8 @@ class AffinityV1:
 
         Args:
             reviewer_id (str): The evaluator the profile belongs to.
-            contributions: Per-version ``(features, weights)`` pairs.
+            contributions (Iterable[tuple[FeatureVector, Sequence[float]]]):
+                Per-version ``(features, weights)`` pairs.
 
         Returns:
             UserProfile: Accumulated affinities and display summaries.

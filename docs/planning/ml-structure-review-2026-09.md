@@ -20,6 +20,20 @@ tags:
 > through [PROJECT-PLAN.md](PROJECT-PLAN.md) change control and, where they alter a durable
 > decision, an ADR amendment.
 
+## Implementation status
+
+**2026-09-19, same branch, after this review was written.** Tier 2 items 7, 8, 9, 12, and 13
+and Tier 3 items 14 and 15 are implemented in `src/fragrance_rater/ml/` as a behavior-preserving
+skeleton: `feature_space.py` (M-02), `model.py` with `ModelSpec`, the `Scorer` protocol, and
+`AffinityV1` frozen with a pinned parameter digest (M-03, M-04, M-16 partially), `dataset.py`
+(M-01, M-20, M-22; the target is a parameter defaulting to the Section 3 proposal),
+`reliability.py` (M-19), `evaluate.py` (M-10), `registry.py` and `predict.py` (M-05, M-09, X-18,
+and the M-11 registry half). `RecommendationService` delegates to the model object and the
+measurement service derives `ALGORITHM_VERSION` from the spec. Not implemented: the schema
+items (M-07, M-08, X-16, X-17, X-05 view), registry validation of `candidate_strategy` and
+`CheckpointInput.algorithm_version` (M-11 API half), Tier 1 vocabulary work, and any learned
+model. See [ML Pipeline](../development/ml-pipeline.md).
+
 ## 1. How to use this document
 
 Section 2 is the verdict. Section 3 states the learning problem the way it must be declared before
