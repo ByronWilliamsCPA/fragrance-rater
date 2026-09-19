@@ -127,6 +127,16 @@ flag_management:
           target: 80%
           threshold: 5%
 
+    - name: frontend
+      behavior: default
+      statuses:
+        - type: project
+          target: auto
+          threshold: 2%
+        - type: patch
+          target: 90%
+          threshold: 5%
+
 # Component-based coverage tracking
 component_management:
   individual_components:
