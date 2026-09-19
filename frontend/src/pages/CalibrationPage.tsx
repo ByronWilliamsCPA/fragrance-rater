@@ -437,9 +437,9 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                             </th>
                             <td>{observation.stage === 'SKIN' ? 'Skin' : 'Blotter'}</td>
                             <td>{observation.phase.replace(/_/g, ' ')}</td>
-                            <td data-numeric>{observation.intensity ?? '—'}</td>
-                            <td data-numeric>{observation.liking ?? '—'}</td>
-                            <td>{observation.comments || '—'}</td>
+                            <td data-numeric>{observation.intensity ?? 'n/a'}</td>
+                            <td data-numeric>{observation.liking ?? 'n/a'}</td>
+                            <td>{observation.comments || 'n/a'}</td>
                           </tr>
                         ))}
                       </tbody>

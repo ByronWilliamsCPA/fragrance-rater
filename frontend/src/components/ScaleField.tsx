@@ -40,7 +40,7 @@ export function ScaleField({ scale, disabled }: ScaleFieldProps) {
       {/*
         The wrapper exists so the anchor line is exactly as wide as the option
         run it describes. Left to themselves the two rows size independently,
-        and "10 — Love it" landed short of the 10 it labels.
+        and "10: Love it" landed short of the 10 it labels.
       */}
       <div className="scale-field__scale">
         <div className="scale-field__options">
@@ -62,9 +62,9 @@ export function ScaleField({ scale, disabled }: ScaleFieldProps) {
           </label>
         </div>
         <p className="scale-field__anchors" id={anchorsId}>
-          <span>0 — {scale.lowAnchor}</span>
+          <span>0: {scale.lowAnchor}</span>
           <span>
-            {scale.max} — {scale.highAnchor}
+            {scale.max}: {scale.highAnchor}
           </span>
         </p>
       </div>
