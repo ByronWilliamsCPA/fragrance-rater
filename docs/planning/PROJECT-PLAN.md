@@ -178,7 +178,7 @@ boundary.
   plan.** No task in the seventeen-task frontend e2e/accessibility plan (eighteen counting the
   Task 3b amendment) defined or measured a frontend performance budget. This remains unaddressed
   and unscheduled.
-- **Backend and frontend lint, type, test, and build checks pass: closed for the frontend as of
+- **Frontend lint, type, test, and build checks pass: closed as of
   2026-09-18**, verified by running `npm run lint && npm run typecheck && npm run test:coverage
   && npm run build && npx playwright test` together for the first time across all seventeen
   prior tasks' combined output (eighteen counting the Task 3b amendment), not task by task: lint
