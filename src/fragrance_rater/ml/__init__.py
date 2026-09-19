@@ -26,6 +26,17 @@ Layout:
 Nothing here changes the affinity-v1 ranking; the scorer is a
 behavior-preserving extraction whose parameters are now serialized and
 digested so that a change to any tunable is a recorded version change.
+
+Exception hierarchy exemption: this package raises plain built-in exceptions
+(``ValueError``, ``KeyError``) rather than ``fragrance_rater.core.exceptions``
+types (``ValidationError``, ``BusinessLogicError``, and similar). That is
+deliberate, not an oversight: the "importable without FastAPI, without an
+event loop" goal above means this package must not depend on the API-facing
+exception hierarchy's error-response shaping (``to_dict()``, ``error_code``),
+which exists for HTTP handlers, not notebook/batch callers. API-layer callers
+(``cli.py``, and any future route) are responsible for catching these plain
+exceptions at their boundary and translating them into the centralized
+hierarchy if an HTTP response needs one.
 """
 
 from __future__ import annotations

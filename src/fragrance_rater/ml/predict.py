@@ -3,11 +3,12 @@
 This is ADR-009's prospective-evaluation principle expressed as code. Until
 now no code path in this system produced a prediction: ``ModelCheckpoint.
 predictions`` and every ``PredictionSnapshot`` field were caller-supplied
-JSON typed by a manager into a request body, so affinity-v1 -- the model the
-product actually ships -- had no prospective record of its own to be judged
-on, and a snapshot's ``input_manifest`` was accepted verbatim and could
-contain the very holdout evidence the prediction was meant to be blind to
-(ML structure review, M-09 and X-18).
+JSON typed by a manager into a request body, so neither affinity-v1 nor
+affinity-v2 (the model the product actually ships; see
+``ml.registry.DEFAULT_MODEL_KEY``) had a prospective record of its own to be
+judged on, and a snapshot's ``input_manifest`` was accepted verbatim and
+could contain the very holdout evidence the prediction was meant to be
+blind to (ML structure review, M-09 and X-18).
 
 ``predict_and_freeze`` closes both. It builds the evidence exactly once --
 one exclusion set, one training manifest, one profile, one input digest,
@@ -138,8 +139,8 @@ def _manifest_digest(manifest: Sequence[dict[str, object]]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-async def leakage_check(
-    session: AsyncSession, reviewer_id: str, manifest: Sequence[dict[str, object]]
+def leakage_check(
+    excluded: set[str], manifest: Sequence[dict[str, object]]
 ) -> list[str]:
     """Return manifest row ids whose fragrance is an assigned holdout.
 
@@ -148,15 +149,23 @@ async def leakage_check(
     holdouts, so a non-empty result means the exclusion rule regressed or a
     caller substituted a manifest. Either way the run must not proceed.
 
+    # #CRITICAL: data integrity: ``excluded`` must be the exact set the
+    # manifest was built from, not a fresh re-query. A separate query run in
+    # the same transaction should return identical rows, but re-deriving it
+    # here would check the manifest against a set that only coincidentally
+    # matches the one it was actually built from, and would reopen a narrow
+    # TOCTOU window if exclusion state changes mid-transaction.
+    # #VERIFY: callers must pass the same ``excluded`` set used to build
+    # ``manifest`` (see ``predict_and_freeze``); do not reintroduce an
+    # internal re-query of ``excluded_versions``.
+
     Args:
-        session (AsyncSession): Database session.
-        reviewer_id (str): The evaluator the manifest belongs to.
+        excluded (set[str]): The exclusion set the manifest was built from.
         manifest (Sequence[dict[str, object]]): Rows to audit.
 
     Returns:
         list[str]: Ids of offending rows, in manifest order; empty when clean.
     """
-    excluded = await PreferenceHistoryService(session).excluded_versions(reviewer_id)
     return [
         str(row.get("id"))
         for row in manifest
@@ -172,6 +181,17 @@ async def _holdout_observed(
     Mirrors the checkpoint-closure rule in ``api/calibration.py``: once the
     evaluator has responded to a holdout, a prediction for it is no longer
     prospective and freezing one would be a retrospective fit.
+
+    # #CRITICAL: timing dependency: this check and the snapshot write it
+    # gates happen in separate statements within the same caller
+    # transaction. A PRE_REVEAL observation recorded between this query and
+    # ``predict_and_freeze``'s snapshot write would not be caught, so a
+    # prediction could still be frozen against a holdout that was observed
+    # moments earlier.
+    # #VERIFY: no code path currently lets a reviewer submit an observation
+    # concurrently with an in-flight prediction run; if one is added
+    # (e.g. a background job or a second API worker), re-check this
+    # assumption or move the check inside the same statement as the write.
 
     Args:
         session (AsyncSession): Database session.
@@ -207,6 +227,19 @@ async def _already_predicted(
     accumulate duplicate outcome-free snapshots that would each demand their
     own outcome link. A snapshot whose outcome is already linked does not
     block a fresh prospective prediction.
+
+    # #CRITICAL: concurrency: this is a check-then-act race. Two concurrent
+    # ``predict_and_freeze`` runs for the same reviewer/model/version could
+    # both read an empty result here and then both call ``service.create()``
+    # for the same fragrance, producing duplicate outcome-free snapshots --
+    # exactly what this function's docstring says must not happen.
+    # ``PredictionSnapshot`` has no unique constraint on
+    # (reviewer_id, fragrance_id, model_id, model_version,
+    # outcome_linked_at IS NULL) to back this at the database layer.
+    # #VERIFY: single-writer usage (CLI/one API worker at a time) makes this
+    # safe today; before this runs under concurrent callers, add a unique
+    # partial index or a transaction-level lock rather than relying on this
+    # read-then-write check alone.
 
     Args:
         session (AsyncSession): Database session.
@@ -287,10 +320,16 @@ async def predict_and_freeze(
     report (ADR-007). The same caveat is written into every snapshot's
     ``explanation`` so it travels with the data.
 
-    Targets default to the evaluator's currently assigned HOLDOUT versions,
-    because holdouts are what prospective prediction exists for. An explicit
-    ``fragrance_ids`` list is used as given -- any fragrance may be
-    predicted, not only a holdout.
+    Targets default to every fragrance ever assigned HOLDOUT for this
+    evaluator (``PreferenceHistoryService.excluded_versions``, deliberately
+    conservative across all workflows and enrollments, not scoped to the
+    currently-open one), because holdouts are what prospective prediction
+    exists for. An explicit ``fragrance_ids`` list is used as given -- any
+    fragrance may be predicted, not only a holdout. A default-target
+    holdout from a closed-out program is not distinguished from one in the
+    current program; it either gets skipped via
+    ``holdout-observation-exists`` if it was actually observed pre-reveal,
+    or a prediction is frozen for it like any other holdout.
 
     A target is skipped, rather than failing the run, when:
 
@@ -335,7 +374,16 @@ async def predict_and_freeze(
     history = PreferenceHistoryService(session)
     excluded = await history.excluded_versions(reviewer_id)
     manifest = await history.training_manifest(reviewer_id, excluded=excluded)
-    leaked = await leakage_check(session, reviewer_id, manifest)
+    # #CRITICAL: data integrity: the manifest is server-built from `excluded`
+    # immediately above, so this should never fire in normal operation. It
+    # exists as insurance against the exclusion rule regressing or a future
+    # caller substituting a manifest (ML structure review X-18); a non-empty
+    # result means that guarantee already broke somewhere upstream.
+    # #VERIFY: this raises ValueError rather than a SQLAlchemyError, so it
+    # bypasses a narrowly-scoped rollback in the caller's session context
+    # manager; see core/database.py's get_session for why that except clause
+    # is not narrowed to SQLAlchemyError.
+    leaked = leakage_check(excluded, manifest)
     if leaked:
         message = (
             f"training manifest for reviewer {reviewer_id!r} contains holdout "

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, TypedDict
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.core.exceptions import BusinessLogicError
 from fragrance_rater.ml.feature_space import vectorize
 from fragrance_rater.ml.model import (
     COMPONENT_WEIGHTS,
@@ -256,8 +257,24 @@ class RecommendationService:
                 if fragrance is not None:
                     # Explicit affinity-v1 conversion (ADR-007); not predicted liking.
                     rating = row["rating"]
+                    # #CRITICAL: data integrity: training_manifest already filters
+                    # PRE_REVEAL rows with a NULL liking, so a non-numeric rating here
+                    # means that upstream invariant regressed. Raising (rather than
+                    # silently dropping the row) matches the sibling assert-replacement
+                    # in prediction_service.py._link_outcome and keeps a manifest gap
+                    # from silently shrinking the evidence a frozen ADR-009 prediction
+                    # is scored against.
+                    # #VERIFY: if a legitimate non-numeric rating source is ever added,
+                    # filter it in training_manifest instead of relaxing this check.
                     if not isinstance(rating, (int, float)):
-                        continue
+                        message = (
+                            f"controlled manifest row for fragrance {fid!r} has a "
+                            f"non-numeric rating {rating!r}; training_manifest should "
+                            "have already excluded it"
+                        )
+                        raise BusinessLogicError(
+                            message, rule="numeric_controlled_rating"
+                        )
                     contribution = self.model.controlled_affinity(float(rating))
                     if fid in contributions:
                         contributions[fid][1].append(contribution)

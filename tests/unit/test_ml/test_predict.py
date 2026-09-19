@@ -265,10 +265,12 @@ async def test_unknown_model_key_is_rejected(world):
 @pytest.mark.asyncio
 async def test_leakage_check_flags_a_holdout_row(world):
     session, _, _ = world
-    manifest = await PreferenceHistoryService(session).training_manifest("owner")
-    assert await leakage_check(session, "owner", manifest) == []
+    history = PreferenceHistoryService(session)
+    excluded = await history.excluded_versions("owner")
+    manifest = await history.training_manifest("owner", excluded=excluded)
+    assert leakage_check(excluded, manifest) == []
     leaky = [*manifest, {"id": "leaked-row", "fragrance_id": "holdout"}]
-    assert await leakage_check(session, "owner", leaky) == ["leaked-row"]
+    assert leakage_check(excluded, leaky) == ["leaked-row"]
 
 
 @pytest.mark.asyncio

@@ -6,7 +6,6 @@ This module provides async database connectivity using SQLAlchemy 2.0.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -44,7 +43,13 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         AsyncSession: Database session for executing queries.
 
     Raises:
-        SQLAlchemyError: Re-raised after the session has been rolled back.
+        Exception: Whatever the caller's block raised, after an explicit
+            rollback. Not narrowed to ``SQLAlchemyError``: a caller can raise
+            a domain error (``ValueError``, ``BusinessLogicError``, and
+            similar) mid-transaction, and that path must roll back exactly
+            like a database-layer failure rather than relying on the
+            implicit abort-on-close that `async with async_session_maker()`
+            would otherwise provide.
 
     Example:
         async with get_session() as session:
@@ -54,7 +59,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except SQLAlchemyError:
+        except Exception:
             await session.rollback()
             raise
 
@@ -66,12 +71,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         AsyncSession: Database session for the request lifecycle.
 
     Raises:
-        SQLAlchemyError: Re-raised after the session has been rolled back.
+        Exception: Whatever the request handler raised, after an explicit
+            rollback (see ``get_session`` above for why this is not narrowed
+            to ``SQLAlchemyError``).
     """
     async with async_session_maker() as session:
         try:
             yield session
             await session.commit()
-        except SQLAlchemyError:
+        except Exception:
             await session.rollback()
             raise

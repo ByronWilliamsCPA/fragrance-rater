@@ -380,9 +380,12 @@ class AffinityV1:
             + COMPONENT_WEIGHTS["subfamily"] * subfamily_score
         )
 
-        # raw_score is an unbounded weighted sum that grows with history, so
-        # clamp before math.exp to guarantee no OverflowError; sigmoid(+/-50)
-        # already round-trips to 1.0 / ~1.9e-22 in float64.
+        # #EDGE: data integrity: raw_score is an unbounded weighted sum that
+        # grows with history, so clamp before math.exp to guarantee no
+        # OverflowError; sigmoid(+/-50) already round-trips to
+        # 1.0 / ~1.9e-22 in float64.
+        # #VERIFY: clamp the sigmoid input to +/-SIGMOID_CLAMP before calling
+        # math.exp.
         clamped = max(-SIGMOID_CLAMP, min(SIGMOID_CLAMP, raw_score))
         normalized = 1 / (1 + math.exp(-clamped))
 
@@ -589,6 +592,10 @@ class AffinityV2(AffinityV1):
             + COMPONENT_WEIGHTS["family"] * family_score
             + COMPONENT_WEIGHTS["subfamily"] * subfamily_score
         )
+        # #EDGE: data integrity: same unbounded-raw_score risk as
+        # AffinityV1.score above, scaled by V2_LINK_SCALE before clamping.
+        # #VERIFY: clamp the sigmoid input to +/-SIGMOID_CLAMP before calling
+        # math.exp.
         clamped = max(-SIGMOID_CLAMP, min(SIGMOID_CLAMP, raw_score * V2_LINK_SCALE))
         normalized = 1 / (1 + math.exp(-clamped))
 
