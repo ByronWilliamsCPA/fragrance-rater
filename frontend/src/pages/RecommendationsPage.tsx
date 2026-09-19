@@ -188,6 +188,16 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
         Start a new set when you want fresh choices. Opening this saved set again does not count as
         another impression.
       </p>
+      {/*
+        ADR-007 requires the 0-100 display value be labelled "affinity score"
+        and never as a probability, confidence, predicted liking, or accuracy.
+        Stated once here rather than on each card, so the qualification is not
+        competing with ten copies of itself.
+      */}
+      <p className="disclosure">
+        An affinity score ranks candidates against the preferences already in your record. It is not
+        a prediction of how much you will like a fragrance, and not a probability that you will.
+      </p>
       <FeedbackBanner error={task.error} notice={task.notice} />
       <label>
         Evaluator
@@ -255,8 +265,8 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                     <h3>{item.fragrance_name}</h3>
                     <p className="affinity">
                       <span>{item.fragrance_brand}</span>
-                      <strong data-numeric>{item.match_percent}%</strong>
-                      <span>affinity</span>
+                      <strong data-numeric>{item.match_percent}</strong>
+                      <span>affinity score</span>
                     </p>
                     <button
                       className="secondary"

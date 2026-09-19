@@ -807,3 +807,51 @@ article {
   line-height: var(--leading-prose);
   color: var(--color-ink);
 }
+
+/* ---- Scale groups ------------------------------------------------------ */
+
+/*
+ * The descriptive / affective / meta split (SCA Coffee Value Assessment).
+ * The heading is the whole point: without it the twelve scales read as one
+ * undifferentiated run and nothing tells the evaluator that "Discomfort" is a
+ * fact about them rather than about the fragrance.
+ */
+.scale-group {
+  margin-top: var(--space-8);
+}
+
+.scale-group__legend {
+  margin: 0;
+  padding-bottom: var(--space-1);
+  border-bottom-width: var(--rule-hairline);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.scale-group__description {
+  max-width: var(--measure);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}
+
+.scale-group .scale-stack {
+  margin-top: var(--space-2);
+  border-top: 0;
+}
+
+/*
+ * A standing qualification on what a figure does and does not mean. Set apart
+ * from ordinary prose by a rule so it reads as a footnote on the sheet rather
+ * than as instructions.
+ */
+.disclosure {
+  max-width: var(--measure);
+  margin: var(--space-4) 0;
+  padding-left: var(--space-4);
+  border-left: var(--rule-hairline) solid var(--color-rule);
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+}

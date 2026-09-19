@@ -190,6 +190,41 @@ tab stops each to skip. Serialisation is unchanged: the radios share the field `
 explicit "Not answered" option submits an empty string exactly as the placeholder option did, which
 keeps a deliberate zero distinguishable from an unanswered scale.
 
+## Perception, response, and certainty
+
+The Specialty Coffee Association's Coffee Value Assessment separates a **descriptive** judgement
+("how much smoke is there") from an **affective** one ("do I like smoke") from an overall
+assessment. Collapsing them is the standard failure of consumer sensory forms, and this form
+collapsed them: twelve scales ran together with nothing saying which were about the fragrance and
+which were about the evaluator.
+
+The calibration form now groups them under headings:
+
+| Group | Holds | Why |
+| :--- | :--- | :--- |
+| **What you perceived** | intensity, sweetness, freshness, density, dryness, clean or soapy, earthy or rooty, bodily or animalic | Properties of the fragrance, whether or not the evaluator liked them |
+| **How you responded** | liking, discomfort | The evaluator's own reaction. `discomfort` is physical, and is not the same as disliking the smell |
+| **How sure you are** | confidence, familiarity | How much weight the record should carry |
+
+Skin-test scales split the same way, into performance and response.
+
+**This is presentational only, and it does not close the underlying gap.** The schema
+(`schemas/calibration.py`, ADR-010) has perception and overall affect but **no per-dimension
+preference**: an evaluator can record "sweetness 5" and "liking 3", but not *that they dislike
+sweetness*. That is the signal that would let the model explain itself rather than only rank, and
+adding it is a schema decision, not a design one.
+
+The 0-100 recommendation figure is labelled "affinity score" and carries a standing qualification
+that it ranks rather than predicts, because ADR-007 forbids labelling it a probability,
+confidence, predicted liking, or accuracy.
+
+## Imagery
+
+There is none, and the constraint is not cosmetic. The core flow is blind: showing a bottle before
+reveal is what ADR-005 exists to prevent. Imagery can only appear post-reveal, in recommendations,
+and in the catalog, so it cannot carry the app's visual identity the way it does on a commercial
+perfume site. The fragrance model also has no image field of any kind today.
+
 ## Conventions
 
 - **No literal colours outside `tokens.css`.** Add a token, and add its pair to the contrast test.

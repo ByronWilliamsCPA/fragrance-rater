@@ -6,11 +6,11 @@ import { FeedbackBanner } from '../components/FeedbackBanner'
 import { EmptyState } from '../components/PageState'
 import { ScaleField } from '../components/ScaleField'
 import {
-  intensityScale,
-  likingScale,
+  blotterGroups,
+  numericFieldNames,
   observationNotes,
-  perceptualScales,
-  skinScales,
+  skinGroups,
+  type ScaleGroup,
 } from '../content/calibrationScales'
 import { useTask } from '../hooks/useTask'
 
@@ -21,18 +21,41 @@ type CalibrationPageProps = {
 }
 
 /**
- * Response field names, in the order the API expects them.
+ * Renders one group of scales under a shared heading.
  *
- * Derived from the scale definitions rather than repeated as literals, so a
- * renamed or added dimension cannot be rendered but left out of the payload.
+ * The heading is what carries the descriptive/affective separation: without
+ * it the twelve scales read as one undifferentiated run, and an evaluator has
+ * no cue that "Discomfort" is a fact about them rather than about the scent.
  */
-const numericFields = [
-  likingScale.name,
-  intensityScale.name,
-  ...perceptualScales.map((scale) => scale.name),
-  ...skinScales.map((scale) => scale.name),
-  'longevity_minutes',
-]
+function ScaleGroupFields({
+  group,
+  isDisabled,
+}: {
+  group: ScaleGroup
+  isDisabled?: (name: string) => boolean
+}) {
+  return (
+    <div className="scale-group">
+      <h3 className="scale-group__legend">{group.legend}</h3>
+      <p className="scale-group__description">{group.description}</p>
+      <div className="scale-stack">
+        {group.scales.map((item) => (
+          <ScaleField key={item.name} scale={item} disabled={isDisabled?.(item.name)} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Non-detection forces intensity to 0 and clears liking, so those two must not
+ * accept input. The perceptual dimensions stay enabled, which is the behaviour
+ * this form already had: whether they should also be closed off when nothing
+ * was smelled is a data-model question, not a presentational one.
+ */
+function disabledOnNonDetection(name: string) {
+  return name === 'intensity' || name === 'liking'
+}
 
 export function CalibrationPage({ assignments, programs, reviewers }: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
@@ -75,7 +98,7 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
       elapsed_minutes: Number(values.elapsed_minutes || 0),
       detected: detected === '' ? null : detected === 'yes',
     }
-    for (const name of numericFields) data[name] = !values[name] ? null : Number(values[name])
+    for (const name of numericFieldNames) data[name] = !values[name] ? null : Number(values[name])
     if (detected === 'no') {
       data.intensity = 0
       data.liking = null
@@ -289,23 +312,23 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
                         Intensity will be saved as 0; liking will remain unanswered.
                       </p>
                     )}
-                    <div className="scale-stack">
-                      <ScaleField scale={intensityScale} disabled={detected === 'no'} />
-                      <ScaleField scale={likingScale} disabled={detected === 'no'} />
-                      {perceptualScales.map((dimension) => (
-                        <ScaleField key={dimension.name} scale={dimension} />
-                      ))}
-                    </div>
+                    {blotterGroups.map((group) => (
+                      <ScaleGroupFields
+                        key={group.key}
+                        group={group}
+                        isDisabled={detected === 'no' ? disabledOnNonDetection : undefined}
+                      />
+                    ))}
                     {stage === 'SKIN' && (
-                      <div className="scale-stack">
-                        {skinScales.map((dimension) => (
-                          <ScaleField key={dimension.name} scale={dimension} />
+                      <>
+                        {skinGroups.map((group) => (
+                          <ScaleGroupFields key={group.key} group={group} />
                         ))}
                         <label>
                           Longevity (minutes)
                           <input name="longevity_minutes" type="number" min="0" />
                         </label>
-                      </div>
+                      </>
                     )}
                     <label>
                       Perceived notes
