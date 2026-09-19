@@ -13,6 +13,7 @@ This directory contains the governing documents for Fragrance Rater.
 | [ADR Index](adr/README.md) | Records durable architectural and policy decisions |
 | [Controlled Calibration V1](../calibration-v1.md) | Defines the implemented controlled workflow and its deployment constraints |
 | [Data Model Gap Analysis](data-model-gap-analysis.md) | Reviews the schema against preference-learning, scenario, and future-ML requirements; captured as ADR-010, partially implemented |
+| [Architecture and Design Review 2026-09](architecture-review-2026-09.md) | Advisory critical review of design, architecture, and evidence integrity with sequenced remediation workstreams; proposes work, does not change plan status |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
 behavior but does not silently supersede an accepted ADR.
