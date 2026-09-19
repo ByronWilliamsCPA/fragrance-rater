@@ -30,7 +30,7 @@ Sets the pattern every future e2e and accessibility spec follows.
 
 ### Rationale
 
-Per `.claude/rules/design.md`, the committed e2e suite belongs in `frontend/e2e/` using `@playwright/test`. Network-layer mocking keeps the per-PR CI loop fast and deterministic. The smoke tier exists because this app's controlled-disclosure design (ADR-005) makes premature identity reveal a genuine trust failure for a family-use product, not a cosmetic bug, and only a real backend call can prove the API itself withholds identity, a property the frontend's mocked tests structurally cannot verify. axe-core is the industry-standard automated ruleset and integrates directly with the same Playwright suite, avoiding a second test runner.
+The committed e2e suite belongs in `frontend/e2e/` using `@playwright/test`, per the Decision above. Network-layer mocking keeps the per-PR CI loop fast and deterministic. The smoke tier exists because this app's controlled-disclosure design (ADR-005) makes premature identity reveal a genuine trust failure for a family-use product, not a cosmetic bug, and only a real backend call can prove the API itself withholds identity, a property the frontend's mocked tests structurally cannot verify. axe-core is the industry-standard automated ruleset and integrates directly with the same Playwright suite, avoiding a second test runner.
 
 ## Options Considered
 
