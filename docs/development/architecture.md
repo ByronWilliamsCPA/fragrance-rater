@@ -31,6 +31,8 @@ controlled blind calibration programs.
 - Model contribution policy is separate from stored history.
 - Blind disclosure policy applies to direct routes and derived surfaces.
 - Deterministic scoring works without OpenRouter.
+- Scoring is a model object in `fragrance_rater.ml` with serialized, digested parameters; see
+  [ML Pipeline](ml-pipeline.md).
 - Production does not expose a backend path that bypasses Authentik/Traefik.
 
 ## Frontend structure

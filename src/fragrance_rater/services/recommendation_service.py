@@ -8,14 +8,21 @@ This module implements the recommendation algorithm with:
 
 from __future__ import annotations
 
-import math
-from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, TypedDict
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.ml.feature_space import vectorize
+from fragrance_rater.ml.model import (
+    COMPONENT_WEIGHTS,
+    RATING_WEIGHTS,
+    VETO_THRESHOLD,
+    AffinityV1,
+    Scorer,
+    UserProfile,
+)
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -31,37 +38,11 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 
-# Rating weight mapping: 1-5 stars → -2 to +2
-RATING_WEIGHTS = {1: -2.0, 2: -1.0, 3: 0.0, 4: 1.0, 5: 2.0}
-
-# Component weights for match score calculation
-COMPONENT_WEIGHTS = {
-    "notes": 0.40,
-    "accords": 0.30,
-    "family": 0.20,
-    "subfamily": 0.10,
-}
-
-# Veto threshold: cumulative score below this triggers veto
-VETO_THRESHOLD = -3.0
-
-# Minimum evaluations required for recommendations
+# Minimum contributing versions required before recommendations are shown.
+# This is a display gate, not a scoring parameter; scoring itself lives in
+# fragrance_rater.ml.model (RATING_WEIGHTS, COMPONENT_WEIGHTS, VETO_THRESHOLD
+# and UserProfile are re-exported from there for compatibility).
 MIN_EVALUATIONS = 3
-
-
-@dataclass
-class UserProfile:
-    """User profile whose count is distinct contributing fragrance versions."""
-
-    reviewer_id: str
-    note_affinities: dict[str, float] = field(default_factory=dict)
-    accord_affinities: dict[str, float] = field(default_factory=dict)
-    family_affinities: dict[str, float] = field(default_factory=dict)
-    evaluation_count: int = 0
-
-    # For preference display
-    top_liked_notes: list[tuple[str, float]] = field(default_factory=list)
-    top_disliked_notes: list[tuple[str, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -121,8 +102,12 @@ class RecommendationService:
         session (AsyncSession): Async database session.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, model: Scorer | None = None) -> None:
         self.session = session
+        # The scoring model. Defaults to the frozen affinity-v1 heuristic; a
+        # registered alternative can be injected to score the same eligible
+        # evidence under the same rules (ML structure review, M-03/M-11).
+        self.model: Scorer = model if model is not None else AffinityV1()
 
     async def build_preference_profile(
         self, reviewer_id: str, *, excluded: set[str] | None = None
@@ -205,56 +190,17 @@ class RecommendationService:
                 latest.setdefault(item.fragrance_id, item)
         evaluations = list(latest.values())
 
-        # Initialize affinity dictionaries
-        note_affinities: dict[str, float] = defaultdict(float)
-        note_names: dict[str, str] = {}  # id -> name mapping
-        accord_affinities: dict[str, float] = defaultdict(float)
-        family_affinities: dict[str, float] = defaultdict(float)
-
         contributions = await self._contributions(
             reviewer_id, evaluations, history, excluded
         )
-        for fragrance, weights in contributions.values():
-            weight = sum(weights) / len(weights)
-
-            # Accumulate note affinities
-            for fn in fragrance.notes:
-                note_affinities[fn.note.id] += weight
-                note_names[fn.note.id] = fn.note.name
-
-            # Accumulate accord affinities (weighted by intensity)
-            for accord in fragrance.accords:
-                accord_affinities[accord.accord_type] += weight * accord.intensity
-
-            # Accumulate family affinities. An empty/null subfamily means
-            # "unknown" (e.g. scraped data that never got a subfamily
-            # assigned) rather than a real taxonomy bucket, so it must not
-            # pollute the affinity dict with a "" key that every
-            # unknown-subfamily fragrance would then match against.
-            family_affinities[fragrance.primary_family] += weight
-            if fragrance.subfamily:
-                family_affinities[fragrance.subfamily] += weight * 0.5
-
-        # Calculate top liked/disliked notes for profile display
-        sorted_notes = sorted(
+        # Accumulation is the model's job (fragrance_rater.ml.model); this
+        # service only selects eligible evidence and vectorizes features.
+        return self.model.build_profile(
+            reviewer_id,
             [
-                (note_names.get(nid, nid), score)
-                for nid, score in note_affinities.items()
+                (vectorize(fragrance), weights)
+                for fragrance, weights in contributions.values()
             ],
-            key=lambda x: x[1],
-            reverse=True,
-        )
-        top_liked = [(name, score) for name, score in sorted_notes if score > 0][:5]
-        top_disliked = [(name, score) for name, score in sorted_notes if score < 0][-5:]
-
-        return UserProfile(
-            reviewer_id=reviewer_id,
-            note_affinities=dict(note_affinities),
-            accord_affinities=dict(accord_affinities),
-            family_affinities=dict(family_affinities),
-            evaluation_count=len(contributions),
-            top_liked_notes=top_liked,
-            top_disliked_notes=list(reversed(top_disliked)),
         )
 
     async def _contributions(
@@ -305,10 +251,11 @@ class RecommendationService:
                     )
                 )
                 if fragrance is not None:
-                    # Explicit linear affinity-v1 conversion; this is not predicted liking.
+                    # Explicit affinity-v1 conversion (ADR-007); not predicted liking.
                     rating = row["rating"]
-                    assert isinstance(rating, (int, float))
-                    contribution = (rating - 5.0) / 2.5
+                    if not isinstance(rating, (int, float)):
+                        continue
+                    contribution = self.model.controlled_affinity(float(rating))
                     if fid in contributions:
                         contributions[fid][1].append(contribution)
                     else:
@@ -329,76 +276,13 @@ class RecommendationService:
         Returns:
             MatchResult: MatchResult with normalized score and components.
         """
-        # Build note ID to name mapping for veto reporting
-        note_names: dict[str, str] = {}
-        for fn in fragrance.notes:
-            note_names[fn.note.id] = fn.note.name
-
-        # Check for veto (strong dislike of any note)
-        for fn in fragrance.notes:
-            affinity = profile.note_affinities.get(fn.note.id, 0)
-            if affinity < VETO_THRESHOLD:
-                return MatchResult(
-                    score=0.1,
-                    score_percent=10,
-                    vetoed=True,
-                    veto_note=fn.note.name,
-                )
-
-        # Calculate note score
-        note_scores = [
-            profile.note_affinities.get(fn.note.id, 0) for fn in fragrance.notes
-        ]
-        note_score = sum(note_scores) / max(len(note_scores), 1)
-
-        # Calculate accord score
-        accord_scores = [
-            profile.accord_affinities.get(acc.accord_type, 0) * acc.intensity
-            for acc in fragrance.accords
-        ]
-        accord_score = sum(accord_scores) / max(len(accord_scores), 1)
-
-        # Calculate family scores
-        family_score = profile.family_affinities.get(fragrance.primary_family, 0)
-        subfamily_score = profile.family_affinities.get(fragrance.subfamily, 0)
-
-        # Weighted sum (raw score can be negative)
-        raw_score = (
-            COMPONENT_WEIGHTS["notes"] * note_score
-            + COMPONENT_WEIGHTS["accords"] * accord_score
-            + COMPONENT_WEIGHTS["family"] * family_score
-            + COMPONENT_WEIGHTS["subfamily"] * subfamily_score
-        )
-
-        # Normalize to 0-1 range using sigmoid
-        # Maps roughly: -4 → 0.1, 0 → 0.5, +4 → 0.9
-        #
-        # #EDGE: data integrity: raw_score is an unbounded weighted sum of
-        # accumulated note/accord/family affinities, so it grows without
-        # bound as a reviewer's evaluation history grows (more evaluations
-        # -> larger affinity magnitudes -> larger raw_score). math.exp(-x)
-        # raises OverflowError once x exceeds ~709.78 (float64 max), and the
-        # sigmoid is already indistinguishable from 0.0/1.0 at float
-        # precision long before that.
-        # #VERIFY: clamp the sigmoid input to +/-50 before calling
-        # math.exp; sigmoid(+/-50) already round-trips to 1.0/~1.9e-22 in
-        # float64, so this loses no precision the raw float couldn't
-        # already lose, while guaranteeing no OverflowError regardless of
-        # how large raw_score grows in either direction.
-        clamped_raw_score = max(-50.0, min(50.0, raw_score))
-        normalized = 1 / (1 + math.exp(-clamped_raw_score))
-
+        result = self.model.score(profile, vectorize(fragrance))
         return MatchResult(
-            score=normalized,
-            score_percent=int(normalized * 100),
-            vetoed=False,
-            components={
-                "notes": note_score,
-                "accords": accord_score,
-                "family": family_score,
-                "subfamily": subfamily_score,
-                "raw": raw_score,
-            },
+            score=result.score,
+            score_percent=result.score_percent,
+            vetoed=result.vetoed,
+            veto_note=result.veto_note,
+            components=dict(result.components),
         )
 
     async def get_recommendations(
@@ -532,3 +416,17 @@ class RecommendationService:
                 profile.family_affinities.items(), key=lambda x: x[1], reverse=True
             )[:5],
         )
+
+
+__all__ = [
+    "COMPONENT_WEIGHTS",
+    "MIN_EVALUATIONS",
+    "RATING_WEIGHTS",
+    "VETO_THRESHOLD",
+    "InsufficientDataError",
+    "MatchResult",
+    "Recommendation",
+    "RecommendationService",
+    "ReviewerProfileSummary",
+    "UserProfile",
+]

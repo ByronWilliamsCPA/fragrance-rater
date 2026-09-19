@@ -236,6 +236,7 @@ async def test_persisted_checkpoint_survives_response_and_source_changes(history
     await service.db.flush()
     manifest = await service.training_manifest("owner")
     assert manifest[0]["source_features"] == {
+        "feature_space_version": "fs-v1",
         "version_key": "legacy",
         "concentration": "EDP",
         "primary_family": "woody",

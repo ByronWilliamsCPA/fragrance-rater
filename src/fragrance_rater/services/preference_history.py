@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, TypedDict
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.ml.feature_space import vectorize
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -250,19 +251,6 @@ class PreferenceHistoryService:
             fragrance = fragrances.get(str(row["fragrance_id"]))
             if fragrance is None:
                 continue
-            row["source_features"] = {
-                "version_key": fragrance.version_key,
-                "concentration": fragrance.concentration,
-                "primary_family": fragrance.primary_family,
-                "subfamily": fragrance.subfamily,
-                "notes": [
-                    {"name": n.note.name, "position": n.position}
-                    for n in fragrance.notes
-                ],
-                "accords": [
-                    {"name": a.accord_type, "intensity": a.intensity}
-                    for a in fragrance.accords
-                ],
-            }
+            row["source_features"] = vectorize(fragrance).to_source_features()
             result.append(row)
         return result
