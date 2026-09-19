@@ -396,6 +396,7 @@ END BASELINE DEVELOPMENT STANDARDS
 | P4 | Complete participant experience |
 | P5 | Complete manager, reporting, and operations experience |
 | P6 | Deployed synthetic rehearsal and pilot-readiness decision |
+| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint) |
 | F1 | Initial family pilot using actual perfumes |
 | D1 | Source and vocabulary foundation |
 | D2 | Reproducible catalog statistics |

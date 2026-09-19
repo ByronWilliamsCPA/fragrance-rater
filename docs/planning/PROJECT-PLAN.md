@@ -1,6 +1,6 @@
 # Fragrance Rater: Authoritative Project Plan
 
-> **Version**: 2.1 | **Status**: Active | **Updated**: 2026-09-12
+> **Version**: 2.2 | **Status**: Active | **Updated**: 2026-09-19
 
 ## 1. Planning authority
 
@@ -41,7 +41,7 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Fragrance, reviewer, and ordinary evaluation CRUD | Implemented | Ordinary POST retains dated encounters; update and soft delete operate on one encounter |
 | Kaggle import | Implemented | Production dataset quality and rights remain source-specific |
 | Parfumo capture | Partially implemented | Source snapshots and exact titles are preserved; P1.9 added authorized representative fixtures and parser coverage for requested metrics, production status, similar fragrances, missing fields, and unknown concentration; concentration-variant ("related version") data is confirmed AJAX-only on the live site and is intentionally not fabricated |
-| Deterministic recommendations | Implemented | Weighted affinity with veto; score is uncalibrated |
+| Deterministic recommendations | Implemented | `affinity-v2` (shrunk, namespaced, stationary; ADR-004 amendment 2026-09-19) is the default scorer; `affinity-v1` retained for comparison; score is uncalibrated |
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
 | OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the F1 pilot |
 | Controlled calibration | Merged, not deployment-verified | Program, enrollment, hidden repeat/holdout, presentation, observation, locking, reveal, and checkpoint flows exist |
@@ -50,6 +50,8 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Worn-by ("on others") evidence dimension | Implemented, capture only | Optional `worn_by_reviewer_id` on `Evaluation` per ADR-011; excluded from affinity/training-manifest scoring until a future milestone folds it in |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
 | Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
+| ML pipeline skeleton | Implemented, no learned model | `fragrance_rater.ml`: versioned feature space, model objects with digested parameters, dataset builder, repeat reliability, holdout scorecards, prospective prediction runner (ML structure review, Tier 2 and 3) |
+| Review remediation and ML foundation | In progress | Milestone R (section 11a); sprints R1-R4 gate P6 closure, R2 and R5-R8 gate F1 |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |
 
 Status terms:
@@ -64,11 +66,18 @@ Status terms:
 P0 Planning baseline
  ├─ P1 Release evidence ------------------------------------------┐
  └─ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
-                                                                  └─ P6 Pilot readiness
-                                                                      └─ F1 Family pilot
-                                                                          └─ D1 → D2 ┬→ D3
-                                                                                      └→ D4 → D5
+                                                                  └─ R1-R4 Remediation (P6 blockers)
+                                                                      └─ P6 Pilot readiness
+                                                                          └─ R2, R5-R8 ML foundation (F1 blockers)
+                                                                              └─ F1 Family pilot
+                                                                                  └─ D1 → D2 ┬→ D3
+                                                                                              └→ D4 → D5
 ```
+
+Milestone R (section 11a) was added on 2026-09-19 from the architecture and ML structure reviews.
+Its P6-blocking sprints precede the P6 go decision; its F1-blocking sprints precede the first
+pilot perfume. R9-R14 improve maintainability and can run in parallel with P6 evidence gathering
+but do not gate it.
 
 P1 evidence may be gathered while P3-P5 are implemented, but its deployed UI, disclosure, and
 smoke checks use the final P6 candidate. No family member evaluates an actual pilot perfume
@@ -312,6 +321,71 @@ before any family member evaluates an actual pilot perfume.
 
 P6 closes only when every criterion passes and the recorded decision is `go`. Any failed
 criterion or `no-go` decision keeps F1 blocked.
+
+## 11a. Milestone R: Review remediation and ML foundation
+
+**Objective:** Close the findings of the [Architecture and Design Review](architecture-review-2026-09.md)
+and the [ML Structure Review](ml-structure-review-2026-09.md) that block the P6 go decision or the
+first pilot perfume, and lay the ML foundation the owner's [ML decisions](ml-decisions-2026-09.md)
+require before F1 collects data.
+
+**Owner:** Core maintainer
+
+**Status:** In progress. Completed on 2026-09-19: the ML pipeline skeleton (review Tier 2 items 7,
+8, 9, 12, 13 and Tier 3 items 14, 15), `affinity-v2` as the default scorer (Q6), the ADR-009
+learning-problem amendment (Q1), and the protocol research prompt (Q8).
+
+**Depends on:** P5. **Blocks:** P6 closure (R1-R4) and F1 (R2, R5-R8).
+
+### Model selection for sprints
+
+Each sprint names the model that leads it, following the Model Selection table in `CLAUDE.md`.
+The rule: Haiku for mechanical or read-only work, Sonnet for well-specified implementation, Opus
+where a mistake is expensive to reverse (schema, security boundary, cross-cutting refactors, or
+design that later agents build on), and Fable only for the one design spike where the reasoning
+itself is the deliverable. A sprint's review model is one tier above its lead where the lead is
+Sonnet or Haiku. Every sprint reads its cited findings before starting and updates this plan,
+the review's implementation-status section, and the relevant ADR in the same pull request.
+
+### Sprints
+
+| ID | Sprint | Scope (findings) | Gate | Lead | Review | Size |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| R1 | CI truthfulness | Frontend lint, typecheck, test, and build job as a required check; remove `api/*`, `llm/*`, `main.py` from the coverage omit list; container CVE gates on for CRITICAL and HIGH; a PostgreSQL job in this repository running `alembic upgrade head`, the parity test from R2, and the integration marker with `P1_DATABASE_URL`; unit tests for the uncovered measurement-service branches; `docs/ci-gates.md`; delete or correct `setup_github_protection.py` (S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22, S-29, S-26, S-30, D-06) | P6 | Sonnet | Opus | 2 PRs |
+| R2 | Migration tooling and schema safety | `naming_convention` on `Base.metadata`; `compare_type`, `compare_server_default`, `render_as_batch` in `alembic/env.py`; PostgreSQL parity test (`compare_metadata == []`); SQLite `foreign_keys` pragma in `conftest.py`; downgrade-raise assertions; one named-constraint migration renaming the 37 unnamed CHECKs, adding range CHECKs on `evaluations`, `IN` CHECKs on role, status, stage, phase, reconciling the six index names, adding the nine FK indexes, and changing the two `evaluations` cascades to `RESTRICT`; `alembic/README` and CONTRIBUTING rules (D-02, D-03, D-04, D-05, D-07, D-09, D-10, D-11, D-15, D-17, D-19, D-20, X-25) | F1; prerequisite for R6 and R7 | Opus | Sonnet tests | 2 PRs |
+| R3 | Trust boundary in code | nginx resets `X-Authentik-*` unless the peer is Traefik; uvicorn `--proxy-headers` with the frontend network allow-list; limiter keyed on the verified username; `actor`, `manager`, `authorize_reviewer` moved to `core/auth.py`; one `require_identity()` on every mutating route and one recorder-or-manager check on every reviewer-keyed read (architecture review Q5 pending, default: no cross-reviewer reads); `environment`, `trusted_hosts`, and the `NoDecode` admin-list validator in `Settings`; docs routes and CORS defaults gated on environment; an `authentik_required=True` test suite; a deployed forged-header test added to P1.6 (S-01, S-02, S-03, S-05/B-10, S-06, B-11, S-17, S-18, S-19, S-23, B-27, S-25, F-02) | P6 | Opus | Sonnet tests | 2 PRs |
+| R4 | Disclosure leaks, audit trail, logging | Role-neutral 409 on holdout feedback; explanation only by persisted impression id; `log_audit_event` on activate, enroll, lock, reveal, mapping retrieval, checkpoint, prediction create and link; no-store by default under the API prefix; `setup_logging()` in lifespan; `SecretStr` keys and a redaction processor; two new rows in the P1.7 disclosure matrix (B-01, B-02, B-03, B-26, F-15, S-07, S-15) | P6 | Sonnet | Opus | 1 PR |
+| R5 | Protocol research reconciliation | Run the [protocol research prompt](../research/scent-evaluation-protocol-research-prompt.md) on a deep-research model; record the result under `docs/research/`; reconcile session size, daily load, calendar spread, judgment scales, ranking procedure, repeat placement, and session-context fields with the calibration guide, the baseline evidence, and the data model; record changes as an ADR-005 amendment; hand schema changes to R7 (ML Decisions Q8) | F1 | Opus | Owner | 1 PR |
+| R6 | Vocabulary foundation | `NoteAlias` table with `mapping_version`, normalized unique key on `notes`, `Note.category` cleaned of pyramid position (Kaggle rows backfilled to NULL), `accord_types` lookup with `accord_type` as a foreign key, `intensity_source` on `fragrance_accords` with positional values excluded from measured features by default, one resolver used by both importers, `FragranceNote.rank`, scoped to the 43 baseline and holdout versions alongside P1.1 verification; D1 fixtures (`oak moss`/`oakmoss`, `vanille`/`vanilla`, ambiguous, unknown); `FEATURE_SPACE_VERSION` bump (X-01, X-02, X-03, X-04, X-12; ML Decisions Q2, Q5) | F1 | Opus | Sonnet tests | 2 PRs |
+| R7 | Pairwise, behavioral, and context capture | `PairwiseComparison` and `BehavioralEvent` tables; typed sample-provenance columns on `Presentation`; `occurred_on`/`presented_at` and a written session `context`; familiarity as a code on both evidence tables; `scrubbed_off` and `time_to_scrub_minutes`; the end-of-session ranking prompt in the calibration page yielding three pairwise rows; scenario lookups schema-only; shapes adjusted to R5's result before merge (X-07, X-08, X-09, X-14, X-22, X-23; ML Decisions Q3, Q8) | F1 | Sonnet | Opus | 2 PRs |
+| R8 | Training eligibility and provenance in schema | `training_eligibility` on both evidence tables and a `v_training_rows` view; manager-only view for role and repeat linkage; `SourceSnapshot` gains `source_revision`, `content_hash`, `parser_version`, `license_evidence`, `verified_by`, the ADR-012 columns, and a nullable `source_url`; `ModelCheckpoint` gains exclusions, filters, feature-space and taxonomy versions, params, and input digest; typed checkpoint predictions; `FeatureSnapshot` rows; `predict.py` and `dataset.py` read the view (X-05, X-06, X-16, X-17, D-01, M-07, M-08) | F1 | Opus | Sonnet tests | 2 PRs |
+| R9 | Scaffold deletion | Remove `api/ratings.py`, `api/catalog_stub.py`, `llm/`, `middleware/auth.py`, the Postman workflow and collection (or retarget at `/api/v1`), `core/cache.py` and the `redis` dependency, `jobs/`, `utils/financial.py`, unused health checks, demo CLI commands; flag-gate the Parfumo scraper with a deprecation warning after moving GTIN evidence into `SourceSnapshot`; rewrite the app description and README overview (G-03, G-07, B-21, B-22, B-23, B-24, B-30, F-04/F-22, B-34; architecture review Q1-Q4, Q12 pending, defaults apply) | none (maintainability) | Sonnet | Opus | 2 PRs |
+| R10 | Backend consolidation | Services never commit; one `ProjectBaseError` handler; domain exceptions replace `reject()` and raw `HTTPException` in services; activation, skin planning, finalization, and checkpoint creation move into `CalibrationService` with checkpoint creation under the enrollment lock plus a PostgreSQL concurrency test; control-flow asserts replaced; N+1 and unbounded queries fixed; import size bounded; registry-validated `candidate_strategy` and checkpoint `algorithm_version` (B-04, B-05, B-07, B-08, B-09, B-14, B-15, B-16, B-17, B-25, B-29, B-33, B-35, B-31, M-11) | none | Opus | Sonnet tests | 3 PRs |
+| R11 | Typed calibration contract and generated client | Pydantic response models with `response_model=` on all calibration routes; provenance fields (`algorithm_version`, `candidate_strategy`, `score_type`, `score_value`, `recorded_by`), `fragrance_name` and `fragrance_brand` on `EvaluationResponse`, RFC 3339 offsets on timestamps; client generated from `docs/api/openapi.json` and committed; a CI diff between the committed spec and a fresh export (F-03, F-04, F-05, B-13, F-20, Appendix A) | none | Sonnet | Opus | 2 PRs |
+| R12 | Frontend decomposition and state | Split `ProgramSetupPage`; hoist `RecommendationCard`; typed route params with a not-found route; keyed data store with invalidation after mutations; 401 interceptor; per-action task state; error boundary; design tokens with dark mode; type-aware ESLint with `jsx-a11y`; server-side progress summary for Home (F-06 to F-09, F-12, F-16 to F-21, F-23 to F-26) | none | Sonnet | Opus | 3 PRs |
+| R13 | End-to-end and accessibility harness | Playwright with a compose-backed fixture and a forward-auth stub covering the five P4 journeys and the P5 manager journey with interruption and retry; MSW in Vitest; `vitest-axe` on every route; a 360 px assertion; P4 and P5 gate records re-closed or amended per architecture review Q13 (G-01, F-10, F-11, F-13) | P6 (per Q13) | Sonnet | Opus | 2 PRs |
+| R14 | Operations, observability, and documentation | Secrets plumbed from the prod override; topology validator extended; digest-pinned base images and cosign; runtime hardening; `.env.example` and build-arg fixes; scheduled backup with a restore check and `pre_migration_inventory.py` and `verify_restore.py`; documentation consolidation (delete `CONFIG_TEMPLATES_SUMMARY.md`, archive `concept.md`, merge ADR directories, rewrite README, regenerate the CLAUDE.md structure section, supersede `SECURITY-FINDINGS.md`, update the gap analysis to v1.1) (S-04, S-08, S-12, S-13, S-16, S-20, S-27, S-28, D-18, G-04, G-05, G-08, G-10, G-12, D-14) | P6 for secrets, validator, and backups; none for docs | Sonnet for operations; Haiku for documentation | Opus | 3 PRs |
+| R15 | First learned model and comparison | Design spike: a written model spec for a partially pooled linear or ordinal model on the R6 reduced basis with a population prior, the evaluation plan against the repeat ceiling, and the decision rule instance; then `ml` optional dependency group (`numpy`, `scipy`, `scikit-learn`), the model registered beside `affinity-v2`, `predict_and_freeze` on the same holdouts, and a scorecard report; no tuning on holdouts (ML Decisions Q7; review Tier 4 items 17 and 18) | D5 entry; may start after R6 and R8 | Fable for the design spike (one session); Opus implements | Sonnet tests | 1 doc + 2 PRs |
+
+### Sequencing
+
+1. R1, then R2, in that order (R2's parity test needs R1's PostgreSQL job to be visible in CI).
+2. R3 and R4 in parallel after R1; both must merge before the P6 go decision.
+3. R5 as soon as the research result is available; R6 after R2; R7 after R5 and R2; R8 after R6.
+4. R9 after the architecture review's Q1-Q4 and Q12 are decided (defaults apply if undecided).
+5. R10 after R3 and R9; R11 after R10; R12 after R11; R13 any time after R1.
+6. R14 operations items before the P6 decision; documentation items whenever capacity allows.
+7. R15 after R6 and R8, before D5.
+
+### Definition of done for an R sprint
+
+- The cited findings are marked resolved in the review's implementation-status section with the
+  merge commit.
+- This plan's status line and the roadmap mirror are updated in the same pull request.
+- Any durable decision is recorded as an ADR or ADR amendment.
+- The full backend and frontend gates pass; a schema change carries the R2 parity test.
+- No P6 or F1 gate is marked closer to complete without the retained evidence its gate record
+  names.
 
 ## 12. Milestone F1: Initial family perfume pilot
 

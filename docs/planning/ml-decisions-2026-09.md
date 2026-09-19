@@ -149,6 +149,9 @@ recorded there and in an ADR-005 amendment.
 
 ## Sequence once decided
 
+Scheduled as Milestone R in [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation):
+Q2 and Q5 are R6, Q3 and Q8 are R7 (after R5's research reconciliation), Q6 is done, Q7 is R15.
+
 1. ADR-009 amendment recording Q1.
 2. Vocabulary migration and shared resolver for the 43 versions (Q2).
 3. Pairwise and behavioral tables with the session ranking prompt (Q3, Q8).
