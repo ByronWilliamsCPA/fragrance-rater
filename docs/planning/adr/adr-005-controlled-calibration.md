@@ -56,19 +56,38 @@ Milestone R sprint R5 ran the
 [protocol research prompt](../../research/scent-evaluation-protocol-research-prompt.md) against
 two independent deep-research models; the results are recorded at
 `docs/research/deep-research-report (12).md` and
-`docs/research/Fragrance Evaluation Protocol Validation.md`. Six citations from each were
-independently verified against primary sources rather than trusted as written. The first
-report's citations all checked out (correct DOIs, the correct ISO 8589:2007/Amendment 1:2014
-edition, and a correct denial that IFRA sets any numeric per-day sampling limit for consumer
-testing). The second contained a fabricated DOI for a study also cited by the first report, two
-further real DOIs reattributed to unrelated findings under invented author names, a wrong ISO
-8589 edition year, and an IFRA/QRA2 claim its own cited paper does not support. Where the two
-reports disagree, this amendment follows the first, verified report. Where they agree, the
-agreement is treated as corroborating regardless of which report's citation trail is sound.
+`docs/research/Fragrance Evaluation Protocol Validation.md`. An initial six-citation sample from
+each was independently verified against primary sources rather than trusted as written; no full
+audit of either report was performed. The sampled citations from the first report all checked
+out (correct DOIs, the correct ISO 8589:2007/Amendment 1:2014 edition, and a correct denial that
+IFRA sets any numeric per-day sampling limit for consumer testing) -- a verified sample, not a
+clean bill for every citation in that report. The sampled citations from the second report
+included a fabricated DOI for a study also cited by the first report, a wrong ISO 8589 edition
+year, and an IFRA/QRA2 claim its own cited paper does not support. A supplementary check against
+every DOI in the second report's own "Protocol Parameter Analysis and Evidence Synthesis" table
+(not just the six-citation sample) found the problem count in that report runs higher than the
+sample alone showed: at least three
+real DOIs are reattributed to unrelated findings under invented author framing (including a rat
+olfactory-bulb-deafferentation study misattributed as human circadian/hunger/hormonal-cycle
+evidence, and a pediatric ski-helmet-safety study misattributed as fragrance
+freshness/substantivity evidence), and at least two further DOIs beyond the originally
+identified fabricated one do not resolve at all. See the second report's own front matter for
+its current tally; treat any citation count given for that report as a floor, not a ceiling.
+Where the two reports disagree, this amendment follows the first, verified report. Where they
+agree, the agreement is treated as corroborating regardless of which report's citation trail is
+sound.
 
 This closes ML Decisions Q8 as decided (previously provisional pending this research) and
 settles the daily-load, calendar-spread, and judgment-set half of the protocol design that
 `ml-decisions-2026-09.md` deferred.
+
+> **Scope caveat**: the numeric parameters below (daily load, calendar spread, session-context
+> fields, scale anchors, and similar) come from reports whose citations were sample-checked, not
+> exhaustively audited, and one report's own supplementary check (above) found more citation
+> problems than the original sample surfaced. These numbers will govern a human-subject pilot
+> protocol (Milestone F1). Treat them as a literature-informed starting point, not a
+> peer-reviewed clinical protocol; re-verify any specific citation before treating its numeric
+> claim as load-bearing for a safety decision.
 
 | Element | Prior design | Decision | Rationale |
 | :--- | :--- | :--- | :--- |
@@ -77,11 +96,11 @@ settles the daily-load, calendar-spread, and judgment-set half of the protocol d
 | Calendar spread | 13 sessions compressed into 5 days | 13 sessions over 7 test days, distributed across 10 to 14 calendar days; same-day sessions separated by at least 3 hours | Circadian, hunger, and illness effects are documented and get conflated with trait preference under 5-day compression. This keeps the existing 43-fragrance/49-presentation baseline and 6-repeat design unchanged, unlike the alternative considered (1 session/day over 3 to 4 weeks with 15 repeats), which would have restructured both. |
 | Inter-stimulus procedure | Coffee beans between samples; interval unspecified | Coffee beans removed; minimum 2 minutes of clean air, extended to about 5 minutes after a persistent or aversive sample | Direct exploratory evidence found coffee beans no better than plain air; no evidence supports a bean-based reset. |
 | Liking / wear / buy / appreciation scale | 0 to 10 integer, unanchored | Unchanged: 0 to 10 integer; add verbal anchors at 0, 5, and 10 (0/5 for the 0 to 5 descriptors) | ISO 4121 supports quantitative scales generally without mandating a change of scale; anchoring fixes the real defect (an ambiguous midpoint) without a costly VAS/LAM migration to an already-merged schema. |
-| Familiarity | 0 to 5 integer | Categorical recognition (new / vaguely familiar / recognize exact fragrance / owned or worn), with an optional 0 to 5 "feels familiar" strength kept as a separate field | Familiarity, recognition, and ownership are different constructs; a bare integer conflates them. |
+| Familiarity | 0 to 5 integer | Categorical recognition (new / vaguely familiar / recognize exact fragrance), stored separately from a prior-exposure/ownership field (has owned or regularly worn this fragrance: yes / no / unknown); optional 0 to 5 "feels familiar" strength kept as its own field | Familiarity, recognition, and exposure/ownership are different constructs; folding "owned or worn" into the recognition scale would repeat the same conflation a bare integer caused. |
 | `would_buy` | Captured per sample in the core blinded questionnaire, same structure as liking | Moved out of the blinded per-sample core; collected after the wear phase as a secondary outcome, with price context when available | Aligns with ADR-007's existing rule that would-buy is "a separate event and outcome"; without price or identity it is a different construct from sensory liking. |
 | Descriptive dimensions | 8 dimensions including `discomfort` alongside sweetness, freshness, etc. | 7 exploratory descriptors (sweetness, freshness, density/weight, dryness, clean/soapy, earthy/rooty, bodily/animalic); `discomfort` becomes its own aversiveness/adverse-response field, not a descriptor | Discomfort is a reaction to the fragrance, not an odor-character quality; conflating it with sweetness treats a safety signal as a perceptual dimension. |
 | `artistic_appreciation` | Core 0 to 10 field alongside liking/wear/buy | Optional and secondary, collected only if wanted, never a default model target | Reduces respondent burden and avoids proliferating correlated targets in an already data-poor (33-fragrance) model. |
-| Ranking | Not implemented (ML Decisions Q8 provisional: rank 3 samples per session) | Confirmed: rank all 3 samples per session after absolute ratings; analyzed as one rank event (Plackett-Luce or an equivalent rank-ordered likelihood), never as three independent pairwise comparisons | ISO 8587 covers ranking methodology; a 3-item rank is one dependent event, not three independent observations. |
+| Ranking | Not implemented (ML Decisions Q8 provisional: rank 3 samples per session) | Confirmed: rank detected samples only, after absolute ratings; a non-detected sample (intensity 0) is `eligible_for_rank = false` and never assigned a rank position; omit the rank event entirely when fewer than 2 samples in the session are detected; analyzed as one rank event (Plackett-Luce or an equivalent rank-ordered likelihood) over the eligible subset, never as independent pairwise comparisons | ISO 8587 covers ranking methodology; a rank over N eligible items is one dependent event, not N independent observations; forcing a non-detected sample into a rank position would manufacture a preference the evaluator never expressed. |
 | Repeat design | 6 hidden repeats per evaluator, treated informally | Unchanged: 6 hidden repeats; pool all 24 family-wide repeat differences hierarchically and report wide uncertainty; do not present six pairs as a precise individual reliability figure | Six repeats give only 5 degrees of freedom per evaluator; increasing the count would consume the fixed 33-fragrance training budget. See the related ADR-009 terminology note. |
 | Order/position | Ad hoc; strong or animalic samples conventionally placed last | Explicit constrained randomization: each evaluator receives exactly 13 first-, 13 second-, and 13 third-position presentations across the 39 baseline slots; at most one exceptionally persistent/animalic stimulus per session; strong stimuli are not defaulted to last position | Placing strong stimuli last confounds fragrance character with position; balancing separates the two. |
 | Session-context fields | Not recorded | Record per session: illness, nasal congestion, allergy symptoms, hunger, hours since food/caffeine, personal fragrance worn, ambient odor, room temperature/humidity, time of day; menstrual/hormonal context optional and refusable | Circadian and metabolic-state effects are documented; recording them supports sensitivity analysis without discarding otherwise-valid observations. |

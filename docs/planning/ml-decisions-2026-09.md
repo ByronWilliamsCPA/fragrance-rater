@@ -146,11 +146,14 @@ The 5-day, 13-session, 3-sample protocol was designed in concept and had not bee
 against sensory-evaluation practice. The
 [deep-research prompt](../research/scent-evaluation-protocol-research-prompt.md) was run against
 two independent deep-research models (`docs/research/deep-research-report (12).md` and
-`docs/research/Fragrance Evaluation Protocol Validation.md`). Spot-verifying citations from both
-found the first report accurate throughout and the second showing real citation fabrication
-(a garbled DOI, two real DOIs reattributed to invented findings, a wrong ISO edition, an
-unsupported IFRA/QRA2 claim); the reconciliation below follows the first report where they
-disagree.
+`docs/research/Fragrance Evaluation Protocol Validation.md`). An initial six-citation sample
+from each found the first report's sampled citations accurate and the second showing real
+citation fabrication (a garbled DOI, real DOIs reattributed to invented findings, a wrong ISO
+edition, an unsupported IFRA/QRA2 claim); a supplementary check found the second report's
+citation problems run deeper than that sample alone showed (see the
+[ADR-005 amendment](adr/adr-005-controlled-calibration.md#2026-09-19-amendment-protocol-research-reconciliation)
+and the report's own front matter for the current tally). The reconciliation below follows the
+first report where they disagree.
 
 Reconciled and recorded as the
 [2026-09-19 ADR-005 amendment](adr/adr-005-controlled-calibration.md#2026-09-19-amendment-protocol-research-reconciliation):

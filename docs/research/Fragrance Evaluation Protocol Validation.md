@@ -11,11 +11,19 @@ tags:
 
 > **Received**: 2026-09-19. **Model**: unspecified deep-research model (one of two independent
 > responses to the [protocol research prompt](scent-evaluation-protocol-research-prompt.md)).
-> **Verification**: a sample of citations was independently checked against primary sources on
-> 2026-09-19; findings included a fabricated DOI, two real DOIs reattributed to unrelated
-> findings under invented author names, a wrong ISO 8589 edition year, and an IFRA/QRA2 claim
-> its own cited paper does not support. **Do not cite this report's claims without
-> re-verification.** **Reconciliation**: see the
+> **Verification**: an initial six-citation sample was independently checked against primary
+> sources on 2026-09-19 and found a fabricated DOI, a wrong ISO 8589 edition year, and an
+> IFRA/QRA2 claim its own cited paper does not support. A supplementary check against every DOI
+> in this report's "Protocol Parameter Analysis and Evidence Synthesis" table (not just the
+> six-citation sample) found the problem count is higher: at least three real DOIs are
+> reattributed to unrelated findings under invented author framing (a rat
+> olfactory-bulb-deafferentation study misattributed as human
+> circadian/hunger/hormonal-cycle evidence, and a pediatric ski-helmet-safety study misattributed
+> as fragrance freshness/substantivity evidence, among them), and at least two further DOIs
+> beyond the originally identified fabricated one do not resolve at all. Treat any citation
+> count for this report as a floor, not a ceiling: no full audit of this report's citations has
+> been performed. **Do not cite this report's claims without re-verification.**
+> **Reconciliation**: see the
 > [2026-09-19 ADR-005 amendment](../planning/adr/adr-005-controlled-calibration.md#2026-09-19-amendment-protocol-research-reconciliation),
 > which follows the companion response (`deep-research-report (12).md`) wherever the two
 > disagree.
