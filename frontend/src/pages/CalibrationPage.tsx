@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Assignment, Enrollment, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -20,6 +20,7 @@ type CalibrationPageProps = {
   programs: Program[]
   reviewers: Person[]
   navigate: (route: Route) => void
+  initialAssignmentId?: string
 }
 
 /**
@@ -80,10 +81,11 @@ export function CalibrationPage({
   programs,
   reviewers,
   navigate,
+  initialAssignmentId,
 }: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
-  const [assignmentId, setAssignmentId] = useState('')
-  const requestedAssignment = useRef('')
+  const [assignmentId, setAssignmentId] = useState(initialAssignmentId ?? '')
+  const requestedAssignment = useRef(initialAssignmentId ?? '')
   const refreshGeneration = useRef(0)
   const [selected, setSelected] = useState('')
   const [stage, setStage] = useState('BLOTTER')
@@ -102,7 +104,7 @@ export function CalibrationPage({
     return 'All required blind work is locked. The enrollment is eligible to reveal.'
   }
 
-  async function refresh(id = requestedAssignment.current) {
+  const refresh = useCallback(async (id = requestedAssignment.current) => {
     const generation = ++refreshGeneration.current
     if (!id) {
       setEnrollment(null)
@@ -111,7 +113,18 @@ export function CalibrationPage({
     const response = await api.get<Enrollment>(`/calibration/enrollments/${id}`)
     if (generation === refreshGeneration.current && requestedAssignment.current === id)
       setEnrollment(response.data)
-  }
+  }, [])
+
+  useEffect(() => {
+    if (!initialAssignmentId) return
+    requestedAssignment.current = initialAssignmentId
+    void task.run(() => refresh(initialAssignmentId))
+    // task is a fresh object every render (useTask isn't memoized), so it is
+    // intentionally left out: this effect must fire only when
+    // initialAssignmentId (or the stabilized refresh callback) changes, not
+    // on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAssignmentId, refresh])
 
   async function save(form: HTMLFormElement) {
     if (!sample) return

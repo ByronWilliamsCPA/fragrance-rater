@@ -1314,4 +1314,20 @@ describe('Calibration participant workflow', () => {
     expect(screen.getByRole('heading', { name: 'Candidate' })).toBeInTheDocument()
     expect(window.location.search).toBe('?recommendation_run=run-1')
   })
+
+  it('pre-selects the assignment named in an initial query string', async () => {
+    window.history.replaceState({}, '', '/calibration?assignment=assignment')
+    render(<App />)
+
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('assignment')
+    expect(await screen.findByRole('button', { name: /A82F/ })).toBeInTheDocument()
+  })
+
+  it('falls back to the empty dropdown for a stale assignment id in the query string', async () => {
+    window.history.replaceState({}, '', '/calibration?assignment=does-not-exist')
+    render(<App />)
+
+    await screen.findByRole('option', { name: 'Evaluator · Baseline' })
+    expect(screen.getByLabelText('Evaluator and program')).toHaveValue('')
+  })
 })
