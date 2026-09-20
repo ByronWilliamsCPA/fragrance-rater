@@ -3,14 +3,27 @@ import { api, requestErrorMessage } from '../api/client'
 import type { Assignment, Capabilities, Enrollment, Person, Program } from '../api/types'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { LoadingState } from '../components/PageState'
-import type { Route } from '../routing/routes'
+import { assignmentQuery, type Navigate } from '../routing/routes'
+
+/**
+ * One assignment with the program and evaluator it refers to already
+ * attached.
+ *
+ * The join is the caller's job: this page receives rows it can render, rather
+ * than three unrelated arrays it has to match up again inside a render loop.
+ * The two sides are optional because the referenced record can be absent from
+ * the identity's visible set.
+ */
+export type AssignmentSummary = {
+  assignment: Assignment
+  program?: Program
+  reviewer?: Person
+}
 
 type WorkspacePageProps = {
-  assignments: Assignment[]
-  programs: Program[]
-  reviewers: Person[]
+  assignments: AssignmentSummary[]
   capabilities: Capabilities
-  navigate: (route: Route, replace?: boolean, query?: string) => void
+  navigate: Navigate
 }
 
 /**
@@ -29,17 +42,15 @@ function nextAction(enrollment: Enrollment): string {
   return 'Required blind work is complete. Reveal when ready.'
 }
 
-export function WorkspacePage({
-  assignments,
-  programs,
-  reviewers,
-  capabilities,
-  navigate,
-}: WorkspacePageProps) {
+export function WorkspacePage({ assignments, capabilities, navigate }: WorkspacePageProps) {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [loading, setLoading] = useState(assignments.length > 0)
   const [error, setError] = useState('')
   const [reloadKey, setReloadKey] = useState(0)
+  // Keyed by id rather than zipped by position: the fetched progress is the
+  // one thing this page still has to match back to its assignment, and the
+  // two lists can be momentarily out of step while a reload is in flight.
+  const enrollmentsById = new Map(enrollments.map((enrollment) => [enrollment.id, enrollment]))
 
   useEffect(() => {
     let current = true
@@ -55,7 +66,7 @@ export function WorkspacePage({
     setLoading(true)
     setError('')
     void Promise.all(
-      assignments.map((assignment) =>
+      assignments.map(({ assignment }) =>
         api.get<Enrollment>(`/calibration/enrollments/${assignment.id}`)
       )
     )
@@ -110,16 +121,15 @@ export function WorkspacePage({
           {loading ? (
             <LoadingState label="Loading assignment progress…" />
           ) : (
-            enrollments.map((enrollment) => {
-              const assignment = assignments.find((item) => item.id === enrollment.id)
+            assignments.map(({ assignment, program: assignedProgram, reviewer }) => {
+              const enrollment = enrollmentsById.get(assignment.id)
+              if (!enrollment) return null
               const locked = enrollment.presentations.filter((item) => item.blotter_locked).length
               const total = enrollment.presentations.length
-              const evaluator =
-                reviewers.find((item) => item.id === assignment?.reviewer_id)?.name || 'Evaluator'
-              const program =
-                programs.find((item) => item.id === assignment?.program_id)?.name || 'Program'
+              const evaluator = reviewer?.name || 'Evaluator'
+              const program = assignedProgram?.name || 'Program'
               return (
-                <article className="assignment-row" key={enrollment.id}>
+                <article className="assignment-row" key={assignment.id}>
                   <div>
                     <h4>{program}</h4>
                     <p>{evaluator}</p>
@@ -139,9 +149,7 @@ export function WorkspacePage({
                       <strong>{nextAction(enrollment)}</strong>
                     </p>
                     <button
-                      onClick={() =>
-                        navigate('calibration', false, `assignment=${enrollment.id}`)
-                      }
+                      onClick={() => navigate('calibration', false, assignmentQuery(assignment.id))}
                     >
                       Continue calibration
                     </button>

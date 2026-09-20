@@ -1,5 +1,4 @@
-import { useEffect } from 'react'
-import type { Assignment } from './api/types'
+import { useEffect, useMemo } from 'react'
 import { AppShell } from './components/AppShell'
 import { ErrorState, LoadingState } from './components/PageState'
 import { useAppData } from './hooks/useAppData'
@@ -10,25 +9,39 @@ import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
 import { WelcomePage } from './pages/WelcomePage'
-import { WorkspacePage } from './pages/WorkspacePage'
-import { useRoute } from './routing/routes'
-
-/**
- * Validates the `assignment` query param against the assignments this
- * identity actually has, guarding against a stale bookmarked link to a
- * revoked assignment (which falls back to CalibrationPage's existing empty
- * "Choose assignment" state instead of erroring).
- */
-function assignmentIdFromQuery(assignments: Assignment[]): string | undefined {
-  const requested = new URLSearchParams(window.location.search).get('assignment')
-  return requested && assignments.some((assignment) => assignment.id === requested)
-    ? requested
-    : undefined
-}
+import { WorkspacePage, type AssignmentSummary } from './pages/WorkspacePage'
+import { assignmentLinkFor, useRoute } from './routing/routes'
 
 function App() {
   const appData = useAppData()
-  const { route, navigate } = useRoute()
+  const { route, query, navigate } = useRoute()
+  const { assignments, programs, reviewers } = appData
+
+  /**
+   * The assignment/program/reviewer join, written once here instead of
+   * re-derived inside a render loop from three unjoined arrays.
+   *
+   * Memoized because WorkspacePage fetches enrollment progress in an effect
+   * keyed on this array.
+   */
+  const assignmentSummaries: AssignmentSummary[] = useMemo(
+    () =>
+      assignments.map((assignment) => ({
+        assignment,
+        program: programs.find((program) => program.id === assignment.program_id),
+        reviewer: reviewers.find((reviewer) => reviewer.id === assignment.reviewer_id),
+      })),
+    [assignments, programs, reviewers]
+  )
+
+  const assignmentLink = useMemo(
+    () =>
+      assignmentLinkFor(
+        query,
+        assignments.map((assignment) => assignment.id)
+      ),
+    [assignments, query]
+  )
 
   useEffect(() => {
     if (
@@ -60,20 +73,19 @@ function App() {
       )}
       {route === 'workspace' && (
         <WorkspacePage
-          assignments={appData.assignments}
-          programs={appData.programs}
-          reviewers={appData.reviewers}
+          assignments={assignmentSummaries}
           capabilities={appData.capabilities}
           navigate={navigate}
         />
       )}
       {route === 'calibration' && (
         <CalibrationPage
-          assignments={appData.assignments}
-          programs={appData.programs}
-          reviewers={appData.reviewers}
+          assignments={assignments}
+          programs={programs}
+          reviewers={reviewers}
           navigate={navigate}
-          initialAssignmentId={assignmentIdFromQuery(appData.assignments)}
+          initialAssignmentId={assignmentLink.initialAssignmentId}
+          unresolvedAssignmentId={assignmentLink.unresolvedAssignmentId}
         />
       )}
       {route === 'protocol' && <CalibrationProtocolPage navigate={navigate} />}
