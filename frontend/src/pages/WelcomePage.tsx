@@ -20,7 +20,8 @@ export function WelcomePage({ access, capabilities, navigate }: WelcomePageProps
         Learn your fragrance taste by measuring what you actually respond to.
       </p>
       <p>
-        Welcome, {access.username}, you're set up as {roleLabelFor(capabilities)}.
+        Welcome, {access.username || 'Verified family account'}, you're set up as{' '}
+        {roleLabelFor(capabilities)}.
       </p>
       <div className="button-row">
         <button onClick={() => navigate('workspace')}>Continue</button>

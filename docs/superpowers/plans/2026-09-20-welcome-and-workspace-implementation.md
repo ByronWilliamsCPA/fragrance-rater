@@ -308,7 +308,7 @@ export const siteName = 'Fragrance Rater'
 
 export const navigationItems: NavigationItem[] = [
   { route: 'welcome', label: 'Welcome', path: '/', documentTitle: 'Welcome' },
-  { route: 'workspace', label: 'Home', path: '/home', documentTitle: 'Home' },
+  { route: 'workspace', label: 'Workspace', path: '/home', documentTitle: 'Workspace' },
   {
     route: 'calibration',
     label: 'Calibration',
@@ -325,7 +325,7 @@ export const navigationItems: NavigationItem[] = [
     route: 'ratings',
     label: 'Log an encounter',
     path: '/ratings',
-    documentTitle: 'My ratings',
+    documentTitle: 'Log an encounter',
   },
   {
     route: 'programs',
@@ -631,7 +631,7 @@ export function WelcomePage({ access, capabilities, navigate }: WelcomePageProps
     <section>
       <div className="page-heading">
         <div>
-          <h2>Fragrance Rater</h2>
+          <h2>Welcome</h2>
         </div>
       </div>
       <p className="hero-statement">
@@ -1627,7 +1627,7 @@ npm run test:e2e
 
 Expected: all specs pass, including the pre-existing
 `manager-authorization.spec.ts`, `blind-calibration.spec.ts`,
-`ordinary-entry.spec.ts`, `recommendation-feedback.spec.ts`, and
+`log-an-encounter.spec.ts`, `recommendation-feedback.spec.ts`, and
 `accessibility.spec.ts`.
 
 - [ ] **Step 4: Commit**

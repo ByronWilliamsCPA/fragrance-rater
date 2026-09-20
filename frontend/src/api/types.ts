@@ -290,7 +290,9 @@ export function capabilitiesFor(access: Access, assignments: Assignment[]): Capa
   }
 }
 
-export function roleLabelFor(capabilities: Capabilities): 'Manager' | 'Recorder' | 'Participant' {
+export type RoleLabel = 'Manager' | 'Recorder' | 'Participant'
+
+export function roleLabelFor(capabilities: Capabilities): RoleLabel {
   return capabilities.canManagePrograms
     ? 'Manager'
     : capabilities.canRecordCalibration

@@ -6,6 +6,9 @@ import { bootstrapRoutes, enrollmentFixture, managerAccess, mockApi } from './su
 // fixture is passed, so every test here also mocks
 // '/calibration/enrollments/enr1' to avoid an unmocked-501 request, matching
 // the convention in blind-calibration.spec.ts and manager-authorization.spec.ts.
+// #VERIFY: if bootstrapRoutes() changes to seed a different enrollment id, or
+// to seed zero or multiple assignments, update this helper's hardcoded 'enr1'
+// mock accordingly.
 function withEnrollment(overrides: Parameters<typeof bootstrapRoutes>[0] = undefined) {
   return {
     ...bootstrapRoutes(overrides),
