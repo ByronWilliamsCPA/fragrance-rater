@@ -73,4 +73,19 @@ describe('every route has a distinct, descriptive document title', () => {
 
     await waitFor(() => expect(document.title).toBe('My ratings · Fragrance Rater'))
   })
+
+  it('leaves a modified click (e.g. cmd/ctrl-click to open in a new tab) to the browser', async () => {
+    window.history.replaceState({}, '', '/')
+    render(<App />)
+
+    await screen.findByRole('heading', { name: 'Fragrance Rater' })
+    await waitFor(() => expect(document.title).toBe('Home · Fragrance Rater'))
+
+    fireEvent.click(screen.getByRole('link', { name: 'My Ratings' }), { metaKey: true })
+
+    // A real modified click never reaches our handler's navigate() call, so
+    // the SPA stays on its current route instead of switching client-side.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(document.title).toBe('Home · Fragrance Rater')
+  })
 })

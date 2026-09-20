@@ -92,6 +92,19 @@ describe('Calibration protocol page', () => {
     expect(await screen.findByRole('heading', { name: 'Calibration protocol' })).toBeInTheDocument()
   })
 
+  it('cross-links to the About page from "Concealed repeats"', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Calibration protocol' })
+
+    const link = screen.getByRole('link', { name: 'why repeats matter' })
+    expect(link).toHaveAttribute('href', '/about')
+    fireEvent.click(link)
+
+    expect(
+      await screen.findByRole('heading', { name: 'How this project learns your taste' })
+    ).toBeInTheDocument()
+  })
+
   it('never leaks experimental-control identifiers into the static page', async () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Calibration protocol' })
