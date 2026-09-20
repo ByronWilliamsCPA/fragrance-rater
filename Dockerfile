@@ -85,6 +85,10 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8000/health/live || exit 1
 
+# Apply pending Alembic migrations before the server starts, so a fresh
+# deploy never boots against an unmigrated database.
+ENTRYPOINT ["./docker-entrypoint.sh"]
+
 # Default command - run web server
 CMD ["uvicorn", "fragrance_rater.main:app", "--host", "0.0.0.0", "--port", "8000"]
 # =============================================================================
