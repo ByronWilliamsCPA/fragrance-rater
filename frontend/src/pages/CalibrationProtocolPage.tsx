@@ -87,10 +87,10 @@ export function CalibrationProtocolPage() {
           </li>
         </ul>
         <p>
-          Once your enrollment is eligible, revealed identities appear on the Calibration screen
-          automatically. After reveal, you can still add observations, but they're recorded as
-          post-reveal notes appended alongside your original blind responses, not replacements for
-          them.
+          Once your enrollment is eligible, use "Reveal completed baseline" on the Calibration
+          screen to reveal identities. After reveal, you can still add observations, but they're
+          recorded as post-reveal notes appended alongside your original blind responses, not
+          replacements for them.
         </p>
       </section>
       <section>

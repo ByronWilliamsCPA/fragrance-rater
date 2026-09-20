@@ -269,12 +269,12 @@ test.describe('Keyboard operability', () => {
     // order of focusable elements before the assignment select:
     // 1) skip link, 2) theme toggle, 3) "Home" nav link, 4) "Calibration" nav link
     // (current page, still focusable), 5) "Recommendations" nav link, 6) "My Ratings"
-    // nav link, then the "Evaluator and program" <select>. Selecting the only option
-    // and pressing Enter/Space on the resulting sample button reaches the blind
-    // observation form.
-    // #VERIFY: re-run headed if AppShell's nav items, the header controls, or their
-    // order change.
-    for (let i = 0; i < 7; i++) await page.keyboard.press('Tab')
+    // nav link, 7) the "Read the calibration protocol" link, then the "Evaluator and
+    // program" <select>. Selecting the only option and pressing Enter/Space on the
+    // resulting sample button reaches the blind observation form.
+    // #VERIFY: re-run headed if AppShell's nav items, the header controls, the
+    // CalibrationPage intro links, or their order change.
+    for (let i = 0; i < 8; i++) await page.keyboard.press('Tab')
     await expect(page.getByLabel('Evaluator and program')).toBeFocused()
     await page.keyboard.press('ArrowDown')
     await expect(page.getByRole('heading', { name: 'Sessions' })).toBeVisible()

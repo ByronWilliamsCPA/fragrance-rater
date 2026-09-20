@@ -38,6 +38,20 @@
   top: var(--space-3);
 }
 
+/* ---- Inline target link ------------------------------------------------ */
+
+/*
+ * A standalone link set on its own line within body copy (not part of a
+ * running sentence). `inline-flex` plus `min-height` keeps its tap target at
+ * or above the WCAG 2.5.8 minimum without inflating the surrounding text's
+ * line height, which a plain `min-height` on the anchor itself would do.
+ */
+.inline-target-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min);
+}
+
 /* ---- Small label ------------------------------------------------------- */
 
 /*

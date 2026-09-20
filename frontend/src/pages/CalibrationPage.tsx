@@ -159,8 +159,11 @@ export function CalibrationPage({
         </div>
         <p>
           Use the code on your sample. Identities appear after required blind evaluations are
-          locked.{' '}
+          locked.
+        </p>
+        <p>
           <a
+            className="inline-target-link"
             href={pathFor('protocol')}
             onClick={(event: MouseEvent<HTMLAnchorElement>) => {
               if (
