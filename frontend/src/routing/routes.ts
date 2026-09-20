@@ -32,7 +32,7 @@ export const siteName = 'Fragrance Rater'
 
 export const navigationItems: NavigationItem[] = [
   { route: 'welcome', label: 'Welcome', path: '/', documentTitle: 'Welcome' },
-  { route: 'workspace', label: 'Home', path: '/home', documentTitle: 'Home' },
+  { route: 'workspace', label: 'Workspace', path: '/home', documentTitle: 'Workspace' },
   {
     route: 'calibration',
     label: 'Calibration',
@@ -56,7 +56,7 @@ export const navigationItems: NavigationItem[] = [
     route: 'ratings',
     label: 'Log an encounter',
     path: '/ratings',
-    documentTitle: 'My ratings',
+    documentTitle: 'Log an encounter',
   },
   {
     route: 'programs',

@@ -11,6 +11,11 @@ type WelcomePageProps = {
 export function WelcomePage({ access, capabilities, navigate }: WelcomePageProps) {
   return (
     <section>
+      <div className="page-heading">
+        <div>
+          <h2>Welcome</h2>
+        </div>
+      </div>
       <p className="hero-statement">
         Learn your fragrance taste by measuring what you actually respond to.
       </p>

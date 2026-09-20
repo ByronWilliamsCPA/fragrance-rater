@@ -26,7 +26,8 @@ const routeChecks: {
   heading: string | RegExp
   populate?: (page: Page) => Promise<void>
 }[] = [
-  { path: '/', heading: 'Fragrance Rater' },
+  { path: '/', heading: 'Welcome' },
+  { path: '/home', heading: 'Workspace' },
   {
     path: '/calibration',
     heading: 'ABC-123',
@@ -268,7 +269,7 @@ test.describe('Keyboard operability', () => {
     // #ASSUME: timing dependencies: this Tab sequence was verified by running the test
     // headed against the real rendered page rather than guessed; it depends on the DOM
     // order of focusable elements before the assignment select:
-    // 1) skip link, 2) theme toggle, 3) "Welcome" nav link, 4) "Home" nav link,
+    // 1) skip link, 2) theme toggle, 3) "Welcome" nav link, 4) "Workspace" nav link,
     // 5) "Calibration" nav link (current page, still focusable), 6) "Recommendations"
     // nav link, 7) "Log an encounter" nav link (renamed from "My Ratings"), 8) the
     // "Read the calibration protocol" link, then the "Evaluator and program" <select>.

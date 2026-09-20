@@ -99,12 +99,8 @@ describe('WorkspacePage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Your calibration' })).toBeInTheDocument()
     expect(window.location.search).toBe('?assignment=assignment')
-    // Not yet assertable: CalibrationPage does not accept a pre-selected
-    // assignment and App.tsx does not read `?assignment=` from the query
-    // string. That wiring is split across Task 5 (adds the prop) and Task 6
-    // (reads the query string and passes it through), neither dispatched
-    // yet; Task 5's own brief documents that even its tests stay red until
-    // Task 6 lands. Narrowed per task-4-brief.md's flagged plan defect.
+    expect(screen.getByLabelText('Evaluator and program')).toHaveValue('assignment')
+    expect(await screen.findByRole('button', { name: /A82F/ })).toBeInTheDocument()
   })
 
   it('retries assignment progress without reloading the application', async () => {
@@ -131,5 +127,30 @@ describe('WorkspacePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry assignment progress' }))
 
     expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
+  })
+
+  it('navigates to the log-an-encounter page when "Log an encounter" is clicked', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Log an encounter' }))
+
+    expect(await screen.findByRole('heading', { name: 'Log an encounter' })).toBeInTheDocument()
+  })
+
+  it('navigates to the recommendations page when "See recommendations" is clicked', async () => {
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'See recommendations' }))
+
+    expect(await screen.findByRole('heading', { name: 'Recommendations' })).toBeInTheDocument()
+  })
+
+  it('navigates to program setup when "Manage programs" is clicked', async () => {
+    mockBootstrap({ '/calibration/access': { username: 'manager-user', manager: true } })
+    render(<App />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Manage programs' }))
+
+    expect(await screen.findByRole('heading', { name: 'Program setup' })).toBeInTheDocument()
   })
 })

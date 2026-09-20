@@ -71,7 +71,7 @@ describe('every route has a distinct, descriptive document title', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Log an encounter' }))
 
-    await waitFor(() => expect(document.title).toBe('My ratings · Fragrance Rater'))
+    await waitFor(() => expect(document.title).toBe('Log an encounter · Fragrance Rater'))
   })
 
   it('leaves a modified click (e.g. cmd/ctrl-click to open in a new tab) to the browser', async () => {
