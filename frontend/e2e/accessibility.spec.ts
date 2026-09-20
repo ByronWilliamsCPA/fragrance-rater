@@ -26,7 +26,7 @@ const routeChecks: {
   heading: string | RegExp
   populate?: (page: Page) => Promise<void>
 }[] = [
-  { path: '/', heading: 'Your scent journal' },
+  { path: '/', heading: 'Fragrance Rater' },
   {
     path: '/calibration',
     heading: 'ABC-123',
@@ -36,7 +36,7 @@ const routeChecks: {
     },
   },
   { path: '/calibration/protocol', heading: 'Calibration protocol' },
-  { path: '/ratings', heading: 'Ordinary encounters' },
+  { path: '/ratings', heading: 'Log an encounter' },
   {
     path: '/recommendations',
     heading: 'Signature',

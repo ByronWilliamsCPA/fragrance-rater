@@ -30,7 +30,7 @@ test.describe('Ordinary entry (journal encounters)', () => {
     })
 
     await page.goto('/ratings')
-    await expect(page.getByRole('heading', { name: 'Ordinary encounters' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Log an encounter' })).toBeVisible()
 
     // #ASSUME: data-integrity: the "Worn by" select on this same form also lists
     // every reviewer as an option (including "Evaluator One" from this fixture),
