@@ -145,16 +145,27 @@ export function CalibrationPage({
   // check; dropping either lets a stale response overwrite the assignment
   // the user is actually looking at.
   useEffect(() => {
-    if (!initialAssignmentId) return
-    requestedAssignment.current = initialAssignmentId
+    const id = initialAssignmentId ?? ''
+    // Skip only the case where there's nothing to sync: no deep link now,
+    // and nothing tracked from a previous one either (an ordinary
+    // `/calibration` visit, or the manual dropdown's own state, which this
+    // effect must not disturb). Once a deep link HAS been tracked, its
+    // disappearance still falls through below so the stale assignment gets
+    // cleared instead of staying selected against a URL that no longer names
+    // it.
+    if (!id && !requestedAssignment.current) return
+    requestedAssignment.current = id
     // Syncing the picker and sample selection to the URL, which is the source
     // of truth for a deep link; this is the effect's purpose, not derived
     // state being patched up after the fact.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setAssignmentId(initialAssignmentId)
+    setAssignmentId(id)
     setEnrollment(null)
     setSelected('')
-    void task.run(() => refresh(initialAssignmentId))
+    if (id) {
+      void task.run(() => refresh(id))
+    } else {
+      void refresh('')
+    }
     // task is a fresh object every render (useTask isn't memoized), so it is
     // intentionally left out: this effect must fire only when
     // initialAssignmentId (or the stabilized refresh callback) changes, not

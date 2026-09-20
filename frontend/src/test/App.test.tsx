@@ -1269,6 +1269,25 @@ describe('Calibration participant workflow', () => {
     expect(await screen.findByRole('button', { name: /A82F/ })).toBeInTheDocument()
   })
 
+  it('clears the deep-linked assignment when browser back/forward removes it from the URL', async () => {
+    window.history.replaceState({}, '', '/calibration?assignment=assignment')
+    render(<App />)
+
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('assignment')
+    await screen.findByRole('button', { name: /A82F/ })
+
+    // Same route, only the query differs: the case routes.ts's popstate
+    // listener exists for, per its own comment ("back and forward between
+    // two entries for the same route differ only in the query"). Clicking
+    // the nav link instead would preserve the query by design, so it can't
+    // exercise this path.
+    window.history.pushState({}, '', '/calibration')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: /A82F/ })).not.toBeInTheDocument()
+  })
+
   it('falls back to the empty dropdown and surfaces a visible error for a stale assignment id in the query string', async () => {
     window.history.replaceState({}, '', '/calibration?assignment=does-not-exist')
     render(<App />)
