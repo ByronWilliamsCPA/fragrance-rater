@@ -274,7 +274,7 @@ test.describe('Keyboard operability', () => {
     // program" <select>. Selecting the only option and pressing Enter/Space on the
     // resulting sample button reaches the blind observation form.
     // #VERIFY: re-run headed if AppShell's nav items, the header controls, the
-    // CalibrationPage intro links, or their order change.
+    // CalibrationPage intro link, or their order change.
     for (let i = 0; i < 8; i++) await page.keyboard.press('Tab')
     await expect(page.getByLabel('Evaluator and program')).toBeFocused()
     await page.keyboard.press('ArrowDown')
