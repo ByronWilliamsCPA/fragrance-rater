@@ -69,6 +69,29 @@ omit the ceiling, the n, or the interval are not valid evidence under this ADR.
 Related: [ML Structure Review 2026-09](../ml-structure-review-2026-09.md),
 [ML Decisions 2026-09](../ml-decisions-2026-09.md).
 
+## 2026-09-19 amendment: repeat-benchmark terminology
+
+The metrics row above quotes holdout error "against the hidden-repeat noise ceiling." The
+ADR-005 protocol-research-reconciliation amendment found that 6 repeats per evaluator (5 degrees
+of freedom each) support only a pooled, wide-uncertainty measurement-error benchmark, not a
+precise individual noise ceiling. Read "hidden-repeat noise ceiling" in the table above as
+"repeat-derived measurement-error benchmark, pooled across all 24 family-wide repeat pairs with
+wide reported uncertainty." Reports comparing holdout error to this benchmark must include the
+pooled interval, not a bare point estimate.
+
+This changes what "by more than the repeat-estimated noise" means in the Decision rule above
+(line 62), since the benchmark is now an interval, not a point estimate. The predeclared
+comparison rule: a candidate's pooled holdout-error improvement counts as exceeding the noise
+benchmark only if it clears the upper bound of the pooled repeat-benchmark interval, not its
+point estimate or midpoint. An improvement that falls inside the interval is not distinguishable
+from measurement noise under this benchmark and must not trigger adoption; only an improvement
+that clears the interval's upper bound triggers replacing the default. This is deliberately
+conservative: the interval already pools cross-evaluator noise, so comparing against its upper
+edge rather than its center avoids adopting a model whose apparent gain is an artifact of that
+same pooled noise.
+
+Related: [ADR-005](adr-005-controlled-calibration.md), 2026-09-19 amendment.
+
 ## Related
 
 - [ADR-005](adr-005-controlled-calibration.md)
