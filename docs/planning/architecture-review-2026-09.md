@@ -109,7 +109,7 @@ Environment: Python 3.12.11 via uv, Node 22.22, branch head `83257f0`, `AUTHENTI
 | Backend coverage | 89.6 % of the measured set; `api/*`, `llm/*`, and `main.py` are omitted from measurement (`pyproject.toml`, `[tool.coverage.run] omit`) |
 | `ruff check .` | clean |
 | `basedpyright src/` | 0 errors, 184 warnings (mostly `reportAny` on SQLAlchemy row access) |
-| `bandit -r src` | 0 medium or high, 17 low (`B101` assert) |
+| `bandit -r src` | 0 medium or high, 17 low (16 `B101` assert, tracked as B-17; 1 `B311` random, already justified inline in `ml/reliability.py:179`) |
 | `vulture src --min-confidence 80` | 6 hits, all false positives (`cls` in validators) |
 | Frontend `eslint`, `tsc --noEmit` | clean |
 | Frontend `vitest run` | 4 files, 40 tests pass; 78.9 % statements, 70.1 % branches |
