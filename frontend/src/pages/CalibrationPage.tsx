@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import { api } from '../api/client'
 import type { Assignment, Enrollment, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -13,11 +13,13 @@ import {
   type ScaleGroup,
 } from '../content/calibrationScales'
 import { useTask } from '../hooks/useTask'
+import { pathFor, type Route } from '../routing/routes'
 
 type CalibrationPageProps = {
   assignments: Assignment[]
   programs: Program[]
   reviewers: Person[]
+  navigate: (route: Route) => void
 }
 
 /**
@@ -73,7 +75,12 @@ function timeOrdered(observations: Enrollment['presentations'][number]['observat
   )
 }
 
-export function CalibrationPage({ assignments, programs, reviewers }: CalibrationPageProps) {
+export function CalibrationPage({
+  assignments,
+  programs,
+  reviewers,
+  navigate,
+}: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [assignmentId, setAssignmentId] = useState('')
   const requestedAssignment = useRef('')
@@ -152,7 +159,24 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
         </div>
         <p>
           Use the code on your sample. Identities appear after required blind evaluations are
-          locked.
+          locked.{' '}
+          <a
+            href={pathFor('protocol')}
+            onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+              if (
+                event.button !== 0 ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+              )
+                return
+              event.preventDefault()
+              navigate('protocol')
+            }}
+          >
+            Read the calibration protocol
+          </a>
         </p>
         <FeedbackBanner error={task.error} notice={task.notice} />
         {assignments.length ? (

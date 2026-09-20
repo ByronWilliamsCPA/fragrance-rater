@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from 'react'
 
-export type Route = 'home' | 'calibration' | 'recommendations' | 'ratings' | 'programs' | 'about'
+export type Route =
+  | 'home'
+  | 'calibration'
+  | 'protocol'
+  | 'recommendations'
+  | 'ratings'
+  | 'programs'
+  | 'about'
 
 export type NavigationItem = {
   route: Route
@@ -29,6 +36,13 @@ export const navigationItems: NavigationItem[] = [
     label: 'Calibration',
     path: '/calibration',
     documentTitle: 'Blind calibration',
+  },
+  {
+    route: 'protocol',
+    label: 'Calibration protocol',
+    path: '/calibration/protocol',
+    documentTitle: 'Calibration protocol',
+    hiddenFromNav: true,
   },
   {
     route: 'recommendations',
