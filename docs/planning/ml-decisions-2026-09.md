@@ -12,9 +12,11 @@ tags:
 
 > **Source**: [ML Structure Review 2026-09](ml-structure-review-2026-09.md), Section 8.
 > **Status**: decided 2026-09-19 by the product owner. Q1 is recorded as the 2026-09-19 amendment to
-> ADR-009. Q8 is provisional: the protocol is validated by the
+> ADR-009. Q8 is decided: the
 > [scent evaluation protocol research prompt](../research/scent-evaluation-protocol-research-prompt.md)
-> before F1, and its result may change the session structure, pacing, and judgment format.
+> was run and reconciled as the
+> [2026-09-19 ADR-005 amendment](adr/adr-005-controlled-calibration.md#2026-09-19-amendment-protocol-research-reconciliation),
+> which also changes the session's daily load, calendar spread, and judgment scales.
 
 ## Decision record
 
@@ -27,7 +29,7 @@ tags:
 | Q5 | Kaggle positional accord intensities | A: keep, flag source, exclude by default | A | 2026-09-19 |
 | Q6 | Freeze v1, fix as v2 | A: v1 pinned; register v2; compare | C, modified: fix now and make the corrected scorer (v2) the default because no family ratings exist; keep v1 registered as a reference model for the comparison harness | 2026-09-19 |
 | Q7 | ML dependencies | A: optional dependency group in this repo | A | 2026-09-19 |
-| Q8 | Pairwise judgments during F1 | B: rank the three samples per session | B provisionally; the session structure, pacing, and judgment format are contingent on the protocol research | 2026-09-19 |
+| Q8 | Pairwise judgments during F1 | B: rank the three samples per session | B, decided: rank all three, analyzed as one rank event (see the ADR-005 amendment) | 2026-09-19 |
 
 ## Q1. Declare the learning problem
 
@@ -138,23 +140,41 @@ Context: the participant-facing half of Q3.
 Unblocks: a training signal that does not depend on the absolute scale holding steady across the
 five-day protocol.
 
-## Q8 follow-up: protocol research
+## Q8 follow-up: protocol research (resolved)
 
-The 5-day, 13-session, 3-sample protocol was designed in concept and has not been verified
-against users or sensory-evaluation practice. Before F1, run the
-[deep-research prompt](../research/scent-evaluation-protocol-research-prompt.md) and reconcile
-its recommendations with the calibration guide, the baseline evidence, and the data model. Any
-change to session size, daily load, calendar spread, judgment scales, or the ranking procedure is
-recorded there and in an ADR-005 amendment.
+The 5-day, 13-session, 3-sample protocol was designed in concept and had not been verified
+against sensory-evaluation practice. The
+[deep-research prompt](../research/scent-evaluation-protocol-research-prompt.md) was run against
+two independent deep-research models (`docs/research/deep-research-report (12).md` and
+`docs/research/Fragrance Evaluation Protocol Validation.md`). Spot-verifying citations from both
+found the first report accurate throughout and the second showing real citation fabrication
+(a garbled DOI, two real DOIs reattributed to invented findings, a wrong ISO edition, an
+unsupported IFRA/QRA2 claim); the reconciliation below follows the first report where they
+disagree.
+
+Reconciled and recorded as the
+[2026-09-19 ADR-005 amendment](adr/adr-005-controlled-calibration.md#2026-09-19-amendment-protocol-research-reconciliation):
+session size (3, unchanged), the 33-baseline/10-holdout/6-repeat structure (unchanged), daily load
+(9 to 6), calendar spread (5 days to 7 test days over 10 to 14 calendar days), scale anchoring
+(0 to 10 kept, verbal anchors added), familiarity (integer to categorical recognition), `would_buy`
+placement (moved out of the blinded core, matching ADR-007), descriptive dimensions (`discomfort`
+split out as its own field), the ranking procedure (confirmed, analyzed as one rank event, not
+independent pairwise comparisons), order/position balancing (explicit constrained randomization),
+session-context fields (added), and skin timepoints (10 min / 1 h / 4 h / 8 h with interval-censored
+longevity). Schema implementation for these changes is R7's scope, not this amendment's.
 
 ## Sequence once decided
 
 Scheduled as Milestone R in [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation):
-Q2 and Q5 are R6, Q3 and Q8 are R7 (after R5's research reconciliation), Q6 is done, Q7 is R15.
+Q2 and Q5 are R6, Q3 and Q8 are R7 (R5's research reconciliation is done; R7's schema now also
+carries the daily-load, calendar, scale, familiarity, `would_buy`, descriptor, and
+session-context changes from the ADR-005 amendment), Q6 is done, Q7 is R15.
 
-1. ADR-009 amendment recording Q1.
+1. ADR-009 amendment recording Q1. Done.
 2. Vocabulary migration and shared resolver for the 43 versions (Q2).
-3. Pairwise and behavioral tables with the session ranking prompt (Q3, Q8).
-4. affinity-v2 as the default scorer, v1 retained for comparison (Q6, Q4). Implemented 2026-09-19;
+3. Protocol research reconciliation, recorded as the ADR-005 amendment (R5). Done.
+4. Pairwise and behavioral tables with the session ranking prompt, plus the R5-derived schema
+   changes (Q3, Q8, R7).
+5. affinity-v2 as the default scorer, v1 retained for comparison (Q6, Q4). Implemented 2026-09-19;
    see the ADR-004 amendment.
-5. Intensity-source flag (Q5) and the optional dependency group (Q7).
+6. Intensity-source flag (Q5) and the optional dependency group (Q7).
