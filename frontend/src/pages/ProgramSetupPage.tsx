@@ -74,6 +74,9 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
   )
 
   useEffect(() => {
+    // Clearing the prior program's members synchronously before fetching the
+    // new program's members; this is the fetch-on-dependency-change pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMembers([])
     if (!programId) return
     let current = true
