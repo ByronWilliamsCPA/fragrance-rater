@@ -44,6 +44,9 @@ export function useAppData() {
   }, [])
 
   useEffect(() => {
+    // reload's setState calls run synchronously before its first await; this is
+    // the standard fetch-on-mount pattern, not derived state being adjusted.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload()
   }, [reload])
 
