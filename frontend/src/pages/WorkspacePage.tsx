@@ -44,6 +44,9 @@ export function WorkspacePage({
   useEffect(() => {
     let current = true
     if (!assignments.length) {
+      // Resetting to the empty-assignments state synchronously, not deriving
+      // state from a prop; the fetch below is the actual effect purpose.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('')
       setEnrollments([])
       setLoading(false)
