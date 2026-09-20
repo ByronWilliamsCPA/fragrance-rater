@@ -158,7 +158,7 @@ coverage) is a residual coverage gap surfaced by final cross-task review, not a 
 boundary.
 
 - **E2E coverage for the four named flows: closed.** `frontend/e2e/` (13 Playwright tests:
-  accessibility x7, blind-calibration, manager-authorization x3, ordinary-entry,
+  accessibility x7, blind-calibration, manager-authorization x3, log-an-encounter,
   recommendation-feedback) passes, covering ordinary entry (`/ratings`), blind calibration and
   reveal (`/calibration`), recommendation feedback and sampling (`/recommendations`), and program
   setup route access (`/programs`). Evidence: ADR-014 and the passing `frontend/e2e/` suite.
@@ -178,7 +178,7 @@ boundary.
   metrics beyond what `App.test.tsx` exercises (activation, catalog-version addition, the
   Fragella check) have no Vitest, Playwright-mocked, or Playwright-smoke coverage. See
   `docs/architecture/frontend-user-journeys.md`'s `/programs` row and its Known gaps section.
-- **`RatingsPage`'s correction/edit flow: open at the e2e tier.** `e2e/ordinary-entry.spec.ts`
+- **`RatingsPage`'s correction/edit flow: open at the e2e tier.** `e2e/log-an-encounter.spec.ts`
   covers creating a new journal encounter only; the correction form (`RatingsPage.tsx:213-259`)
   is covered at the Vitest tier only (`src/test/App.test.tsx`), with no Playwright-mocked or
   Playwright-smoke coverage. See `docs/architecture/frontend-user-journeys.md`'s `/ratings` row

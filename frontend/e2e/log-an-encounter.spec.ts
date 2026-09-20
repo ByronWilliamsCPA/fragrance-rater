@@ -8,7 +8,7 @@ import { mockApi, bootstrapRoutes, fragranceCatalog } from './support/mock-api'
 // needed.
 // #VERIFY: if RatingsPage.tsx's labels, button text, or /evaluations
 // contract change, update this spec alongside it.
-test.describe('Ordinary entry (journal encounters)', () => {
+test.describe('Log an encounter', () => {
   test('records a journal encounter', async ({ page }) => {
     let savedEncounter: Record<string, unknown> | null = null
 
@@ -25,12 +25,16 @@ test.describe('Ordinary entry (journal encounters)', () => {
         }
         const body = route.request().postDataJSON()
         savedEncounter = { id: 'e1', ...body }
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(savedEncounter) })
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(savedEncounter),
+        })
       },
     })
 
     await page.goto('/ratings')
-    await expect(page.getByRole('heading', { name: 'Ordinary encounters' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Log an encounter' })).toBeVisible()
 
     // #ASSUME: data-integrity: the "Worn by" select on this same form also lists
     // every reviewer as an option (including "Evaluator One" from this fixture),

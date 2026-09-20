@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Assignment, Enrollment, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -13,14 +13,34 @@ import {
   type ScaleGroup,
 } from '../content/calibrationScales'
 import { useTask } from '../hooks/useTask'
-import { followRouteLink, pathFor, type Route } from '../routing/routes'
+import { followRouteLink, pathFor, type AssignmentId, type Route } from '../routing/routes'
 
 type CalibrationPageProps = {
   assignments: Assignment[]
   programs: Program[]
   reviewers: Person[]
   navigate: (route: Route) => void
+  /**
+   * A deep-linked assignment the router has already checked against this
+   * identity's assignments. Branded rather than a bare string so it cannot be
+   * confused with the program, reviewer, or presentation ids alongside it.
+   */
+  initialAssignmentId?: AssignmentId
+  /**
+   * The raw `?assignment=` value when it matched no assignment this identity
+   * holds. Surfaced to the user instead of resolving to nothing in silence.
+   */
+  unresolvedAssignmentId?: string
 }
+
+/**
+ * Why a deep link produced no assignment.
+ *
+ * Deliberately does not echo the requested id back into the page: it comes
+ * from the address bar, and it tells the user nothing they can act on.
+ */
+const unresolvedAssignmentMessage =
+  'That link points to a calibration assignment you do not have. It may have been reassigned or withdrawn. Choose an assignment below to continue.'
 
 /**
  * Renders one group of scales under a shared heading.
@@ -80,10 +100,12 @@ export function CalibrationPage({
   programs,
   reviewers,
   navigate,
+  initialAssignmentId,
+  unresolvedAssignmentId,
 }: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
-  const [assignmentId, setAssignmentId] = useState('')
-  const requestedAssignment = useRef('')
+  const [assignmentId, setAssignmentId] = useState<string>(initialAssignmentId ?? '')
+  const requestedAssignment = useRef<string>(initialAssignmentId ?? '')
   const refreshGeneration = useRef(0)
   const [selected, setSelected] = useState('')
   const [stage, setStage] = useState('BLOTTER')
@@ -102,7 +124,7 @@ export function CalibrationPage({
     return 'All required blind work is locked. The enrollment is eligible to reveal.'
   }
 
-  async function refresh(id = requestedAssignment.current) {
+  const refresh = useCallback(async (id = requestedAssignment.current) => {
     const generation = ++refreshGeneration.current
     if (!id) {
       setEnrollment(null)
@@ -111,7 +133,47 @@ export function CalibrationPage({
     const response = await api.get<Enrollment>(`/calibration/enrollments/${id}`)
     if (generation === refreshGeneration.current && requestedAssignment.current === id)
       setEnrollment(response.data)
-  }
+  }, [])
+
+  // #ASSUME: timing: a deep link can arrive while an earlier enrollment fetch
+  // is still in flight (back/forward between two `?assignment=` entries, or a
+  // link followed over a manual dropdown pick), and this effect relies on
+  // `refresh` discarding the slower response rather than ordering the
+  // requests itself.
+  // #VERIFY: `refresh` must keep both guards before it calls setEnrollment,
+  // the generation counter and the `requestedAssignment.current === id`
+  // check; dropping either lets a stale response overwrite the assignment
+  // the user is actually looking at.
+  useEffect(() => {
+    const id = initialAssignmentId ?? ''
+    // Skip only the case where there's nothing to sync: no deep link now,
+    // and nothing tracked from a previous one either (an ordinary
+    // `/calibration` visit, or the manual dropdown's own state, which this
+    // effect must not disturb). Once a deep link HAS been tracked, its
+    // disappearance still falls through below so the stale assignment gets
+    // cleared instead of staying selected against a URL that no longer names
+    // it.
+    if (!id && !requestedAssignment.current) return
+    requestedAssignment.current = id
+    // Syncing the picker and sample selection to the URL, which is the source
+    // of truth for a deep link; this is the effect's purpose, not derived
+    // state being patched up after the fact.
+    setAssignmentId(id)
+    setEnrollment(null)
+    setSelected('')
+    if (id) {
+      void task.run(() => refresh(id))
+    } else {
+      void refresh('')
+    }
+    // task is a fresh object every render (useTask isn't memoized), so it is
+    // intentionally left out: this effect must fire only when
+    // initialAssignmentId (or the stabilized refresh callback) changes, not
+    // on every render.
+    // Tracked in src/hooks/useTask.ts: memoizing what useTask returns is the
+    // fix, and it retires this suppression rather than working around it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialAssignmentId, refresh])
 
   async function save(form: HTMLFormElement) {
     if (!sample) return
@@ -170,7 +232,10 @@ export function CalibrationPage({
             Read the calibration protocol
           </a>
         </p>
-        <FeedbackBanner error={task.error} notice={task.notice} />
+        <FeedbackBanner
+          error={task.error || (unresolvedAssignmentId ? unresolvedAssignmentMessage : '')}
+          notice={task.notice}
+        />
         {assignments.length ? (
           <label>
             Evaluator and program

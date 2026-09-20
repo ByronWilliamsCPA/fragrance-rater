@@ -67,11 +67,11 @@ describe('every route has a distinct, descriptive document title', () => {
     render(<App />)
 
     await screen.findByRole('heading', { name: 'Fragrance Rater' })
-    await waitFor(() => expect(document.title).toBe('Home · Fragrance Rater'))
+    await waitFor(() => expect(document.title).toBe('Welcome · Fragrance Rater'))
 
-    fireEvent.click(screen.getByRole('link', { name: 'My Ratings' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Log an encounter' }))
 
-    await waitFor(() => expect(document.title).toBe('My ratings · Fragrance Rater'))
+    await waitFor(() => expect(document.title).toBe('Log an encounter · Fragrance Rater'))
   })
 
   it('leaves a modified click (e.g. cmd/ctrl-click to open in a new tab) to the browser', async () => {
@@ -79,13 +79,13 @@ describe('every route has a distinct, descriptive document title', () => {
     render(<App />)
 
     await screen.findByRole('heading', { name: 'Fragrance Rater' })
-    await waitFor(() => expect(document.title).toBe('Home · Fragrance Rater'))
+    await waitFor(() => expect(document.title).toBe('Welcome · Fragrance Rater'))
 
-    fireEvent.click(screen.getByRole('link', { name: 'My Ratings' }), { metaKey: true })
+    fireEvent.click(screen.getByRole('link', { name: 'Log an encounter' }), { metaKey: true })
 
     // A real modified click never reaches our handler's navigate() call, so
     // the SPA stays on its current route instead of switching client-side.
     await new Promise((resolve) => setTimeout(resolve, 0))
-    expect(document.title).toBe('Home · Fragrance Rater')
+    expect(document.title).toBe('Welcome · Fragrance Rater')
   })
 })

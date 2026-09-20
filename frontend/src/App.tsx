@@ -1,19 +1,47 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { AppShell } from './components/AppShell'
 import { ErrorState, LoadingState } from './components/PageState'
 import { useAppData } from './hooks/useAppData'
 import { AboutPage } from './pages/AboutPage'
 import { CalibrationPage } from './pages/CalibrationPage'
 import { CalibrationProtocolPage } from './pages/CalibrationProtocolPage'
-import { HomePage } from './pages/HomePage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
-import { useRoute } from './routing/routes'
+import { WelcomePage } from './pages/WelcomePage'
+import { WorkspacePage, type AssignmentSummary } from './pages/WorkspacePage'
+import { assignmentLinkFor, useRoute } from './routing/routes'
 
 function App() {
   const appData = useAppData()
-  const { route, navigate } = useRoute()
+  const { route, query, navigate } = useRoute()
+  const { assignments, programs, reviewers } = appData
+
+  /**
+   * The assignment/program/reviewer join, written once here instead of
+   * re-derived inside a render loop from three unjoined arrays.
+   *
+   * Memoized because WorkspacePage fetches enrollment progress in an effect
+   * keyed on this array.
+   */
+  const assignmentSummaries: AssignmentSummary[] = useMemo(
+    () =>
+      assignments.map((assignment) => ({
+        assignment,
+        program: programs.find((program) => program.id === assignment.program_id),
+        reviewer: reviewers.find((reviewer) => reviewer.id === assignment.reviewer_id),
+      })),
+    [assignments, programs, reviewers]
+  )
+
+  const assignmentLink = useMemo(
+    () =>
+      assignmentLinkFor(
+        query,
+        assignments.map((assignment) => assignment.id)
+      ),
+    [assignments, query]
+  )
 
   useEffect(() => {
     if (
@@ -36,20 +64,28 @@ function App() {
       route={route}
       navigate={navigate}
     >
-      {route === 'home' && (
-        <HomePage
-          assignments={appData.assignments}
-          programs={appData.programs}
-          reviewers={appData.reviewers}
+      {route === 'welcome' && (
+        <WelcomePage
+          access={appData.access}
+          capabilities={appData.capabilities}
+          navigate={navigate}
+        />
+      )}
+      {route === 'workspace' && (
+        <WorkspacePage
+          assignments={assignmentSummaries}
+          capabilities={appData.capabilities}
           navigate={navigate}
         />
       )}
       {route === 'calibration' && (
         <CalibrationPage
-          assignments={appData.assignments}
-          programs={appData.programs}
-          reviewers={appData.reviewers}
+          assignments={assignments}
+          programs={programs}
+          reviewers={reviewers}
           navigate={navigate}
+          initialAssignmentId={assignmentLink.initialAssignmentId}
+          unresolvedAssignmentId={assignmentLink.unresolvedAssignmentId}
         />
       )}
       {route === 'protocol' && <CalibrationProtocolPage navigate={navigate} />}

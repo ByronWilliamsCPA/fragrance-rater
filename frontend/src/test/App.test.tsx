@@ -75,68 +75,6 @@ beforeEach(() => {
   patch.mockResolvedValue({ data: { id: 'updated' } })
 })
 describe('Calibration participant workflow', () => {
-  it('shows assignment progress and a safe next action on the home page', async () => {
-    window.history.replaceState({}, '', '/')
-    render(<App />)
-
-    expect(await screen.findByRole('heading', { name: 'Your scent journal' })).toBeInTheDocument()
-    expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
-    expect(screen.getByText(/0 of 1 blind screens locked/)).toBeInTheDocument()
-    expect(screen.queryByText('assignment')).not.toBeInTheDocument()
-  })
-
-  it('offers reveal from home when only concealed holdout work remains', async () => {
-    get.mockImplementation((path: string) => {
-      const responses: Record<string, unknown> = {
-        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
-        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
-        '/calibration/access': { username: 'family-member', manager: false },
-        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
-        '/calibration/enrollments/assignment': {
-          ...enrollment,
-          reveal_eligible: true,
-          reveal_blocker: null,
-          skin_plan_locked: true,
-        },
-      }
-      return Promise.resolve({ data: responses[path] })
-    })
-    window.history.replaceState({}, '', '/')
-    render(<App />)
-
-    expect(
-      await screen.findByText('Required blind work is complete. Reveal when ready.')
-    ).toBeInTheDocument()
-  })
-
-  it('retries assignment progress without reloading the application', async () => {
-    let progressUnavailable = true
-    get.mockImplementation((path: string) => {
-      const responses: Record<string, unknown> = {
-        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
-        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
-        '/calibration/access': { username: 'family-member', manager: false },
-        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
-        '/calibration/enrollments/assignment': enrollment,
-      }
-      if (path === '/calibration/enrollments/assignment' && progressUnavailable) {
-        return Promise.reject(new Error('offline'))
-      }
-      return Promise.resolve({ data: responses[path] })
-    })
-    window.history.replaceState({}, '', '/')
-    render(<App />)
-
-    expect(
-      await screen.findByText('Request failed. Check your connection and try again.')
-    ).toBeInTheDocument()
-    progressUnavailable = false
-    fireEvent.click(screen.getByRole('button', { name: 'Retry assignment progress' }))
-
-    expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
-    expect(screen.queryByText('Request failed. Check your connection and try again.')).toBeNull()
-  })
-
   it('shows the application and hides manager setup for an evaluator', async () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Fragrance Rater' })).toBeInTheDocument()
@@ -203,7 +141,7 @@ describe('Calibration participant workflow', () => {
   })
   it('offers the form for recording a new ordinary encounter', async () => {
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'My Ratings' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Log an encounter' }))
     expect(screen.getByRole('button', { name: 'Save new encounter' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/ratings')
     expect(screen.getByRole('main')).toHaveFocus()
@@ -582,8 +520,11 @@ describe('Calibration participant workflow', () => {
     window.history.replaceState({}, '', '/ratings')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Ordinary encounters' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'My Ratings' })).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('heading', { name: 'Log an encounter' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Log an encounter' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
 
     window.history.pushState({}, '', '/calibration')
     window.dispatchEvent(new PopStateEvent('popstate'))
@@ -987,7 +928,9 @@ describe('Calibration participant workflow', () => {
     get.mockImplementation((path: string) => {
       const responses: Record<string, unknown> = {
         '/reviewers': [{ id: 'r', name: 'Evaluator' }],
-        '/calibration/programs': [{ id: 'p', name: 'Family pilot', version: '1', status: 'active' }],
+        '/calibration/programs': [
+          { id: 'p', name: 'Family pilot', version: '1', status: 'active' },
+        ],
         '/calibration/access': { username: 'manager-user', manager: true },
         '/calibration/enrollments': [],
         '/calibration/programs/p/members': [],
@@ -1029,14 +972,18 @@ describe('Calibration participant workflow', () => {
     expect(
       await screen.findByText('Evaluator enrolled; sessions and blind codes are ready.')
     ).toBeInTheDocument()
-    expect(within(enrollmentSection).getByLabelText('Authorized recorder usernames')).toHaveValue('')
+    expect(within(enrollmentSection).getByLabelText('Authorized recorder usernames')).toHaveValue(
+      ''
+    )
   })
 
   it('reveals identities for an enrollment that has cleared all prerequisites', async () => {
     get.mockImplementation((path: string) => {
       const responses: Record<string, unknown> = {
         '/reviewers': [{ id: 'r', name: 'Evaluator' }],
-        '/calibration/programs': [{ id: 'p', name: 'Family pilot', version: '1', status: 'active' }],
+        '/calibration/programs': [
+          { id: 'p', name: 'Family pilot', version: '1', status: 'active' },
+        ],
         '/calibration/access': { username: 'manager-user', manager: true },
         '/calibration/enrollments': [],
         '/calibration/manager/enrollments': [
@@ -1092,7 +1039,9 @@ describe('Calibration participant workflow', () => {
     get.mockImplementation((path: string) => {
       const responses: Record<string, unknown> = {
         '/reviewers': [{ id: 'r', name: 'Evaluator' }],
-        '/calibration/programs': [{ id: 'p', name: 'Family pilot', version: '1', status: 'active' }],
+        '/calibration/programs': [
+          { id: 'p', name: 'Family pilot', version: '1', status: 'active' },
+        ],
         '/calibration/access': { username: 'manager-user', manager: true },
         '/calibration/enrollments': [],
         '/calibration/manager/enrollments': [
@@ -1210,11 +1159,11 @@ describe('Calibration participant workflow', () => {
       configurable: true,
     })
     let downloadName = ''
-    const clickSpy = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        downloadName = this.download
-      })
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement
+    ) {
+      downloadName = this.download
+    })
 
     // The revoke call is scheduled on a real 1s timer inside downloadMetrics;
     // fake timers let the test advance past it deterministically.
@@ -1310,5 +1259,68 @@ describe('Calibration participant workflow', () => {
     ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Candidate' })).toBeInTheDocument()
     expect(window.location.search).toBe('?recommendation_run=run-1')
+  })
+
+  it('pre-selects the assignment named in an initial query string', async () => {
+    window.history.replaceState({}, '', '/calibration?assignment=assignment')
+    render(<App />)
+
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('assignment')
+    expect(await screen.findByRole('button', { name: /A82F/ })).toBeInTheDocument()
+  })
+
+  it('clears the deep-linked assignment when browser back/forward removes it from the URL', async () => {
+    window.history.replaceState({}, '', '/calibration?assignment=assignment')
+    render(<App />)
+
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('assignment')
+    await screen.findByRole('button', { name: /A82F/ })
+
+    // Same route, only the query differs: the case routes.ts's popstate
+    // listener exists for, per its own comment ("back and forward between
+    // two entries for the same route differ only in the query"). Clicking
+    // the nav link instead would preserve the query by design, so it can't
+    // exercise this path.
+    window.history.pushState({}, '', '/calibration')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('')
+    expect(screen.queryByRole('button', { name: /A82F/ })).not.toBeInTheDocument()
+  })
+
+  it('falls back to the empty dropdown and surfaces a visible error for a stale assignment id in the query string', async () => {
+    window.history.replaceState({}, '', '/calibration?assignment=does-not-exist')
+    render(<App />)
+
+    await screen.findByRole('option', { name: 'Evaluator · Baseline' })
+    expect(screen.getByLabelText('Evaluator and program')).toHaveValue('')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'That link points to a calibration assignment you do not have. It may have been reassigned or withdrawn. Choose an assignment below to continue.'
+    )
+  })
+
+  it('shows a visible error when the deep-linked assignment fails to load', async () => {
+    window.history.replaceState({}, '', '/calibration?assignment=assignment')
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
+        '/calibration/access': { username: 'family-member', manager: false },
+        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+      }
+      if (path === '/calibration/enrollments/assignment') {
+        return Promise.reject(new Error('offline'))
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+
+    render(<App />)
+
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('assignment')
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Request failed. Check your connection and try again.'
+    )
   })
 })
