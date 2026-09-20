@@ -35,6 +35,7 @@ const routeChecks: {
       await page.getByRole('button', { name: 'ABC-123' }).click()
     },
   },
+  { path: '/calibration/protocol', heading: 'Calibration protocol' },
   { path: '/ratings', heading: 'Ordinary encounters' },
   {
     path: '/recommendations',

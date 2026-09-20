@@ -52,7 +52,7 @@ function App() {
           navigate={navigate}
         />
       )}
-      {route === 'protocol' && <CalibrationProtocolPage />}
+      {route === 'protocol' && <CalibrationProtocolPage navigate={navigate} />}
       {route === 'recommendations' && <RecommendationsPage reviewers={appData.reviewers} />}
       {route === 'ratings' && <RatingsPage reviewers={appData.reviewers} />}
       {route === 'programs' && appData.capabilities.canManagePrograms && (
@@ -62,7 +62,7 @@ function App() {
           reload={appData.reload}
         />
       )}
-      {route === 'about' && <AboutPage />}
+      {route === 'about' && <AboutPage navigate={navigate} />}
     </AppShell>
   )
 }

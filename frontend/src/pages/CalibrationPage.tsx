@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Assignment, Enrollment, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -13,7 +13,7 @@ import {
   type ScaleGroup,
 } from '../content/calibrationScales'
 import { useTask } from '../hooks/useTask'
-import { pathFor, type Route } from '../routing/routes'
+import { followRouteLink, pathFor, type Route } from '../routing/routes'
 
 type CalibrationPageProps = {
   assignments: Assignment[]
@@ -165,18 +165,7 @@ export function CalibrationPage({
           <a
             className="inline-target-link"
             href={pathFor('protocol')}
-            onClick={(event: MouseEvent<HTMLAnchorElement>) => {
-              if (
-                event.button !== 0 ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.shiftKey ||
-                event.altKey
-              )
-                return
-              event.preventDefault()
-              navigate('protocol')
-            }}
+            onClick={(event) => followRouteLink(event, 'protocol', navigate)}
           >
             Read the calibration protocol
           </a>

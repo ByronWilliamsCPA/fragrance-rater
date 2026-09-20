@@ -47,11 +47,24 @@ describe('Calibration protocol page', () => {
       'What each observation records',
       'When your identities appear',
       'Concealed repeats',
-      'Holdouts are frozen before you smell them',
+      'Frozen predictions, when a checkpoint is taken',
     ])
       expect(screen.getByRole('heading', { name: heading })).toBeInTheDocument()
 
     expect(screen.getByText('Access and verification details')).toBeInTheDocument()
+  })
+
+  it('cross-links to the About page for the rationale behind the protocol', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Calibration protocol' })
+
+    const link = screen.getByRole('link', { name: 'How this project learns your taste' })
+    expect(link).toHaveAttribute('href', '/about')
+    fireEvent.click(link)
+
+    expect(
+      await screen.findByRole('heading', { name: 'How this project learns your taste' })
+    ).toBeInTheDocument()
   })
 
   it('keeps the access-details summary collapsed until clicked', async () => {

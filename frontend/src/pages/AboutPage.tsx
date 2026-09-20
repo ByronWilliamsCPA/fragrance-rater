@@ -1,4 +1,10 @@
-export function AboutPage() {
+import { followRouteLink, pathFor, type Route } from '../routing/routes'
+
+type AboutPageProps = {
+  navigate: (route: Route) => void
+}
+
+export function AboutPage({ navigate }: AboutPageProps) {
   return (
     <div className="prose">
       <section>
@@ -100,6 +106,18 @@ export function AboutPage() {
             </p>
           </div>
         </div>
+        <p>
+          For the step-by-step mechanics behind this (sample codes, locking, exactly when
+          identities reveal), see the{' '}
+          <a
+            className="inline-target-link"
+            href={pathFor('protocol')}
+            onClick={(event) => followRouteLink(event, 'protocol', navigate)}
+          >
+            calibration protocol
+          </a>
+          .
+        </p>
       </section>
       <section>
         <h3>Why repeats matter</h3>

@@ -1,7 +1,7 @@
-import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import type { Access, Capabilities } from '../api/types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import { navigationItems, type Route } from '../routing/routes'
+import { followRouteLink, navigationItems, type Route } from '../routing/routes'
 import { ThemeToggle } from './ThemeToggle'
 
 type AppShellProps = {
@@ -28,13 +28,6 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
     if (previousRoute.current !== route) mainContent.current?.focus()
     previousRoute.current = route
   }, [route])
-
-  function follow(event: MouseEvent<HTMLAnchorElement>, destination: Route) {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
-      return
-    event.preventDefault()
-    navigate(destination)
-  }
 
   return (
     <div className="app">
@@ -72,7 +65,7 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
               key={item.route}
               href={item.path}
               aria-current={route === item.route ? 'page' : undefined}
-              onClick={(event) => follow(event, item.route)}
+              onClick={(event) => followRouteLink(event, item.route, navigate)}
             >
               {item.label}
             </a>
@@ -85,7 +78,10 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
         <p>Ordinary encounters and controlled observations share one preference history.</p>
         {aboutNavItem && (
           <p>
-            <a href={aboutNavItem.path} onClick={(event) => follow(event, aboutNavItem.route)}>
+            <a
+              href={aboutNavItem.path}
+              onClick={(event) => followRouteLink(event, aboutNavItem.route, navigate)}
+            >
               About this project
             </a>
           </p>

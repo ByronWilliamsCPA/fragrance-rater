@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type MouseEvent } from 'react'
 
 export type Route =
   | 'home'
@@ -85,6 +85,26 @@ export function routeFromPath(pathname: string): Route {
 
 export function pathFor(route: Route): string {
   return navigationItems.find((item) => item.route === route)?.path ?? '/calibration'
+}
+
+/**
+ * Click handler for an in-app route link: lets a modified or non-primary
+ * click (open in new tab, etc.) fall through to normal browser handling,
+ * and otherwise intercepts the click for client-side navigation.
+ *
+ * Shared by every internal `<a href={pathFor(...)}>` link (nav bar, footer,
+ * and inline in-page links) so the guard is defined once rather than
+ * reimplemented at each call site.
+ */
+export function followRouteLink(
+  event: MouseEvent<HTMLAnchorElement>,
+  destination: Route,
+  navigate: (route: Route) => void
+) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
+    return
+  event.preventDefault()
+  navigate(destination)
 }
 
 export function useRoute() {

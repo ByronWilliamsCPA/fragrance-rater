@@ -1,4 +1,10 @@
-export function CalibrationProtocolPage() {
+import { followRouteLink, pathFor, type Route } from '../routing/routes'
+
+type CalibrationProtocolPageProps = {
+  navigate: (route: Route) => void
+}
+
+export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPageProps) {
   return (
     <div className="prose">
       <section>
@@ -9,6 +15,18 @@ export function CalibrationProtocolPage() {
         </div>
         <p className="hero-statement">
           What actually happens between picking up a coded sample and seeing what it was.
+        </p>
+        <p>
+          This page covers the mechanics. For why this project measures preferences this way at
+          all, see{' '}
+          <a
+            className="inline-target-link"
+            href={pathFor('about')}
+            onClick={(event) => followRouteLink(event, 'about', navigate)}
+          >
+            How this project learns your taste
+          </a>
+          .
         </p>
       </section>
       <section>
@@ -97,24 +115,32 @@ export function CalibrationProtocolPage() {
         <h3>Concealed repeats</h3>
         <p>
           A few presentations in a baseline are the same fragrance shown to you more than once,
-          interleaved with the rest and never flagged as a repeat. You're not meant to notice them.
-          They exist to measure how consistent your own ratings are from one presentation to the
-          next, which matters for judging whether any single rating reflects a real preference or
-          just noise.
+          interleaved with the rest and never flagged as a repeat. See{' '}
+          <a
+            className="inline-target-link"
+            href={pathFor('about')}
+            onClick={(event) => followRouteLink(event, 'about', navigate)}
+          >
+            why repeats matter
+          </a>{' '}
+          for what that reliability check is for.
         </p>
       </section>
       <section>
-        <h3>Holdouts are frozen before you smell them</h3>
+        <h3>Frozen predictions, when a checkpoint is taken</h3>
         <p>
-          For a holdout presentation, the system's prediction, its confidence, the exact model
-          version, and what data produced it are all written down and locked before you record a
-          blind reaction. Your response is then compared against that frozen prediction, not the
-          other way around.
+          A manager can freeze a model's prediction for a holdout presentation before you record
+          your reaction to it: the prediction, the exact model version, and the data it was built
+          from are all written down and locked first, then compared against your blind response
+          afterward. Freezing a checkpoint is a deliberate action a manager takes, not something
+          that happens automatically for every holdout; a holdout without a frozen checkpoint has
+          no prospective prediction attached to validate.
         </p>
         <p>
-          Holdout ratings are never fed back into training the model version being scored, and they
-          stay excluded from ordinary training data indefinitely afterward. This version has no
-          mechanism that later releases a holdout rating into training.
+          Whether or not a checkpoint was frozen, holdout ratings are never fed back into training
+          the model version being scored, and they stay excluded from ordinary training data
+          indefinitely afterward. This version has no mechanism that later releases a holdout
+          rating into training.
         </p>
       </section>
       <section>
