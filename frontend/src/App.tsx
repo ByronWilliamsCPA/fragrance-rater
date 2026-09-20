@@ -10,6 +10,7 @@ import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
 import { WelcomePage } from './pages/WelcomePage'
+import { WorkspacePage } from './pages/WorkspacePage'
 import { useRoute } from './routing/routes'
 
 function App() {
@@ -40,6 +41,15 @@ function App() {
       {route === 'welcome' && (
         <WelcomePage
           access={appData.access}
+          capabilities={appData.capabilities}
+          navigate={navigate}
+        />
+      )}
+      {route === 'workspace' && (
+        <WorkspacePage
+          assignments={appData.assignments}
+          programs={appData.programs}
+          reviewers={appData.reviewers}
           capabilities={appData.capabilities}
           navigate={navigate}
         />
