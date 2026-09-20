@@ -16,9 +16,8 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
         <p className="hero-statement">
           What actually happens between picking up a coded sample and seeing what it was.
         </p>
+        <p>This page covers the mechanics. For why this project measures preferences this way:</p>
         <p>
-          This page covers the mechanics. For why this project measures preferences this way at
-          all, see{' '}
           <a
             className="inline-target-link"
             href={pathFor('about')}
@@ -26,7 +25,6 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
           >
             How this project learns your taste
           </a>
-          .
         </p>
       </section>
       <section>
@@ -115,15 +113,16 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
         <h3>Concealed repeats</h3>
         <p>
           A few presentations in a baseline are the same fragrance shown to you more than once,
-          interleaved with the rest and never flagged as a repeat. See{' '}
+          interleaved with the rest and never flagged as a repeat.
+        </p>
+        <p>
           <a
             className="inline-target-link"
             href={pathFor('about')}
             onClick={(event) => followRouteLink(event, 'about', navigate)}
           >
-            why repeats matter
-          </a>{' '}
-          for what that reliability check is for.
+            Why repeats matter
+          </a>
         </p>
       </section>
       <section>

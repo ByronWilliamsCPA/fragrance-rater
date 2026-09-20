@@ -96,7 +96,7 @@ describe('Calibration protocol page', () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'Calibration protocol' })
 
-    const link = screen.getByRole('link', { name: 'why repeats matter' })
+    const link = screen.getByRole('link', { name: 'Why repeats matter' })
     expect(link).toHaveAttribute('href', '/about')
     fireEvent.click(link)
 
