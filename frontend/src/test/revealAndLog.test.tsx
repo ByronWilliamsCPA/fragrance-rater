@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 
@@ -191,39 +191,54 @@ describe('Revealed sample', () => {
   })
 })
 
-describe('Landing page actions', () => {
+describe('Welcome and workspace flow', () => {
   beforeEach(() => {
     window.history.replaceState({}, '', '/')
   })
 
-  it('offers review rather than continuation once everything is revealed', async () => {
+  it('continues from the welcome screen into the workspace', async () => {
     mockApi(revealedEnrollment())
     render(<App />)
 
     expect(
-      await screen.findByText(
-        'Identities are revealed. Review the results, or add a post-reveal observation.'
-      )
+      await screen.findByText("Welcome, family-member, you're set up as Recorder.")
     ).toBeInTheDocument()
-    expect(screen.getByText('Calibrations open').nextElementSibling).toHaveTextContent('None')
-    expect(screen.getByRole('button', { name: 'Review calibration' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }))
+
+    expect(await screen.findByRole('button', { name: 'Log an encounter' })).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/home')
   })
 
-  it('routes from each landing action to its page', async () => {
+  it('deep-links from a workspace calibration row directly into that assignment', async () => {
     mockApi(revealedEnrollment())
+    window.history.replaceState({}, '', '/home')
     render(<App />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Review calibration' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue calibration' }))
+
     expect(await screen.findByRole('heading', { name: 'Your calibration' })).toBeInTheDocument()
+    expect(window.location.search).toBe('?assignment=assignment')
+    expect(screen.getByLabelText('Evaluator and program')).toHaveValue('assignment')
+    expect(await screen.findByRole('button', { name: /A82F/ })).toBeInTheDocument()
+  })
 
-    fireEvent.click(screen.getByRole('link', { name: 'Home' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Record an encounter' }))
-    expect(await screen.findByRole('heading', { name: 'Ordinary encounters' })).toBeInTheDocument()
+  it('hides the calibration section for an identity with no assignments', async () => {
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [],
+        '/calibration/access': { username: 'manager-user', manager: true },
+        '/calibration/enrollments': [],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+    window.history.replaceState({}, '', '/home')
+    render(<App />)
 
-    fireEvent.click(screen.getByRole('link', { name: 'Home' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'View recommendations' }))
-    await waitFor(() =>
-      expect(screen.getByRole('heading', { name: 'Recommendations' })).toBeInTheDocument()
-    )
+    await screen.findByRole('button', { name: 'Log an encounter' })
+    expect(screen.queryByRole('heading', { name: 'Calibration work' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Manage programs' })).toBeInTheDocument()
   })
 })

@@ -75,68 +75,6 @@ beforeEach(() => {
   patch.mockResolvedValue({ data: { id: 'updated' } })
 })
 describe('Calibration participant workflow', () => {
-  it('shows assignment progress and a safe next action on the home page', async () => {
-    window.history.replaceState({}, '', '/')
-    render(<App />)
-
-    expect(await screen.findByRole('heading', { name: 'Your scent journal' })).toBeInTheDocument()
-    expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
-    expect(screen.getByText(/0 of 1 blind screens locked/)).toBeInTheDocument()
-    expect(screen.queryByText('assignment')).not.toBeInTheDocument()
-  })
-
-  it('offers reveal from home when only concealed holdout work remains', async () => {
-    get.mockImplementation((path: string) => {
-      const responses: Record<string, unknown> = {
-        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
-        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
-        '/calibration/access': { username: 'family-member', manager: false },
-        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
-        '/calibration/enrollments/assignment': {
-          ...enrollment,
-          reveal_eligible: true,
-          reveal_blocker: null,
-          skin_plan_locked: true,
-        },
-      }
-      return Promise.resolve({ data: responses[path] })
-    })
-    window.history.replaceState({}, '', '/')
-    render(<App />)
-
-    expect(
-      await screen.findByText('Required blind work is complete. Reveal when ready.')
-    ).toBeInTheDocument()
-  })
-
-  it('retries assignment progress without reloading the application', async () => {
-    let progressUnavailable = true
-    get.mockImplementation((path: string) => {
-      const responses: Record<string, unknown> = {
-        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
-        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1' }],
-        '/calibration/access': { username: 'family-member', manager: false },
-        '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
-        '/calibration/enrollments/assignment': enrollment,
-      }
-      if (path === '/calibration/enrollments/assignment' && progressUnavailable) {
-        return Promise.reject(new Error('offline'))
-      }
-      return Promise.resolve({ data: responses[path] })
-    })
-    window.history.replaceState({}, '', '/')
-    render(<App />)
-
-    expect(
-      await screen.findByText('Request failed. Check your connection and try again.')
-    ).toBeInTheDocument()
-    progressUnavailable = false
-    fireEvent.click(screen.getByRole('button', { name: 'Retry assignment progress' }))
-
-    expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
-    expect(screen.queryByText('Request failed. Check your connection and try again.')).toBeNull()
-  })
-
   it('shows the application and hides manager setup for an evaluator', async () => {
     render(<App />)
     expect(await screen.findByRole('heading', { name: 'Fragrance Rater' })).toBeInTheDocument()
