@@ -137,6 +137,41 @@
       ]
     },
     {
+      "description": "TypeScript v7 hold: typescript-eslint has no release supporting the native/Go TS7 compiler (see typescript-eslint/typescript-eslint#12521). Remove this rule once typescript-eslint ships TS7 support.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false,
+      "labels": [
+        "dependencies",
+        "breaking-change"
+      ]
+    },
+    {
+      "description": "ESLint v10 hold: eslint-plugin-jsx-a11y has no v10-compatible release (tracked upstream in jsx-eslint/eslint-plugin-jsx-a11y#1081, #1079, #1075). Remove this rule once jsx-a11y ships v10 support.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchPackageNames": [
+        "eslint",
+        "@eslint/js"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false,
+      "labels": [
+        "dependencies",
+        "breaking-change"
+      ]
+    },
+    {
       "description": "Python version updates - manual review required",
       "matchDepTypes": [
         "python"
