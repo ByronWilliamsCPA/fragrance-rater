@@ -86,6 +86,19 @@ describe('About / Methodology page', () => {
     ).toBeInTheDocument()
   })
 
+  it('cross-links to the calibration protocol page from "How calibration works"', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'How this project learns your taste' })
+
+    const link = screen.getByRole('link', { name: 'Read the calibration protocol' })
+    expect(link).toHaveAttribute('href', '/calibration/protocol')
+    fireEvent.click(link)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Calibration protocol' })
+    ).toBeInTheDocument()
+  })
+
   it('never leaks experimental-control identifiers into the static page', async () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'How this project learns your taste' })

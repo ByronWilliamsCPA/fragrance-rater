@@ -1,4 +1,10 @@
-export function AboutPage() {
+import { followRouteLink, pathFor, type Route } from '../routing/routes'
+
+type AboutPageProps = {
+  navigate: (route: Route) => void
+}
+
+export function AboutPage({ navigate }: AboutPageProps) {
   return (
     <div className="prose">
       <section>
@@ -75,8 +81,8 @@ export function AboutPage() {
           <div className="flow-step">
             <strong>Frozen predictions</strong>
             <p>
-              Before the evaluator smells anything new, the model's prediction for each next
-              fragrance is written down and locked in.
+              Before the evaluator smells anything new, a manager can freeze the model's
+              prediction for that fragrance, writing it down and locking it in first.
             </p>
           </div>
           <span className="flow-arrow" aria-hidden="true">
@@ -100,6 +106,19 @@ export function AboutPage() {
             </p>
           </div>
         </div>
+        <p>
+          For the step-by-step mechanics behind this: sample codes, locking, and exactly when
+          identities reveal.
+        </p>
+        <p>
+          <a
+            className="inline-target-link"
+            href={pathFor('protocol')}
+            onClick={(event) => followRouteLink(event, 'protocol', navigate)}
+          >
+            Read the calibration protocol
+          </a>
+        </p>
       </section>
       <section>
         <h3>Why repeats matter</h3>
@@ -116,11 +135,11 @@ export function AboutPage() {
       <section>
         <h3>Prediction, not memorization</h3>
         <p>
-          The holdout stage is the part of this project that actually proves something. Before an
-          evaluator smells a holdout fragrance, the model's prediction, its confidence in that
-          prediction, which model version made it, what data it was trained on, and when it made the
-          call are all written down and locked. Only after that does the evaluator smell the
-          fragrance and record a real reaction.
+          The holdout stage is the part of this project that actually proves something. When a
+          manager freezes a prediction ahead of a holdout fragrance, the model's prediction, which
+          model version made it, what data it was trained on, and when it made the call are all
+          written down and locked first. Only after that does the evaluator smell the fragrance and
+          record a real reaction.
         </p>
         <p>
           The model never gets to learn from a holdout fragrance and then claim credit for
@@ -203,9 +222,9 @@ export function AboutPage() {
               holdout stage is locked.
             </li>
             <li>
-              For every eligible holdout, the predicted liking, the model's confidence, which model
-              version and training-data cutoff produced it, and the timestamp are all frozen before
-              the evaluator smells the fragrance.
+              When a manager freezes a checkpoint for an eligible holdout, the predicted liking,
+              which model version and training-data cutoff produced it, and the timestamp are all
+              frozen before the evaluator smells the fragrance.
             </li>
             <li>
               That frozen prediction is compared against the evaluator's actual blind rating. The

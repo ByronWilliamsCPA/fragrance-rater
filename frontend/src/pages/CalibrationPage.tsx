@@ -13,11 +13,13 @@ import {
   type ScaleGroup,
 } from '../content/calibrationScales'
 import { useTask } from '../hooks/useTask'
+import { followRouteLink, pathFor, type Route } from '../routing/routes'
 
 type CalibrationPageProps = {
   assignments: Assignment[]
   programs: Program[]
   reviewers: Person[]
+  navigate: (route: Route) => void
 }
 
 /**
@@ -73,7 +75,12 @@ function timeOrdered(observations: Enrollment['presentations'][number]['observat
   )
 }
 
-export function CalibrationPage({ assignments, programs, reviewers }: CalibrationPageProps) {
+export function CalibrationPage({
+  assignments,
+  programs,
+  reviewers,
+  navigate,
+}: CalibrationPageProps) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [assignmentId, setAssignmentId] = useState('')
   const requestedAssignment = useRef('')
@@ -153,6 +160,15 @@ export function CalibrationPage({ assignments, programs, reviewers }: Calibratio
         <p>
           Use the code on your sample. Identities appear after required blind evaluations are
           locked.
+        </p>
+        <p>
+          <a
+            className="inline-target-link"
+            href={pathFor('protocol')}
+            onClick={(event) => followRouteLink(event, 'protocol', navigate)}
+          >
+            Read the calibration protocol
+          </a>
         </p>
         <FeedbackBanner error={task.error} notice={task.notice} />
         {assignments.length ? (

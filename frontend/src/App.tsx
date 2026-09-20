@@ -4,6 +4,7 @@ import { ErrorState, LoadingState } from './components/PageState'
 import { useAppData } from './hooks/useAppData'
 import { AboutPage } from './pages/AboutPage'
 import { CalibrationPage } from './pages/CalibrationPage'
+import { CalibrationProtocolPage } from './pages/CalibrationProtocolPage'
 import { HomePage } from './pages/HomePage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
@@ -48,8 +49,10 @@ function App() {
           assignments={appData.assignments}
           programs={appData.programs}
           reviewers={appData.reviewers}
+          navigate={navigate}
         />
       )}
+      {route === 'protocol' && <CalibrationProtocolPage navigate={navigate} />}
       {route === 'recommendations' && <RecommendationsPage reviewers={appData.reviewers} />}
       {route === 'ratings' && <RatingsPage reviewers={appData.reviewers} />}
       {route === 'programs' && appData.capabilities.canManagePrograms && (
@@ -59,7 +62,7 @@ function App() {
           reload={appData.reload}
         />
       )}
-      {route === 'about' && <AboutPage />}
+      {route === 'about' && <AboutPage navigate={navigate} />}
     </AppShell>
   )
 }
