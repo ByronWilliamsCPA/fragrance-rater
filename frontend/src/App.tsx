@@ -9,6 +9,7 @@ import { HomePage } from './pages/HomePage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
+import { WelcomePage } from './pages/WelcomePage'
 import { useRoute } from './routing/routes'
 
 function App() {
@@ -36,6 +37,13 @@ function App() {
       route={route}
       navigate={navigate}
     >
+      {route === 'welcome' && (
+        <WelcomePage
+          access={appData.access}
+          capabilities={appData.capabilities}
+          navigate={navigate}
+        />
+      )}
       {route === 'home' && (
         <HomePage
           assignments={appData.assignments}
