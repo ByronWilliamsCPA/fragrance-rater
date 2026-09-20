@@ -289,3 +289,11 @@ export function capabilitiesFor(access: Access, assignments: Assignment[]): Capa
     canManagePrograms: access.manager,
   }
 }
+
+export function roleLabelFor(capabilities: Capabilities): 'Manager' | 'Recorder' | 'Participant' {
+  return capabilities.canManagePrograms
+    ? 'Manager'
+    : capabilities.canRecordCalibration
+      ? 'Recorder'
+      : 'Participant'
+}
