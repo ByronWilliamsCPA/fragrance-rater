@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 
@@ -127,6 +127,59 @@ describe('WorkspacePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry assignment progress' }))
 
     expect(await screen.findByText('Continue required blind blotter screens.')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Request failed. Check your connection and try again.')
+    ).not.toBeInTheDocument()
+  })
+
+  it('sends each assignment row to its own assignment, not a shared or swapped one', async () => {
+    const secondEnrollment = {
+      ...enrollment,
+      id: 'assignment-2',
+      reviewer_id: 'r2',
+      presentations: [{ ...enrollment.presentations[0], id: 'sample-2', blind_code: 'B19Q' }],
+    }
+    mockBootstrap({
+      '/reviewers': [
+        { id: 'r', name: 'Evaluator' },
+        { id: 'r2', name: 'Second Evaluator' },
+      ],
+      '/calibration/enrollments': [
+        { id: 'assignment', program_id: 'p', reviewer_id: 'r' },
+        { id: 'assignment-2', program_id: 'p', reviewer_id: 'r2' },
+      ],
+      '/calibration/enrollments/assignment': enrollment,
+      '/calibration/enrollments/assignment-2': secondEnrollment,
+    })
+    render(<App />)
+
+    const articles = await screen.findAllByRole('article')
+    expect(articles).toHaveLength(2)
+    const firstArticle = articles.find((article) => within(article).queryByText('Evaluator'))
+    const secondArticle = articles.find((article) =>
+      within(article).queryByText('Second Evaluator')
+    )
+    if (!firstArticle || !secondArticle) throw new Error('expected both assignment rows to render')
+
+    fireEvent.click(within(firstArticle).getByRole('button', { name: 'Continue calibration' }))
+
+    expect(await screen.findByRole('button', { name: /A82F/ })).toBeInTheDocument()
+    expect(window.location.search).toBe('?assignment=assignment')
+
+    window.history.replaceState({}, '', '/home')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+
+    const rowsAfterReturning = await screen.findAllByRole('article')
+    const secondRowAfterReturning = rowsAfterReturning.find((article) =>
+      within(article).queryByText('Second Evaluator')
+    )
+    if (!secondRowAfterReturning) throw new Error('expected the second assignment row to persist')
+    fireEvent.click(
+      within(secondRowAfterReturning).getByRole('button', { name: 'Continue calibration' })
+    )
+
+    expect(await screen.findByRole('button', { name: /B19Q/ })).toBeInTheDocument()
+    expect(window.location.search).toBe('?assignment=assignment-2')
   })
 
   it('navigates to the log-an-encounter page when "Log an encounter" is clicked', async () => {

@@ -29,19 +29,29 @@ describe('useRoute navigate', () => {
     window.history.replaceState({}, '', '/calibration?stale=1')
     const { result } = renderHook(() => useRoute())
 
-    act(() => result.current.navigate('calibration', false, 'assignment=enr1'))
+    act(() => result.current.navigate('calibration', false, { assignment: 'enr1' }))
 
     expect(window.location.pathname).toBe('/calibration')
     expect(window.location.search).toBe('?assignment=enr1')
   })
 
-  it('preserves the current query string when no query is given', () => {
+  it('drops the query string when navigating to a different route with no query given', () => {
     window.history.replaceState({}, '', '/recommendations?recommendation_run=run-1')
     const { result } = renderHook(() => useRoute())
 
     act(() => result.current.navigate('ratings'))
 
     expect(window.location.pathname).toBe('/ratings')
+    expect(window.location.search).toBe('')
+  })
+
+  it('preserves the current query string when navigating to the same route with no query given', () => {
+    window.history.replaceState({}, '', '/recommendations?recommendation_run=run-1')
+    const { result } = renderHook(() => useRoute())
+
+    act(() => result.current.navigate('recommendations'))
+
+    expect(window.location.pathname).toBe('/recommendations')
     expect(window.location.search).toBe('?recommendation_run=run-1')
   })
 })
