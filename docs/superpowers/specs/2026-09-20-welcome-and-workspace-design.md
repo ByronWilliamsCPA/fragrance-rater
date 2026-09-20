@@ -92,7 +92,9 @@ No new API calls. `access` (username, manager flag) is already resolved by
 
 Content:
 
-- Hero statement drawn from the approved App Store description.
+- Hero statement: "Learn your fragrance taste by measuring what you
+  actually respond to." (the same sentence already used in `AboutPage.tsx`,
+  so the two pages don't drift).
 - Identity line: "Welcome, {username}, you're set up as {role}," reusing
   the same `capabilities`-derived role label (`Manager`, `Recorder`, or
   `Participant`) already computed in `AppShell.tsx:19-23`, so the label

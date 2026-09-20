@@ -513,8 +513,9 @@ git commit -m "feat(frontend): add welcome/workspace routes and rename encounter
 
 ## Task 3: Create `WelcomePage`
 
-depends-on: Task2 [output] (needs the `welcome`/`workspace` routes and the
-renamed "Log an encounter" label)
+depends-on: Task1 [output] (needs the `roleLabelFor` helper), Task2 [output]
+(needs the `welcome`/`workspace` routes and the renamed "Log an encounter"
+label)
 
 **Files:**
 
