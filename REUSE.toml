@@ -113,6 +113,7 @@ path = [
     "overrides/**",
     "renovate.json",
     "validate_workflows.sh",
+    "docker-entrypoint.sh",  # Container entrypoint script
     "scripts/**/*.sh",  # Shell scripts for automation
     "scripts/**/*.md",  # Script documentation
     "tmp_cleanup/**/*.txt",  # Temporary text files
