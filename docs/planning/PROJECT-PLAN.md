@@ -1,6 +1,6 @@
 # Fragrance Rater: Authoritative Project Plan
 
-> **Version**: 2.2 | **Status**: Active | **Updated**: 2026-09-19
+> **Version**: 2.3 | **Status**: Active | **Updated**: 2026-09-19
 
 ## 1. Planning authority
 
@@ -40,7 +40,7 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Docker Compose, FastAPI, PostgreSQL, React | Implemented | Development and production Compose files exist; production network exposure needs P1 validation |
 | Fragrance, reviewer, and ordinary evaluation CRUD | Implemented | Ordinary POST retains dated encounters; update and soft delete operate on one encounter |
 | Kaggle import | Implemented | Production dataset quality and rights remain source-specific |
-| Parfumo capture | Partially implemented | Source snapshots and exact titles are preserved; P1.9 added authorized representative fixtures and parser coverage for requested metrics, production status, similar fragrances, missing fields, and unknown concentration; concentration-variant ("related version") data is confirmed AJAX-only on the live site and is intentionally not fabricated |
+| Parfumo capture | Deprecated (ADR-012, 2026-09-15) | `ParfumoScraper` and its CLI commands are deprecated per ADR-012 Decision 1: no new writes through this path are sanctioned. The module and CLI commands still exist unmodified in the codebase, with no deprecation warning or enforcement yet; actual code retirement is planned, not done, and is tracked as R9. P1.9's fixtures and parser coverage are retained as evidence of pre-deprecation work only. Baseline/holdout facts sourced solely from Parfumo are being re-verified against manufacturer confirmation and Wikidata per ADR-012 Decision 5; `SourceSnapshot`'s ADR-012 provenance columns (`source_type`, `permission_state`, `fields`, `source_reference`) are tracked as R8 |
 | Deterministic recommendations | Implemented | `affinity-v2` (shrunk, namespaced, stationary; ADR-004 amendment 2026-09-19) is the default scorer; `affinity-v1` retained for comparison; score is uncalibrated |
 | Preference history | Implemented | Latest ordinary encounter per version plus eligible controlled evidence; holdouts are excluded |
 | OpenRouter explanations | Implemented as optional enhancement | In-process bounded cache, deterministic fallback, and provider token/cost telemetry; live measurements require the F1 pilot |
@@ -49,7 +49,7 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
 | Worn-by ("on others") evidence dimension | Implemented, capture only | Optional `worn_by_reviewer_id` on `Evaluation` per ADR-011; excluded from affinity/training-manifest scoring until a future milestone folds it in |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
-| Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16; P1 still requires a production backup-clone exercise |
+| Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16 (single head `7daf681ed339`, reverified 2026-09-19); a duplicate revision-id collision briefly broke `main`'s migration chain after the P5 audit until its 2026-09-13 fix (PR #80); R2 adds a PostgreSQL parity test and enforced naming conventions to catch this class of issue in CI going forward; P1 still requires a production backup-clone exercise |
 | ML pipeline skeleton | Implemented, no learned model | `fragrance_rater.ml`: versioned feature space, model objects with digested parameters, dataset builder, repeat reliability, holdout scorecards, prospective prediction runner (ML structure review, Tier 2 and 3) |
 | Review remediation and ML foundation | In progress | Milestone R (section 11a); sprints R1-R4 gate P6 closure, R2 and R5-R8 gate F1 |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |
@@ -143,7 +143,7 @@ and reviewed as P6.1 before P6 can close.
 | P1.6 | Trust-boundary validation | Production requests traverse Authentik/Traefik; direct backend access from reachable networks cannot mutate data or expose calibration mappings | Deployed topology, port scan, bypass tests, role matrix |
 | P1.7 | Blind disclosure audit | Search, history, profiles, recommendations, explanations, caches, errors, exports, and logs reveal no mapping, role, repeat, selection, or holdout information before policy allows | Automated disclosure matrix |
 | P1.8 | Target-environment verification | Python 3.12, PostgreSQL 16, frontend build, backend tests, type checks, lint, security scans, and critical end-to-end flows pass | CI run and target-host smoke report. Frontend e2e/accessibility slice: partial, see P1.8 evidence below and `docs/planning/gates/p1.md` |
-| P1.9 | Parfumo fixtures | Add authorized representative fixtures for requested metrics, status, related versions, similar fragrances, missing fields, and unknown concentration | Fixture provenance and parser coverage |
+| P1.9 | Parfumo fixtures (superseded by ADR-012, 2026-09-15) | Historical: fixtures for requested metrics, status, related versions, similar fragrances, missing fields, and unknown concentration, retained as evidence of pre-deprecation parser coverage only. No further Parfumo fixture work is planned; scraper/CLI retirement is tracked as R9 and `SourceSnapshot` provenance columns as R8 | Fixture provenance and parser coverage (historical); see R8/R9 for retirement work |
 | P1.10 | Operations | Document health checks, logs, alerting, database growth, backups, secret rotation, external-service failure, and upgrade procedure | Operations runbook |
 
 ### P1.8 evidence: frontend e2e and accessibility testing, 2026-09-18
@@ -381,6 +381,16 @@ before any family member evaluates an actual pilot perfume.
 
 P6 closes only when every criterion passes and the recorded decision is `go`. Any failed
 criterion or `no-go` decision keeps F1 blocked.
+
+### Interim evidence: production deployment incident, 2026-09-18
+
+An unplanned production deployment through Authentik/Traefik (PRs #100-102) surfaced and fixed
+three real target-topology defects: the wrong Docker build stage was published, a Trivy
+registry-scan CI bug blocked the fix, and an IPv6 `wget` healthcheck failure took the site fully
+offline after redeploy. This is real P1.6/P6.2 target-topology exercise, but it was reactive, not
+a planned rehearsal: it did not exercise the P6.3-P6.6 synthetic workflow, quality, operations, or
+readiness-decision packages, and does not close any P6.1-P6.6 item on its own. Retained evidence
+is in [the P6 gate record](gates/p6.md).
 
 ## 11a. Milestone R: Review remediation and ML foundation
 
