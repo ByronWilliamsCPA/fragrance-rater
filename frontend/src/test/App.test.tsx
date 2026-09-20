@@ -203,7 +203,7 @@ describe('Calibration participant workflow', () => {
   })
   it('offers the form for recording a new ordinary encounter', async () => {
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'My Ratings' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Log an encounter' }))
     expect(screen.getByRole('button', { name: 'Save new encounter' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/ratings')
     expect(screen.getByRole('main')).toHaveFocus()
@@ -582,8 +582,11 @@ describe('Calibration participant workflow', () => {
     window.history.replaceState({}, '', '/ratings')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Ordinary encounters' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'My Ratings' })).toHaveAttribute('aria-current', 'page')
+    expect(await screen.findByRole('heading', { name: 'Log an encounter' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Log an encounter' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
 
     window.history.pushState({}, '', '/calibration')
     window.dispatchEvent(new PopStateEvent('popstate'))

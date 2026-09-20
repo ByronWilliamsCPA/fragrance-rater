@@ -82,7 +82,7 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     <section>
       <div className="page-heading">
         <div>
-          <h2>Ordinary encounters</h2>
+          <h2>Log an encounter</h2>
         </div>
       </div>
       <p>Each submission adds a dated encounter. Earlier ratings remain in history.</p>

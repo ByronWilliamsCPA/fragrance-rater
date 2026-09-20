@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type MouseEvent } from 'react'
 
 export type Route =
-  | 'home'
+  | 'welcome'
+  | 'workspace'
   | 'calibration'
   | 'protocol'
   | 'recommendations'
@@ -30,7 +31,8 @@ export type NavigationItem = {
 export const siteName = 'Fragrance Rater'
 
 export const navigationItems: NavigationItem[] = [
-  { route: 'home', label: 'Home', path: '/', documentTitle: 'Home' },
+  { route: 'welcome', label: 'Welcome', path: '/', documentTitle: 'Welcome' },
+  { route: 'workspace', label: 'Home', path: '/home', documentTitle: 'Home' },
   {
     route: 'calibration',
     label: 'Calibration',
@@ -50,7 +52,12 @@ export const navigationItems: NavigationItem[] = [
     path: '/recommendations',
     documentTitle: 'Recommendations',
   },
-  { route: 'ratings', label: 'My Ratings', path: '/ratings', documentTitle: 'My ratings' },
+  {
+    route: 'ratings',
+    label: 'Log an encounter',
+    path: '/ratings',
+    documentTitle: 'My ratings',
+  },
   {
     route: 'programs',
     label: 'Program setup',
@@ -80,7 +87,7 @@ export function documentTitleFor(route: Route): string {
 }
 
 export function routeFromPath(pathname: string): Route {
-  return navigationItems.find((item) => item.path === pathname)?.route ?? 'home'
+  return navigationItems.find((item) => item.path === pathname)?.route ?? 'welcome'
 }
 
 export function pathFor(route: Route): string {
@@ -116,9 +123,10 @@ export function useRoute() {
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
-  const navigate = useCallback((next: Route, replace = false) => {
+  const navigate = useCallback((next: Route, replace = false, query = '') => {
     const path = pathFor(next)
-    const url = `${path}${window.location.search}${window.location.hash}`
+    const search = query ? `?${query}` : window.location.search
+    const url = `${path}${search}${window.location.hash}`
     window.history[replace ? 'replaceState' : 'pushState']({}, '', url)
     setRoute(next)
   }, [])

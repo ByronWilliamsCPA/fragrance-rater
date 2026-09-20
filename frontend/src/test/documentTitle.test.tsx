@@ -67,9 +67,9 @@ describe('every route has a distinct, descriptive document title', () => {
     render(<App />)
 
     await screen.findByRole('heading', { name: 'Fragrance Rater' })
-    await waitFor(() => expect(document.title).toBe('Home · Fragrance Rater'))
+    await waitFor(() => expect(document.title).toBe('Welcome · Fragrance Rater'))
 
-    fireEvent.click(screen.getByRole('link', { name: 'My Ratings' }))
+    fireEvent.click(screen.getByRole('link', { name: 'Log an encounter' }))
 
     await waitFor(() => expect(document.title).toBe('My ratings · Fragrance Rater'))
   })
