@@ -90,6 +90,7 @@ function App() {
           reviewers={reviewers}
           access={appData.access}
           navigate={navigate}
+          reload={appData.reload}
           initialAssignmentId={assignmentLink.initialAssignmentId}
           unresolvedAssignmentId={assignmentLink.unresolvedAssignmentId}
         />

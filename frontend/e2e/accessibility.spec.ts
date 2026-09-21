@@ -25,6 +25,13 @@ const routeChecks: {
   path: string
   heading: string | RegExp
   populate?: (page: Page) => Promise<void>
+  /**
+   * Per-route overrides layered on top of setUpRoute's shared mocks. Used by
+   * the bare `/calibration` entry below, which needs a never-started
+   * enrollment (calibrationEntryFor routes on has_started/revealed) instead
+   * of the shared in-progress fixture every other entry relies on.
+   */
+  mocks?: Record<string, unknown>
 }[] = [
   { path: '/', heading: 'Welcome' },
   { path: '/home', heading: 'Workspace' },
@@ -46,6 +53,57 @@ const routeChecks: {
       await page.getByRole('button', { name: 'ABC-123' }).click()
     },
   },
+  {
+    // The deep-linked entry above legitimately covers the manual-workspace
+    // path, but it never exercises the guided wizard (GuidedCalibrationFlow)
+    // or the pre-wizard choice screen (CalibrationChoiceScreen), which is
+    // where most participants now land on a bare /calibration visit. This
+    // mirrors calibration-entry.spec.ts's "never-started enrollment" fixture
+    // (has_started: false) so calibrationEntryFor resolves to `{kind:
+    // 'guided'}` and the wizard renders its default first step (the
+    // skin-test plan decision) for the scan.
+    path: '/calibration',
+    heading: 'Guided calibration',
+    mocks: {
+      '/calibration/enrollments': [
+        {
+          id: 'enr1',
+          program_id: 'p1',
+          reviewer_id: 'r1',
+          revealed: false,
+          has_started: false,
+          total_presentations: 1,
+          blotter_complete: 0,
+          skin_planned: 0,
+          skin_complete: 0,
+          program_name: 'Baseline',
+          program_version: '1',
+          group_name_summary: 'Baseline',
+        },
+      ],
+      '/calibration/enrollments/enr1': {
+        id: 'enr1',
+        program_id: 'p1',
+        reviewer_id: 'r1',
+        revealed: false,
+        reveal_eligible: false,
+        reveal_blocker: 'SKIN_PLAN',
+        skin_plan_locked: false,
+        presentations: [
+          {
+            id: 'samp1',
+            session_id: 'sess1',
+            blind_code: 'ABC-123',
+            position: 1,
+            skin_planned: false,
+            blotter_locked: false,
+            skin_locked: false,
+            observations: [],
+          },
+        ],
+      },
+    },
+  },
   { path: '/calibration/protocol', heading: 'Calibration protocol' },
   { path: '/ratings', heading: 'Log an encounter' },
   {
@@ -60,13 +118,19 @@ const routeChecks: {
   { path: '/programs', heading: 'Program setup' },
 ]
 
-async function setUpRoute(page: Page, path: string, populate?: (page: Page) => Promise<void>) {
+async function setUpRoute(
+  page: Page,
+  path: string,
+  populate?: (page: Page) => Promise<void>,
+  mocks?: Record<string, unknown>
+) {
   await mockApi(page, {
     ...bootstrapRoutes(managerAccess),
     [`/calibration/enrollments/enr1`]: enrollmentFixture(false),
     '/fragrances': fragranceCatalog,
     '/evaluations': [],
     '/recommendation-measurement/runs': recommendationRunFixture(),
+    ...mocks,
   })
 
   await page.goto(path)
@@ -90,9 +154,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`Accessibility (WCAG 2.2 AA, ${colorScheme} theme)`, () => {
     test.use({ colorScheme })
 
-    for (const { path, heading, populate } of routeChecks) {
+    for (const { path, heading, populate, mocks } of routeChecks) {
       test(`${path} has no automatically detectable violations`, async ({ page }) => {
-        await setUpRoute(page, path, populate)
+        await setUpRoute(page, path, populate, mocks)
         await expect(page.getByRole('heading', { name: heading })).toBeVisible()
 
         const results = await new AxeBuilder({ page }).withTags(axeTags).analyze()
@@ -193,12 +257,12 @@ test.describe('Observation log', () => {
 })
 
 test.describe('Target size (WCAG 2.2 AA, 2.5.8)', () => {
-  for (const { path, heading, populate } of routeChecks) {
+  for (const { path, heading, populate, mocks } of routeChecks) {
     test(`${path} has no interactive target under 24px`, async ({ page }) => {
       // 360px is the narrowest viewport the P3 gate commits to, and the one
       // where controls are most likely to be squeezed below the minimum.
       await page.setViewportSize({ width: 360, height: 740 })
-      await setUpRoute(page, path, populate)
+      await setUpRoute(page, path, populate, mocks)
       await expect(page.getByRole('heading', { name: heading })).toBeVisible()
 
       const undersized = await page.evaluate(() => {

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { Access, EnrollmentSummary, Program, ProgramMember } from '../api/types'
+import { FeedbackBanner } from '../components/FeedbackBanner'
+import { useTask } from '../hooks/useTask'
 import type { Navigate } from '../routing/routes'
 
 /**
@@ -32,6 +34,7 @@ export function CalibrationChoiceScreen({
   onBrowse: () => void
 }) {
   const [candidates, setCandidates] = useState<Candidate[]>([])
+  const task = useTask()
 
   useEffect(() => {
     if (!access.manager) return
@@ -40,15 +43,27 @@ export function CalibrationChoiceScreen({
       (program) => program.status === 'active' && !enrolledProgramIds.has(program.id)
     )
     let current = true
-    void Promise.all(
-      openPrograms.map(async (program) => {
-        const response = await api.get<ProgramMember[]>(
-          `/calibration/programs/${program.id}/members`
-        )
-        return { program, groupName: dominantGroupName(response.data) }
-      })
-    ).then((results) => {
-      if (current) setCandidates(results)
+    void task.run(async () => {
+      const settled = await Promise.allSettled(
+        openPrograms.map(async (program) => {
+          const response = await api.get<ProgramMember[]>(
+            `/calibration/programs/${program.id}/members`
+          )
+          return { program, groupName: dominantGroupName(response.data) }
+        })
+      )
+      const fulfilled: Candidate[] = []
+      let firstRejection: unknown
+      for (const result of settled) {
+        if (result.status === 'fulfilled') fulfilled.push(result.value)
+        else firstRejection ??= result.reason
+      }
+      if (current) setCandidates(fulfilled)
+      // A single failing candidate lookup (403/404/network blip) must not
+      // discard every other candidate the manager could still act on; rethrow
+      // only after the fulfilled ones are kept, so task.run's catch reports
+      // the failure without wiping state set above.
+      if (firstRejection !== undefined) throw firstRejection
     })
     return () => {
       current = false
@@ -56,6 +71,10 @@ export function CalibrationChoiceScreen({
     // assignments/programs are the effect's only real inputs; access.manager
     // gates whether it runs at all. navigate/onBrowse are used outside the
     // effect body, so react-hooks/exhaustive-deps does not flag them here.
+    // task is a fresh object every render (useTask isn't memoized), so it is
+    // intentionally left out, matching the same pattern in
+    // GuidedCalibrationFlow.tsx and CalibrationPage.tsx.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [access.manager, assignments, programs])
 
   function openEnrollFor(programId: string) {
@@ -69,6 +88,9 @@ export function CalibrationChoiceScreen({
           <h2>Your calibration</h2>
         </div>
         <p>Nothing new is assigned right now.</p>
+        <button className="secondary" onClick={onBrowse}>
+          Browse assignments manually instead
+        </button>
       </section>
     )
   }
@@ -82,6 +104,7 @@ export function CalibrationChoiceScreen({
         <h2>Your calibration</h2>
       </div>
       <p>Everything currently assigned is revealed. Start something new, or browse it again.</p>
+      <FeedbackBanner error={task.error} notice={task.notice} />
       {baseline && (
         <button onClick={() => openEnrollFor(baseline.program.id)}>
           Start a new full baseline

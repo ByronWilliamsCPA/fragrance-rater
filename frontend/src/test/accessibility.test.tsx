@@ -23,15 +23,47 @@ function expectAccessibleControls() {
   expect(new Set(ids).size).toBe(ids.length)
 }
 
+const enrollment = {
+  id: 'assignment',
+  program_id: 'p',
+  reviewer_id: 'r',
+  revealed: false,
+  reveal_eligible: false,
+  reveal_blocker: 'BLOTTER',
+  skin_plan_locked: true,
+  presentations: [
+    {
+      id: 'sample',
+      session_id: 'session',
+      blind_code: 'A82F',
+      position: 1,
+      skin_planned: false,
+      blotter_locked: false,
+      skin_locked: false,
+      observations: [],
+    },
+  ],
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  window.history.replaceState({}, '', '/calibration')
+  // Bypass the guided-wizard auto-routing (calibrationEntryFor) via the same
+  // `?assignment=` deep-link pattern used by App.test.tsx and
+  // revealAndLog.test.tsx, so this scan exercises the real manual-workspace
+  // markup instead of GuidedCalibrationFlow's pre-load empty state. Without
+  // this, the fixture's enrollment (no `revealed`/`has_started`) resolves to
+  // `{kind:'guided'}`, and the wizard's `/calibration/enrollments/assignment`
+  // fetch has no matching mock, so `enrollment` stays null and the component
+  // early-returns an empty `<main>` -- making expectAccessibleControls()
+  // iterate nothing and pass vacuously.
+  window.history.replaceState({}, '', '/calibration?assignment=assignment')
   get.mockImplementation((path: string) => {
     const responses: Record<string, unknown> = {
       '/reviewers': [{ id: 'r', name: 'Evaluator' }],
       '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'active' }],
       '/calibration/access': { username: 'family-member', manager: false },
       '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+      '/calibration/enrollments/assignment': enrollment,
     }
     return Promise.resolve({ data: responses[path] })
   })

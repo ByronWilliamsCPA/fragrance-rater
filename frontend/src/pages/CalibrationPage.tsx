@@ -5,7 +5,7 @@ import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { EmptyState } from '../components/PageState'
 import { useTask } from '../hooks/useTask'
-import { followRouteLink, pathFor, type AssignmentId, type Route } from '../routing/routes'
+import { followRouteLink, pathFor, type AssignmentId, type Navigate } from '../routing/routes'
 import { calibrationEntryFor } from '../routing/calibrationEntry'
 import { CalibrationChoiceScreen } from './CalibrationChoiceScreen'
 import { GuidedCalibrationFlow } from './GuidedCalibrationFlow'
@@ -16,7 +16,9 @@ type CalibrationPageProps = {
   programs: Program[]
   reviewers: Person[]
   access: Access
-  navigate: (route: Route) => void
+  navigate: Navigate
+  /** Refetches the app-level assignments/programs/reviewers/access bundle. */
+  reload: () => Promise<void>
   /**
    * A deep-linked assignment the router has already checked against this
    * identity's assignments. Branded rather than a bare string so it cannot be
@@ -45,6 +47,7 @@ export function CalibrationPage({
   reviewers,
   access,
   navigate,
+  reload: reloadAppData,
   initialAssignmentId,
   unresolvedAssignmentId,
 }: CalibrationPageProps) {
@@ -127,6 +130,7 @@ export function CalibrationPage({
       <GuidedCalibrationFlow
         enrollmentId={entry.enrollmentId}
         onExitToManualBrowse={() => setManualBrowse(true)}
+        onRevealed={reloadAppData}
       />
     )
   }
@@ -135,6 +139,7 @@ export function CalibrationPage({
       <GuidedCalibrationFlow
         enrollmentId={entry.enrollmentId}
         onExitToManualBrowse={() => setManualBrowse(true)}
+        onRevealed={reloadAppData}
       />
     )
   }

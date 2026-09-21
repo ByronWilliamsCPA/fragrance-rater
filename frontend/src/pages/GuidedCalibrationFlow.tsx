@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import type { Enrollment } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
+import { LoadingState } from '../components/PageState'
 import { useTask } from '../hooks/useTask'
 import { SampleObservationPanel } from './SampleObservationPanel'
 
@@ -13,20 +14,29 @@ export type WizardStep =
   | { kind: 'ready_to_reveal' }
 
 /**
- * The next valid step, in the same precedence CalibrationService.reveal_blocker
- * already enforces (skin plan decision, then remaining BLOTTER locks, then
- * remaining SKIN locks, then reveal). No new ordering is invented here; this
- * mirrors the backend gate so the wizard and the reveal button never disagree
- * about what's left.
+ * The next valid step. The STAGE decision is keyed off the enrollment's
+ * authoritative `reveal_blocker` (mirroring CalibrationService.reveal_blocker
+ * exactly, see calibration_service.py:505-521), not off locally-derived lock
+ * state: the backend's gate excludes HOLDOUT-role presentations from the
+ * BLOTTER check, and the frontend's `Sample` type deliberately withholds
+ * `role`, so the wizard cannot re-derive that exclusion itself. Presentation
+ * lock state is used only to pick *which* presentation within a stage (the
+ * first unlocked one for BLOTTER/SKIN), never to decide the stage. This keeps
+ * the wizard from ever offering to lock a HOLDOUT's blotter pre-reveal, which
+ * would disclose that holdout's identity at reveal time (ADR-005).
  */
 export function nextWizardStep(enrollment: Enrollment): WizardStep {
-  if (!enrollment.skin_plan_locked) return { kind: 'skin_plan' }
-  const unlockedBlotter = enrollment.presentations.find((item) => !item.blotter_locked)
-  if (unlockedBlotter) return { kind: 'blotter', presentationId: unlockedBlotter.id }
-  const unlockedSkin = enrollment.presentations.find(
-    (item) => item.skin_planned && !item.skin_locked
-  )
-  if (unlockedSkin) return { kind: 'skin', presentationId: unlockedSkin.id }
+  if (enrollment.reveal_blocker === 'SKIN_PLAN') return { kind: 'skin_plan' }
+  if (enrollment.reveal_blocker === 'BLOTTER') {
+    const unlockedBlotter = enrollment.presentations.find((item) => !item.blotter_locked)
+    if (unlockedBlotter) return { kind: 'blotter', presentationId: unlockedBlotter.id }
+  }
+  if (enrollment.reveal_blocker === 'SKIN') {
+    const unlockedSkin = enrollment.presentations.find(
+      (item) => item.skin_planned && !item.skin_locked
+    )
+    if (unlockedSkin) return { kind: 'skin', presentationId: unlockedSkin.id }
+  }
   return { kind: 'ready_to_reveal' }
 }
 
@@ -42,9 +52,18 @@ function progressFor(enrollment: Enrollment): { step: number; total: number } {
 export function GuidedCalibrationFlow({
   enrollmentId,
   onExitToManualBrowse,
+  onRevealed,
 }: {
   enrollmentId: string
   onExitToManualBrowse: () => void
+  /**
+   * Called after a successful reveal, once this wizard's own `enrollment`
+   * state already reflects it. Refetches the app-level assignments list
+   * (calibrationEntryFor's input), so the routing decision that picks what
+   * renders next catches up with this enrollment's now-revealed state
+   * instead of leaving the participant on this same wizard indefinitely.
+   */
+  onRevealed: () => Promise<void>
 }) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   // `stage` itself is never read: SampleObservationPanel is driven by
@@ -67,7 +86,67 @@ export function GuidedCalibrationFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enrollmentId])
 
-  if (!enrollment) return <FeedbackBanner error={task.error} notice={task.notice} />
+  if (!enrollment) {
+    // A slow, 403'd, or 404'd enrollment-detail fetch must not strand the
+    // participant with no controls: show the loading shell while the
+    // request is in flight, and keep the manual-workspace escape hatch
+    // available even before the wizard has anything to render.
+    return (
+      <div className="workspace">
+        <section>
+          <div className="page-heading">
+            <div>
+              <h2>Guided calibration</h2>
+            </div>
+          </div>
+          <FeedbackBanner error={task.error} notice={task.notice} />
+          {task.busy && <LoadingState label="Loading your calibration…" />}
+          <button className="secondary" onClick={onExitToManualBrowse}>
+            Browse assignments manually instead
+          </button>
+        </section>
+      </div>
+    )
+  }
+
+  if (enrollment.revealed) {
+    // A successful reveal leaves lock state (and therefore nextWizardStep)
+    // unchanged, so without this branch the wizard would keep re-rendering
+    // the same "Reveal completed baseline" button with no confirmation and
+    // no path forward (see SampleObservationPanel's `sample.identity` branch
+    // for the same disclosed-identity display pattern used here).
+    const revealedSamples = enrollment.presentations.filter((item) => item.identity)
+    return (
+      <div className="workspace">
+        <section>
+          <div className="page-heading">
+            <div>
+              <h2>Guided calibration</h2>
+            </div>
+          </div>
+          <FeedbackBanner error={task.error} notice={task.notice} />
+          <p className="notice" role="status">
+            Reveal complete. Identities are now visible for this enrollment.
+          </p>
+          {revealedSamples.length > 0 && (
+            <ul className="data-list">
+              {revealedSamples.map((item) => (
+                <li key={item.id}>
+                  <strong>{item.blind_code}</strong>
+                  <span>
+                    {item.identity?.brand} · {item.identity?.name} · {item.identity?.concentration}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button className="secondary" onClick={onExitToManualBrowse}>
+            Browse assignments manually instead
+          </button>
+        </section>
+      </div>
+    )
+  }
 
   const step = nextWizardStep(enrollment)
   const { step: stepNumber, total } = progressFor(enrollment)
@@ -161,6 +240,7 @@ export function GuidedCalibrationFlow({
                 void task.run(async () => {
                   await api.post(`/calibration/enrollments/${enrollment.id}/reveal`)
                   await refresh()
+                  await onRevealed()
                 })
               }
             />
