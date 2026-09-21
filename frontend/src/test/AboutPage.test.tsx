@@ -99,6 +99,19 @@ describe('About / Methodology page', () => {
     ).toBeInTheDocument()
   })
 
+  it('cross-links to the evidence page from "Why fragrance is harder"', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'How this project learns your taste' })
+
+    const link = screen.getByRole('link', { name: 'See the evidence and market opportunity' })
+    expect(link).toHaveAttribute('href', '/evidence')
+    fireEvent.click(link)
+
+    expect(
+      await screen.findByRole('heading', { name: 'Why better fragrance discovery matters' })
+    ).toBeInTheDocument()
+  })
+
   it('never leaks experimental-control identifiers into the static page', async () => {
     render(<App />)
     await screen.findByRole('heading', { name: 'How this project learns your taste' })

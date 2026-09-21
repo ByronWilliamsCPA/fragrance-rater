@@ -59,6 +59,50 @@ describe('Evidence page', () => {
     expect(within(sourceSection!).getAllByText('Limit:')).toHaveLength(7)
   })
 
+  it('links each headline stat to its own named source, not a neighboring one', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Why better fragrance discovery matters' })
+
+    const snapshotSection = screen
+      .getByRole('heading', { name: 'What the available data says' })
+      .closest('section')
+    expect(snapshotSection).not.toBeNull()
+
+    const statLinkHrefs = within(snapshotSection!)
+      .getAllByRole('link', { name: 'Source and scope' })
+      .map((link) => link.getAttribute('href'))
+
+    expect(statLinkHrefs).toEqual([
+      'https://nielseniq.com/global/en/insights/commentary/2024/beauty-2024-mid-year-update/',
+      'https://www.circana.com/post/us-prestige-beauty-industry-sales-grow-by-8-in-the-first-half-circana-reports',
+      'https://doi.org/10.1287/mnsc.2020.00902',
+      'https://www.odore.com/case-studies/ysl-product-sampling',
+      'https://doi.org/10.1371/journal.pone.0033810',
+    ])
+  })
+
+  it('discloses that the generated reports’ headline regret and repurchase figures are unsupported', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Why better fragrance discovery matters' })
+
+    expect(
+      screen.getByText(/The generated reports.*86% less regret.*3\.2\D?\s?repurchase.*unsupported/)
+    ).toBeInTheDocument()
+  })
+
+  it('cross-links back to the methodology page', async () => {
+    render(<App />)
+    await screen.findByRole('heading', { name: 'Why better fragrance discovery matters' })
+
+    const link = screen.getByRole('link', { name: 'How this project learns your taste' })
+    expect(link).toHaveAttribute('href', '/about')
+    fireEvent.click(link)
+
+    expect(
+      await screen.findByRole('heading', { name: 'How this project learns your taste' })
+    ).toBeInTheDocument()
+  })
+
   it('is available from the footer without entering primary task navigation', async () => {
     window.history.replaceState({}, '', '/')
     render(<App />)
