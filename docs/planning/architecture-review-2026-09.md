@@ -566,6 +566,27 @@ Findings: G-04, G-05, G-08, G-10, G-12.
 
 Acceptance: `.markdownlintignore` shrinks to template baselines only.
 
+## 7a. Remediation status
+
+This section is a live pointer, not a restatement: [PROJECT-PLAN.md's Milestone R sprint
+table](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation) is authoritative for
+what has actually shipped. As of 2026-09-21:
+
+- **WS-1 / R1 (CI truthfulness) is done.** Findings S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22,
+  S-29, S-26, S-30, D-06 are closed. [`docs/ci-gates.md`](../ci-gates.md) is now the authoritative
+  per-workflow record this review's Appendix B (CI gate matrix) fed into; its "Known residual gaps"
+  section names what R1 deliberately left open (the `docker-publish.yml` CVE gate stays
+  report-only; G-06/Q9's default resolved only PyPI publishing and the Python version matrix, not
+  FIPS/SLSA/mutation-testing/`release.yml`; the PostgreSQL parity test itself belongs to R2, not
+  R1, per the plan's sequencing note 1).
+- R1 also surfaced one thing beyond its named findings: a coverage-measurement gap where code
+  reached only through the FastAPI/ASGI test layer (`httpx.ASGITransport` + `Depends()`, the
+  pattern most of `tests/unit/test_api/*` uses) does not register as covered even when confirmed to
+  execute, while the same code called directly against the `async_session` fixture does. Recorded
+  in `docs/ci-gates.md`'s residual-gaps section rather than root-caused here; treat this repository's
+  reported coverage percentage as a floor, not an exact count.
+- All other workstreams (WS-2 through WS-11) remain open; see PROJECT-PLAN.md for current status.
+
 ## 8. Template feedback
 
 Per CLAUDE.md, the following are template-level gaps and belong in

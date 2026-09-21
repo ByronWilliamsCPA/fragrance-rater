@@ -122,9 +122,12 @@ python fuzz/fuzz_input_validation.py -max_total_time=60
 
 Enforced branch protection rules prevent unauthorized changes.
 
-**Protection rules**:
+**Protection rules** (enforced via an org-level GitHub ruleset, not a
+per-repository script; see [`docs/ci-gates.md`](ci-gates.md) for the
+current required-check names, which are the bare top-level job names each
+workflow emits, e.g. `CI Gate`, `Security Analysis`, `PR Title Format`):
 
-- ✅ Required status checks (CI / CI Pipeline, Security Analysis / Security Scan, PR Validation)
+- ✅ Required status checks
 - ✅ Required pull request reviews (1 approval)
 - ✅ Code owner reviews required
 - ✅ Dismiss stale reviews
@@ -136,13 +139,12 @@ Enforced branch protection rules prevent unauthorized changes.
 
 **Setup**:
 
-```bash
-# Set GitHub token
-export GITHUB_TOKEN=<YOUR_GITHUB_TOKEN>
-
-# Run setup script
-python scripts/setup_github_protection.py
-```
+A `scripts/setup_github_protection.py` script previously automated this,
+but its required-check contexts (`CI / CI Pipeline`, ...) never matched
+what this repository's workflows emit and could have configured branch
+protection that no PR could ever satisfy. It was deleted in R1
+(architecture review G-11/Q8). Configure protection manually, or via the
+org-level ruleset if one already applies to this repository.
 
 **Manual setup**:
 

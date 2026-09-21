@@ -15,7 +15,6 @@
 [![SBOM & Security Scan](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/sbom.yml/badge.svg?branch=main)](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/sbom.yml?query=branch%3Amain)
 [![PR Validation](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/pr-validation.yml/badge.svg)](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/pr-validation.yml)
 [![Release](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/release.yml/badge.svg)](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/release.yml)
-[![PyPI Publish](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/publish-pypi.yml/badge.svg)](https://github.com/ByronWilliamsCPA/fragrance_rater/actions/workflows/publish-pypi.yml)
 
 ## Project Info
 

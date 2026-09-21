@@ -10,6 +10,16 @@ tags:
   - requirements
 ---
 
+> **R1 correction (2026-09)**: this project's `requires-python` is pinned to `==3.12.*`
+> and the multi-version CI matrix workflow (`python-compatibility.yml`) was retired
+> (architecture review G-06/Q9: this is a self-hosted, single-target deployment, not a
+> library distributed across Python versions). The multi-version guidance below is
+> template-inherited and does not reflect this repository's actual supported range;
+> it is retained as reference material for the underlying language features, not as a
+> statement of what this repository tests or supports. Do not add version-conditional
+> dependencies or imports based on this document without first checking
+> `requires-python` in `pyproject.toml`.
+
 This project supports **Python 3.10, 3.11, 3.12, 3.13, and 3.14** with full testing across all versions.
 
 ## Version Support Matrix

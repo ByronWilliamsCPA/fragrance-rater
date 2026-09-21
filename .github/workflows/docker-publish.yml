@@ -84,9 +84,15 @@ jobs:
       # has no continue-on-error, so passing it empty credentials (the prior
       # fix here) hard-fails the job instead of skipping cleanly.
       enable-dhi-login: false
-      # Non-blocking for now: matches this repo's existing CVE-acceptance
-      # posture in container-security.yml. Revisit once P6 pilot images are
-      # actually deployed and exposed to real usage.
+      # R1/S-10: container-security.yml now fails CRITICAL/HIGH (with a
+      # dated .trivyignore.yaml escape valve). This job stays report-only
+      # because the org's python-docker.yml reusable workflow passes no
+      # `trivyignores` to its Trivy scan step, so there is no way to accept
+      # a specific CVE here; turning this on would block every future image
+      # publish on any CRITICAL/HIGH finding with no recovery but reverting
+      # this line. Revisit once python-docker.yml gains the same suppression
+      # mechanism, or once P6 pilot images are actually deployed and exposed
+      # to real usage, whichever comes first.
       trivy-fail-on-vuln: false
 
   frontend:
@@ -107,7 +113,6 @@ jobs:
       tag-latest: true
       # See the backend job's identical comment: this repo never needs DHI.
       enable-dhi-login: false
-      # Non-blocking for now: matches this repo's existing CVE-acceptance
-      # posture in container-security.yml. Revisit once P6 pilot images are
-      # actually deployed and exposed to real usage.
+      # See the backend job's identical comment: no trivyignores escape
+      # valve exists in python-docker.yml, so this stays report-only.
       trivy-fail-on-vuln: false

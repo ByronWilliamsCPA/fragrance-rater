@@ -395,10 +395,14 @@ Your project includes several GitHub Actions workflows:
 | OpenSSF Scorecard | `scorecard.yml` | Supply chain security assessment |
 | SBOM & Security Scan | `sbom.yml` | Software Bill of Materials generation |
 | Release | `release.yml` | Automated semantic versioning and releases |
-| Publish to PyPI | `publish-pypi.yml` | Package publishing to PyPI |
 | Documentation | `docs.yml` | Build and deploy MkDocs |
 | REUSE Compliance | `reuse.yml` | License compliance checking |
 | SonarCloud | _(removed; runs via project-level Automatic Analysis)_ | Code quality analysis |
+
+> `publish-pypi.yml` and `python-compatibility.yml` were retired in R1 (architecture
+> review G-06/Q9): this is a self-hosted personal-use app, not a package published to
+> PyPI, and the project targets Python 3.12 only. See [`docs/ci-gates.md`](ci-gates.md)
+> for the authoritative, current workflow list.
 
 ### Required GitHub Secrets
 
@@ -406,23 +410,9 @@ Set these in Repository Settings > Secrets and variables > Actions:
 
 | Secret | Required For | How to Get |
 |--------|--------------|------------|
-| `PYPI_API_TOKEN` | PyPI publishing | pypi.org > Account > API tokens (or use Trusted Publishing) |
 | `CODECOV_TOKEN` | Codecov uploads | codecov.io > Settings > Upload Token |
 | `SONAR_TOKEN` | SonarCloud analysis | sonarcloud.io > Account > Security |
 | `SCORECARD_TOKEN` | Scorecard (optional) | GitHub PAT with repo scope |
-
-### PyPI Trusted Publishing (Recommended)
-
-Instead of using API tokens, configure trusted publishing for enhanced security:
-
-1. Go to pypi.org and create or manage your project
-2. Navigate to "Publishing" settings
-3. Add a new trusted publisher with:
-   - **Owner**: `ByronWilliamsCPA`
-   - **Repository**: `fragrance-rater`
-   - **Workflow**: `publish-pypi.yml`
-   - **Environment**: `pypi`
-4. No `PYPI_API_TOKEN` secret is needed with trusted publishing
 
 ---
 
@@ -459,44 +449,33 @@ After registration, add this badge to your README's "Quality & Security" section
 
 ### Branch Protection Rules
 
-You can configure branch protection either via script (recommended) or manually through the GitHub UI.
+Branch protection for `main` is configured through an org-level GitHub ruleset
+(`ByronWilliamsCPA` organization settings), not a per-repository script. A
+`scripts/setup_github_protection.py` script existed here previously but
+required status-check contexts (`CI / CI Pipeline`,
+`PR Validation / Validate Requirements Sync`, ...) that no workflow in this
+repository actually emits; running it would have configured branch
+protection that could never be satisfied. It was deleted in R1
+(architecture review G-11/Q8: the org ruleset is authoritative).
 
-#### Option 1: Automated Setup (Recommended)
+To configure or audit branch protection:
 
-Use the included script to configure full branch protection:
-
-```bash
-# Set up branch protection with default settings
-uv run python scripts/setup_github_protection.py
-
-# Or specify custom settings
-uv run python scripts/setup_github_protection.py --enforce-admins --require-code-owner-reviews
-```
-
-The script configures:
-- Required pull request reviews before merging
-- Required status checks to pass
-- Enforce rules for administrators
-- Require signed commits
-- Dismiss stale reviews on new commits
-
-#### Option 2: Manual UI Setup
-
-1. Go to Repository Settings > Branches > Add rule
+1. Go to Repository Settings > Branches > Add rule, or use the
+   organization's ruleset settings if one already applies to this repo.
 2. Apply to: `main`
-3. Enable:
-   - [x] Require a pull request before merging
-   - [x] Require status checks to pass
-   - [x] Require branches to be up to date
-   - [x] Include administrators
+3. Require the bare check names this repository's workflows actually emit
+   as their top-level jobs (see [`docs/ci-gates.md`](ci-gates.md) for the
+   authoritative, current list — e.g. `CI Gate`, `PR Title Format`,
+   `PR Body Non-Empty`, `Dependency & Standards Validation`,
+   `Security Analysis`, `Check REUSE Compliance`).
+4. Enable "Require branches to be up to date" and "Include administrators".
 
 ### Required Status Checks
 
-Add these as required checks:
-- `CI / Test` (from CI workflow)
-- `CI / Lint` (from CI workflow)
-- `codecov/patch`
-- `SonarCloud Code Analysis`
+See [`docs/ci-gates.md`](ci-gates.md) for the current, verified list of
+required checks and what each workflow actually runs. Do not hardcode a
+list here; it drifts from the workflows themselves (this is exactly what
+happened to the deleted script above).
 
 ### Security Policy
 Your `SECURITY.md` file is already configured. Update these sections:

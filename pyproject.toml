@@ -9,7 +9,7 @@ authors = [
     {name = "Byron Williams", email = "byron@williamshome.family"}
 ]
 readme = "README.md"
-requires-python = ">=3.10,<3.15"
+requires-python = "==3.12.*"
 license = {text = "MIT"}
 keywords = []
 classifiers = [
@@ -185,16 +185,15 @@ packages = ["src/fragrance_rater"]
 # Ruff Configuration - Consolidated Linting & Formatting
 [tool.ruff]
 line-length = 88
-# #ASSUME: external-resources: this is "py312" even though `requires-python`
-# above claims ">=3.10" and the Python Compatibility Matrix CI workflow
-# actually tests 3.10-3.13. Lowering this to "py310" to match would be the
-# more correct fix (it's what caught cli.py's PEP 695 `def f[T](...)`
-# syntax, a real SyntaxError on 3.10/3.11, during PR #66 review), but it
-# also reformats ~13 unrelated files under ruff's version-gated formatter
-# rules - out of scope for this change. See docs/template_feedback.md /
-# the PR #66 review notes for the follow-up to reconcile this properly.
-# #VERIFY: `utils/timestamps.py`'s UP017 ignore below exists because of
-# this exact mismatch; don't "fix" it by accepting ruff's UP017 suggestion.
+# R1 (2026-09): `requires-python` is now pinned to "==3.12.*" and the
+# Python Compatibility Matrix CI workflow (which tested 3.10-3.13) was
+# retired (architecture review G-06/Q9), so this "py312" target-version no
+# longer mismatches the declared/tested Python range the way it used to.
+# The `utils/timestamps.py` UP017 ignore and `cli.py` UP047 ignore below
+# predate this fix and still avoid 3.11+/3.12-only syntax; removing them
+# now would be a legitimate follow-up (it reformats ~13 unrelated files
+# under ruff's version-gated formatter rules) but is out of scope for this
+# change. See the PR #66 review notes this comment previously pointed to.
 target-version = "py312"
 exclude = [
     ".git",
@@ -479,22 +478,24 @@ runtime-evaluated-base-classes = [
     "TC002",   # Processor needs to be runtime-available
 ]
 
-# Timestamp utilities - must stay importable on Python 3.10
+# Timestamp utilities - predates the R1 requires-python pin to 3.12
 "src/*/utils/timestamps.py" = [
-    "UP017",   # ruff's target-version above is "py312" (see comment there),
-               # but `requires-python` and the Python Compatibility Matrix CI
-               # workflow both claim/test 3.10+. `datetime.UTC` (the alias
-               # UP017 suggests) does not exist before 3.11; this module uses
-               # `datetime.timezone.utc` deliberately to stay 3.10-compatible.
+    "UP017",   # See the target-version comment above (pyproject.toml R1
+               # note): `requires-python` is now pinned to "==3.12.*" and no
+               # longer claims 3.10+, so this ignore's original reason
+               # (staying importable on 3.10, where `datetime.UTC` does not
+               # exist) no longer applies. Left as-is: removing it now would
+               # be an unrelated ~13-file reformat, out of scope for R1.
 ]
 
-# CLI entry point - run_async must parse on Python 3.10/3.11
+# CLI entry point - predates the R1 requires-python pin to 3.12
 "src/*/cli.py" = [
-    "UP047",   # Same target-version mismatch as timestamps.py above: PEP 695
-               # `def f[T](...)` generic syntax (which UP047 suggests) is
-               # 3.12-only and is a hard SyntaxError, not just unidiomatic,
-               # on the 3.10/3.11 floor this project actually claims and
-               # tests in CI. run_async uses an explicit TypeVar instead.
+    "UP047",   # Same stale-reason note as timestamps.py above: PEP 695
+               # `def f[T](...)` generic syntax (which UP047 suggests) was a
+               # hard SyntaxError, not just unidiomatic, on the 3.10/3.11
+               # floor this project claimed and tested in CI before the R1
+               # requires-python pin to 3.12 above. run_async uses an
+               # explicit TypeVar instead.
 ]
 
 # Quality gate script - Intentional URL handling
@@ -626,15 +627,6 @@ omit = [
     "scripts/*",        # Utility scripts
     "notebooks/*",      # Jupyter notebooks
     "tmp_cleanup/*",    # Temporary files
-
-    # API surface, LLM client, and entry point are covered by the Postman
-    # contract suite (newman) and the live-service smoke checks, not unit
-    # tests. Unit tests for FastAPI routes would just exercise the test
-    # client; the actual contract is verified end-to-end against a real
-    # uvicorn process in postman-api-tests.yml.
-    "src/fragrance_rater/api/*",
-    "src/fragrance_rater/llm/*",
-    "src/fragrance_rater/main.py",
 ]
 
 [tool.coverage.report]
@@ -686,9 +678,16 @@ dict_synonyms = "Struct, NamedStruct"
 # Reference: https://bandit.readthedocs.io/
 [tool.bandit]
 # Directories to exclude from scanning
+# R1/S-30: "scripts" was previously excluded here, which silently defeated
+# the bandit-full pre-commit hook's explicit
+# `bandit -r src/ scripts/validate_p6_readiness.py` target - exclude_dirs
+# matches even a file passed directly on the command line, so that script
+# (which gates the P6 pilot go/no-go decision) was never actually scanned.
+# Confirmed by comparing `Total lines of code` with and without the file
+# on the command line: identical either way until this exclusion was
+# dropped.
 exclude_dirs = [
     "tests",
-    "scripts",
     "benchmarks",
     "tools",
     "fuzz",
