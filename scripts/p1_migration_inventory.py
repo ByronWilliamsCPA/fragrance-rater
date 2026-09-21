@@ -99,6 +99,19 @@ def _cell(value: object) -> str:
     return _default(value)
 
 
+def _framed(value: str) -> str:
+    """Length-prefix a value so embedded delimiters can't blur row boundaries.
+
+    A plain ``f"{id}|{value}\\n"`` join lets a multiline ``Text`` value whose
+    content happens to contain ``\\n{next_id}|`` produce the same byte stream
+    as a genuinely different value, so two different before/after states
+    could hash identically. Prefixing each field with its own length removes
+    that ambiguity: the reader never has to guess where one field ends and
+    the next begins.
+    """
+    return f"{len(value)}:{value}"
+
+
 async def _table_names(conn: asyncpg.Connection) -> list[str]:
     """List every table in the public schema, alphabetically."""
     rows = await conn.fetch(
@@ -188,7 +201,8 @@ async def _redacted_hash(conn: asyncpg.Connection, table: str) -> dict[str, str]
         async for row in conn.cursor(query):
             row_id = row["id"]
             for column in columns:
-                digests[column].update(f"{row_id}|{_cell(row[column])}\n".encode())
+                framed = _framed(str(row_id)) + _framed(_cell(row[column]))
+                digests[column].update(framed.encode())
     return {column: digest.hexdigest() for column, digest in digests.items()}
 
 
