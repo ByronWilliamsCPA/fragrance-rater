@@ -345,23 +345,6 @@ class CalibrationService:
             )
         ) is not None
 
-    @staticmethod
-    def group_name_summary(
-        members: dict[str, Membership], presentations: list[Presentation]
-    ) -> str:
-        """The single group_name shared by every presentation's membership.
-
-        Returns "Mixed" when presentations span more than one group_name, or
-        when there is nothing to summarize (no presentations yet, mirroring
-        the has_started "not started" edge case). Display label only; never
-        used to decide wizard behavior (see the design doc's ADR-005
-        constraint against inventing a new taxonomy).
-        """
-        if not presentations:
-            return "Mixed"
-        names = {members[obj.membership_id].group_name for obj in presentations}
-        return names.pop() if len(names) == 1 else "Mixed"
-
     async def target(
         self, presentation_id: str, username: str, admin: bool
     ) -> tuple[Presentation, Enrollment]:

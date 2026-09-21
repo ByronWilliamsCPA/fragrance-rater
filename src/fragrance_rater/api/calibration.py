@@ -278,6 +278,13 @@ async def enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
     computes for the pilot-operations console (see that handler below), plus
     one new signal: has_started. Same permission filter as before.
     """
+    # #EDGE: External Resources: this issues 3 unbatched queries per row
+    # (program, presentations, has_started) with no pagination, mirroring
+    # manager_enrollments' existing per-row pattern below rather than a new
+    # regression. Runs on every app load for every identity now, not just the
+    # manager console, but at this app's scale (a handful of family
+    # reviewers) the per-row cost stays negligible; batch-fetching would be
+    # worth doing if either handler's row count grows materially.
     username, admin = actor(identity)
     service = CalibrationService(db)
     result: list[dict[str, object]] = []
@@ -285,16 +292,15 @@ async def enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
         if not (admin or username in item.recorder_usernames):
             continue
         program = await db.get(Program, item.program_id)
-        assert program is not None
+        # #EDGE: Data Integrity: an enrollment whose program row is gone
+        # (deleted after enrollment) must not 500 this list for every other
+        # row; skip only the malformed one rather than asserting.
+        # #VERIFY: no known path deletes a Program with live enrollments, but
+        # this endpoint runs on every app load, so a stray orphan can't be
+        # allowed to take the whole response down.
+        if program is None:
+            continue
         presentations = await service.presentations(item.id)
-        members = {
-            member.id: member
-            for member in await db.scalars(
-                select(Membership).where(
-                    Membership.id.in_({p.membership_id for p in presentations})
-                )
-            )
-        }
         skin_planned = [p for p in presentations if p.skin_reason is not None]
         result.append(
             {
@@ -313,9 +319,6 @@ async def enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
                 ),
                 "program_name": program.name,
                 "program_version": program.version,
-                "group_name_summary": CalibrationService.group_name_summary(
-                    members, presentations
-                ),
             }
         )
     return result

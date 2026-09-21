@@ -523,14 +523,6 @@ async def test_participant_facing_payloads_never_expose_membership_internals(tes
     """Guards against a future change that spreads `**membership.__dict__` (or
     similar) into an evaluator-facing response and leaks the concealed
     experimental-control fields (role, repeat_of_id, group_name).
-
-    Sanctioned exception: `group_name_summary` on the `GET /calibration/enrollments`
-    list response (added by Task 2/3, covered by its own dedicated
-    `test_group_name_summary_*` tests in test_calibration_service.py) is a
-    deliberately exposed derived value, e.g. "Baseline" or "Mixed", not a
-    verbatim leak of the raw `group_name`/`role`/`membership_id`/`repeat_of_id`
-    fields. Those four raw fields remain concealed everywhere, including on
-    that endpoint; this test's `forbidden` set is never relaxed to allow them.
     """
     forbidden = {"role", "repeat_of_id", "group_name", "membership_id"}
 
@@ -659,35 +651,17 @@ async def test_participant_facing_payloads_never_expose_membership_internals(tes
     assert enrollment_list.status_code == 200
 
     # Scope note: the recorder-facing enrollment view, the participant history
-    # endpoint, and the `GET /calibration/enrollments` list endpoint (which
-    # Task 3 extended with `group_name_summary`) are checked here. `/mapping`
-    # (asserted separately in test_controlled_lifecycle_authorization_and_reveal)
-    # and `/checkpoints` are manager-only routes that legitimately return
-    # fragrance identity and are exempt from this participant-facing leak
-    # guard by design, not by oversight.
+    # endpoint, and the `GET /calibration/enrollments` list endpoint are
+    # checked here. `/mapping` (asserted separately in
+    # test_controlled_lifecycle_authorization_and_reveal) and `/checkpoints`
+    # are manager-only routes that legitimately return fragrance identity and
+    # are exempt from this participant-facing leak guard by design, not by
+    # oversight.
     for response in (enrollment_view, history, enrollment_list):
         assert _find_forbidden_keys(response.json(), forbidden) == []
         assert "HIDDEN_REPEAT" not in response.text
         assert "repeat_of_id" not in response.text
-
-    # The bare "group_name" substring check applies only to the two endpoints
-    # that carry no derived field of that name. The list endpoint's
-    # `group_name_summary` key legitimately contains "group_name" as a
-    # substring, so it is checked separately below rather than excluded
-    # silently.
-    assert "group_name" not in enrollment_view.text
-    assert "group_name" not in history.text
-
-    # group_name_summary is the sanctioned exception on the list endpoint:
-    # confirm it is present (proving the key-based assertion above isn't
-    # vacuously passing because the field is absent) and that it carries only
-    # the derived summary value, never the raw group_name strings ("Baseline",
-    # "Repeat", "Holdout") set above.
-    list_payload = enrollment_list.json()
-    matching = [row for row in list_payload if row["id"] == enrollment_id]
-    assert len(matching) == 1
-    assert "group_name_summary" in matching[0]
-    assert matching[0]["group_name_summary"] not in {"Baseline", "Repeat", "Holdout"}
+        assert "group_name" not in response.text
 
     member_list = await test_app.get(
         f"{PREFIX}/programs/{program_id}/members", headers=MANAGER
@@ -758,7 +732,6 @@ async def test_enrollments_list_is_enriched_for_the_recorder(test_app):
     assert row["revealed"] is False
     assert row["program_name"] == "Enrich"
     assert row["program_version"] == "1"
-    assert row["group_name_summary"] == "Baseline"
     assert row["total_presentations"] > 0
     assert row["blotter_complete"] == 0
     assert row["skin_planned"] == 0
@@ -777,3 +750,35 @@ async def test_enrollments_list_is_enriched_for_the_recorder(test_app):
     after = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
     row = next(item for item in after.json() if item["id"] == enrollment_id)
     assert row["has_started"] is True
+
+    lock_blotter = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/lock/BLOTTER", headers=RECORDER
+    )
+    assert lock_blotter.status_code == 200
+    plan_skin = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/skin-plan",
+        json={"reason": "Low blotter confidence"},
+        headers=RECORDER,
+    )
+    assert plan_skin.status_code == 200
+
+    locked = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
+    row = next(item for item in locked.json() if item["id"] == enrollment_id)
+    assert row["blotter_complete"] == 1
+    assert row["skin_planned"] == 1
+    assert row["skin_complete"] == 0
+
+    await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/observations",
+        json={"stage": "SKIN", "detected": True, "intensity": 2, "liking": 7},
+        headers=RECORDER,
+    )
+    lock_skin = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/lock/SKIN", headers=RECORDER
+    )
+    assert lock_skin.status_code == 200
+
+    skin_done = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
+    row = next(item for item in skin_done.json() if item["id"] == enrollment_id)
+    assert row["skin_planned"] == 1
+    assert row["skin_complete"] == 1

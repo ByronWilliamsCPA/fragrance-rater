@@ -867,29 +867,3 @@ async def test_has_started_false_until_first_observation(protocol):
 async def test_has_started_false_for_empty_presentation_set(protocol):
     service, *_ = protocol
     assert await service.has_started(set()) is False
-
-
-@pytest.mark.asyncio
-async def test_group_name_summary_single_value(protocol):
-    service, _program, base, repeat, holdout = protocol
-    enrollment = await enroll(protocol)
-    presentations = await service.presentations(enrollment.id)
-    members = {m.id: m for m in [base, repeat, holdout]}
-    assert service.group_name_summary(members, presentations) == "Baseline"
-
-
-@pytest.mark.asyncio
-async def test_group_name_summary_mixed_when_split(protocol):
-    service, _program, base, repeat, holdout = protocol
-    enrollment = await enroll(protocol)
-    presentations = await service.presentations(enrollment.id)
-    holdout.group_name = "Retest"
-    await service.db.flush()
-    members = {m.id: m for m in [base, repeat, holdout]}
-    assert service.group_name_summary(members, presentations) == "Mixed"
-
-
-def test_group_name_summary_empty_presentations():
-    from fragrance_rater.services.calibration_service import CalibrationService
-
-    assert CalibrationService.group_name_summary({}, []) == "Mixed"
