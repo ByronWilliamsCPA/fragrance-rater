@@ -136,7 +136,7 @@ Selecting either action navigates to `/program-setup?program=<id>`.
 following the exact pattern `CalibrationPage.initialAssignmentId` already
 established: `App.tsx` reads the `program` query param, validates it against
 `appData.programs`, and passes it through; `programId` state
-(`ProgramSetupPage.tsx:70`) initializes from that prop instead of `''`. The
+(`ProgramSetupPage.tsx:59`) initializes from that prop instead of `''`. The
 manager lands with that program already selected and uses the existing
 "2. Enrollment" form to enroll themselves. No new form is built.
 
