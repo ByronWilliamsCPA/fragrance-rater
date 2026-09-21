@@ -14,7 +14,8 @@ This project follows [OpenSSF (Open Source Security Foundation)](https://openssf
 
 ## Overview
 
-**Estimated Scorecard Score**: 9.0/10 (Excellent)
+**Estimated Scorecard Score**: 9.0/10 (pending re-verification after the
+Branch-Protection/Packaging line-item changes in the table below)
 **Best Practices Compliance**: 95%+ (Passing)
 
 This template implements multiple security controls including:
@@ -143,8 +144,10 @@ A `scripts/setup_github_protection.py` script previously automated this,
 but its required-check contexts (`CI / CI Pipeline`, ...) never matched
 what this repository's workflows emit and could have configured branch
 protection that no PR could ever satisfy. It was deleted in R1
-(architecture review G-11/Q8). Configure protection manually, or via the
-org-level ruleset if one already applies to this repository.
+(architecture review G-11/Q8). The org-level ruleset described above
+already applies to this repository and is authoritative; use its settings
+to audit or change requirements rather than reintroducing a per-repo
+script.
 
 **Manual setup**:
 
@@ -236,12 +239,18 @@ mutmut show
 
 ### Current Score: 9.0/10 ⭐
 
+> **Needs re-verification**: this figure predates R1's deletion of
+> `scripts/setup_github_protection.py` and `publish-pypi.yml`, which
+> invalidated the Branch-Protection and Packaging justifications this score
+> was based on. The table below reflects corrected justifications for those
+> two rows; the overall 9.0/10 has not been recomputed against them.
+
 | Check | Score | Status |
 |-------|-------|--------|
 | Security-Policy | 10/10 | ✅ Org-level policy |
 | Code-Review | 10/10 | ✅ PR workflow + CODEOWNERS |
 | Signed-Releases | 10/10 | ✅ Cosign + SLSA |
-| Branch-Protection | 10/10 | ✅ Setup script provided |
+| Branch-Protection | Needs re-verification | Enforced via two active org-level GitHub rulesets (not a script, which was deleted in R1); required PR approvals are currently 0 and code-owner review is not required by those rulesets, so this may score below the prior 10/10 estimate. See [`docs/ci-gates.md`](ci-gates.md) and Branch Protection above. |
 | Token-Permissions | 10/10 | ✅ Scoped permissions |
 | SAST | 10/10 | ✅ Ruff + Bandit + BasedPyright |
 | Fuzzing | 10/10 | ✅ ClusterFuzzLite |
@@ -253,7 +262,7 @@ mutmut show
 | CII-Best-Practices | 8/10 | ⚠️ Register for badge |
 | Dangerous-Workflow | 8/10 | ✅ Input validation |
 | Binary-Artifacts | 10/10 | ✅ None in repo |
-| Packaging | 8/10 | ✅ PyPI publishing |
+| Packaging | Needs re-verification (likely lower) | This is a self-hosted personal-use app; `publish-pypi.yml` was retired in R1 and nothing in this repository publishes to PyPI or any other package registry, so the prior "PyPI publishing" justification no longer applies. |
 
 ### Remaining Improvements
 

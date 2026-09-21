@@ -185,15 +185,17 @@ packages = ["src/fragrance_rater"]
 # Ruff Configuration - Consolidated Linting & Formatting
 [tool.ruff]
 line-length = 88
-# R1 (2026-09): `requires-python` is now pinned to "==3.12.*" and the
-# Python Compatibility Matrix CI workflow (which tested 3.10-3.13) was
-# retired (architecture review G-06/Q9), so this "py312" target-version no
-# longer mismatches the declared/tested Python range the way it used to.
-# The `utils/timestamps.py` UP017 ignore and `cli.py` UP047 ignore below
-# predate this fix and still avoid 3.11+/3.12-only syntax; removing them
-# now would be a legitimate follow-up (it reformats ~13 unrelated files
-# under ruff's version-gated formatter rules) but is out of scope for this
-# change. See the PR #66 review notes this comment previously pointed to.
+# #ASSUME: external-resources: R1 (2026-09) pinned `requires-python` to
+# "==3.12.*" and retired the Python Compatibility Matrix CI workflow
+# (which tested 3.10-3.13; architecture review G-06/Q9), so this "py312"
+# target-version no longer mismatches the declared/tested Python range the
+# way it used to.
+# #VERIFY: the `utils/timestamps.py` UP017 ignore and `cli.py` UP047
+# ignore below predate this fix and still avoid 3.11+/3.12-only syntax;
+# removing them now would be a legitimate follow-up (it reformats ~13
+# unrelated files under ruff's version-gated formatter rules) but is out
+# of scope for this change. See the PR #66 review notes this comment
+# previously pointed to.
 target-version = "py312"
 exclude = [
     ".git",

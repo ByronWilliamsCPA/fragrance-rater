@@ -144,8 +144,8 @@ jobs:
   # `gen_random_uuid()`, JSON semantics, FK enforcement, and server defaults
   # untested against the actual production engine. This job runs in this
   # repository (a reusable `uses:` job cannot also declare `services:`) with
-  # a real postgres:16 service, applies migrations with `alembic upgrade
-  # head`, then runs the integration-marked suite with P1_DATABASE_URL set
+  # a real postgres:16-alpine service, applies migrations with `alembic
+  # upgrade head`, then runs the integration-marked suite with P1_DATABASE_URL set
   # so that test actually executes instead of skipping. R2 adds the
   # `compare_metadata == []` schema-parity test in the same suite.
   postgres-integration:
@@ -155,7 +155,7 @@ jobs:
       contents: read
     services:
       postgres:
-        image: postgres:16
+        image: postgres:16-alpine
         env:
           POSTGRES_USER: fragrance_rater
           POSTGRES_PASSWORD: fragrance_rater_ci
@@ -178,7 +178,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - name: Install uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
         with:
           enable-cache: true
       - name: Set up Python
@@ -188,7 +188,7 @@ jobs:
       - name: Apply migrations
         run: uv run alembic upgrade head
       - name: Run PostgreSQL-gated integration tests
-        # --no-cov: this job's job is PostgreSQL-only correctness, not
+        # --no-cov: this job's focus is PostgreSQL-only correctness, not
         # coverage; pyproject's addopts --cov-fail-under=80 would otherwise
         # fail every run of this small, single-directory suite outright.
         run: uv run pytest tests/integration -m integration -v --no-cov

@@ -461,11 +461,12 @@ protection that could never be satisfied. It was deleted in R1
 To configure or audit branch protection:
 
 1. Go to Repository Settings > Branches > Add rule, or use the
-   organization's ruleset settings if one already applies to this repo.
+   organization's ruleset settings (an org-level ruleset already applies to
+   this repository and is authoritative; see above).
 2. Apply to: `main`
 3. Require the bare check names this repository's workflows actually emit
    as their top-level jobs (see [`docs/ci-gates.md`](ci-gates.md) for the
-   authoritative, current list — e.g. `CI Gate`, `PR Title Format`,
+   authoritative, current list, e.g. `CI Gate`, `PR Title Format`,
    `PR Body Non-Empty`, `Dependency & Standards Validation`,
    `Security Analysis`, `Check REUSE Compliance`).
 4. Enable "Require branches to be up to date" and "Include administrators".

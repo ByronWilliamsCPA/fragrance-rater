@@ -480,7 +480,6 @@ qlty config show
 - Gitleaks (secrets detection)
 - TruffleHog (entropy-based secrets detection)
 - OSV Scanner (dependency vulnerabilities)
-- Semgrep (advanced SAST)
 
 **File & Configuration:**
 

@@ -62,4 +62,9 @@ jobs:
       # run tests in the release pipeline to avoid releasing unvalidated code.
       run-tests: ${{ github.event_name == 'workflow_dispatch' }}
       skip-tests-reason: 'Tests already validated by upstream CI before workflow_run fires'
-    secrets: inherit
+      # python-release.yml declares no `secrets:` in its workflow_call
+      # block and references no secrets.* in any step; `secrets: inherit`
+      # was unconditionally exposing every org/repo secret to a workflow
+      # that uses none of them (CWE-200). Omitted entirely rather than
+      # passing an empty block, since the reusable workflow accepts no
+      # named secrets.

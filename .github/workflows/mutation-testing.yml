@@ -51,4 +51,9 @@ jobs:
       fail-under-threshold: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.fail_under_threshold == 'true' }}
       post-pr-comment: false
       timeout-minutes: 60
-    secrets: inherit
+      # python-mutation.yml declares no `secrets:` in its workflow_call
+      # block and references no secrets.* in any step; `secrets: inherit`
+      # was unconditionally exposing every org/repo secret to a workflow
+      # that uses none of them (CWE-200). Omitted entirely rather than
+      # passing an empty block, since the reusable workflow accepts no
+      # named secrets.

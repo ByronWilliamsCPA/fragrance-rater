@@ -388,7 +388,10 @@ review session. Nothing else should start on the items that depend on a decision
 
 ### WS-1: Make CI tell the truth
 
-Findings: S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22, S-29, S-26, S-30, G-09.
+Findings: S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22, S-29, S-26, S-30, D-06. (G-09, listed here in
+an earlier draft, is `ruff format --check .` drift on Markdown files; none of the action items below
+address it, and it is reassigned to WS-11 below, where Section 4.11 already groups it with the other
+documentation and tooling hygiene findings.)
 
 - Add a `frontend` job to `ci.yml` (or `frontend-ci.yml`) running `npm ci`, `lint`, `typecheck`,
   `test:coverage` with a floor equal to today's numbers, and `build`; make it a required context.
@@ -554,7 +557,12 @@ and the P6 operations drill has a backup row with evidence.
 
 ### WS-11: Documentation consolidation
 
-Findings: G-04, G-05, G-08, G-10, G-12.
+Findings: G-04, G-05, G-08, G-09, G-10, G-12.
+
+- Document the `ruff format --check .` / pre-commit hook scope mismatch (G-09) in CLAUDE.md's Quick
+  Start section, or pass matching `--extension` filters so the documented command and the enforced
+  hook agree. As of 2026-09-21, `ruff format --check .` still reformats 12 Markdown files (fenced
+  Python blocks) that the pinned pre-commit hook scope excludes; this is open, not closed.
 
 - Delete `CONFIG_TEMPLATES_SUMMARY.md`; move `concept.md` to `docs/research/` marked historical;
   merge `docs/ADRs/` into `docs/planning/adr/`; make `docs/project/roadmap.md` a redirect stub.
@@ -572,13 +580,21 @@ This section is a live pointer, not a restatement: [PROJECT-PLAN.md's Milestone 
 table](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation) is authoritative for
 what has actually shipped. As of 2026-09-21:
 
-- **WS-1 / R1 (CI truthfulness) is done.** Findings S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22,
-  S-29, S-26, S-30, D-06 are closed. [`docs/ci-gates.md`](../ci-gates.md) is now the authoritative
-  per-workflow record this review's Appendix B (CI gate matrix) fed into; its "Known residual gaps"
-  section names what R1 deliberately left open (the `docker-publish.yml` CVE gate stays
-  report-only; G-06/Q9's default resolved only PyPI publishing and the Python version matrix, not
-  FIPS/SLSA/mutation-testing/`release.yml`; the PostgreSQL parity test itself belongs to R2, not
-  R1, per the plan's sequencing note 1).
+- **WS-1 / R1 (CI truthfulness) is done for the gates it added, but not yet verified against its own
+  acceptance criterion.** Findings S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22, S-29, S-26, S-30,
+  D-06 are closed; D-06 (no PostgreSQL service in any workflow) replaces G-09, which WS-1's own
+  finding list named but none of its action items ever addressed. G-09 (`ruff format --check .`
+  drift on Markdown files) remains open and is now tracked under WS-11 above.
+  [`docs/ci-gates.md`](../ci-gates.md) is now the authoritative per-workflow record this review's
+  Appendix B (CI gate matrix) fed into; its "Known residual gaps" section names what R1 deliberately
+  left open (the `docker-publish.yml` CVE gate stays report-only; G-06/Q9's default resolved only
+  PyPI publishing and the Python version matrix, not FIPS/SLSA/mutation-testing/`release.yml`; the
+  PostgreSQL parity test itself belongs to R2, not R1, per the plan's sequencing note 1). WS-1's own
+  acceptance criterion (Section 7) also requires "a deliberately broken frontend test fails the PR";
+  no PR diff or description in R1 documents that negative control having been run, so this half of
+  the acceptance criterion is unverified. Treat WS-1 as closed for the specific gates listed above,
+  not as fully closed against its own stated acceptance criterion until someone exercises that
+  negative control and records the result.
 - R1 also surfaced one thing beyond its named findings: a coverage-measurement gap where code
   reached only through the FastAPI/ASGI test layer (`httpx.ASGITransport` + `Depends()`, the
   pattern most of `tests/unit/test_api/*` uses) does not register as covered even when confirmed to

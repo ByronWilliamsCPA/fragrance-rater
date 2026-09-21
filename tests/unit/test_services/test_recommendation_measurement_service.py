@@ -218,15 +218,10 @@ async def test_validate_outcome_rejects_link_without_sampled_state(
 
 @pytest.mark.asyncio
 async def test_validate_outcome_rejects_mismatched_evaluation(async_session) -> None:
-    reviewer, fragrances = await _seed_reviewer_and_candidates(async_session)
+    reviewer, _ = await _seed_reviewer_and_candidates(async_session)
     other_reviewer = Reviewer(name="Someone else")
     async_session.add(other_reviewer)
     await async_session.flush()
-    mismatched = Evaluation(
-        reviewer_id=other_reviewer.id, fragrance_id=fragrances[3].id, rating=4
-    )
-    async_session.add(mismatched)
-    await async_session.commit()
 
     service = RecommendationMeasurementService(async_session)
     run = await service.create_run(
@@ -234,6 +229,15 @@ async def test_validate_outcome_rejects_mismatched_evaluation(async_session) -> 
     )
     _, rows = await service.run_rows(run.id)
     impression = rows[0][0]
+
+    # Same fragrance as the impression, but recorded by a different reviewer:
+    # isolates the mismatch to reviewer_id so the test exercises exactly what
+    # its name claims, rather than an incidental fragrance_id mismatch too.
+    mismatched = Evaluation(
+        reviewer_id=other_reviewer.id, fragrance_id=impression.fragrance_id, rating=4
+    )
+    async_session.add(mismatched)
+    await async_session.commit()
 
     data = ResponseCreate(sampling_state="SAMPLED", outcome_evaluation_id=mismatched.id)
     with pytest.raises(MeasurementConflictError, match="live, on-me encounter"):
@@ -340,8 +344,9 @@ async def test_metrics_aggregates_linked_ordinary_outcome_rating(async_session) 
         ResponseCreate(sampling_state="SAMPLED", outcome_evaluation_id=outcome.id),
         recorded_by="unit",
     )
-    # A second revision on the same impression exercises the "keep only the
-    # latest revision per impression" setdefault path in metrics().
+    # A second revision on the same impression exercises metrics()'s
+    # revision-collapse: the query orders revisions DESC, so setdefault's
+    # first-write-wins per impression_id keeps the newest revision.
     await service.append_response(
         impression.id,
         ResponseCreate(

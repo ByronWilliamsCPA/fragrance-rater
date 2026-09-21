@@ -3,9 +3,9 @@
 This project uses **org-level reusable workflows** for consistency and maintainability across all ByronWilliamsCPA projects.
 
 > This document (template-generated) covers only the reusable-workflow callers. For the
-> complete, current list of workflows in this repository — including this repo's own
+> complete, current list of workflows in this repository (including this repo's own
 > `frontend`, `frontend-e2e`, and `postgres-integration` jobs, `container-security.yml`,
-> `pr-validation.yml`, and `reuse.yml`, plus what actually blocks a merge — see
+> `pr-validation.yml`, and `reuse.yml`), plus what actually blocks a merge, see
 > [`docs/ci-gates.md`](../../docs/ci-gates.md). `publish-pypi.yml` and
 > `python-compatibility.yml` were retired in R1 (architecture review G-06/Q9): this is a
 > self-hosted personal-use app, not a published PyPI package, and the project now targets
