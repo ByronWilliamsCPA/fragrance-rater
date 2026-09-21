@@ -1296,22 +1296,15 @@ describe('Calibration participant workflow', () => {
     expect(screen.queryByLabelText('Evaluator and program')).not.toBeInTheDocument()
   })
 
-  it('falls back to the guided wizard for a stale assignment id in the query string', async () => {
+  it('falls back to the empty dropdown and surfaces a visible error for a stale assignment id', async () => {
     window.history.replaceState({}, '', '/calibration?assignment=does-not-exist')
     render(<App />)
 
-    // #ASSUME: ux: an unresolved `?assignment=` still routes into
-    // calibrationEntryFor's decision for this identity's real assignments
-    // (here, the sole fixture assignment is not started, so 'guided' wins)
-    // instead of falling back to the manual dropdown with the
-    // unresolvedAssignmentMessage banner; CalibrationPage's early-return
-    // branches for 'resume'/'guided'/'choice' don't consult
-    // `unresolvedAssignmentId` at all, so that banner is unreachable
-    // whenever the identity holds any assignment. A stale/broken deep link
-    // is silently swallowed instead of surfaced to the user in this case.
-    // #VERIFY: flagged in the Task 11 report as a product-level question for
-    // whoever owns CalibrationPage/calibrationEntry, not resolved here.
-    expect(await screen.findByRole('heading', { name: 'Guided calibration' })).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'That link points to a calibration assignment you do not have. It may have been reassigned or withdrawn. Choose an assignment below to continue.'
+    )
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('')
+    expect(screen.queryByRole('heading', { name: 'Guided calibration' })).not.toBeInTheDocument()
   })
 
   it('shows a visible error when the deep-linked assignment fails to load', async () => {

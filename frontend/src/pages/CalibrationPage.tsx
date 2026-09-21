@@ -122,7 +122,7 @@ export function CalibrationPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAssignmentId, refresh])
 
-  if (!initialAssignmentId && !manualBrowse && entry.kind === 'resume') {
+  if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && entry.kind === 'resume') {
     return (
       <GuidedCalibrationFlow
         enrollmentId={entry.enrollmentId}
@@ -130,7 +130,7 @@ export function CalibrationPage({
       />
     )
   }
-  if (!initialAssignmentId && !manualBrowse && entry.kind === 'guided') {
+  if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && entry.kind === 'guided') {
     return (
       <GuidedCalibrationFlow
         enrollmentId={entry.enrollmentId}
@@ -138,7 +138,7 @@ export function CalibrationPage({
       />
     )
   }
-  if (!initialAssignmentId && !manualBrowse && entry.kind === 'choice') {
+  if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && entry.kind === 'choice') {
     return (
       <CalibrationChoiceScreen
         assignments={assignments}
