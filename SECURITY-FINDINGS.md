@@ -212,8 +212,6 @@ The following references in the repo point to a **mutable branch** of a separate
 | `.github/workflows/coverage.yml:26` | `…/python-qlty-coverage.yml@main` |
 | `.github/workflows/docs.yml:32` | `…/python-docs.yml@main` |
 | `.github/workflows/mutation-testing.yml:43` | `…/python-mutation.yml@main` |
-| `.github/workflows/publish-pypi.yml:20` | `…/python-publish-pypi.yml@main` |
-| `.github/workflows/python-compatibility.yml:38` | `…/python-compatibility.yml@main` |
 | `.github/workflows/qlty.yml:18` | `…/python-qlty-coverage.yml@main` |
 | `.github/workflows/release.yml:47` | `…/python-release.yml@main` |
 | `.github/workflows/sbom.yml:40` | `…/python-sbom.yml@main` |
@@ -221,6 +219,8 @@ The following references in the repo point to a **mutable branch** of a separate
 | `.github/workflows/slsa-provenance.yml:101` | `…/python-slsa.yml@main` |
 
 **Why not fixed in this PR:** these point to a separate repository (`ByronWilliamsCPA/.github`) whose commit history is not accessible from this PR's review environment, so replacing `@main` with a SHA requires the maintainer to choose the desired upstream commit. Two workflows already follow the correct pattern and can be used as a model: `.github/workflows/pr-validation.yml:35` (`@e8fc83c98c2971ad1ece71573d28171463e30c16  # main`) and `.github/workflows/scorecard.yml:30` (`@f05c26a424a708a73fc445a0ebb5b3ce476c1793`).
+
+**R1 update (2026-09):** `.github/workflows/publish-pypi.yml` and `.github/workflows/python-compatibility.yml`, both previously listed above, were retired in R1 (architecture review G-06/Q9: this is a self-hosted personal-use app, not a published PyPI package, and the project targets Python 3.12 only per `requires-python = "==3.12.*"`), so those two rows are removed as moot rather than left citing files that no longer exist. R1 also aligned all remaining reusable-workflow calls listed above on a single SHA (`b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89`), closing the `@main` residual finding for every workflow still in this repository; see [`docs/ci-gates.md`](docs/ci-gates.md) for the current authoritative per-workflow record, including what now covers Python-version gating (`ci.yml`, Python 3.12 only).
 
 **Recommended remediation:**
 ```bash

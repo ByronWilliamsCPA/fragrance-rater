@@ -9,18 +9,22 @@ on:
     branches: [main, master]
     paths:
       - 'Dockerfile'
+      - 'frontend/Dockerfile'
       - 'docker-compose*.yml'
       - '.dockerignore'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'frontend/package*.json'
   pull_request:
     branches: [main, master, develop]
     paths:
       - 'Dockerfile'
+      - 'frontend/Dockerfile'
       - 'docker-compose*.yml'
       - '.dockerignore'
       - 'pyproject.toml'
       - 'uv.lock'
+      - 'frontend/package*.json'
   schedule:
     # Weekly scan on Wednesdays at 7 AM UTC
     - cron: '0 7 * * 3'
@@ -38,22 +42,42 @@ permissions:
 
 jobs:
   container-security:
-    name: Container Security Scan
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-container-security.yml@cb0742cf00832b4e640a47dfca222047c2b70c1c  # main
+    name: Container Security Scan (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: backend
+            dockerfile: 'Dockerfile'
+            context: '.'
+            image-tag: 'fragrance_rater:scan'
+          - name: frontend
+            dockerfile: 'frontend/Dockerfile'
+            context: './frontend'
+            image-tag: 'fragrance_rater-frontend:scan'
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-container-security.yml@b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89  # main
     with:
-      dockerfile-path: 'Dockerfile'
-      build-context: '.'
-      image-tag: 'fragrance_rater:scan'
+      dockerfile-path: ${{ matrix.dockerfile }}
+      build-context: ${{ matrix.context }}
+      image-tag: ${{ matrix.image-tag }}
       build-image: true
       severity-threshold: 'CRITICAL,HIGH'
-      # Report only until containers are actually shipped. The base image
-      # (python:3.12-slim) carries ~18 transitive CVEs that exist in every
-      # Debian-derived image and have no production exposure for this repo.
-      # Re-enable when a Phase-3 deployment target lands.
+      # #ASSUME: security: reverted to report-only pending a real
+      # .trivyignore.yaml baseline; live run on this PR found 52 HIGH
+      # findings with no suppression mechanism in place to triage them.
+      # #VERIFY: before flipping this back to true, add a dated
+      # .trivyignore.yaml entry per finding with a revisit date and
+      # confirm the gate passes clean.
       fail-on-vulnerabilities: false
       run-hadolint: true
       hadolint-failure-threshold: 'warning'
       generate-sbom: true
       upload-sarif: true
       artifact-retention-days: 90
-    secrets: inherit
+      # Neither Dockerfile in this repo pulls from dhi.io (python:3.12-slim,
+      # node:22-alpine, nginx:alpine), so the reusable workflow's DHI login
+      # step has nothing to authenticate for. Matches docker-publish.yml's
+      # identical fix: disabling the step removes the unneeded login
+      # attempt entirely, so no DHI_USERNAME/DHI_PAT secrets need to be
+      # passed to this job, and `secrets: inherit` is no longer needed.
+      enable-dhi-login: false

@@ -29,7 +29,7 @@ permissions:
 jobs:
   docs:
     name: Build & Deploy Docs
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-docs.yml@cb0742cf00832b4e640a47dfca222047c2b70c1c  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-docs.yml@b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89  # main
     with:
       python-version: '3.12'
       # See ci.yml: reusable workflow defaults no-build: true; override to

@@ -10,18 +10,31 @@ tags:
   - requirements
 ---
 
-This project supports **Python 3.10, 3.11, 3.12, 3.13, and 3.14** with full testing across all versions.
+> **R1 correction (2026-09)**: this project's `requires-python` is pinned to `==3.12.*`
+> and the multi-version CI matrix workflow (`python-compatibility.yml`) was retired
+> (architecture review G-06/Q9: this is a self-hosted, single-target deployment, not a
+> library distributed across Python versions). The multi-version guidance below is
+> template-inherited and does not reflect this repository's actual supported range;
+> it is retained as reference material for the underlying language features, not as a
+> statement of what this repository tests or supports. Do not add version-conditional
+> dependencies or imports based on this document without first checking
+> `requires-python` in `pyproject.toml`.
 
-## Version Support Matrix
+This repository actually supports and tests **Python 3.12 only** (`requires-python = "==3.12.*"`).
+The version-support matrix, backport patterns, and migration guidance below describe the underlying
+language features across Python 3.10 through 3.14 for general reference; they are template-inherited
+and do not describe what this repository builds, tests, or ships (see the R1 correction above).
 
-| Python Version | Support Status | Nox Testing | CI Testing | Notes |
-|----------------|----------------|-------------|------------|-------|
-| 3.10 | ✅ Supported | ✅ All versions | ✅ Full CI/CD | Minimum version, requires backports |
-| 3.11 | ✅ Supported | ✅ All versions | ✅ Full CI/CD | LTS version (EOL Oct 2027) |
-| 3.12 | ✅ Supported | ✅ All versions | ✅ Full CI/CD | Default/recommended version |
-| 3.13 | ✅ Supported | ✅ All versions | ✅ Full CI/CD | Latest stable, PEP 594 removals |
-| 3.14 | ✅ Supported | ✅ All versions | ✅ Full CI/CD | Latest (Oct 2025), free-threaded, JIT |
-| 3.15+ | ⚠️ Not tested | ❌ None | ❌ No CI/CD | May work but not guaranteed |
+## Version Support Matrix (template reference, not this repository's actual support range)
+
+| Python Version | Support Status (upstream) | Support in this repo | CI Testing (this repo) | Notes |
+|-----------------|----------------------------|------------------------|--------------------------|-------|
+| 3.10 | Supported upstream | Not supported here | Not run | Below `requires-python = "==3.12.*"` |
+| 3.11 | Supported upstream | Not supported here | Not run | Below `requires-python = "==3.12.*"`; LTS (EOL Oct 2027) |
+| 3.12 | Supported upstream | Supported (only target) | Full CI/CD | The only version this repository builds, tests, or ships |
+| 3.13 | Supported upstream | Not supported here | Not run | Above `requires-python = "==3.12.*"`; PEP 594 removals |
+| 3.14 | Supported upstream | Not supported here | Not run | Above `requires-python = "==3.12.*"`; free-threaded, JIT |
+| 3.15+ | Not yet released/tested upstream | Not supported here | Not run | May work but not guaranteed, and out of this repo's target range |
 
 ## Python 3.10 Support (Backports Needed)
 
@@ -383,26 +396,35 @@ This ensures BasedPyright:
 - Validates compatibility with your target version
 - Checks typing features availability
 
-## Testing Across Versions
+## Testing Across Versions (template reference, not this repository's actual CI)
 
 ### Nox Sessions
 
-Test across all supported versions:
+`noxfile.py` still declares template sessions parameterized across multiple Python versions, but
+that reflects unaligned template scaffolding, not this repository's actual test policy: only
+Python 3.12 is a supported target here (`requires-python = "==3.12.*"`). The commands below run
+whatever `noxfile.py` currently defines; do not read a successful `nox -s test` run across several
+interpreters as evidence that this repository supports those versions.
 
 ```bash
-# Run tests on all Python versions (3.10, 3.11, 3.12, 3.13, 3.14)
+# Runs whatever Python versions noxfile.py currently targets - see the note above
 nox -s test
 
-# Run linting on all versions
+# Run linting under the configured session(s)
 nox -s lint
 
-# Run type checking on all versions
+# Run type checking under the configured session(s)
 nox -s typecheck
 ```
 
 ### CI/CD Matrix
 
-Our GitHub Actions workflow tests on all supported versions:
+This repository does not run a multi-version CI matrix. `.github/workflows/python-compatibility.yml`
+was retired in R1 (architecture review G-06/Q9): this is a self-hosted, single-target deployment
+pinned to `requires-python = "==3.12.*"`, not a library distributed across Python versions.
+`.github/workflows/ci.yml` tests against Python 3.12 only. The snippet below is illustrative
+template guidance for a project that does support multiple versions; it is not this repository's
+actual CI configuration.
 
 ```yaml
 strategy:

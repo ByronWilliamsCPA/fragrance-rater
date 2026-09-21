@@ -30,7 +30,7 @@ permissions:
 jobs:
   ci:
     name: CI Pipeline
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-ci.yml@cb0742cf00832b4e640a47dfca222047c2b70c1c  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-ci.yml@b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89  # main
     with:
       python-version: '3.12'
       coverage-threshold: 80
@@ -137,6 +137,62 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
+  # D-06/S-22: the reusable python-ci.yml pipeline above has no PostgreSQL
+  # service, so tests/integration/test_recommendation_measurement_postgres.py
+  # (the only test gated on P1_DATABASE_URL) has always skipped in CI,
+  # leaving partial index predicates, `SELECT ... FOR UPDATE`,
+  # `gen_random_uuid()`, JSON semantics, FK enforcement, and server defaults
+  # untested against the actual production engine. This job runs in this
+  # repository (a reusable `uses:` job cannot also declare `services:`) with
+  # a real postgres:16-alpine service, applies migrations with `alembic
+  # upgrade head`, then runs the integration-marked suite with P1_DATABASE_URL set
+  # so that test actually executes instead of skipping. R2 adds the
+  # `compare_metadata == []` schema-parity test in the same suite.
+  postgres-integration:
+    name: PostgreSQL Integration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fragrance_rater
+          POSTGRES_PASSWORD: fragrance_rater_ci
+          POSTGRES_DB: fragrance_rater
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://fragrance_rater:fragrance_rater_ci@localhost:5432/fragrance_rater
+      P1_DATABASE_URL: postgresql+asyncpg://fragrance_rater:fragrance_rater_ci@localhost:5432/fragrance_rater
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: uv sync --all-extras --frozen
+      - name: Apply migrations
+        run: uv run alembic upgrade head
+      - name: Run PostgreSQL-gated integration tests
+        # --no-cov: this job's focus is PostgreSQL-only correctness, not
+        # coverage; pyproject's addopts --cov-fail-under=80 would otherwise
+        # fail every run of this small, single-directory suite outright.
+        run: uv run pytest tests/integration -m integration -v --no-cov
+
   # Top-level gate that emits the bare "CI Gate" check name the org
   # ruleset requires. The reusable workflow's internal "CI Gate" job
   # surfaces as "CI Pipeline / CI Gate" because of the caller-job
@@ -147,7 +203,7 @@ jobs:
   # pipeline.
   ci-gate:
     name: CI Gate
-    needs: [ci, frontend, frontend-e2e]
+    needs: [ci, frontend, frontend-e2e, postgres-integration]
     runs-on: ubuntu-latest
     if: always()
     permissions:
@@ -162,9 +218,10 @@ jobs:
           CI_RESULT: ${{ needs.ci.result }}
           FRONTEND_RESULT: ${{ needs.frontend.result }}
           FRONTEND_E2E_RESULT: ${{ needs.frontend-e2e.result }}
+          POSTGRES_RESULT: ${{ needs.postgres-integration.result }}
         run: |
-          if [ "$CI_RESULT" != "success" ] || [ "$FRONTEND_RESULT" != "success" ] || [ "$FRONTEND_E2E_RESULT" != "success" ]; then
-            echo "::error::CI did not succeed (backend=$CI_RESULT, frontend=$FRONTEND_RESULT, frontend-e2e=$FRONTEND_E2E_RESULT)"
+          if [ "$CI_RESULT" != "success" ] || [ "$FRONTEND_RESULT" != "success" ] || [ "$FRONTEND_E2E_RESULT" != "success" ] || [ "$POSTGRES_RESULT" != "success" ]; then
+            echo "::error::CI did not succeed (backend=$CI_RESULT, frontend=$FRONTEND_RESULT, frontend-e2e=$FRONTEND_E2E_RESULT, postgres=$POSTGRES_RESULT)"
             exit 1
           fi
           echo "CI Gate: all upstream checks succeeded."

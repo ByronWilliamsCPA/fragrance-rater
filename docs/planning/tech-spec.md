@@ -258,8 +258,13 @@ views.
 
 ### Supported environment
 
-Release verification uses Python 3.12 and PostgreSQL 16. Tests under other supported Python
-versions remain useful, but do not replace the target-environment gate.
+Release verification uses Python 3.12 and PostgreSQL 16. This is a self-hosted, personal-use
+application, not a published package, and `requires-python = "==3.12.*"` pins the only Python
+version this project builds, tests, or deploys against. `.github/workflows/python-compatibility.yml`,
+which ran the suite across a matrix of Python versions, was retired in R1 (architecture review
+G-06/Q9) because that multi-version signal never matched a real support commitment; there is no
+other supported Python version for a multi-version gate to protect. CI and release verification
+both gate on Python 3.12 alone.
 
 ## Observability
 

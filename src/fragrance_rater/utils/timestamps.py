@@ -26,8 +26,12 @@ def now_naive_utc() -> datetime:
     # `datetime.now(UTC)` or `datetime.now(timezone.utc)` directly.
 
     Uses `datetime.timezone.utc` rather than the `datetime.UTC` constant
-    (Python 3.11+) so this module stays importable on Python 3.10, which
-    `pyproject.toml`'s `requires-python = ">=3.10,<3.15"` claims to support.
+    (Python 3.11+) even though `pyproject.toml`'s `requires-python` is now
+    pinned to `==3.12.*`, where `datetime.UTC` would work. Switching is a
+    legitimate follow-up left out of scope for R1: see the ruff UP017
+    per-file-ignore comment for this module in `pyproject.toml`, which
+    notes that adopting it now would reformat ~13 unrelated files under
+    ruff's version-gated formatter rules.
 
     Returns:
         datetime: Current UTC time with `tzinfo` stripped, safe to assign to
