@@ -293,6 +293,73 @@ consume it. Optionally include the token-parsing contrast test as a starting exa
 
 ---
 
+### Branch-protection setup script drifts from actual required-check contexts with no way to detect the drift
+
+- **Priority**: High
+- **Category**: CI/CD
+- **Discovered**: 2026-09-21
+
+**Issue**: The generated `scripts/setup_github_protection.py` hardcodes a list of required
+status-check contexts (e.g. `CI / CI Pipeline`, `PR Validation / Validate Requirements Sync`)
+at generation time. Nothing keeps that list in sync with the check names the project's own
+`.github/workflows/*.yml` actually emit as they evolve, and running the script with a stale
+list configures branch protection that no PR could ever satisfy, since GitHub will wait
+forever for a check context that no workflow publishes. The script has no test or CI step
+that would catch this drift before someone runs it against a live repository.
+
+**Context**: Discovered during the fragrance-rater R1 architecture review (finding G-11/Q8).
+The script's required-check contexts had never matched this repository's actual workflow job
+names. The project resolved this by deleting the script entirely and moving branch protection
+to an org-level GitHub ruleset (configured once, centrally, outside per-repo generated code),
+documenting the current required checks in a hand-maintained `docs/ci-gates.md` instead of a
+script that can silently drift.
+
+**Suggested Fix**: Either stop scaffolding a bespoke branch-protection script and instead
+document the org-level (or per-repo) GitHub ruleset UI/API as the recommended setup path, or,
+if a script is kept, generate it so its required-check list is derived from the repository's
+own `.github/workflows/*.yml` job names at run time (e.g. by parsing the workflow files)
+rather than hardcoded at cookiecutter-generation time, and add a CI step that fails when the
+script's list and the live ruleset disagree.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/scripts/setup_github_protection.py`
+- `{{cookiecutter.project_slug}}/docs/PROJECT_SETUP.md`
+
+### Scaffolded `.semgrep.yml` is never wired into the Qlty scanning pipeline
+
+- **Priority**: High
+- **Category**: Tooling
+- **Discovered**: 2026-09-21
+
+**Issue**: The template scaffolds a `.semgrep.yml` configuration file, and downstream
+documentation (README.md's Qlty tool list) describes Semgrep as one of the SAST tools Qlty
+runs in its unified pass. In practice, `.qlty/qlty.toml`'s `[plugins] enabled` list never
+included `semgrep`, so the scaffolded config file was inert from the moment the project was
+generated: nothing in the CI or pre-commit pipeline ever invoked it. This gives a false
+impression of SAST coverage: the config file and the README both suggest Semgrep runs, but it
+never did.
+
+**Context**: Discovered during the fragrance-rater R1 architecture review's CI-truthfulness
+sprint while auditing what the project's documented security scanners actually run versus
+what `.qlty/qlty.toml` and `.pre-commit-config.yaml` actually invoke. The project resolved
+this by deleting `.semgrep.yml` rather than wiring it in, since no owner decision had been
+made to add Semgrep as an actual gate.
+
+**Suggested Fix**: Either wire the scaffolded `.semgrep.yml` into `.qlty/qlty.toml`'s enabled
+plugins (or into `.pre-commit-config.yaml`, matching the pattern the template already uses for
+other security tools) so it actually runs, or stop scaffolding a config file that looks active
+but isn't. If Semgrep is meant to be optional/opt-in, say so explicitly in the generated
+README rather than listing it as if it already runs.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.semgrep.yml`
+- `{{cookiecutter.project_slug}}/.qlty/qlty.toml`
+- `{{cookiecutter.project_slug}}/README.md`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

@@ -715,10 +715,14 @@ uv run pytest tests/unit/test_example.py::test_function_name -v
 
 **GitHub Actions Workflows**:
 
-1. **CI** (`.github/workflows/ci.yml`): Tests, linting, type checking
+1. **CI** (`.github/workflows/ci.yml`): Tests, linting, type checking, PostgreSQL integration
 2. **Security** (`.github/workflows/security-analysis.yml`): CodeQL, Bandit, Safety
 3. **Docs** (`.github/workflows/docs.yml`): Build and deploy documentation
-4. **Publish** (`.github/workflows/publish-pypi.yml`): PyPI release automation
+
+See [`docs/ci-gates.md`](docs/ci-gates.md) for the full, current list of workflows and what
+each one runs and blocks. `publish-pypi.yml` and `python-compatibility.yml` were retired in
+R1 (architecture review G-06/Q9): this is a self-hosted personal-use app, not a published
+PyPI package, and the project targets Python 3.12 only (`requires-python = "==3.12.*"`).
 
 **Quality Gates** (must pass):
 

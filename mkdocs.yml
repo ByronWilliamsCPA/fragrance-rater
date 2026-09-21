@@ -227,6 +227,7 @@ nav:
       - ADR Template: ADRs/adr-template.md
 
   - Reference:
+      - CI Gates: ci-gates.md
       - Known Vulnerabilities: known-vulnerabilities.md
       - OpenSSF Compliance: OPENSSF_COMPLIANCE.md
       - Python Compatibility: PYTHON_COMPATIBILITY.md

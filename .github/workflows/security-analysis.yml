@@ -41,7 +41,7 @@ permissions:
 jobs:
   security:
     name: Security Analysis
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-security-analysis.yml@cb0742cf00832b4e640a47dfca222047c2b70c1c  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-security-analysis.yml@b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89  # main
     with:
       source-directory: 'src'
       python-version: '3.12'
