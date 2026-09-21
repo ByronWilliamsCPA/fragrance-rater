@@ -73,6 +73,34 @@ describe('CalibrationChoiceScreen', () => {
       await screen.findByText('Nothing new is assigned right now.')
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Start a new full baseline/ })).not.toBeInTheDocument()
+    expect(
+      await screen.findByRole('button', { name: /Browse assignments manually instead/ })
+    ).toBeInTheDocument()
+  })
+
+  it('keeps a successful candidate and surfaces an error when another candidate lookup rejects', async () => {
+    const access: Access = { username: 'manager', manager: true }
+    get.mockImplementation((path: string) => {
+      if (path === '/calibration/programs/p2/members')
+        return Promise.resolve({ data: membersFor('p2', 'Baseline') })
+      if (path === '/calibration/programs/p3/members')
+        return Promise.reject({ isAxiosError: true, response: { status: 403 } })
+      return Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+    render(
+      <CalibrationChoiceScreen
+        assignments={[revealed]}
+        programs={[activeBaseline, activeRetest]}
+        access={access}
+        navigate={vi.fn()}
+        onBrowse={vi.fn()}
+      />
+    )
+    expect(
+      await screen.findByRole('button', { name: /Start a new full baseline/ })
+    ).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Redo "Skin Retest"/ })).not.toBeInTheDocument()
   })
 
   it('excludes a program the identity is already enrolled in', async () => {

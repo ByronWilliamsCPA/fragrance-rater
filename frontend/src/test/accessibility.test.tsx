@@ -80,6 +80,12 @@ describe('P3 accessibility baseline', () => {
       'href',
       '#main-content'
     )
+    // Wait for the real enrollment workspace to render (Sessions aside, sample
+    // button, Finalize/Reveal controls) instead of scanning only the app
+    // shell -- the enrollment-detail fetch resolves asynchronously after the
+    // heading, so without this wait the scan below races it and only ever
+    // sees the ~436-char pre-load `<main>`.
+    await screen.findByRole('button', { name: /A82F/ })
     expectAccessibleControls()
   })
 
