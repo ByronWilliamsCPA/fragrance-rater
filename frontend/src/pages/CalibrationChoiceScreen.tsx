@@ -6,16 +6,23 @@ import { useTask } from '../hooks/useTask'
 import type { Navigate } from '../routing/routes'
 
 /**
- * The single group_name shared by a program's memberships, or "Mixed" when
- * split. Mirrors CalibrationService.group_name_summary on the backend
- * (calibration_service.py), but runs client-side against ProgramMember rows
- * fetched from the manager-only members endpoint: see the plan's "Spec
- * clarifications" section for why this isn't a second backend enrichment.
+ * The most common group_name among a program's memberships, or "Mixed" when
+ * there's no single most-common name (empty list, or a tie among the top
+ * count). Runs client-side against ProgramMember rows fetched from the
+ * manager-only members endpoint: see the plan's "Spec clarifications"
+ * section for why this isn't a second backend enrichment.
  */
 function dominantGroupName(members: ProgramMember[]): string {
   if (members.length === 0) return 'Mixed'
-  const names = new Set(members.map((member) => member.group_name))
-  return names.size === 1 ? [...names][0] : 'Mixed'
+  const counts = new Map<string, number>()
+  for (const member of members) {
+    counts.set(member.group_name, (counts.get(member.group_name) ?? 0) + 1)
+  }
+  const maxCount = Math.max(...counts.values())
+  const topNames = [...counts.entries()]
+    .filter(([, count]) => count === maxCount)
+    .map(([name]) => name)
+  return topNames.length === 1 ? topNames[0] : 'Mixed'
 }
 
 type Candidate = { program: Program; groupName: string }
@@ -42,6 +49,14 @@ export function CalibrationChoiceScreen({
     const openPrograms = programs.filter(
       (program) => program.status === 'active' && !enrolledProgramIds.has(program.id)
     )
+    // #CRITICAL: Timing Dependencies: assignments/programs can change (or this
+    // component can unmount) before the Promise.allSettled batch of
+    // per-program member lookups resolves. Without a guard, a stale batch's
+    // results could land after a newer effect run and overwrite candidates
+    // with outdated data, or set state on an unmounted component.
+    // #VERIFY: setCandidates is gated on current, and the cleanup function
+    // flips it to false so only the effect run still in scope applies its
+    // results.
     let current = true
     void task.run(async () => {
       const settled = await Promise.allSettled(

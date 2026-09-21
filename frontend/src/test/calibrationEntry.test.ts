@@ -15,7 +15,6 @@ function summary(overrides: Partial<EnrollmentSummary>): EnrollmentSummary {
     skin_complete: 0,
     program_name: 'Baseline',
     program_version: '1',
-    group_name_summary: 'Baseline',
     ...overrides,
   }
 }

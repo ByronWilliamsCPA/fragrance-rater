@@ -74,7 +74,6 @@ export function bootstrapRoutes(
         skin_complete: 0,
         program_name: 'Baseline',
         program_version: '1',
-        group_name_summary: 'Baseline',
       },
     ] satisfies EnrollmentSummary[],
   }

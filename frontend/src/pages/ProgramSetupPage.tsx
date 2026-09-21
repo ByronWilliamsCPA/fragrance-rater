@@ -79,6 +79,14 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
   )
 
   useEffect(() => {
+    // initialProgramId only changes when the URL's deep-link query param
+    // changes, never on a manual dropdown pick (that only calls
+    // setProgramId directly), so this can't fight the dropdown.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProgramId(initialProgramId ?? '')
+  }, [initialProgramId])
+
+  useEffect(() => {
     // Clearing the prior program's members synchronously before fetching the
     // new program's members; this is the fetch-on-dependency-change pattern.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -162,6 +170,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
         .filter(Boolean),
       session_size: Number(values.session_size),
     })
+    await reload()
     form.reset()
     task.setNotice('Evaluator enrolled; sessions and blind codes are ready.')
   }

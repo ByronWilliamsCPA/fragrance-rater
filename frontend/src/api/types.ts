@@ -26,6 +26,14 @@ export type Assignment = {
  */
 export type EnrollmentSummary = Assignment & {
   revealed: boolean
+  /**
+   * Invariant (not enforced by this type): the backend can only reveal an
+   * enrollment once its reveal gate is fully clear, which requires every
+   * presentation to have been observed, so `revealed: true` implies
+   * `has_started: true`. `revealed: true` with `has_started: false` should
+   * never occur; treat it as a backend bug if seen, not a valid state to
+   * branch on.
+   */
   has_started: boolean
   total_presentations: number
   blotter_complete: number
@@ -33,7 +41,6 @@ export type EnrollmentSummary = Assignment & {
   skin_complete: number
   program_name: string
   program_version: string
-  group_name_summary: string
 }
 
 export type Observation = {

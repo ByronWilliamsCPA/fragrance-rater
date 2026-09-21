@@ -69,11 +69,19 @@ export type SampleObservationPanelProps = {
   enrollment: Enrollment
   sample: Sample
   stage: string
-  setStage: (stage: string) => void
+  /** Omitted when `stageFixed` is true: nothing to feed a selection back into. */
+  setStage?: (stage: string) => void
   detected: string
   setDetected: (detected: string) => void
   task: ReturnType<typeof useTask>
   refresh: () => Promise<void>
+  /**
+   * True when the caller derives `stage` from something other than its own
+   * switchable state (the guided wizard picks it from the current step, not
+   * from a local selection). The selector then renders as read-only instead
+   * of inviting a choice the caller can't act on.
+   */
+  stageFixed?: boolean
 }
 
 export function SampleObservationPanel({
@@ -85,6 +93,7 @@ export function SampleObservationPanel({
   setDetected,
   task,
   refresh,
+  stageFixed = false,
 }: SampleObservationPanelProps) {
   async function save(form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
@@ -154,10 +163,14 @@ export function SampleObservationPanel({
       )}
       <label>
         Stage
-        <select value={stage} onChange={(event) => setStage(event.target.value)}>
-          <option value="BLOTTER">Blotter screen</option>
-          {sample.skin_planned && <option value="SKIN">Skin test</option>}
-        </select>
+        {stageFixed ? (
+          <p>{stage === 'BLOTTER' ? 'Blotter screen' : 'Skin test'}</p>
+        ) : (
+          <select value={stage} onChange={(event) => setStage?.(event.target.value)}>
+            <option value="BLOTTER">Blotter screen</option>
+            {sample.skin_planned && <option value="SKIN">Skin test</option>}
+          </select>
+        )}
       </label>
       {!sample.skin_planned && !enrollment.skin_plan_locked && (
         <form

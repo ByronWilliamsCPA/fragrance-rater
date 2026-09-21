@@ -16,14 +16,14 @@ export type WizardStep =
 /**
  * The next valid step. The STAGE decision is keyed off the enrollment's
  * authoritative `reveal_blocker` (mirroring CalibrationService.reveal_blocker
- * exactly, see calibration_service.py:505-521), not off locally-derived lock
+ * exactly, see calibration_service.py:488-504), not off locally-derived lock
  * state: the backend's gate excludes HOLDOUT-role presentations from the
  * BLOTTER check, and the frontend's `Sample` type deliberately withholds
  * `role`, so the wizard cannot re-derive that exclusion itself. Presentation
  * lock state is used only to pick *which* presentation within a stage (the
- * first unlocked one for BLOTTER/SKIN), never to decide the stage. This keeps
- * the wizard from ever offering to lock a HOLDOUT's blotter pre-reveal, which
- * would disclose that holdout's identity at reveal time (ADR-005).
+ * first unlocked one for BLOTTER/SKIN); that pick is NOT role-filtered (it
+ * can't be, `role` isn't in `Sample`), so it relies on an untested ordering
+ * invariant elsewhere rather than excluding a HOLDOUT presentation itself.
  */
 export function nextWizardStep(enrollment: Enrollment): WizardStep {
   if (enrollment.reveal_blocker === 'SKIN_PLAN') return { kind: 'skin_plan' }
@@ -37,6 +37,16 @@ export function nextWizardStep(enrollment: Enrollment): WizardStep {
     )
     if (unlockedSkin) return { kind: 'skin', presentationId: unlockedSkin.id }
   }
+  // #ASSUME: External Resources: reveal_blocker is the backend's
+  // authoritative gate, but a known blocker whose expected unlocked
+  // presentation can't be found locally (or a future/unrecognized blocker
+  // value) is a client/server disagreement, not proof reveal is ready.
+  // Falling through to ready_to_reveal in that case would offer a reveal the
+  // backend still considers blocked.
+  // #VERIFY: only a literal `null` reveal_blocker, the backend's explicit
+  // "nothing left" signal, reaches ready_to_reveal; any other value routes
+  // back to the earliest stage instead of assuming completion.
+  if (enrollment.reveal_blocker !== null) return { kind: 'skin_plan' }
   return { kind: 'ready_to_reveal' }
 }
 
@@ -66,12 +76,14 @@ export function GuidedCalibrationFlow({
   onRevealed: () => Promise<void>
 }) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
-  // `stage` itself is never read: SampleObservationPanel is driven by
-  // step.kind below, not by this local state. Only the setter is needed to
-  // satisfy the panel's prop interface (documented wart, see brief).
-  const [, setStage] = useState('BLOTTER')
   const [detected, setDetected] = useState('')
   const task = useTask()
+  // #CRITICAL: Timing Dependencies: enrollmentId can change, or refresh() can
+  // be called again (e.g. after a lock/reveal action), before an in-flight
+  // GET resolves. Without a guard, a slower superseded response could land
+  // after a newer one and overwrite current state with stale data.
+  // #VERIFY: every setEnrollment call is gated on generation === current, so
+  // only the most recently issued request's response is ever applied.
   const refreshGeneration = useRef(0)
 
   const refresh = async () => {
@@ -221,7 +233,7 @@ export function GuidedCalibrationFlow({
             enrollment={enrollment}
             sample={sample}
             stage={step.kind === 'blotter' ? 'BLOTTER' : 'SKIN'}
-            setStage={setStage}
+            stageFixed
             detected={detected}
             setDetected={setDetected}
             task={task}

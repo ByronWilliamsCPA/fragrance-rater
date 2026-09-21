@@ -18,7 +18,6 @@ test.describe('Calibration entry routing', () => {
           skin_complete: 0,
           program_name: 'Baseline',
           program_version: '1',
-          group_name_summary: 'Baseline',
         },
       ],
       '/calibration/enrollments/enr1': {
@@ -69,7 +68,6 @@ test.describe('Calibration entry routing', () => {
           skin_complete: 0,
           program_name: 'Baseline',
           program_version: '1',
-          group_name_summary: 'Baseline',
         },
       ],
       '/calibration/enrollments/enr1': {
@@ -118,7 +116,6 @@ test.describe('Calibration entry routing', () => {
           skin_complete: 0,
           program_name: 'Baseline',
           program_version: '1',
-          group_name_summary: 'Baseline',
         },
       ],
       '/calibration/programs': [
