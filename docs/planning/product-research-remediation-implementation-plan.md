@@ -115,7 +115,7 @@ re-file these as new issues**: cross-reference the slug in any tracker entry.
 | ROLES-04 | Acting-for-another lacks complete grant model outside calibration | Partially implemented | Medium | Same root cause as ROLES-03 |
 | WS-03 | No personal collection/ownership tracking | **Confirmed missing, genuinely new** | High | Zero model/route/ADR references |
 | WS-04 | No consumer catalog/browse route | Confirmed missing | Medium | 9-route table has no browse/detail route |
-| CAL-02 | 33-fragrance baseline has no validated template | **Confirmed, not covered by any R-sprint** | High | `session_size` UI field defaults to 3, unconstrained |
+| CAL-02 | 33-fragrance baseline has no validated template | **Confirmed, not covered by any R-sprint today**; DEC-05 recommends adding it to R6/R7 scope, reflected in the Section 23 phase table | High | `session_size` UI field defaults to 3, unconstrained |
 | PREF-01 | No preference-library/profile page | Confirmed missing | High | Computed evidence exists, not surfaced |
 | PREF-02 | Recommendations gate on `MIN_EVALUATIONS = 3`, not 33 | Confirmed, matches doc | Medium | `recommendation_service.py:47` |
 | ADMIN-01 | Reviewer/fragrance CRUD has no admin/manager check | Confirmed | High | `api/reviewers.py`, `api/fragrances.py` |

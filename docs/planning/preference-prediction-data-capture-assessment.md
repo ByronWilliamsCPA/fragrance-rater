@@ -449,7 +449,12 @@ Add or complete:
 - Expand ordinary encounters into a lightweight contextual journal without reproducing the full
   calibration form.
 - Add general behavioral events, ownership state, and offer-conditioned purchase intent.
-- Normalize perceived notes and add sparse positive/negative preference drivers.
+- Normalize perceived notes. The companion recommendation to add sparse positive/negative
+  preference-driver features is withdrawn per
+  `product-research-remediation-implementation-plan.md` DEC-04: it would conflict with ADR-016
+  (per-dimension preference capture), which is `Proposed, requires maintainer decision, not
+  implemented` and explicitly should not land before F1. Any future preference-driver work follows
+  ADR-016's own resolution process, not this list.
 - Implement the full Fragella candidate path and immutable retrieval snapshots.
 
 ### P2: before claiming model improvement
