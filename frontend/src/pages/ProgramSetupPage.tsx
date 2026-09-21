@@ -17,7 +17,12 @@ import { EmptyState } from '../components/PageState'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { useTask } from '../hooks/useTask'
 
-type Props = { programs: Program[]; reviewers: Person[]; reload: () => Promise<void> }
+type Props = {
+  programs: Program[]
+  reviewers: Person[]
+  reload: () => Promise<void>
+  initialProgramId?: string
+}
 
 const roles = [
   'UNIVERSAL_BASELINE',
@@ -55,8 +60,8 @@ function formatUtcDateTime(value: string): string {
   }).format(new Date(asUtc(value)))} UTC`
 }
 
-export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
-  const [programId, setProgramId] = useState('')
+export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId }: Props) {
+  const [programId, setProgramId] = useState(initialProgramId ?? '')
   const [members, setMembers] = useState<ProgramMember[]>([])
   const [catalog, setCatalog] = useState<FragranceSummary[]>([])
   const [enrollments, setEnrollments] = useState<ManagerEnrollment[]>([])

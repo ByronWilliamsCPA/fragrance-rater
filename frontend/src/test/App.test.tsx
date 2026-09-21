@@ -1324,3 +1324,26 @@ describe('Calibration participant workflow', () => {
     )
   })
 })
+
+describe('program self-assign deep link', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/programs?program=p')
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'active' }],
+        '/calibration/access': { username: 'manager', manager: true },
+        '/calibration/enrollments': [],
+        '/evaluations': [],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+  })
+
+  it('pre-selects the program named by the query parameter', async () => {
+    render(<App />)
+    expect(await screen.findByLabelText('Program')).toHaveValue('p')
+  })
+})

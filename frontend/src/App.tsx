@@ -10,7 +10,7 @@ import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
 import { WelcomePage } from './pages/WelcomePage'
 import { WorkspacePage, type AssignmentSummary } from './pages/WorkspacePage'
-import { assignmentLinkFor, useRoute } from './routing/routes'
+import { assignmentLinkFor, programLinkFor, useRoute } from './routing/routes'
 
 function App() {
   const appData = useAppData()
@@ -41,6 +41,11 @@ function App() {
         assignments.map((assignment) => assignment.id)
       ),
     [assignments, query]
+  )
+
+  const programId = useMemo(
+    () => programLinkFor(query, programs.map((program) => program.id)),
+    [programs, query]
   )
 
   useEffect(() => {
@@ -97,6 +102,7 @@ function App() {
           programs={appData.programs}
           reviewers={appData.reviewers}
           reload={appData.reload}
+          initialProgramId={programId}
         />
       )}
       {route === 'about' && <AboutPage navigate={navigate} />}
