@@ -108,7 +108,7 @@ function App() {
         />
       )}
       {route === 'about' && <AboutPage navigate={navigate} />}
-      {route === 'evidence' && <EvidencePage />}
+      {route === 'evidence' && <EvidencePage navigate={navigate} />}
     </AppShell>
   )
 }

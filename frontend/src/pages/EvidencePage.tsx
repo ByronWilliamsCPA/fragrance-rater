@@ -1,11 +1,15 @@
+import { followRouteLink, pathFor, type Route } from '../routing/routes'
+
 const sources = [
   {
+    key: 'nielsen',
     name: 'NielsenIQ: Beauty 2024 mid-year update',
     href: 'https://nielseniq.com/global/en/insights/commentary/2024/beauty-2024-mid-year-update/',
     use: 'Online share and growth for the broader beauty and personal-care category.',
     limit: 'Market-tracking data, not a perfume-only study or a test of this product.',
   },
   {
+    key: 'circana',
     name: 'Circana: U.S. prestige beauty, first half of 2024',
     href: 'https://www.circana.com/post/us-prestige-beauty-industry-sales-grow-by-8-in-the-first-half-circana-reports',
     use: 'Fragrance growth and the relative growth of mini and travel formats.',
@@ -13,6 +17,7 @@ const sources = [
       'U.S. prestige retail data; it does not show that personalized sampling caused the growth.',
   },
   {
+    key: 'han',
     name: 'Han et al.: Cross-sampling through e-commerce warehouses',
     href: 'https://doi.org/10.1287/mnsc.2020.00902',
     use: 'A large field experiment connecting physical samples with later online visits and sales.',
@@ -20,12 +25,14 @@ const sources = [
       'Six brands across cosmetics and consumer goods, not perfume; the 64% relative increase came from a small absolute spending baseline.',
   },
   {
+    key: 'bawaShoemaker',
     name: 'Bawa and Shoemaker: Incremental brand sales from free samples',
     href: 'https://doi.org/10.1287/mksc.1030.0052',
     use: 'Two field experiments found incremental sales effects lasting as long as 12 months.',
     limit: 'Consumer products rather than fragrance; effects varied widely between two brands.',
   },
   {
+    key: 'odoreYsl',
     name: 'Odore and YSL Beauty: Tracked fragrance-sampling campaign',
     href: 'https://www.odore.com/case-studies/ysl-product-sampling',
     use: 'A fragrance-specific campaign tied sample claims to full-size DTC purchases within 30 days.',
@@ -33,12 +40,14 @@ const sources = [
       'Vendor-reported case study targeting high-intent visitors; no sample count, control group, or independent audit is disclosed.',
   },
   {
+    key: 'lenochova',
     name: 'Lenochová et al.: Psychology of fragrance use',
     href: 'https://doi.org/10.1371/journal.pone.0033810',
     use: 'Evidence that the same perfume can interact differently with different wearers.',
     limit: 'Small experiments; the preferred-perfume comparison used 21 male odor donors.',
   },
   {
+    key: 'distel',
     name: 'Distel et al.: Perception across three cultures',
     href: 'https://pubmed.ncbi.nlm.nih.gov/10321820/',
     use: 'Familiarity, intensity, and pleasantness were related in ratings of everyday odors.',
@@ -47,9 +56,22 @@ const sources = [
   },
 ] as const
 
-export function EvidencePage() {
+// Keyed by name, not array position: the snapshot stats below cite five of these seven
+// sources (bawaShoemaker and distel back only the source ledger, with no single headline
+// figure), and a future reorder of `sources` must not silently repoint a citation.
+type SourceKey = (typeof sources)[number]['key']
+const sourceByKey = Object.fromEntries(sources.map((source) => [source.key, source])) as Record<
+  SourceKey,
+  (typeof sources)[number]
+>
+
+type EvidencePageProps = {
+  navigate: (route: Route) => void
+}
+
+export function EvidencePage({ navigate }: EvidencePageProps) {
   return (
-    <div className="evidence-page">
+    <div className="prose">
       <section>
         <div className="page-heading">
           <div>
@@ -67,6 +89,15 @@ export function EvidencePage() {
           test. Figures describe their cited markets and studies; they are not performance claims
           about this application.
         </p>
+        <p>
+          <a
+            className="inline-target-link"
+            href={pathFor('about')}
+            onClick={(event) => followRouteLink(event, 'about', navigate)}
+          >
+            How this project learns your taste
+          </a>
+        </p>
       </section>
 
       <section aria-labelledby="evidence-snapshot">
@@ -79,7 +110,7 @@ export function EvidencePage() {
             <dd>
               of beauty and personal-care sales tracked by NielsenIQ occurred through e-commerce in
               the first half of 2024. Online beauty sales grew 14.1% over the preceding year.
-              <a href={sources[0].href}> Source and scope</a>
+              <a href={sourceByKey.nielsen.href}> Source and scope</a>
             </dd>
           </div>
           <div>
@@ -87,7 +118,7 @@ export function EvidencePage() {
             <dd>
               U.S. prestige-fragrance dollar growth in the first half of 2024. Mini and travel-size
               unit sales grew at twice the rate of the overall fragrance category.
-              <a href={sources[1].href}> Source and scope</a>
+              <a href={sourceByKey.circana.href}> Source and scope</a>
             </dd>
           </div>
           <div>
@@ -97,7 +128,7 @@ export function EvidencePage() {
               controls in a 55,000-sample e-commerce field experiment. The relative lift came from a
               low spending baseline. Purchase and spending effects lasted at least three months;
               store-visit effects lasted longer.
-              <a href={sources[2].href}> Source and scope</a>
+              <a href={sourceByKey.han.href}> Source and scope</a>
             </dd>
           </div>
           <div>
@@ -106,7 +137,7 @@ export function EvidencePage() {
               of sample recipients reportedly bought a full-size product within 30 days in a tracked
               YSL fragrance campaign. The campaign operator also reported 8× attributed ROI, but did
               not publish a control group or complete methodology.
-              <a href={sources[4].href}> Source and scope</a>
+              <a href={sourceByKey.odoreYsl.href}> Source and scope</a>
             </dd>
           </div>
           <div>
@@ -115,7 +146,7 @@ export function EvidencePage() {
               odor donors in the study's preferred-perfume comparison. Their body odor paired with
               their self-selected perfume was rated more favorably than when paired with an assigned
               perfume, even though the perfumes alone did not differ in pleasantness.
-              <a href={sources[5].href}> Source and scope</a>
+              <a href={sourceByKey.lenochova.href}> Source and scope</a>
             </dd>
           </div>
         </dl>
