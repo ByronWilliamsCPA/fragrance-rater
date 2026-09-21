@@ -26,7 +26,7 @@ history: pick an assignment from a dropdown, then manually navigate BLOTTER
 and SKIN stage tabs. There is no first-time orientation, no "pick up where I
 left off," and no way to ask for just the skin component without re-touching
 blotter observations that are already locked. `enroll()`
-([api/calibration.py:264](../../../src/fragrance_rater/api/calibration.py))
+(`src/fragrance_rater/api/calibration.py:264`)
 requires manager identity, so a plain participant can never start a new
 baseline or component retest themselves; the current UI doesn't route that
 request anywhere.
@@ -143,13 +143,12 @@ manager lands with that program already selected and uses the existing
 ### 4. Backend: enrich `GET /calibration/enrollments`
 
 Extends the existing handler
-([api/calibration.py:273](../../../src/fragrance_rater/api/calibration.py))
+(`src/fragrance_rater/api/calibration.py:274`)
 rather than adding a new route. Same permission filter as today
-(`admin or username in e.recorder_usernames`); the added fields are exactly
-the participant-safe subset `manager_enrollments`
-([api/calibration.py:285](../../../src/fragrance_rater/api/calibration.py))
-already computes for the manager console, so nothing new is exposed that a
-manager-facing endpoint doesn't already compute:
+(`admin or username in e.recorder_usernames`); the added fields are the
+participant-safe subset `manager_enrollments`
+(`src/fragrance_rater/api/calibration.py:321`)
+already computes for the manager console:
 
 - `revealed: bool` (`item.revealed_at is not None`, already used)
 - `has_started: bool`: true if any `Observation` row exists for any
@@ -159,10 +158,6 @@ manager-facing endpoint doesn't already compute:
 - `total_presentations`, `blotter_complete`, `skin_planned`, `skin_complete`:
   same computation already used for the manager progress cards.
 - `program_name`, `program_version`: already joined for the manager view.
-- `group_name_summary: str`: the single dominant `group_name` across this
-  enrollment's memberships (its presentations' underlying `Membership`
-  rows), or `"Mixed"` if genuinely split. Used only as a display label
-  ("Baseline" vs. e.g. "Skin Retest"); it does not change wizard behavior.
 
 No new Pydantic model beyond widening the existing response dict; no schema
 or migration change.
@@ -188,7 +183,7 @@ or migration change.
   states: never-started (guided wizard opens on step 1), in-progress
   (wizard opens on the correct next step per `reveal_blocker` ordering), and
   all-revealed (choice screen renders, and only for a manager identity).
-- New unit tests for the `has_started` / `group_name_summary` enrichment in
+- New unit tests for the `has_started` enrichment in
   `tests/unit/test_api/test_calibration.py`, mirroring the existing
   `manager_enrollments` coverage in
   `tests/unit/test_services/test_calibration_service.py`.

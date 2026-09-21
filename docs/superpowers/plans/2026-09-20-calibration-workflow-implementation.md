@@ -1265,6 +1265,15 @@ export type WizardStep =
   | { kind: 'skin'; presentationId: string }
   | { kind: 'ready_to_reveal' }
 
+// Superseded during review: this local-lock-state derivation doesn't
+// exclude HOLDOUT-role presentations from the BLOTTER gate (it can't; the
+// frontend's `Sample` type withholds `role`), so it drifted from
+// `CalibrationService.reveal_blocker`'s own precedence, which does exclude
+// them. The shipped version keys the STAGE decision directly off
+// `enrollment.reveal_blocker` instead of re-deriving it from local lock
+// state, and only falls through to `ready_to_reveal` on a literal `null`
+// blocker rather than any unresolved case. See the current source at
+// `frontend/src/pages/GuidedCalibrationFlow.tsx` for the shipped algorithm.
 /**
  * The next valid step, in the same precedence CalibrationService.reveal_blocker
  * already enforces (skin plan decision, then remaining BLOTTER locks, then
