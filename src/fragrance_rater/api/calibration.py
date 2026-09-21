@@ -271,14 +271,54 @@ async def enroll(
 
 
 @router.get("/enrollments")
-async def enrollments(db: DB, identity: Identity) -> list[dict[str, str]]:
-    """List only evaluator assignments the recorder can access."""
+async def enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
+    """List evaluator assignments the recorder can access, enriched for routing.
+
+    Enriches the same participant-safe fields manager_enrollments already
+    computes for the pilot-operations console (see that handler below), plus
+    one new signal: has_started. Same permission filter as before.
+    """
     username, admin = actor(identity)
-    return [
-        {"id": e.id, "program_id": e.program_id, "reviewer_id": e.reviewer_id}
-        for e in await db.scalars(select(Enrollment))
-        if admin or username in e.recorder_usernames
-    ]
+    service = CalibrationService(db)
+    result: list[dict[str, object]] = []
+    for item in await db.scalars(select(Enrollment).order_by(Enrollment.id)):
+        if not (admin or username in item.recorder_usernames):
+            continue
+        program = await db.get(Program, item.program_id)
+        assert program is not None
+        presentations = await service.presentations(item.id)
+        members = {
+            member.id: member
+            for member in await db.scalars(
+                select(Membership).where(
+                    Membership.id.in_({p.membership_id for p in presentations})
+                )
+            )
+        }
+        skin_planned = [p for p in presentations if p.skin_reason is not None]
+        result.append(
+            {
+                "id": item.id,
+                "program_id": item.program_id,
+                "reviewer_id": item.reviewer_id,
+                "revealed": item.revealed_at is not None,
+                "has_started": await service.has_started({p.id for p in presentations}),
+                "total_presentations": len(presentations),
+                "blotter_complete": sum(
+                    p.blotter_locked_at is not None for p in presentations
+                ),
+                "skin_planned": len(skin_planned),
+                "skin_complete": sum(
+                    p.skin_locked_at is not None for p in skin_planned
+                ),
+                "program_name": program.name,
+                "program_version": program.version,
+                "group_name_summary": CalibrationService.group_name_summary(
+                    members, presentations
+                ),
+            }
+        )
+    return result
 
 
 @router.get("/manager/enrollments")
