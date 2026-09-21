@@ -83,6 +83,7 @@ function App() {
           assignments={assignments}
           programs={programs}
           reviewers={reviewers}
+          access={appData.access}
           navigate={navigate}
           initialAssignmentId={assignmentLink.initialAssignmentId}
           unresolvedAssignmentId={assignmentLink.unresolvedAssignmentId}

@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { Enrollment, EnrollmentSummary, Person, Program } from '../api/types'
+import type { Access, Enrollment, EnrollmentSummary, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { EmptyState } from '../components/PageState'
 import { useTask } from '../hooks/useTask'
 import { followRouteLink, pathFor, type AssignmentId, type Route } from '../routing/routes'
+import { calibrationEntryFor } from '../routing/calibrationEntry'
+import { CalibrationChoiceScreen } from './CalibrationChoiceScreen'
+import { GuidedCalibrationFlow } from './GuidedCalibrationFlow'
 import { SampleObservationPanel } from './SampleObservationPanel'
 
 type CalibrationPageProps = {
   assignments: EnrollmentSummary[]
   programs: Program[]
   reviewers: Person[]
+  access: Access
   navigate: (route: Route) => void
   /**
    * A deep-linked assignment the router has already checked against this
@@ -39,6 +43,7 @@ export function CalibrationPage({
   assignments,
   programs,
   reviewers,
+  access,
   navigate,
   initialAssignmentId,
   unresolvedAssignmentId,
@@ -51,6 +56,8 @@ export function CalibrationPage({
   const [stage, setStage] = useState('BLOTTER')
   const [detected, setDetected] = useState('')
   const task = useTask()
+  const [manualBrowse, setManualBrowse] = useState(false)
+  const entry = calibrationEntryFor(assignments)
   const sample = enrollment?.presentations.find((presentation) => presentation.id === selected)
   function enrollmentGuidance() {
     if (!enrollment) return ''
@@ -114,6 +121,34 @@ export function CalibrationPage({
     // fix, and it retires this suppression rather than working around it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAssignmentId, refresh])
+
+  if (!initialAssignmentId && !manualBrowse && entry.kind === 'resume') {
+    return (
+      <GuidedCalibrationFlow
+        enrollmentId={entry.enrollmentId}
+        onExitToManualBrowse={() => setManualBrowse(true)}
+      />
+    )
+  }
+  if (!initialAssignmentId && !manualBrowse && entry.kind === 'guided') {
+    return (
+      <GuidedCalibrationFlow
+        enrollmentId={entry.enrollmentId}
+        onExitToManualBrowse={() => setManualBrowse(true)}
+      />
+    )
+  }
+  if (!initialAssignmentId && !manualBrowse && entry.kind === 'choice') {
+    return (
+      <CalibrationChoiceScreen
+        assignments={assignments}
+        programs={programs}
+        access={access}
+        navigate={navigate}
+        onBrowse={() => setManualBrowse(true)}
+      />
+    )
+  }
 
   return (
     <>
