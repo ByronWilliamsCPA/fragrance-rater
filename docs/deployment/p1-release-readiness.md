@@ -63,7 +63,9 @@ The connection string comes from the `P1_DATABASE_URL` environment variable (pla
 from the command line, so credentials stay out of `ps` and shell history:
 
 ```bash
-export P1_DATABASE_URL='postgresql://<user>:<password>@<clone-host>/<db>'
+read -rs P1_DATABASE_URL
+# paste postgresql://<user>:<password>@<clone-host>/<db>, then press Enter
+export P1_DATABASE_URL
 uv run python scripts/p1_migration_inventory.py --output /secure/path/before.json
 ```
 
