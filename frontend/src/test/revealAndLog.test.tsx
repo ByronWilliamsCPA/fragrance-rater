@@ -100,7 +100,7 @@ beforeEach(() => {
 
 describe('Revealed sample', () => {
   beforeEach(() => {
-    window.history.replaceState({}, '', '/calibration')
+    window.history.replaceState({}, '', '/calibration?assignment=assignment')
     mockApi(revealedEnrollment())
   })
 

@@ -57,7 +57,7 @@ const recommendationRun = {
 }
 beforeEach(() => {
   vi.clearAllMocks()
-  window.history.replaceState({}, '', '/calibration')
+  window.history.replaceState({}, '', '/calibration?assignment=assignment')
   get.mockImplementation((path: string) => {
     const responses: Record<string, unknown> = {
       '/reviewers': [{ id: 'r', name: 'Evaluator' }],
@@ -526,7 +526,7 @@ describe('Calibration participant workflow', () => {
       'page'
     )
 
-    window.history.pushState({}, '', '/calibration')
+    window.history.pushState({}, '', '/calibration?assignment=assignment')
     window.dispatchEvent(new PopStateEvent('popstate'))
     expect(await screen.findByRole('heading', { name: 'Your calibration' })).toBeInTheDocument()
   })
@@ -862,7 +862,11 @@ describe('Calibration participant workflow', () => {
     window.history.replaceState({}, '', '/programs')
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: 'Your calibration' })).toBeInTheDocument()
+    // The bare redirect target (`navigate('calibration', true)`) carries no
+    // `?assignment=`, so this fixture's not-started enrollment now routes
+    // straight into the guided wizard instead of the dropdown/workspace
+    // view; only the landing heading changed, not the redirect itself.
+    expect(await screen.findByRole('heading', { name: 'Guided calibration' })).toBeInTheDocument()
     expect(window.location.pathname).toBe('/calibration')
     expect(screen.queryByRole('heading', { name: 'Program setup' })).not.toBeInTheDocument()
   })
@@ -1284,19 +1288,23 @@ describe('Calibration participant workflow', () => {
     window.history.pushState({}, '', '/calibration')
     window.dispatchEvent(new PopStateEvent('popstate'))
 
-    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('')
-    expect(screen.queryByRole('button', { name: /A82F/ })).not.toBeInTheDocument()
+    // Once the deep link clears, `initialAssignmentId` is unset and this
+    // fixture's single not-started enrollment routes back into the guided
+    // wizard entry point (calibrationEntryFor -> 'guided') rather than the
+    // empty manual-browse dropdown a bare `/calibration` used to show.
+    expect(await screen.findByRole('heading', { name: 'Guided calibration' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('Evaluator and program')).not.toBeInTheDocument()
   })
 
-  it('falls back to the empty dropdown and surfaces a visible error for a stale assignment id in the query string', async () => {
+  it('falls back to the empty dropdown and surfaces a visible error for a stale assignment id', async () => {
     window.history.replaceState({}, '', '/calibration?assignment=does-not-exist')
     render(<App />)
 
-    await screen.findByRole('option', { name: 'Evaluator · Baseline' })
-    expect(screen.getByLabelText('Evaluator and program')).toHaveValue('')
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'That link points to a calibration assignment you do not have. It may have been reassigned or withdrawn. Choose an assignment below to continue.'
     )
+    expect(await screen.findByLabelText('Evaluator and program')).toHaveValue('')
+    expect(screen.queryByRole('heading', { name: 'Guided calibration' })).not.toBeInTheDocument()
   })
 
   it('shows a visible error when the deep-linked assignment fails to load', async () => {
@@ -1322,5 +1330,28 @@ describe('Calibration participant workflow', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Request failed. Check your connection and try again.'
     )
+  })
+})
+
+describe('program self-assign deep link', () => {
+  beforeEach(() => {
+    window.history.replaceState({}, '', '/programs?program=p')
+    get.mockImplementation((path: string) => {
+      const responses: Record<string, unknown> = {
+        '/reviewers': [{ id: 'r', name: 'Evaluator' }],
+        '/calibration/programs': [{ id: 'p', name: 'Baseline', version: '1', status: 'active' }],
+        '/calibration/access': { username: 'manager', manager: true },
+        '/calibration/enrollments': [],
+        '/evaluations': [],
+      }
+      return path in responses
+        ? Promise.resolve({ data: responses[path] })
+        : Promise.reject(new Error(`Unexpected request: ${path}`))
+    })
+  })
+
+  it('pre-selects the program named by the query parameter', async () => {
+    render(<App />)
+    expect(await screen.findByLabelText('Program')).toHaveValue('p')
   })
 })

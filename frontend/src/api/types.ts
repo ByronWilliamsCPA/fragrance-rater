@@ -17,6 +17,32 @@ export type Assignment = {
   reviewer_id: string
 }
 
+/**
+ * The GET /calibration/enrollments list response: `Assignment` plus the
+ * routing signals CalibrationPage's entry decision needs. Kept distinct from
+ * `Enrollment` (the GET /calibration/enrollments/{id} DETAIL shape,
+ * line 101 below): the two endpoints return different fields, and
+ * conflating them previously caused a spec citation error.
+ */
+export type EnrollmentSummary = Assignment & {
+  revealed: boolean
+  /**
+   * Invariant (not enforced by this type): the backend can only reveal an
+   * enrollment once its reveal gate is fully clear, which requires every
+   * presentation to have been observed, so `revealed: true` implies
+   * `has_started: true`. `revealed: true` with `has_started: false` should
+   * never occur; treat it as a backend bug if seen, not a valid state to
+   * branch on.
+   */
+  has_started: boolean
+  total_presentations: number
+  blotter_complete: number
+  skin_planned: number
+  skin_complete: number
+  program_name: string
+  program_version: string
+}
+
 export type Observation = {
   id: string
   phase: string

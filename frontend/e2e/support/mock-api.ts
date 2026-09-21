@@ -5,8 +5,8 @@ import type {
 } from '../../src/client/types.gen'
 import type {
   Access,
-  Assignment,
   Enrollment,
+  EnrollmentSummary,
   Observation,
   Person,
   Program,
@@ -62,8 +62,20 @@ export function bootstrapRoutes(
       'id' | 'name' | 'version'
     >[],
     '/calibration/enrollments': [
-      { id: 'enr1', program_id: 'p1', reviewer_id: 'r1' },
-    ] satisfies Assignment[],
+      {
+        id: 'enr1',
+        program_id: 'p1',
+        reviewer_id: 'r1',
+        revealed: false,
+        has_started: true,
+        total_presentations: 1,
+        blotter_complete: 0,
+        skin_planned: 0,
+        skin_complete: 0,
+        program_name: 'Baseline',
+        program_version: '1',
+      },
+    ] satisfies EnrollmentSummary[],
   }
 }
 

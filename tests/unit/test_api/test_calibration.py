@@ -522,7 +522,8 @@ def _find_forbidden_keys(value: object, forbidden: set[str]) -> list[str]:
 async def test_participant_facing_payloads_never_expose_membership_internals(test_app):
     """Guards against a future change that spreads `**membership.__dict__` (or
     similar) into an evaluator-facing response and leaks the concealed
-    experimental-control fields (role, repeat_of_id, group_name)."""
+    experimental-control fields (role, repeat_of_id, group_name).
+    """
     forbidden = {"role", "repeat_of_id", "group_name", "membership_id"}
 
     reviewer = await test_app.post(
@@ -646,14 +647,17 @@ async def test_participant_facing_payloads_never_expose_membership_internals(tes
     reviewer_id = reviewer.json()["id"]
     history = await test_app.get(f"{PREFIX}/history/{reviewer_id}", headers=RECORDER)
     assert history.status_code == 200
+    enrollment_list = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
+    assert enrollment_list.status_code == 200
 
-    # Scope note: only the recorder-facing enrollment view and the participant
-    # history endpoint are checked here. `/mapping` (asserted separately in
+    # Scope note: the recorder-facing enrollment view, the participant history
+    # endpoint, and the `GET /calibration/enrollments` list endpoint are
+    # checked here. `/mapping` (asserted separately in
     # test_controlled_lifecycle_authorization_and_reveal) and `/checkpoints`
     # are manager-only routes that legitimately return fragrance identity and
     # are exempt from this participant-facing leak guard by design, not by
     # oversight.
-    for response in (enrollment_view, history):
+    for response in (enrollment_view, history, enrollment_list):
         assert _find_forbidden_keys(response.json(), forbidden) == []
         assert "HIDDEN_REPEAT" not in response.text
         assert "repeat_of_id" not in response.text
@@ -677,3 +681,104 @@ async def test_participant_facing_payloads_never_expose_membership_internals(tes
         f"{PREFIX}/programs/{program_id}/members", headers=RECORDER
     )
     assert denied.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_enrollments_list_is_enriched_for_the_recorder(test_app):
+    reviewer = await test_app.post(
+        "/api/v1/reviewers", json={"name": "Evaluator"}, headers=MANAGER
+    )
+    fragrance = await test_app.post(
+        "/api/v1/fragrances",
+        json={
+            "name": "Enriched identity",
+            "brand": "Enriched house",
+            "concentration": "EDT",
+            "gender_target": "Unisex",
+            "primary_family": "woody",
+            "subfamily": "aromatic",
+        },
+        headers=MANAGER,
+    )
+    program = await test_app.post(
+        f"{PREFIX}/programs", json={"name": "Enrich", "version": "1"}, headers=MANAGER
+    )
+    program_id = program.json()["id"]
+    member = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/members",
+        json={
+            "fragrance_id": fragrance.json()["id"],
+            "role": "UNIVERSAL_BASELINE",
+            "identity_evidence": "Label verified",
+        },
+        headers=MANAGER,
+    )
+    assert member.status_code == 201
+    await test_app.post(f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER)
+    enrollment = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/enroll",
+        json={
+            "reviewer_id": reviewer.json()["id"],
+            "recorder_usernames": ["recorder"],
+        },
+        headers=MANAGER,
+    )
+    enrollment_id = enrollment.json()["id"]
+
+    before = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
+    assert before.status_code == 200
+    row = next(item for item in before.json() if item["id"] == enrollment_id)
+    assert row["has_started"] is False
+    assert row["revealed"] is False
+    assert row["program_name"] == "Enrich"
+    assert row["program_version"] == "1"
+    assert row["total_presentations"] > 0
+    assert row["blotter_complete"] == 0
+    assert row["skin_planned"] == 0
+    assert row["skin_complete"] == 0
+
+    detail = await test_app.get(
+        f"{PREFIX}/enrollments/{enrollment_id}", headers=RECORDER
+    )
+    presentation_id = detail.json()["presentations"][0]["id"]
+    await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/observations",
+        json={"stage": "BLOTTER", "detected": True, "intensity": 3, "liking": 6},
+        headers=RECORDER,
+    )
+
+    after = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
+    row = next(item for item in after.json() if item["id"] == enrollment_id)
+    assert row["has_started"] is True
+
+    lock_blotter = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/lock/BLOTTER", headers=RECORDER
+    )
+    assert lock_blotter.status_code == 200
+    plan_skin = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/skin-plan",
+        json={"reason": "Low blotter confidence"},
+        headers=RECORDER,
+    )
+    assert plan_skin.status_code == 200
+
+    locked = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
+    row = next(item for item in locked.json() if item["id"] == enrollment_id)
+    assert row["blotter_complete"] == 1
+    assert row["skin_planned"] == 1
+    assert row["skin_complete"] == 0
+
+    await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/observations",
+        json={"stage": "SKIN", "detected": True, "intensity": 2, "liking": 7},
+        headers=RECORDER,
+    )
+    lock_skin = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/lock/SKIN", headers=RECORDER
+    )
+    assert lock_skin.status_code == 200
+
+    skin_done = await test_app.get(f"{PREFIX}/enrollments", headers=RECORDER)
+    row = next(item for item in skin_done.json() if item["id"] == enrollment_id)
+    assert row["skin_planned"] == 1
+    assert row["skin_complete"] == 1

@@ -82,7 +82,7 @@ describe('Calibration protocol page', () => {
   })
 
   it('navigates from the Calibration page link without a full page reload', async () => {
-    window.history.replaceState({}, '', '/calibration')
+    window.history.replaceState({}, '', '/calibration?assignment=assignment')
     render(<App />)
 
     const link = await screen.findByRole('link', { name: 'Read the calibration protocol' })

@@ -36,8 +36,20 @@ test.describe('Blind calibration', () => {
       '/calibration/presentations/samp1/lock/BLOTTER': { status: 'locked' },
     })
 
-    await page.goto('/calibration')
-    await page.getByLabel('Evaluator and program').selectOption('enr1')
+    // #ASSUME: data-integrity: bootstrapRoutes()'s shared '/calibration/enrollments'
+    // fixture now carries has_started: true (Task 12), so calibrationEntryFor routes
+    // ANY bare /calibration visit straight into GuidedCalibrationFlow (kind: 'resume')
+    // rather than this manual dropdown/workspace view -- there is no combination of
+    // has_started/revealed on a single assignment that reaches the dropdown without a
+    // deep link, since CalibrationPage's early-return branches cover 'resume', 'guided'
+    // and 'choice' unconditionally whenever assignments.length > 0. The
+    // `?assignment=` deep link is the same bypass already applied to the equivalent
+    // Vitest suites in commit 8f22f92 ("bypass calibration entry routing in
+    // pre-existing workspace tests").
+    // #VERIFY: re-check this bypass if CalibrationPage's early-return routing
+    // conditions change to also branch on manualBrowse defaults or add a case that
+    // reaches the dropdown for a single non-empty assignment.
+    await page.goto('/calibration?assignment=enr1')
     await page.getByRole('button', { name: 'ABC-123' }).click()
 
     await expect(page.getByRole('heading', { name: 'ABC-123' })).toBeVisible()

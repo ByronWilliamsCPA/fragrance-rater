@@ -17,7 +17,12 @@ import { EmptyState } from '../components/PageState'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { useTask } from '../hooks/useTask'
 
-type Props = { programs: Program[]; reviewers: Person[]; reload: () => Promise<void> }
+type Props = {
+  programs: Program[]
+  reviewers: Person[]
+  reload: () => Promise<void>
+  initialProgramId?: string
+}
 
 const roles = [
   'UNIVERSAL_BASELINE',
@@ -55,8 +60,8 @@ function formatUtcDateTime(value: string): string {
   }).format(new Date(asUtc(value)))} UTC`
 }
 
-export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
-  const [programId, setProgramId] = useState('')
+export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId }: Props) {
+  const [programId, setProgramId] = useState(initialProgramId ?? '')
   const [members, setMembers] = useState<ProgramMember[]>([])
   const [catalog, setCatalog] = useState<FragranceSummary[]>([])
   const [enrollments, setEnrollments] = useState<ManagerEnrollment[]>([])
@@ -72,6 +77,14 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
     () => new Map(reviewers.map((reviewer) => [reviewer.id, reviewer.name])),
     [reviewers]
   )
+
+  useEffect(() => {
+    // initialProgramId only changes when the URL's deep-link query param
+    // changes, never on a manual dropdown pick (that only calls
+    // setProgramId directly), so this can't fight the dropdown.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setProgramId(initialProgramId ?? '')
+  }, [initialProgramId])
 
   useEffect(() => {
     // Clearing the prior program's members synchronously before fetching the
@@ -157,6 +170,7 @@ export function ProgramSetupPage({ programs, reviewers, reload }: Props) {
         .filter(Boolean),
       session_size: Number(values.session_size),
     })
+    await reload()
     form.reset()
     task.setNotice('Evaluator enrolled; sessions and blind codes are ready.')
   }

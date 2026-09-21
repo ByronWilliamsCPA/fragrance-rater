@@ -144,6 +144,24 @@ export function assignmentLinkFor(
   return { initialAssignmentId: requested as AssignmentId }
 }
 
+/** The deep-link parameter naming a calibration program. */
+const programParam = 'program'
+
+/** Builds the query for a program self-assign deep link. */
+export function programQuery(programId: string): RouteQuery {
+  return { [programParam]: programId }
+}
+
+/**
+ * Resolves the `program` query parameter against the programs this identity
+ * can actually see, the same validate-then-brand pattern `assignmentLinkFor`
+ * uses above.
+ */
+export function programLinkFor(query: RouteQuery, programIds: readonly string[]): string {
+  const requested = query[programParam]
+  return requested && programIds.includes(requested) ? requested : ''
+}
+
 function navigationItemFor(route: Route): NavigationItem {
   const item = navigationItems.find((entry) => entry.route === route)
   // Unreachable: `Route` is derived from this same table, so every value of
