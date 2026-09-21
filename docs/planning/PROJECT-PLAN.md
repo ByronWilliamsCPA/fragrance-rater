@@ -1,6 +1,6 @@
 # Fragrance Rater: Authoritative Project Plan
 
-> **Version**: 2.3 | **Status**: Active | **Updated**: 2026-09-19
+> **Version**: 2.4 | **Status**: Active | **Updated**: 2026-09-21
 
 ## 1. Planning authority
 
@@ -49,7 +49,7 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
 | Worn-by ("on others") evidence dimension | Implemented, capture only | Optional `worn_by_reviewer_id` on `Evaluation` per ADR-011; excluded from affinity/training-manifest scoring until a future milestone folds it in |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
-| Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16 (single head `7daf681ed339`, reverified 2026-09-19); a duplicate revision-id collision briefly broke `main`'s migration chain after the P5 audit until its 2026-09-13 fix (PR #80); R2 adds a PostgreSQL parity test and enforced naming conventions to catch this class of issue in CI going forward; P1 still requires a production backup-clone exercise |
+| Live PostgreSQL calibration migration | Fresh-schema verified; production auto-migration added 2026-09-20 | Full upgrade reaches current head on PostgreSQL 16 (single head `7daf681ed339`, reverified 2026-09-19); a duplicate revision-id collision briefly broke `main`'s migration chain after the P5 audit until its 2026-09-13 fix (PR #80); R2 adds a PostgreSQL parity test and enforced naming conventions to catch this class of issue in CI going forward. Separately, production itself had no automated migration step at all — no CI step, Dockerfile instruction, or entrypoint ran `alembic upgrade head` against it — until the first manager login 500'd on missing tables and PR #111 (2026-09-20) added `docker-entrypoint.sh` to run it on container start. That closes the automation gap going forward; it is not P1.3's required backup-clone evidence (no restore, no before/after inventory, no concurrency test), so P1 still requires a production backup-clone exercise |
 | ML pipeline skeleton | Implemented, no learned model | `fragrance_rater.ml`: versioned feature space, model objects with digested parameters, dataset builder, repeat reliability, holdout scorecards, prospective prediction runner (ML structure review, Tier 2 and 3) |
 | Review remediation and ML foundation | In progress | Milestone R (section 11a); sprints R1-R4 gate P6 closure, R2 and R5-R8 gate F1 |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |
@@ -205,6 +205,43 @@ boundary.
 Backend Python 3.12/PostgreSQL 16 target-environment verification and the target-host smoke
 report are unaffected by this frontend work and remain tracked separately in
 `docs/planning/gates/p1.md`. P1.8 does not close on this evidence alone.
+
+### P1 audit reconciliation: production migration gap and live-auth confirmation, 2026-09-21
+
+A P1 audit prompted by the core maintainer ("several items marked not complete I thought were
+complete") found that most P1 work packages were already precise in `docs/planning/gates/p1.md`'s
+own table (repository deliverable done; external evidence against real infrastructure pending) —
+the confusion traced to this plan's narrative prose blurring that distinction, plus two items this
+plan had not recorded at all:
+
+- **Production ran with zero applied migrations until 2026-09-20.** PR #111 discovered that no
+  CI step, Dockerfile instruction, or entrypoint had ever run `alembic upgrade head` against the
+  production database — surfaced when the first manager login 500'd on every Fragrance-touching
+  endpoint from missing tables. `docker-entrypoint.sh` now runs the upgrade before the container's
+  existing `CMD`. This is a real fix to a real gap that predates this plan version, recorded above
+  in the current-state ledger. It closes the automation gap; it does **not** supply P1.3's
+  required backup-clone restore, before/after inventory, or concurrency evidence, and it has not
+  been evaluated for multi-replica startup races (this deployment currently runs a single
+  instance, so the gap is not release-blocking today, but it should be checked before any
+  horizontal scale-out).
+- **The nginx trust boundary still forwards forged identity headers.** `frontend/nginx.conf`
+  (`proxy_set_header X-Authentik-Username $http_x_authentik_username;` and the matching `Uid`/
+  `Email` lines) passes through whatever `X-Authentik-*` headers a client sends, rather than
+  resetting them unless the peer is verified as Traefik. This is exactly the forgery R3 is scoped
+  to fix (architecture review S-01/S-02). P1.6's repository deliverable is therefore not fully
+  closed by the topology validator alone; the header-reset code still needs to be written, not
+  only deployment-tested.
+- **A manager successfully logged in through Authentik at the live deployed URL on 2026-09-21.**
+  This is real, positive evidence that the Authentik challenge is enforced end-to-end on the
+  production host — the first confirmation of that outside a planned rehearsal. It is informal
+  (no port scan, no direct-IP bypass attempt, no forged-header attempt, no role-matrix comparison
+  across separate manager/participant Authentik accounts) and does not close P1.6 while the
+  nginx forged-header gap above remains open. See also the 2026-09-18 production-deployment
+  interim evidence under Milestone P6 (section 11), which this login corroborates but does not
+  supersede.
+
+`docs/planning/gates/p1.md`'s P1.3 and P1.6 rows now cross-reference this section so the gate
+record does not read as silent on either finding.
 
 ### Release-blocking invariants
 
