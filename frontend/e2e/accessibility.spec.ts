@@ -29,10 +29,20 @@ const routeChecks: {
   { path: '/', heading: 'Welcome' },
   { path: '/home', heading: 'Workspace' },
   {
-    path: '/calibration',
+    // #ASSUME: data-integrity: bootstrapRoutes()'s shared '/calibration/enrollments'
+    // fixture carries has_started: true (Task 12), so calibrationEntryFor now routes
+    // ANY bare /calibration visit straight into GuidedCalibrationFlow instead of this
+    // manual dropdown/workspace view -- same root cause already fixed for
+    // blind-calibration.spec.ts and, for the Vitest suites, in commit 8f22f92. The
+    // `?assignment=` deep link bypasses CalibrationPage's early-return routing
+    // branches and reaches the same manual workspace JSX this route check exercises,
+    // pre-selected rather than picked from the dropdown.
+    // #VERIFY: re-check this bypass if CalibrationPage's early-return routing
+    // conditions change to also branch on manualBrowse defaults or add a case that
+    // reaches the dropdown for a single non-empty assignment.
+    path: '/calibration?assignment=enr1',
     heading: 'ABC-123',
     populate: async (page) => {
-      await page.getByLabel('Evaluator and program').selectOption('enr1')
       await page.getByRole('button', { name: 'ABC-123' }).click()
     },
   },
@@ -165,9 +175,11 @@ test.describe('Observation log', () => {
       ...bootstrapRoutes(managerAccess),
       '/calibration/enrollments/enr1': enrollmentFixture(false, timepoints),
     })
-    await page.goto('/calibration')
+    // See the routeChecks '/calibration' entry above: a bare /calibration visit now
+    // auto-routes into GuidedCalibrationFlow, so this deep-links past routing to
+    // reach the same manual workspace/log view instead.
+    await page.goto('/calibration?assignment=enr1')
     await expect(page.getByRole('heading', { name: 'Fragrance Rater' })).toBeVisible()
-    await page.getByLabel('Evaluator and program').selectOption('enr1')
     await page.getByRole('button', { name: 'ABC-123' }).click()
 
     // Fixture order is 30, 0, 15-on-skin; the log must show blotter timepoints
@@ -213,8 +225,8 @@ test.describe('Target size (WCAG 2.2 AA, 2.5.8)', () => {
   }
 
   test('scale options meet the minimum target size', async ({ page }) => {
-    await setUpRoute(page, '/calibration', async (target) => {
-      await target.getByLabel('Evaluator and program').selectOption('enr1')
+    // See the routeChecks '/calibration' entry above for why this deep-links.
+    await setUpRoute(page, '/calibration?assignment=enr1', async (target) => {
       await target.getByRole('button', { name: 'ABC-123' }).click()
     })
 
@@ -260,7 +272,11 @@ test.describe('Keyboard operability', () => {
       '/calibration/enrollments/enr1': enrollmentFixture(false),
     })
 
-    await page.goto('/calibration')
+    // See the routeChecks '/calibration' entry above: a bare /calibration visit now
+    // auto-routes into GuidedCalibrationFlow, which has no "Evaluator and program"
+    // select at all, so this deep-links past routing to reach the same manual
+    // workspace select this test exercises the keyboard path through.
+    await page.goto('/calibration?assignment=enr1')
     // Wait for the loading shell to resolve before tabbing; tabbing while
     // <body> is still the only focusable element (LoadingState has no focusable
     // content) silently no-ops and desyncs the press count from the real page.
@@ -291,8 +307,8 @@ test.describe('Keyboard operability', () => {
   })
 
   test('a calibration scale is one tab stop with arrow-key selection', async ({ page }) => {
-    await setUpRoute(page, '/calibration', async (target) => {
-      await target.getByLabel('Evaluator and program').selectOption('enr1')
+    // See the routeChecks '/calibration' entry above for why this deep-links.
+    await setUpRoute(page, '/calibration?assignment=enr1', async (target) => {
       await target.getByRole('button', { name: 'ABC-123' }).click()
     })
 
