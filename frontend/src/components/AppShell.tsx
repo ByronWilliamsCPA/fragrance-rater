@@ -17,6 +17,7 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
   const mainContent = useRef<HTMLElement>(null)
   const previousRoute = useRef(route)
   const aboutNavItem = navigationItems.find((item) => item.route === 'about')
+  const evidenceNavItem = navigationItems.find((item) => item.route === 'evidence')
   const role = roleLabelFor(capabilities)
 
   useDocumentTitle(route)
@@ -80,6 +81,16 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
               onClick={(event) => followRouteLink(event, aboutNavItem.route, navigate)}
             >
               About this project
+            </a>
+          </p>
+        )}
+        {evidenceNavItem && (
+          <p>
+            <a
+              href={evidenceNavItem.path}
+              onClick={(event) => followRouteLink(event, evidenceNavItem.route, navigate)}
+            >
+              Evidence behind the approach
             </a>
           </p>
         )}

@@ -114,6 +114,7 @@ const routeChecks: {
     },
   },
   { path: '/about', heading: 'How this project learns your taste' },
+  { path: '/evidence', heading: 'Why better fragrance discovery matters' },
   { path: '/programs', heading: 'Program setup' },
 ]
 
