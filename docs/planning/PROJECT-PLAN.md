@@ -1,6 +1,6 @@
 # Fragrance Rater: Authoritative Project Plan
 
-> **Version**: 2.4 | **Status**: Active | **Updated**: 2026-09-21
+> **Version**: 2.5 | **Status**: Active | **Updated**: 2026-09-21
 
 ## 1. Planning authority
 
@@ -138,11 +138,11 @@ and reviewed as P6.1 before P6 can close.
 | P1.1 | Exact baseline manifest | Every program member has verified brand, name, concentration/version key, source URL, verification evidence, and physical-sample confirmation; unresolved identities remain unassigned | Versioned manifest and verification report |
 | P1.2 | Production backup clone | Record current Alembic revision and row counts; restore a production backup to an isolated PostgreSQL instance | Redacted restore log and pre-upgrade inventory |
 | P1.3 | Live migration | Upgrade the clone through the declared Alembic head; preserve IDs, encounter counts, ratings, and timestamps; validate constraints and query plans | Migration log, before/after assertions, schema dump/hash |
-| P1.4 | Concurrency | Concurrent ordinary encounter writes and controlled observation/lock attempts preserve all valid records and reject invalid state transitions deterministically | Automated PostgreSQL concurrency results |
+| P1.4 | Concurrency | Concurrent ordinary encounter writes and controlled observation/lock attempts preserve all valid records and reject invalid state transitions deterministically | Automated PostgreSQL concurrency results at representative production cardinality; see the P1.4/P1.8 evidence note below for a first automated pass at non-representative scale |
 | P1.5 | Rollback/recovery | Demonstrate restore from the verified pre-upgrade backup; do not use lossy downgrade or migration stamping | Timed restore drill and recovery checklist |
 | P1.6 | Trust-boundary validation | Production requests traverse Authentik/Traefik; direct backend access from reachable networks cannot mutate data or expose calibration mappings | Deployed topology, port scan, bypass tests, role matrix |
 | P1.7 | Blind disclosure audit | Search, history, profiles, recommendations, explanations, caches, errors, exports, and logs reveal no mapping, role, repeat, selection, or holdout information before policy allows | Automated disclosure matrix |
-| P1.8 | Target-environment verification | Python 3.12, PostgreSQL 16, frontend build, backend tests, type checks, lint, security scans, and critical end-to-end flows pass | CI run and target-host smoke report. Frontend e2e/accessibility slice: partial, see P1.8 evidence below and `docs/planning/gates/p1.md` |
+| P1.8 | Target-environment verification | Python 3.12, PostgreSQL 16, frontend build, backend tests, type checks, lint, security scans, and critical end-to-end flows pass | CI run and target-host smoke report. Frontend e2e/accessibility slice: partial, see P1.8 evidence below and `docs/planning/gates/p1.md`. Backend PostgreSQL 16 verification: now automated by CI (`postgres-integration` job, 2026-09-21), see the P1.4/P1.8 evidence note below; not yet a required/blocking check, and the target-host smoke report is still pending |
 | P1.9 | Parfumo fixtures (superseded by ADR-012, 2026-09-15) | Historical: fixtures for requested metrics, status, related versions, similar fragrances, missing fields, and unknown concentration, retained as evidence of pre-deprecation parser coverage only. No further Parfumo fixture work is planned; scraper/CLI retirement is tracked as R9 and `SourceSnapshot` provenance columns as R8 | Fixture provenance and parser coverage (historical); see R8/R9 for retirement work |
 | P1.10 | Operations | Document health checks, logs, alerting, database growth, backups, secret rotation, external-service failure, and upgrade procedure | Operations runbook |
 
@@ -242,6 +242,48 @@ plan had not recorded at all:
 
 `docs/planning/gates/p1.md`'s P1.3 and P1.6 rows now cross-reference this section so the gate
 record does not read as silent on either finding.
+
+### P1.3/P1.4/P1.8 evidence: local re-verification, a concurrency gate, and CI automation, 2026-09-21
+
+Working to close the gaps the audit above surfaced:
+
+- **Migration chain re-verified fresh.** `alembic upgrade head` against a clean local PostgreSQL
+  16 database reaches the single head `7daf681ed339` cleanly on the current checkout, and
+  re-running `upgrade head` is a confirmed no-op. This reconfirms the 2026-09-19 re-verification
+  on today's code; it remains fresh-schema evidence, not production-clone evidence.
+- **A first automated concurrency gate.** `tests/integration/test_calibration_concurrency_postgres.py`
+  (new, gated on `P1_DATABASE_URL` like the existing recommendation-measurement gate) exercises
+  two real races against PostgreSQL row locking: two concurrent attempts to assign the same
+  fragrance as a program's holdout (the `add_member` `with_for_update` lock correctly serializes
+  them; the loser gets a clean 409, and exactly one membership row persists), and two concurrent
+  enrollment attempts for the same reviewer (the `Enrollment` unique constraint prevents a
+  duplicate row regardless of which failure shape the loser hits). Both pass. This is real
+  evidence toward P1.4, run at toy scale on a throwaway database — it is not the "representative
+  cardinality" concurrency pass P1.4's runbook section calls for, which needs production-like
+  data volume, and it does not touch the observation/lock/reveal races the runbook also names.
+- **PostgreSQL now runs in CI.** A new `postgres-integration` job in `.github/workflows/ci.yml`
+  runs the full Alembic chain against a real PostgreSQL 16 service container and then the
+  `P1_DATABASE_URL`-gated integration tests, closing the "no PostgreSQL job in this repository"
+  gap R1 also names (architecture review S-11/F-01). It is deliberately **not** added to
+  `ci-gate`'s required checks yet — promoting a brand-new job straight to merge-blocking without
+  first watching it pass on real PRs is a CI-pipeline change that belongs to the core maintainer's
+  judgment, not a default this session should set unilaterally. R2's PostgreSQL/SQLite schema
+  parity test belongs in this same job once R2 lands.
+- **A reusable pre/post-migration inventory tool.** `scripts/p1_migration_inventory.py` implements
+  the runbook's "Restore and pre-upgrade inventory" and "Migration and data assertions" steps
+  (row counts, timestamp ranges, duplicate natural keys, invalid foreign keys, and a redacted
+  hash of sorted IDs/timestamps for `fragrances`/`reviewers`/`evaluations`) as one command instead
+  of hand-run SQL, with a `--compare` mode that exits nonzero on any preservation violation.
+  Verified against a local database: it reports no violations when nothing changed, and it
+  correctly detects and reports a violation when a row was deliberately deleted between the two
+  snapshots. This does not gather P1.2/P1.3/P1.5 evidence by itself — it still needs to be run
+  against an actual production backup restore, which requires the core maintainer's access to
+  that backup.
+
+None of this closes P1.2, P1.3, P1.5, P1.6's deployed evidence, P1.7's deployed evidence, or
+P1.10: those still require the core maintainer's production/deployment access. The next concrete
+step for each is to run `scripts/p1_migration_inventory.py` and the runbook's remaining manual
+steps against a real backup restore.
 
 ### Release-blocking invariants
 

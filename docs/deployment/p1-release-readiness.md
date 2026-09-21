@@ -56,6 +56,13 @@ program membership is locked. Retain the report and manifest hash.
    `evaluations`.
 5. Run `pg_restore --list` and retain the output with the backup hash.
 
+Steps 3-4 above are steps `scripts/p1_migration_inventory.py` automates instead of hand-run SQL:
+
+```bash
+uv run python scripts/p1_migration_inventory.py "postgresql://user:pass@clone-host/db" \
+  --output /secure/path/before.json
+```
+
 The restore itself is the first backup test. A backup file that has not been restored is not
 release evidence.
 
@@ -70,11 +77,19 @@ uv run alembic upgrade head
 uv run alembic current
 ```
 
-Repeat the inventory. Historical evaluation IDs, encounter counts, ratings, reviewer/fragrance
-links, and timestamps must match. New calibration tables must have their declared constraints
-and indexes. Run `EXPLAIN (ANALYZE, BUFFERS)` for participant history, recommendation history,
-and program dashboard queries using representative cardinality. Re-running `upgrade head` must
-be a no-op.
+Repeat the inventory and compare against the pre-upgrade snapshot:
+
+```bash
+uv run python scripts/p1_migration_inventory.py "postgresql://user:pass@clone-host/db" \
+  --output /secure/path/after.json --compare /secure/path/before.json
+```
+
+A nonzero exit means the migration did not preserve `fragrances`, `reviewers`, or `evaluations`
+row-for-row; do not proceed. Historical evaluation IDs, encounter counts, ratings,
+reviewer/fragrance links, and timestamps must match. New calibration tables must have their
+declared constraints and indexes. Run `EXPLAIN (ANALYZE, BUFFERS)` for participant history,
+recommendation history, and program dashboard queries using representative cardinality.
+Re-running `upgrade head` must be a no-op.
 
 ## Concurrency and disclosure
 
@@ -82,6 +97,13 @@ Against the clone, run simultaneous ordinary encounter inserts for one reviewer/
 simultaneous observation, lock, reveal, and membership mutation attempts. Valid encounter
 inserts must all persist. Only one invalid state transition may win; frozen membership and
 locked observations must remain unchanged.
+
+`tests/integration/test_calibration_concurrency_postgres.py` (gated on `P1_DATABASE_URL`, same
+as the recommendation-measurement gate) exercises two of these races against real PostgreSQL row
+locking: a holdout-membership assignment race and a duplicate-enrollment race. It runs against
+any reachable PostgreSQL 16 instance, including the clone; it is not a substitute for the
+representative-cardinality concurrency pass this section still requires against production-scale
+data.
 
 Exercise every participant-visible surface before reveal: catalog search, ordinary history,
 preference profile, recommendation list, explanation, caches, errors, exports, structured logs,
@@ -111,8 +133,9 @@ manager and participant role matrix with separate Authentik accounts.
 ## Recovery drill
 
 Destroy only the isolated clone, create a second empty PostgreSQL 16 database, restore the same
-verified pre-upgrade backup, and repeat the pre-upgrade inventory. Record elapsed time and the
-recovery point and recovery time achieved. Recovery uses restore; the intentionally lossy
+verified pre-upgrade backup, and repeat the pre-upgrade inventory (`scripts/p1_migration_inventory.py`
+against the restored database, compared to the original `before.json`). Record elapsed time and
+the recovery point and recovery time achieved. Recovery uses restore; the intentionally lossy
 calibration migration has no downgrade path and must never be bypassed with `alembic stamp`.
 
 ## Operations checks

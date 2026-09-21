@@ -137,6 +137,65 @@ jobs:
           path: frontend/playwright-report/
           retention-days: 7
 
+  # P1.8/R1: the reusable python-ci.yml workflow (ByronWilliamsCPA/.github)
+  # has no PostgreSQL service and cannot gain one from this repository, so
+  # the target-database verification the P1 release-readiness gate and the
+  # architecture review (S-11/F-01) call for has to be a separate job here.
+  # Runs the full Alembic chain against real PostgreSQL 16 (not SQLite) and
+  # the tests already gated on P1_DATABASE_URL. Deliberately NOT added to
+  # ci-gate's `needs` yet: promoting a brand-new CI job straight to a
+  # required, merge-blocking check without first watching it pass on real
+  # PRs is exactly the kind of CI change that deserves a human decision, not
+  # a default. R2's PostgreSQL/SQLite schema parity test belongs in this job
+  # once R2 lands; it does not exist yet and is not part of this change.
+  postgres-integration:
+    name: PostgreSQL Integration
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: fragrance_rater
+          POSTGRES_PASSWORD: fragrance_rater
+          POSTGRES_DB: fragrance_rater_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://fragrance_rater:fragrance_rater@localhost:5432/fragrance_rater_ci
+      P1_DATABASE_URL: postgresql+asyncpg://fragrance_rater:fragrance_rater@localhost:5432/fragrance_rater_ci
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1  # v2.21.1
+        with:
+          egress-policy: audit
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4  # v10.1.0
+        with:
+          enable-cache: true
+      - name: Set up Python
+        run: uv python install 3.12
+      - name: Install dependencies
+        run: uv sync --all-extras
+      - name: Run the Alembic chain against PostgreSQL 16
+        run: |
+          uv run alembic upgrade head
+          uv run alembic current
+          uv run alembic upgrade head
+
+      # Re-running head must be a no-op; a second migration here would
+      # mean a revision is not idempotent against a real database.
+      - name: Run PostgreSQL-gated integration tests
+        run: uv run pytest tests/integration -v -m integration --no-cov
+
   # Top-level gate that emits the bare "CI Gate" check name the org
   # ruleset requires. The reusable workflow's internal "CI Gate" job
   # surfaces as "CI Pipeline / CI Gate" because of the caller-job
@@ -144,7 +203,8 @@ jobs:
   # under the canonical name the ruleset matches on. Also gates on the
   # frontend and frontend-e2e jobs so a frontend lint/typecheck/test/build
   # or e2e failure blocks the same required check, not just the Python
-  # pipeline.
+  # pipeline. postgres-integration is deliberately not in this list yet;
+  # see its own comment.
   ci-gate:
     name: CI Gate
     needs: [ci, frontend, frontend-e2e]
