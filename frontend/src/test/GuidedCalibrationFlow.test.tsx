@@ -80,6 +80,35 @@ describe('nextWizardStep', () => {
     })
     expect(nextWizardStep(enrollment)).toEqual({ kind: 'ready_to_reveal' })
   })
+
+  it('finishes all blotter locks before any skin step, even when another sample is skin-ready', () => {
+    const enrollment = baseEnrollment({
+      skin_plan_locked: true,
+      presentations: [
+        {
+          id: 's1',
+          session_id: 'sess1',
+          blind_code: 'AAA1',
+          position: 1,
+          skin_planned: true,
+          blotter_locked: true,
+          skin_locked: false,
+          observations: [],
+        },
+        {
+          id: 's2',
+          session_id: 'sess1',
+          blind_code: 'AAA2',
+          position: 2,
+          skin_planned: false,
+          blotter_locked: false,
+          skin_locked: false,
+          observations: [],
+        },
+      ],
+    })
+    expect(nextWizardStep(enrollment)).toEqual({ kind: 'blotter', presentationId: 's2' })
+  })
 })
 
 describe('GuidedCalibrationFlow', () => {
