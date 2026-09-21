@@ -1,6 +1,6 @@
 # Fragrance Rater: Authoritative Project Plan
 
-> **Version**: 2.3 | **Status**: Active | **Updated**: 2026-09-19
+> **Version**: 2.5 | **Status**: Active | **Updated**: 2026-09-21
 
 ## 1. Planning authority
 
@@ -49,7 +49,7 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Recommendation outcome measurement | Implemented, not pilot-verified | Immutable runs/impressions, append-only feedback, outcome links, operational events, and provenance-complete reports exist; real baselines belong to F1 |
 | Worn-by ("on others") evidence dimension | Implemented, capture only | Optional `worn_by_reviewer_id` on `Evaluation` per ADR-011; excluded from affinity/training-manifest scoring until a future milestone folds it in |
 | Verified 43-fragrance baseline manifest | Not available | Exact versions must be verified; no identities may be guessed |
-| Live PostgreSQL calibration migration | Fresh-schema verified | Full upgrade reaches current head on PostgreSQL 16 (single head `7daf681ed339`, reverified 2026-09-19); a duplicate revision-id collision briefly broke `main`'s migration chain after the P5 audit until its 2026-09-13 fix (PR #80); R2 adds a PostgreSQL parity test and enforced naming conventions to catch this class of issue in CI going forward; P1 still requires a production backup-clone exercise |
+| Live PostgreSQL calibration migration | Fresh-schema verified; production auto-migration added 2026-09-20 | Full upgrade reaches current head on PostgreSQL 16 (single head `7daf681ed339`, reverified 2026-09-19); a duplicate revision-id collision briefly broke `main`'s migration chain after the P5 audit until its 2026-09-13 fix (PR #80); R2 adds a PostgreSQL parity test and enforced naming conventions to catch this class of issue in CI going forward. Separately, production itself had no automated migration step at all: no CI step, Dockerfile instruction, or entrypoint ran `alembic upgrade head` against it, until the first manager login 500'd on missing tables and PR #111 (2026-09-20) added `docker-entrypoint.sh` to run it on container start. That closes the automation gap going forward; it is not P1.3's required backup-clone evidence (no restore, no before/after inventory, no concurrency test), so P1 still requires a production backup-clone exercise |
 | ML pipeline skeleton | Implemented, no learned model | `fragrance_rater.ml`: versioned feature space, model objects with digested parameters, dataset builder, repeat reliability, holdout scorecards, prospective prediction runner (ML structure review, Tier 2 and 3) |
 | Review remediation and ML foundation | In progress | Milestone R (section 11a); sprints R1-R4 gate P6 closure, R2 and R5-R8 gate F1 |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |
@@ -138,11 +138,11 @@ and reviewed as P6.1 before P6 can close.
 | P1.1 | Exact baseline manifest | Every program member has verified brand, name, concentration/version key, source URL, verification evidence, and physical-sample confirmation; unresolved identities remain unassigned | Versioned manifest and verification report |
 | P1.2 | Production backup clone | Record current Alembic revision and row counts; restore a production backup to an isolated PostgreSQL instance | Redacted restore log and pre-upgrade inventory |
 | P1.3 | Live migration | Upgrade the clone through the declared Alembic head; preserve IDs, encounter counts, ratings, and timestamps; validate constraints and query plans | Migration log, before/after assertions, schema dump/hash |
-| P1.4 | Concurrency | Concurrent ordinary encounter writes and controlled observation/lock attempts preserve all valid records and reject invalid state transitions deterministically | Automated PostgreSQL concurrency results |
+| P1.4 | Concurrency | Concurrent ordinary encounter writes and controlled observation/lock attempts preserve all valid records and reject invalid state transitions deterministically | Automated PostgreSQL concurrency results at representative production cardinality; see the P1.4/P1.8 evidence note below for a first automated pass at non-representative scale |
 | P1.5 | Rollback/recovery | Demonstrate restore from the verified pre-upgrade backup; do not use lossy downgrade or migration stamping | Timed restore drill and recovery checklist |
 | P1.6 | Trust-boundary validation | Production requests traverse Authentik/Traefik; direct backend access from reachable networks cannot mutate data or expose calibration mappings | Deployed topology, port scan, bypass tests, role matrix |
 | P1.7 | Blind disclosure audit | Search, history, profiles, recommendations, explanations, caches, errors, exports, and logs reveal no mapping, role, repeat, selection, or holdout information before policy allows | Automated disclosure matrix |
-| P1.8 | Target-environment verification | Python 3.12, PostgreSQL 16, frontend build, backend tests, type checks, lint, security scans, and critical end-to-end flows pass | CI run and target-host smoke report. Frontend e2e/accessibility slice: partial, see P1.8 evidence below and `docs/planning/gates/p1.md` |
+| P1.8 | Target-environment verification | Python 3.12, PostgreSQL 16, frontend build, backend tests, type checks, lint, security scans, and critical end-to-end flows pass | CI run and target-host smoke report. Frontend e2e/accessibility slice: partial, see P1.8 evidence below and `docs/planning/gates/p1.md`. Backend PostgreSQL 16 verification: now automated by CI (`postgres-integration` job, 2026-09-21), see the P1.4/P1.8 evidence note below; not yet a required/blocking check, and the target-host smoke report is still pending |
 | P1.9 | Parfumo fixtures (superseded by ADR-012, 2026-09-15) | Historical: fixtures for requested metrics, status, related versions, similar fragrances, missing fields, and unknown concentration, retained as evidence of pre-deprecation parser coverage only. No further Parfumo fixture work is planned; scraper/CLI retirement is tracked as R9 and `SourceSnapshot` provenance columns as R8 | Fixture provenance and parser coverage (historical); see R8/R9 for retirement work |
 | P1.10 | Operations | Document health checks, logs, alerting, database growth, backups, secret rotation, external-service failure, and upgrade procedure | Operations runbook |
 
@@ -205,6 +205,86 @@ boundary.
 Backend Python 3.12/PostgreSQL 16 target-environment verification and the target-host smoke
 report are unaffected by this frontend work and remain tracked separately in
 `docs/planning/gates/p1.md`. P1.8 does not close on this evidence alone.
+
+### P1 audit reconciliation: production migration gap and live-auth confirmation, 2026-09-21
+
+A P1 audit prompted by the core maintainer ("several items marked not complete I thought were
+complete") found that most P1 work packages were already precise in `docs/planning/gates/p1.md`'s
+own table (repository deliverable done; external evidence against real infrastructure pending):
+the confusion traced to this plan's narrative prose blurring that distinction, plus two items this
+plan had not recorded at all:
+
+- **Production ran with zero applied migrations until 2026-09-20.** PR #111 discovered that no
+  CI step, Dockerfile instruction, or entrypoint had ever run `alembic upgrade head` against the
+  production database. This surfaced when the first manager login 500'd on every Fragrance-touching
+  endpoint from missing tables. `docker-entrypoint.sh` now runs the upgrade before the container's
+  existing `CMD`. This is a real fix to a real gap that predates this plan version, recorded above
+  in the current-state ledger. It closes the automation gap; it does **not** supply P1.3's
+  required backup-clone restore, before/after inventory, or concurrency evidence, and it has not
+  been evaluated for multi-replica startup races (this deployment currently runs a single
+  instance, so the gap is not release-blocking today, but it should be checked before any
+  horizontal scale-out).
+- **The nginx trust boundary still forwards forged identity headers.** `frontend/nginx.conf`
+  (`proxy_set_header X-Authentik-Username $http_x_authentik_username;` and the matching `Uid`/
+  `Email` lines) passes through whatever `X-Authentik-*` headers a client sends, rather than
+  resetting them unless the peer is verified as Traefik. This is exactly the forgery R3 is scoped
+  to fix (architecture review S-01/S-02). P1.6's repository deliverable is therefore not fully
+  closed by the topology validator alone; the header-reset code still needs to be written, not
+  only deployment-tested.
+- **A manager successfully logged in through Authentik at the live deployed URL on 2026-09-21.**
+  This is real, positive evidence that the Authentik challenge is enforced end-to-end on the
+  production host, the first confirmation of that outside a planned rehearsal. It is informal
+  (no port scan, no direct-IP bypass attempt, no forged-header attempt, no role-matrix comparison
+  across separate manager/participant Authentik accounts) and does not close P1.6 while the
+  nginx forged-header gap above remains open. See also the 2026-09-18 production-deployment
+  interim evidence under Milestone P6 (section 11), which this login corroborates but does not
+  supersede.
+
+`docs/planning/gates/p1.md`'s P1.3 and P1.6 rows now cross-reference this section so the gate
+record does not read as silent on either finding.
+
+### P1.3/P1.4/P1.8 evidence: local re-verification, a concurrency gate, and CI automation, 2026-09-21
+
+Working to close the gaps the audit above surfaced:
+
+- **Migration chain re-verified fresh.** `alembic upgrade head` against a clean local PostgreSQL
+  16 database reaches the single head `7daf681ed339` cleanly on the current checkout, and
+  re-running `upgrade head` is a confirmed no-op. This reconfirms the 2026-09-19 re-verification
+  on today's code; it remains fresh-schema evidence, not production-clone evidence.
+- **A first automated concurrency gate.** `tests/integration/test_calibration_concurrency_postgres.py`
+  (new, gated on `P1_DATABASE_URL` like the existing recommendation-measurement gate) exercises
+  two real races against PostgreSQL row locking: two concurrent attempts to assign the same
+  fragrance as a program's holdout (the `add_member` `with_for_update` lock correctly serializes
+  them; the loser gets a clean 409, and exactly one membership row persists), and two concurrent
+  enrollment attempts for the same reviewer (the `Enrollment` unique constraint prevents a
+  duplicate row regardless of which failure shape the loser hits). Both pass. This is real
+  evidence toward P1.4, run at toy scale on a throwaway database; it is not the "representative
+  cardinality" concurrency pass P1.4's runbook section calls for, which needs production-like
+  data volume, and it does not touch the observation/lock/reveal races the runbook also names.
+- **PostgreSQL in CI is not landing here.** A `postgres-integration` job was drafted for
+  `.github/workflows/ci.yml` (full Alembic chain against a real PostgreSQL 16 service container,
+  then the `P1_DATABASE_URL`-gated integration tests) but was removed before merge: it duplicated
+  the scope of PR #118, which implements R1 ("CI truthfulness") end to end, including its own
+  version of this same job. The "no PostgreSQL job in this repository" gap R1 names (architecture
+  review S-11/F-01) therefore remains open and is tracked entirely by #118, not by this work. The
+  concurrency gate above is real and passes locally, but nothing in CI runs it yet until #118 (or
+  an equivalent follow-up) lands.
+- **A reusable pre/post-migration inventory tool.** `scripts/p1_migration_inventory.py` implements
+  the runbook's "Restore and pre-upgrade inventory" and "Migration and data assertions" steps
+  (row counts, timestamp ranges, duplicate natural keys, invalid foreign keys, and a redacted hash
+  of every column for `fragrances`/`reviewers`/`evaluations`, one digest per column so an added
+  column does not read as a violation but a changed value or a dropped column does) as one command
+  instead of hand-run SQL, with a `--compare` mode that exits nonzero on any preservation
+  violation. Reported by local testing (not re-verified in this reconciliation pass) to show no
+  violations when nothing changed and to correctly detect a deliberately deleted row between the
+  two snapshots. This does not gather P1.2/P1.3/P1.5 evidence by itself; it still needs to be run
+  against an actual production backup restore, which requires the core maintainer's access to
+  that backup.
+
+None of this closes P1.2, P1.3, P1.5, P1.6's deployed evidence, P1.7's deployed evidence, or
+P1.10: those still require the core maintainer's production/deployment access. The next concrete
+step for each is to run `scripts/p1_migration_inventory.py` and the runbook's remaining manual
+steps against a real backup restore.
 
 ### Release-blocking invariants
 
@@ -428,7 +508,7 @@ the review's implementation-status section, and the relevant ADR in the same pul
 
 | ID | Sprint | Scope (findings) | Gate | Lead | Review | Size |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| R1 | CI truthfulness (done 2026-09-21) | Frontend lint, typecheck, test, and build job as a required check (already landed via PR #103/ADR-014; verified); remove `api/*`, `llm/*`, `main.py` from the coverage omit list (real coverage measured at 88.28% in this worktree on 2026-09-21, up from an earlier 87.09% reading as R1's remaining test work landed; no threshold change needed; per the ASGI coverage-measurement gap documented later in this row and in `docs/ci-gates.md`, treat this as a floor, not an exact count); container CVE gates on for CRITICAL and HIGH, matrixed to also scan the frontend image; a PostgreSQL job in this repository running `alembic upgrade head` and the integration marker with `P1_DATABASE_URL` (verified end-to-end against a real PostgreSQL 16; the `compare_metadata == []` parity test itself is still R2's, per sequencing note 1); unit tests for the uncovered measurement-service branches (52.76% to 92.46% real coverage; also surfaced and documented a coverage-measurement gap for code reached only through the FastAPI/ASGI test layer, see `docs/ci-gates.md`); `docs/ci-gates.md`; deleted `setup_github_protection.py` (Q8 default) and retired `publish-pypi.yml`/`python-compatibility.yml` with `requires-python` pinned to `==3.12.*` (Q9 default, partial - FIPS/SLSA/mutation/release.yml untouched, needing their own owner decision); deleted the placeholder `.semgrep.yml` (no ruleset was ever wired to it); dropped `scripts` from `[tool.bandit] exclude_dirs` (confirmed by line-count comparison that `scripts/validate_p6_readiness.py` was previously never actually scanned; clean on first real scan); aligned all 12 reusable-workflow SHA pins on `b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89` (S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22, S-29, S-26, S-30, D-06) | P6 | Sonnet | Opus | 2 PRs |
+| R1 | CI truthfulness (done 2026-09-21) | Frontend lint, typecheck, test, and build job as a required check (already landed via PR #103/ADR-014; verified); remove `api/*`, `llm/*`, `main.py` from the coverage omit list (real coverage measured at 88.28% in this worktree on 2026-09-21, up from an earlier 87.09% reading as R1's remaining test work landed; no threshold change needed; per the ASGI coverage-measurement gap documented later in this row and in `docs/ci-gates.md`, treat this as a floor, not an exact count); container CVE gates on for CRITICAL and HIGH, matrixed to also scan the frontend image; a PostgreSQL job in this repository running `alembic upgrade head` and the integration marker with `P1_DATABASE_URL` (verified end-to-end against a real PostgreSQL 16; the `compare_metadata == []` parity test itself is still R2's, per sequencing note 1); unit tests for the uncovered measurement-service branches (52.76% to 92.46% real coverage; also surfaced and documented a coverage-measurement gap for code reached only through the FastAPI/ASGI test layer, see `docs/ci-gates.md`); `docs/ci-gates.md`; deleted `setup_github_protection.py` (Q8 default) and retired `publish-pypi.yml`/`python-compatibility.yml` with `requires-python` pinned to `==3.12.*` (Q9 default, partial - FIPS/SLSA/mutation/release.yml untouched, needing their own owner decision); deleted the placeholder `.semgrep.yml` (no ruleset was ever wired to it); dropped `scripts` from `[tool.bandit] exclude_dirs` (confirmed by line-count comparison that `scripts/validate_p6_readiness.py` was previously never actually scanned; clean on first real scan); aligned all 12 reusable-workflow SHA pins on `b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89` (S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22, S-29, S-26, S-30, D-06). PR #116 originally added its own `postgres-integration` CI job duplicating this scope; that job was removed from #116 rather than waiting on #118, so #118 landed the CI job that now also runs #116's Postgres-gated concurrency test suite. | P6 | Sonnet | Opus | 2 PRs |
 | R2 | Migration tooling and schema safety | `naming_convention` on `Base.metadata`; `compare_type`, `compare_server_default`, `render_as_batch` in `alembic/env.py`; PostgreSQL parity test (`compare_metadata == []`); SQLite `foreign_keys` pragma in `conftest.py`; downgrade-raise assertions; one named-constraint migration renaming the 37 unnamed CHECKs, adding range CHECKs on `evaluations`, `IN` CHECKs on role, status, stage, phase, reconciling the six index names, adding the nine FK indexes, and changing the two `evaluations` cascades to `RESTRICT`; `alembic/README` and CONTRIBUTING rules (D-02, D-03, D-04, D-05, D-07, D-09, D-10, D-11, D-15, D-17, D-19, D-20, X-25) | F1; prerequisite for R6 and R7 | Opus | Sonnet tests | 2 PRs |
 | R3 | Trust boundary in code | nginx resets `X-Authentik-*` unless the peer is Traefik; uvicorn `--proxy-headers` with the frontend network allow-list; limiter keyed on the verified username; `actor`, `manager`, `authorize_reviewer` moved to `core/auth.py`; one `require_identity()` on every mutating route and one recorder-or-manager check on every reviewer-keyed read (architecture review Q5 pending, default: no cross-reviewer reads); `environment`, `trusted_hosts`, and the `NoDecode` admin-list validator in `Settings`; docs routes and CORS defaults gated on environment; an `authentik_required=True` test suite; a deployed forged-header test added to P1.6 (S-01, S-02, S-03, S-05/B-10, S-06, B-11, S-17, S-18, S-19, S-23, B-27, S-25, F-02) | P6 | Opus | Sonnet tests | 2 PRs |
 | R4 | Disclosure leaks, audit trail, logging | Role-neutral 409 on holdout feedback; explanation only by persisted impression id; `log_audit_event` on activate, enroll, lock, reveal, mapping retrieval, checkpoint, prediction create and link; no-store by default under the API prefix; `setup_logging()` in lifespan; `SecretStr` keys and a redaction processor; two new rows in the P1.7 disclosure matrix (B-01, B-02, B-03, B-26, F-15, S-07, S-15) | P6 | Sonnet | Opus | 1 PR |
