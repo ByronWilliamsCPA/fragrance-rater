@@ -76,9 +76,22 @@ async def test_concurrent_holdout_assignment_leaves_exactly_one_membership() -> 
             await setup_session.commit()
             fragrance_id, program_id = fragrance.id, program.id
 
+        # #CRITICAL: timing-dependency: asyncio.gather schedules both
+        # coroutines but does not guarantee either has opened its session
+        # before the other starts racing for the lock; without a rendezvous,
+        # one attempt can run to completion before the second even begins,
+        # silently degrading this into two sequential calls instead of a
+        # true concurrent race.
+        # #VERIFY: the barrier forces both attempts to have their session
+        # open and be ready to issue the locking call before either
+        # proceeds, so the second write() always finds the first's `SELECT
+        # ... FOR UPDATE` already in flight.
+        barrier = asyncio.Barrier(2)
+
         async def attempt() -> str:
             async with session_factory() as session:
                 service = CalibrationService(session)
+                await barrier.wait()
                 member = await service.add_member(
                     program_id,
                     MembershipInput(
@@ -174,14 +187,17 @@ async def test_concurrent_holdout_assignment_leaves_exactly_one_membership() -> 
 async def test_concurrent_duplicate_enrollment_leaves_exactly_one_enrollment() -> None:
     """Two recorders racing to enroll the same reviewer: only one row persists.
 
-    ``enroll`` checks for an existing ``Enrollment`` before inserting, but
-    that check has no row to lock (the row does not exist yet), so under true
-    concurrency both transactions can pass the check before either commits.
-    The last line of defense is the ``UniqueConstraint("program_id",
-    "reviewer_id")`` on ``Enrollment`` itself: this asserts the constraint
-    actually prevents a duplicate row, whatever shape the losing transaction's
-    failure takes (a clean 409 from the app-level check winning the race, or
-    the database's own integrity error surfacing when both passed it).
+    ``enroll`` takes a ``SELECT ... FOR UPDATE`` lock on the parent
+    ``Program`` row (via ``CalibrationService.program``) before its
+    existing-enrollment check, so under real PostgreSQL locking the two
+    attempts fully serialize on that row: the second transaction blocks
+    until the first commits, then sees the first's already-committed
+    ``Enrollment`` row and takes the clean 409 path. That means this race is
+    decided by the Program lock, not by the ``UniqueConstraint("program_id",
+    "reviewer_id")`` on ``Enrollment`` itself; this test still classifies an
+    ``IntegrityError`` as an acceptable loser outcome, since that is what
+    would surface if the Program lock were ever removed or narrowed, but the
+    409-from-app-check path is what this test actually exercises today.
     """
     assert DATABASE_URL is not None
     engine = create_async_engine(DATABASE_URL)
@@ -201,9 +217,18 @@ async def test_concurrent_duplicate_enrollment_leaves_exactly_one_enrollment() -
             await setup_session.commit()
             reviewer_id, program_id = reviewer.id, program.id
 
+        # #CRITICAL: timing-dependency: without a rendezvous, asyncio.gather
+        # does not guarantee both attempts have opened their session before
+        # either races for the Program lock; the barrier below forces both
+        # to be ready before either issues its locking call. See the
+        # matching comment in
+        # test_concurrent_holdout_assignment_leaves_exactly_one_membership.
+        barrier = asyncio.Barrier(2)
+
         async def attempt() -> str:
             async with session_factory() as session:
                 service = CalibrationService(session)
+                await barrier.wait()
                 enrollment = await service.enroll(
                     program_id,
                     EnrollmentInput(
