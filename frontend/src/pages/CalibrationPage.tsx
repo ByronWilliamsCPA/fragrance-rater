@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
-import type { Assignment, Enrollment, Person, Program } from '../api/types'
+import type { Enrollment, EnrollmentSummary, Person, Program } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { EmptyState } from '../components/PageState'
@@ -16,7 +16,7 @@ import { useTask } from '../hooks/useTask'
 import { followRouteLink, pathFor, type AssignmentId, type Route } from '../routing/routes'
 
 type CalibrationPageProps = {
-  assignments: Assignment[]
+  assignments: EnrollmentSummary[]
   programs: Program[]
   reviewers: Person[]
   navigate: (route: Route) => void

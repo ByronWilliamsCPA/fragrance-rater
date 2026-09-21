@@ -17,6 +17,25 @@ export type Assignment = {
   reviewer_id: string
 }
 
+/**
+ * The GET /calibration/enrollments list response: `Assignment` plus the
+ * routing signals CalibrationPage's entry decision needs. Kept distinct from
+ * `Enrollment` (the GET /calibration/enrollments/{id} DETAIL shape,
+ * line 101 below): the two endpoints return different fields, and
+ * conflating them previously caused a spec citation error.
+ */
+export type EnrollmentSummary = Assignment & {
+  revealed: boolean
+  has_started: boolean
+  total_presentations: number
+  blotter_complete: number
+  skin_planned: number
+  skin_complete: number
+  program_name: string
+  program_version: string
+  group_name_summary: string
+}
+
 export type Observation = {
   id: string
   phase: string

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, requestErrorMessage } from '../api/client'
-import type { Access, Assignment, Person, Program } from '../api/types'
+import type { Access, EnrollmentSummary, Person, Program } from '../api/types'
 import { capabilitiesFor } from '../api/types'
 
 type ReviewerResponse = Person[] | { reviewers: Person[] }
@@ -9,7 +9,7 @@ const emptyAccess: Access = { username: '', manager: false }
 
 export function useAppData() {
   const [access, setAccess] = useState<Access>(emptyAccess)
-  const [assignments, setAssignments] = useState<Assignment[]>([])
+  const [assignments, setAssignments] = useState<EnrollmentSummary[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
   const [reviewers, setReviewers] = useState<Person[]>([])
   const [loading, setLoading] = useState(true)
@@ -22,7 +22,7 @@ export function useAppData() {
     try {
       const [assignmentResponse, programResponse, reviewerResponse, accessResponse] =
         await Promise.all([
-          api.get<Assignment[]>('/calibration/enrollments'),
+          api.get<EnrollmentSummary[]>('/calibration/enrollments'),
           api.get<Program[]>('/calibration/programs'),
           api.get<ReviewerResponse>('/reviewers'),
           api.get<Access>('/calibration/access'),
