@@ -328,6 +328,23 @@ class CalibrationService:
             )
         )
 
+    async def has_started(self, presentation_ids: set[str]) -> bool:
+        """True if any Observation exists for any of the given presentations.
+
+        Reports raw participation regardless of lock state, distinct from
+        `blotter_locked_at`/`skin_locked_at`: an evaluator who has answered
+        but not yet locked a sample has still "started."
+        """
+        if not presentation_ids:
+            return False
+        return (
+            await self.db.scalar(
+                select(Observation.id).where(
+                    Observation.presentation_id.in_(presentation_ids)
+                )
+            )
+        ) is not None
+
     async def target(
         self, presentation_id: str, username: str, admin: bool
     ) -> tuple[Presentation, Enrollment]:

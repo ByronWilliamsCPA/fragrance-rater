@@ -846,3 +846,24 @@ async def test_perfumer_is_concealed_until_reveal(protocol):
     assert identity["perfumers"] == [
         {"name": "Testable Nose", "source_url": "https://example.invalid/attribution"}
     ]
+
+
+@pytest.mark.asyncio
+async def test_has_started_false_until_first_observation(protocol):
+    service, *_ = protocol
+    enrollment = await enroll(protocol)
+    presentations = await service.presentations(enrollment.id)
+    assert await service.has_started({p.id for p in presentations}) is False
+    await service.observe(
+        presentations[0].id,
+        ResponseInput(stage="BLOTTER", detected=True, intensity=2, liking=5),
+        "family-recorder",
+        admin=False,
+    )
+    assert await service.has_started({p.id for p in presentations}) is True
+
+
+@pytest.mark.asyncio
+async def test_has_started_false_for_empty_presentation_set(protocol):
+    service, *_ = protocol
+    assert await service.has_started(set()) is False
