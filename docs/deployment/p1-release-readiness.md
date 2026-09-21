@@ -50,17 +50,21 @@ program membership is locked. Retain the report and manifest hash.
 
 1. Take a native PostgreSQL custom-format backup and verify that the command exits successfully.
 2. Restore it into a new PostgreSQL 16 database with no route from application clients.
-3. Record `alembic_version`, PostgreSQL version, table row counts, primary-key counts, minimum
-   and maximum timestamps, duplicate natural keys, and invalid foreign keys.
-4. Hash a sorted, redacted export of IDs and timestamps for `fragrances`, `reviewers`, and
-   `evaluations`.
+3. Record `alembic_version`, PostgreSQL version, table row counts, minimum and maximum
+   timestamps, duplicate natural keys, and invalid foreign keys.
+4. Hash a sorted, redacted export of every column for `fragrances`, `reviewers`, and
+   `evaluations`, one digest per column so an added column is a non-event but a changed value
+   or a dropped column is not.
 5. Run `pg_restore --list` and retain the output with the backup hash.
 
-Steps 3-4 above are steps `scripts/p1_migration_inventory.py` automates instead of hand-run SQL:
+Steps 3-4 above are steps `scripts/p1_migration_inventory.py` automates instead of hand-run SQL.
+The connection string comes from the `P1_DATABASE_URL` environment variable (plain
+`postgresql://` scheme, not the application's `postgresql+asyncpg://` SQLAlchemy URL), never
+from the command line, so credentials stay out of `ps` and shell history:
 
 ```bash
-uv run python scripts/p1_migration_inventory.py "postgresql://user:pass@clone-host/db" \
-  --output /secure/path/before.json
+export P1_DATABASE_URL='postgresql://<user>:<password>@<clone-host>/<db>'
+uv run python scripts/p1_migration_inventory.py --output /secure/path/before.json
 ```
 
 The restore itself is the first backup test. A backup file that has not been restored is not
@@ -80,14 +84,18 @@ uv run alembic current
 Repeat the inventory and compare against the pre-upgrade snapshot:
 
 ```bash
-uv run python scripts/p1_migration_inventory.py "postgresql://user:pass@clone-host/db" \
+uv run python scripts/p1_migration_inventory.py \
   --output /secure/path/after.json --compare /secure/path/before.json
 ```
 
-A nonzero exit means the migration did not preserve `fragrances`, `reviewers`, or `evaluations`
-row-for-row; do not proceed. Historical evaluation IDs, encounter counts, ratings,
-reviewer/fragrance links, and timestamps must match. New calibration tables must have their
-declared constraints and indexes. Run `EXPLAIN (ANALYZE, BUFFERS)` for participant history,
+Exit code 1 means a preservation violation; do not proceed. Exit code 2 means the tool could not
+do its job (unreachable database, unwritable `--output`, unreadable `--compare`); treat that the
+same as a failed check, not a pass. Only exit 0 means verified. A violation names the exact
+column that changed (for example `evaluations.rating: content hash changed`), a dropped column,
+a row-count or timestamp-range mismatch, a duplicate-natural-key count delta, or an
+invalid-foreign-key count delta; it does not require every column to be byte-identical, since a
+migration may legitimately add columns. New calibration tables must have their declared
+constraints and indexes. Run `EXPLAIN (ANALYZE, BUFFERS)` for participant history,
 recommendation history, and program dashboard queries using representative cardinality.
 Re-running `upgrade head` must be a no-op.
 
