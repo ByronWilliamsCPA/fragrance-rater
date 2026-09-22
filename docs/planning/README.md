@@ -14,8 +14,13 @@ This directory contains the governing documents for Fragrance Rater.
 | [Controlled Calibration V1](../calibration-v1.md) | Defines the implemented controlled workflow and its deployment constraints |
 | [Data Model Gap Analysis](data-model-gap-analysis.md) | Reviews the schema against preference-learning, scenario, and future-ML requirements; captured as ADR-010, partially implemented |
 | [Architecture and Design Review 2026-09](architecture-review-2026-09.md) | Advisory critical review of design, architecture, and evidence integrity with sequenced remediation workstreams; proposes work, does not change plan status |
+| [User Roles and Workflows Gap Analysis](user-roles-and-workflows-gap-analysis.md) | Advisory product audit of evaluator, recorder, and administrator workflows with tracked findings and candidate remediation; proposes work, does not change plan status |
+| [Frontend Visual and Usability Gap Analysis](frontend-visual-and-usability-gap-analysis.md) | Advisory evaluator-centered review of visual direction and desktop/phone usability with prioritized remediation; proposes work, does not change plan status |
 | [ML Structure Review 2026-09](ml-structure-review-2026-09.md) | Advisory review of whether data, features, labels, evaluation protocol, and code can produce a successful learned preference model, with ranked structural changes |
+| [Preference-Prediction Data Capture Assessment](preference-prediction-data-capture-assessment.md) | Future-data-scientist audit of perfume, evaluator, context, behavior, Fragella, and milestone data requirements for liking, wear, and purchase prediction |
+| [Perfume-Purchasing Research Validation](../research/perfume-purchasing-research-validation.md) | Claim-level validation of the two LLM-generated purchasing research reports and the bounded changes they support in the data-capture assessment |
 | [ML Decisions 2026-09](ml-decisions-2026-09.md) | Options and recommendations for the eight decisions the ML review requires, with the owner's recorded answers |
+| [Product Research Remediation Implementation Plan](product-research-remediation-implementation-plan.md) | Reconciles the roles/workflows, frontend, and ML/data gap-analysis documents with the authoritative plan and Milestone R; specifies concrete schema, API, frontend, and evidence-governance changes with traceable IDs; not yet approved |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
 behavior but does not silently supersede an accepted ADR.

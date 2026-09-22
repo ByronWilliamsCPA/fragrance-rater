@@ -52,6 +52,13 @@ const routeDefinitions = [
     documentTitle: 'About this project',
     hiddenFromNav: true,
   },
+  {
+    route: 'evidence',
+    label: 'Evidence',
+    path: '/evidence',
+    documentTitle: 'Evidence and opportunity',
+    hiddenFromNav: true,
+  },
 ] as const
 
 export type Route = (typeof routeDefinitions)[number]['route']

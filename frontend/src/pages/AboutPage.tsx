@@ -53,6 +53,15 @@ export function AboutPage({ navigate }: AboutPageProps) {
           answer is the same one that worked at the tasting table: pay attention to reactions to
           complete, real examples, not to what someone believes their preferences are on paper.
         </p>
+        <p>
+          <a
+            className="inline-target-link"
+            href={pathFor('evidence')}
+            onClick={(event) => followRouteLink(event, 'evidence', navigate)}
+          >
+            See the evidence and market opportunity
+          </a>
+        </p>
       </section>
       <section>
         <h3>How calibration works</h3>
@@ -81,8 +90,8 @@ export function AboutPage({ navigate }: AboutPageProps) {
           <div className="flow-step">
             <strong>Frozen predictions</strong>
             <p>
-              Before the evaluator smells anything new, a manager can freeze the model's
-              prediction for that fragrance, writing it down and locking it in first.
+              Before the evaluator smells anything new, a manager can freeze the model's prediction
+              for that fragrance, writing it down and locking it in first.
             </p>
           </div>
           <span className="flow-arrow" aria-hidden="true">

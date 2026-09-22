@@ -5,6 +5,7 @@ import { useAppData } from './hooks/useAppData'
 import { AboutPage } from './pages/AboutPage'
 import { CalibrationPage } from './pages/CalibrationPage'
 import { CalibrationProtocolPage } from './pages/CalibrationProtocolPage'
+import { EvidencePage } from './pages/EvidencePage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
@@ -107,6 +108,7 @@ function App() {
         />
       )}
       {route === 'about' && <AboutPage navigate={navigate} />}
+      {route === 'evidence' && <EvidencePage navigate={navigate} />}
     </AppShell>
   )
 }
