@@ -222,22 +222,28 @@ doc, confirmed live and unfixed by this diff):
 3. New preference-profile page (PREF-01): new route, reuses `page-heading`/`hero-statement`
    conventions already established by `EvidencePage.tsx`; loading/error states via existing
    `PageState.tsx` (unlike `EvidencePage`, this page fetches real per-user data and needs them).
-4. `EvidencePage.tsx` follow-ups (both low severity, can batch with any nearby frontend PR):
-   replace hardcoded `sources[n]` indices with named references (FE-08); confirm the two
-   unlinked sources (Bawa & Shoemaker, Distel et al.) are an intentional ledger-only placement,
-   not an oversight.
+4. `EvidencePage.tsx` follow-up (low severity, can batch with any nearby frontend PR): confirm
+   the two unlinked sources (Bawa & Shoemaker, Distel et al.) are an intentional ledger-only
+   placement, not an oversight. (FE-08's hardcoded `sources[n]` indexing is already resolved: a
+   later commit in this PR refactored `EvidencePage.tsx` to key citations by stable name via the
+   `sourceByKey` pattern, so no positional `sources[n]` indexing remains to fix.)
 5. Relabel Fragella `confidence` field (DEC-06).
 
 ## 11. Accessibility requirements
 
-No new accessibility defects were found. The existing 32-test Playwright a11y suite
-(`e2e/accessibility.spec.ts`) already covers WCAG 2.2 AA including 2.5.8 target size, for all 9
-routes including `/evidence`, in both light and dark themes, and passed in full during
-verification (Section 5 caveat: only after routing around an unrelated port-3000 collision: flag
-this to whoever owns local dev environment docs, since `npm run test:e2e` will silently produce
-32 false failures for anyone with something else bound to port 3000). Any new page from Section 10
+No new accessibility defects were found by automated testing. The existing 32-test Playwright
+a11y suite (`e2e/accessibility.spec.ts`) runs automated axe-core checks, including WCAG 2.2's
+2.5.8 target-size success criterion, for all 9 routes including `/evidence`, in both light and
+dark themes, and passed in full during verification (Section 5 caveat: only after routing around
+an unrelated port-3000 collision: flag this to whoever owns local dev environment docs, since
+`npm run test:e2e` will silently produce 32 false failures for anyone with something else bound
+to port 3000). Automated axe-core checks cover only a subset of WCAG 2.2 AA success criteria
+(structural, programmatically-detectable issues); they do not by themselves demonstrate full AA
+conformance. Manual review and assistive-technology (screen reader) validation are separate,
+still-needed work before full AA conformance can be claimed. Any new page from Section 10
 (preference profile, nav collapse, scale-field phone treatment) must add itself to
-`accessibility.spec.ts`'s `routeChecks` before merge, per existing project convention.
+`accessibility.spec.ts`'s `routeChecks` before merge, per existing project convention, but that
+addition alone does not substitute for the manual/assistive-technology validation pass.
 
 ## 12. Fragella integration plan
 
@@ -358,11 +364,16 @@ tracking needed). No other new observability gaps were found in this review.
 
 ## 22. Rollout and rollback strategy
 
-All changes in this plan are additive schema and frontend-only changes; no destructive migration,
-so rollback is standard Alembic downgrade plus a frontend revert. No feature flag infrastructure
-is warranted for this scope (per the project's stated preference to avoid flags/compatibility
-shims where a direct change suffices): these are pre-baseline schema/UI additions, not a live
-production cutover.
+Changes in this plan span additive schema, backend/API, and frontend layers, not schema and
+frontend alone: Section 9's authorization and service-layer changes (`api/evaluations.py`
+reviewer-scoping, `api/reviewers.py`/`api/fragrances.py` admin checks, the new read-only
+preference-profile endpoint) require their own backend deployment and rollback, in addition to
+the schema and frontend rollback already covered here. No destructive migration is involved, so
+schema rollback is a standard Alembic downgrade; the backend/API changes roll back via a standard
+service revert/redeploy, and the frontend via a standard frontend revert. No feature flag
+infrastructure is warranted for this scope (per the project's stated preference to avoid
+flags/compatibility shims where a direct change suffices): these are pre-baseline schema/API/UI
+additions, not a live production cutover.
 
 ## 23. Ordered implementation phases
 
