@@ -1,7 +1,8 @@
 # ADR-012: Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance
 
 > **Status**: Accepted; amends ADR-002; SourceSnapshot provenance specified by the
-> 2026-09-15 amendment below
+> 2026-09-15 amendment and implemented per the same amendment; vendor-licensed data added as a
+> source tier by the 2026-09-21 amendment below
 >
 > **Date**: 2026-09-15
 
@@ -111,6 +112,82 @@ Follow-up (implementation, not part of this decision):
   ~109) to read the newest relevant `SourceSnapshot` instead, once the column is dropped.
 - Widen `Fragrance.data_source`'s CHECK constraint (if any exists at the DB level; today
   it is unconstrained at the column level) to the new value set.
+
+## 2026-09-21 amendment: vendor-licensed data as a source tier
+
+Decision item 3's source hierarchy names manufacturer-provided confirmation and open-licensed
+data (Wikidata) but has no tier for a fragrance-database vendor's structured field data acquired
+under a direct license. Research into candidate vendors (Fragrances of the World, WikiParfum,
+Fragrantica and Parfumo under a direct commercial agreement distinct from the scraping this ADR
+already excludes, PERFUMIST, and several conditional aggregators still pending upstream-provenance
+diligence) surfaced a real path to closing the 0/43 gap `baseline-v3.1-catalog-coverage.md`
+documents, but one the existing hierarchy has no place for. This amendment adds that tier and
+records the request-shape decision that governs how it is pursued, without yet implementing it:
+no vendor has agreed to a license as of this writing, so there is nothing to backfill and no
+justification for a schema change today, the same spec-now-implement-later pattern the
+2026-09-15 amendment above used for `SourceSnapshot` itself.
+
+**Record scope and rights scope are requested separately, and at different breadths.** The
+concrete, near-term ask made of any vendor is a named list of the 43 baseline and holdout
+fragrances, not the vendor's full catalog: a vendor is far more likely to agree to license 43
+named products than to become a production data dependency for an entire recommendation
+platform. The rights requested for that narrow list are not narrowed to match, however: every
+outreach asks for the full breadth this project will eventually need (local storage, ML
+training, embeddings, recommendation-model use, and a defined path from personal/research use to
+commercial use), and separately asks whether the arrangement can later be amended or extended in
+scope rather than renegotiated from nothing. The reason to keep these two axes separate: closing
+today's gate with rights narrower than the project will eventually need would just relocate the
+renegotiation to later, with a vendor who has already seen the project ask for less.
+
+**Upstream provenance diligence applies to a vendor license exactly as it applied to Parfumo.**
+A downstream license cannot create upstream rights the vendor never possessed; the governing
+question for any candidate is not whether it advertises commercial use, but whether it can
+demonstrate it had the rights to acquire the underlying data before it can grant this project the
+rights above. This is the same diligence standard Decision item 3's excluded-sources list already
+applies to FragDB (whose own documentation names Fragrantica as an upstream source) and to
+unverified Kaggle/GitHub/Hugging Face datasets; a vendor's own license terms, read alone, are not
+sufficient clearance.
+
+**Where this tier sits in the hierarchy is fact-dependent, not a single fixed rank.** For
+identity facts a brand can and does confirm directly (concentration, release year, brand/line
+attribution), manufacturer-provided confirmation remains preferred; a vendor's third-party
+characterization of another company's product is not stronger evidence than the product owner's
+own statement. For olfactory and sensory fields (notes, accords, fragrance family) that
+manufacturer outreach less reliably supplies, a cleared vendor database is the preferred source,
+ranking above open-licensed Wikidata for those fields specifically, since Wikidata's fragrance
+coverage is identity-oriented and does not generally carry olfactory detail.
+
+**A cleared vendor license maps to `retain_and_train`.** The rights language above (local
+storage, ML training, embeddings, recommendation use, no resale or redistribution of the
+underlying dataset) matches the `retain_and_train` permission state already defined for
+project-owned, manufacturer-provided, and open-licensed facts: no resale or redistribution right
+is needed for that state, since it governs retention and internal use, not third-party
+redistribution.
+
+**Alternatives considered.** Negotiating full-catalog rights from the first conversation with
+each vendor: rejected for the near-term objective, more likely to stall a vendor relationship
+that a narrower, answerable request would not, and unnecessary since the immediate need is 43
+named fragrances, not catalog-wide coverage. Treating a vendor's "commercial use permitted"
+marketing language as sufficient clearance on its own: rejected, for the same reason Parfumo was
+excluded and FragDB was left conditional, downstream license terms do not establish upstream
+rights.
+
+**Consequences.** Positive: gives the outreach effort already underway (`tmp_cleanup/letters/`,
+Tier 1 and Tier 2 vendor letters) a named source tier and permission state to land evidence in
+once a vendor responds, instead of forcing a licensed vendor fact into `manufacturer_provided` or
+`open_licensed` where it does not belong. Trade-offs: adds a source tier with no data behind it
+yet; if no vendor responds, this amendment records a decision with no immediate effect on
+coverage, and the project falls back to the manufacturer-outreach and Wikidata paths the
+2026-09-15 amendment already established.
+
+Follow-up (implementation, not part of this decision):
+
+- Add `vendor_licensed` to `SourceSnapshot.source_type`'s CHECK constraint and to Decision item
+  3's source hierarchy text, once a vendor agreement is actually signed, not speculatively ahead
+  of one.
+- Record per-vendor diligence findings, license terms, and correspondence in the local outreach
+  packet, not in this ADR; this ADR records the durable request-shape and hierarchy decision
+  only.
 
 ## Context
 
@@ -297,3 +374,5 @@ identity matching.
 - `docs/planning/evidence/baseline-v3.1-parfumo-source-resolution.md`: the document holding the
   facts this ADR requires re-verifying
 - Outreach contact tracker (tracked locally, outside this repository; see project `.gitignore`)
+- Data-licensing outreach packet and per-vendor provenance due diligence (tracked locally,
+  outside this repository; see project `.gitignore`)
