@@ -1317,6 +1317,9 @@ class ParfumoScraper:
         self.db.add(
             SourceSnapshot(
                 fragrance_id=fragrance_id,
+                source_type="excluded_legacy",
+                permission_state="excluded_no_new_writes",
+                fields=["concentration", "launch_year", "brand"],
                 source_url=scraped.url,
                 payload=asdict(scraped),
             )

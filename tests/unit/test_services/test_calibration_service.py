@@ -169,6 +169,9 @@ async def test_add_member_accepts_gtin_matching_source_evidence(protocol):
     service.db.add(
         SourceSnapshot(
             fragrance_id="secret-version-2",
+            source_type="open_licensed",
+            permission_state="retain_and_train",
+            fields=["gtin"],
             source_url="https://example.test/secret-version-2",
             payload={"gtin": "3508440005953"},
         )
@@ -197,6 +200,9 @@ async def test_add_member_rejects_gtin_mismatching_source_evidence(protocol):
     service.db.add(
         SourceSnapshot(
             fragrance_id="secret-version-2",
+            source_type="open_licensed",
+            permission_state="retain_and_train",
+            fields=["gtin"],
             source_url="https://example.test/secret-version-2",
             payload={"gtin": "3508440005953"},
         )
@@ -225,6 +231,9 @@ async def test_add_member_ignores_a_raw_gtin_smuggled_via_selection(protocol):
     service.db.add(
         SourceSnapshot(
             fragrance_id="secret-version-2",
+            source_type="open_licensed",
+            permission_state="retain_and_train",
+            fields=["gtin"],
             source_url="https://example.test/secret-version-2",
             payload={"gtin": "3508440005953"},
         )
@@ -255,6 +264,9 @@ async def test_add_member_accepts_a_gtin_14_matching_gtin_13_source_evidence(
     service.db.add(
         SourceSnapshot(
             fragrance_id="secret-version-2",
+            source_type="open_licensed",
+            permission_state="retain_and_train",
+            fields=["gtin"],
             source_url="https://example.test/secret-version-2",
             payload={"gtin": "3508440005953"},
         )
@@ -285,6 +297,9 @@ async def test_add_member_rejects_gtin_conflicting_with_an_older_snapshot(protoc
     service.db.add(
         SourceSnapshot(
             fragrance_id="secret-version-2",
+            source_type="open_licensed",
+            permission_state="retain_and_train",
+            fields=["gtin"],
             source_url="https://example.test/secret-version-2/older",
             payload={"gtin": "3508440005953"},
             retrieved_at=now_naive_utc() - timedelta(days=30),
@@ -293,6 +308,9 @@ async def test_add_member_rejects_gtin_conflicting_with_an_older_snapshot(protoc
     service.db.add(
         SourceSnapshot(
             fragrance_id="secret-version-2",
+            source_type="open_licensed",
+            permission_state="retain_and_train",
+            fields=["gtin"],
             source_url="https://example.test/secret-version-2/newer",
             payload={"name": "Aimez-Moi"},
             retrieved_at=now_naive_utc(),

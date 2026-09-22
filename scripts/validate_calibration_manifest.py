@@ -19,7 +19,6 @@ REQUIRED_TEXT = (
     "name",
     "concentration",
     "version_key",
-    "source_url",
     "verification_evidence",
 )
 ROLES = {
@@ -76,8 +75,26 @@ def validate_manifest(document: object) -> list[str]:
             seen_memberships.add(membership_key)
         if str(entry.get("concentration", "")).strip().lower() == "unknown":
             errors.append(f"{prefix}.concentration cannot be unknown")
+        # #ASSUME: data-integrity: ADR-012's SourceSnapshot amendment allows a
+        # manufacturer confirmation with no URL (an email or phone reply) to
+        # stand as evidence via source_reference instead of source_url, with
+        # a CHECK constraint requiring at least one of the two. Mirroring
+        # that here, instead of keeping source_url unconditionally required,
+        # is what lets a direct reply be recorded as P1.1 evidence without
+        # inventing a public URL for a private reply.
+        # #VERIFY: covered by tests for source_url-only, source_reference-only,
+        # both, and neither.
         source_url = entry.get("source_url")
-        if isinstance(source_url, str):
+        source_reference = entry.get("source_reference")
+        has_url = isinstance(source_url, str) and bool(source_url.strip())
+        has_reference = isinstance(source_reference, str) and bool(
+            source_reference.strip()
+        )
+        if not has_url and not has_reference:
+            errors.append(
+                f"{prefix} must have a non-empty source_url or source_reference"
+            )
+        if has_url:
             parsed = urlparse(source_url)
             if parsed.scheme != "https" or not parsed.netloc:
                 errors.append(f"{prefix}.source_url must be an absolute HTTPS URL")
