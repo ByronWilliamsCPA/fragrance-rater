@@ -123,6 +123,12 @@ settles the daily-load, calendar-spread, and judgment-set half of the protocol d
   noise ceiling." Read that phrase alongside the repeat-design row above: 6 repeats per evaluator
   support a pooled, wide-uncertainty benchmark, not a precise individual ceiling. See the
   companion ADR-009 terminology amendment.
+- Moving `would_buy` out of the blinded per-sample core is a permanent omission for the initial F1
+  evaluators, not an ordinary deferral: each (evaluator, fragrance) pair gets one pre-reveal blotter
+  or skin exposure, so a blind, price-free purchase-intent judgment cannot be collected again once
+  that pass is over. The decision stands (an offer-conditioned `would_buy` would itself leak
+  identity through price and size, so it is necessarily post-reveal), but the loss is acknowledged
+  here rather than left implicit.
 
 ## Related
 

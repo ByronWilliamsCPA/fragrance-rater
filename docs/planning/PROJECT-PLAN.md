@@ -79,6 +79,15 @@ Its P6-blocking sprints precede the P6 go decision; its F1-blocking sprints prec
 pilot perfume. R9-R14 improve maintainability and can run in parallel with P6 evidence gathering
 but do not gate it.
 
+The diagram nests R2 and R5-R8 under P6 for brevity; it does not mean P6 must fully close before
+they start. One ordering is load-bearing and is not optional: R7b (section 11a, the
+participant-facing blind-instrument build) must merge before P6.3's synthetic rehearsal
+(`gates/p6.md`), because F1's initial four evaluators get exactly one blind pass each, and a
+rehearsal that validates an instrument F1 will not actually run proves nothing about the
+instrument that matters. R8 may still land after the P6 go decision, since it is schema/service
+work with no evaluator-facing UI. Recorded 2026-09-21 after a one-shot-blind-baseline review found
+the diagram's literal ordering would let P6.3 rehearse against a pre-R7 instrument.
+
 P1 evidence may be gathered while P3-P5 are implemented, but its deployed UI, disclosure, and
 smoke checks use the final P6 candidate. No family member evaluates an actual pilot perfume
 until P6 closes. F1 establishes the real-use baselines previously assigned to P2. D1 begins only
@@ -485,7 +494,8 @@ require before F1 collects data.
 8, 9, 12, 13 and Tier 3 items 14, 15), `affinity-v2` as the default scorer (Q6), the ADR-009
 learning-problem amendment (Q1), and R5 (protocol research prompt run, reconciled as the ADR-005
 protocol-research-reconciliation amendment, closing Q8's session-structure and judgment-scale
-questions). R7 carries the resulting schema work. Completed on 2026-09-21: R1 (CI truthfulness -
+questions). R7a carries the resulting schema work; R7b carries the resulting participant-instrument
+work (split 2026-09-21 after a one-shot-blind-baseline review, see the sprint table below). Completed on 2026-09-21: R1 (CI truthfulness -
 see [`docs/ci-gates.md`](../ci-gates.md) for the authoritative per-workflow record and its "Known
 residual gaps" section for what R1 deliberately left open, including that `docker-publish.yml`'s
 CVE gate stays report-only and that Q9's default resolved only PyPI publishing and the Python
@@ -514,7 +524,8 @@ the review's implementation-status section, and the relevant ADR in the same pul
 | R4 | Disclosure leaks, audit trail, logging | Role-neutral 409 on holdout feedback; explanation only by persisted impression id; `log_audit_event` on activate, enroll, lock, reveal, mapping retrieval, checkpoint, prediction create and link; no-store by default under the API prefix; `setup_logging()` in lifespan; `SecretStr` keys and a redaction processor; two new rows in the P1.7 disclosure matrix (B-01, B-02, B-03, B-26, F-15, S-07, S-15) | P6 | Sonnet | Opus | 1 PR |
 | R5 | Protocol research reconciliation (done 2026-09-19) | Ran the [protocol research prompt](../research/scent-evaluation-protocol-research-prompt.md) on two deep-research models; recorded both results under `docs/research/`; verified a six-citation sample from each (sampled citations from one report checked out, the other showing real citation fabrication that a supplementary check found ran deeper than the sample alone showed; see the ADR-005 amendment) and reconciled by preferring the verified report; recorded the [2026-09-19 ADR-005 amendment](adr/adr-005-controlled-calibration.md#2026-09-19-amendment-protocol-research-reconciliation); session size and the 33/10/6 baseline structure are unchanged, daily load/calendar/scales/familiarity/`would_buy`/descriptors/ranking-analysis/order-balancing/session-context/skin-timepoints changed; schema changes handed to R7 (ML Decisions Q8) | F1 | Opus | Owner | 1 PR |
 | R6 | Vocabulary foundation | `NoteAlias` table with `mapping_version`, normalized unique key on `notes`, `Note.category` cleaned of pyramid position (Kaggle rows backfilled to NULL), `accord_types` lookup with `accord_type` as a foreign key, `intensity_source` on `fragrance_accords` with positional values excluded from measured features by default, one resolver used by both importers, `FragranceNote.rank`, scoped to the 43 baseline and holdout versions alongside P1.1 verification; D1 fixtures (`oak moss`/`oakmoss`, `vanille`/`vanilla`, ambiguous, unknown); `FEATURE_SPACE_VERSION` bump (X-01, X-02, X-03, X-04, X-12; ML Decisions Q2, Q5) | F1 | Opus | Sonnet tests | 2 PRs |
-| R7 | Pairwise, behavioral, and context capture | `PairwiseComparison` and `BehavioralEvent` tables; typed sample-provenance columns on `Presentation`; `occurred_on`/`presented_at` and a written session `context`; familiarity as a code on both evidence tables; `scrubbed_off` and `time_to_scrub_minutes`; the end-of-session ranking prompt in the calibration page yielding three pairwise rows; scenario lookups schema-only; shapes adjusted to R5's result before merge (X-07, X-08, X-09, X-14, X-22, X-23; ML Decisions Q3, Q8) | F1 | Sonnet | Opus | 2 PRs |
+| R7a | Pairwise, behavioral, and context capture: schema and service | `PairwiseComparison`/rank-event and `BehavioralEvent` tables; typed sample-provenance columns on `Presentation`; real `occurred_on`, `presented_at`/`applied_at`, `observed_at`, and evaluator timezone (not schedule-generation or server-receipt time); `SessionContext` fields (illness, hunger, ambient odor, etc., per the ADR-005 amendment); familiarity recognition code plus a separate prior-ownership/exposure code on both evidence tables; `scrubbed_off`, `time_to_scrub_minutes`, `last_detected_elapsed_min`, `first_not_detected_elapsed_min`; a response-status code (completed/not_detected/skipped/unable_to_assess/interrupted/invalidated); randomization algorithm, seed, and intended position; a deviation/quality-flag table; a consent-event table (13.11); `instrument_version` (or frontend build SHA) on `programs`, written at activation; scenario/season and setting lookup columns (ML Decisions Q9); the R2 parity test; shapes adjusted to R5's result before merge (X-07, X-08, X-09, X-14, X-22, X-23; ML Decisions Q3, Q8, Q9) | F1 | Opus | Sonnet tests | 2 PRs |
+| R7b | Pairwise, behavioral, and context capture: participant instrument v2 | Session-start context form gated by the R7a consent screen; blotter form writes the recognition + prior-ownership codes instead of the current 0-5 integer; skin flow presents fixed 10 min/1 h/4 h/8 h timepoints and stamps `applied_at`/`observed_at` from the client clock at submit (with an explicit `observed_at` field for recorder transcription); scrub-off controls; a per-response-group "unable to assess/skipped" control; a "flag a problem with this session or sample" control; end-of-session ranking of detected samples stored as one rank event over the eligible subset, never as independent pairwise rows (ADR-005 amendment, ML Decisions Q8); blind `would_buy` removed from the skin form; 0/5/10 and 0/5 verbal anchors rendered; one or two coarse blind scenario/setting questions at the skin stage only, roughly 6 per evaluator (ML Decisions Q9). **Acceptance:** a synthetic run through the released UI (one enrollment, one session, one skin wear, one ranking, one flagged deviation) produces an export where every field above is non-null for at least one row; the export is attached to the P6.3 synthetic-rehearsal record (`gates/p6.md`) | F1; must merge before P6.3 (section 4) | Sonnet | Opus | 2 PRs |
 | R8 | Training eligibility and provenance in schema | `training_eligibility` on both evidence tables and a `v_training_rows` view; manager-only view for role and repeat linkage; `SourceSnapshot` gains `source_revision`, `content_hash`, `parser_version`, `license_evidence`, `verified_by`, the ADR-012 columns, and a nullable `source_url`; `ModelCheckpoint` gains exclusions, filters, feature-space and taxonomy versions, params, and input digest; typed checkpoint predictions; `FeatureSnapshot` rows; `predict.py` and `dataset.py` read the view (X-05, X-06, X-16, X-17, D-01, M-07, M-08) | F1 | Opus | Sonnet tests | 2 PRs |
 | R9 | Scaffold deletion | Remove `api/ratings.py`, `api/catalog_stub.py`, `llm/`, `middleware/auth.py`, the Postman workflow and collection (or retarget at `/api/v1`), `core/cache.py` and the `redis` dependency, `jobs/`, `utils/financial.py`, unused health checks, demo CLI commands; flag-gate the Parfumo scraper with a deprecation warning after moving GTIN evidence into `SourceSnapshot`; rewrite the app description and README overview (G-03, G-07, B-21, B-22, B-23, B-24, B-30, F-04/F-22, B-34; architecture review Q1-Q4, Q12 pending, defaults apply) | none (maintainability) | Sonnet | Opus | 2 PRs |
 | R10 | Backend consolidation | Services never commit; one `ProjectBaseError` handler; domain exceptions replace `reject()` and raw `HTTPException` in services; activation, skin planning, finalization, and checkpoint creation move into `CalibrationService` with checkpoint creation under the enrollment lock plus a PostgreSQL concurrency test; control-flow asserts replaced; N+1 and unbounded queries fixed; import size bounded; registry-validated `candidate_strategy` and checkpoint `algorithm_version` (B-04, B-05, B-07, B-08, B-09, B-14, B-15, B-16, B-17, B-25, B-29, B-33, B-35, B-31, M-11) | none | Opus | Sonnet tests | 3 PRs |
@@ -528,7 +539,9 @@ the review's implementation-status section, and the relevant ADR in the same pul
 
 1. R1, then R2, in that order (R2's parity test needs R1's PostgreSQL job to be visible in CI).
 2. R3 and R4 in parallel after R1; both must merge before the P6 go decision.
-3. R5 is done; R6 after R2; R7 after R2 (R5's reconciliation is already available); R8 after R6.
+3. R5 is done; R6 after R2; R7a after R2 (R5's reconciliation is already available); R7b after
+   R7a and before the P6.3 synthetic rehearsal (section 4, `gates/p6.md`); R8 after R6 and may
+   land after the P6 go decision, since it carries no evaluator-facing UI.
 4. R9 after the architecture review's Q1-Q4 and Q12 are decided (defaults apply if undecided).
 5. R10 after R3 and R9; R11 after R10; R12 after R11; R13 any time after R1.
 6. R14 operations items before the P6 decision; documentation items whenever capacity allows.
@@ -551,6 +564,9 @@ the review's implementation-status section, and the relevant ADR in the same pul
 - The full backend and frontend gates pass; a schema change carries the R2 parity test.
 - No P6 or F1 gate is marked closer to complete without the retained evidence its gate record
   names.
+- For R7b specifically: the synthetic released-UI export named in its row is produced and attached
+  to the P6.3 rehearsal record before P6.3 is marked complete, and again before F1's first exposure
+  if R7b changed after P6.3 last ran.
 
 ## 12. Milestone F1: Initial family perfume pilot
 
@@ -572,6 +588,10 @@ values before discovery work.
 - Reports retain interest, response coverage, sampling conversion, post-sample liking, wear/buy,
   availability, coverage, variety, and connectivity/recovery counts with denominators.
 - The review records usability problems separately from fragrance or algorithm outcomes.
+- Before first exposure, the R7b synthetic-run export is attached (or re-attached, if R7b changed
+  since P6.3 last ran) and the blind-instrument version is recorded, per `gates/f1.md`'s
+  blind-baseline instrument completeness row. F1's four evaluators each get exactly one blind pass;
+  a field this criterion would have caught cannot be recovered afterward.
 - The core maintainer retains a redacted evidence export and records a decision. Only a
   proceed-to-D1 decision completes F1 for sequencing; revise, extend, or stop keeps D1 blocked.
 
@@ -763,6 +783,8 @@ A work package may enter implementation only when:
 | Family participation or feedback coverage is low | Medium | High | Product owner | P4 one-interaction feedback and F1 response-coverage/workflow observation |
 | Mobile/home connectivity prevents use | Medium | Medium | Core maintainer | P6 rehearses failure handling; F1 measures failures and retains manual recovery |
 | Scope expands into advanced ML too early | Medium | Medium | Product owner | D5 decision gate; active learning and calibrated claims remain out of scope |
+| F1's blind pass runs on a schema-only instrument (fields exist in the database but nothing in the released UI writes them) | High as scoped before 2026-09-21 | Critical: irreversible for the initial four evaluators, each of whom gets exactly one pre-reveal exposure per fragrance | Product owner | R7b's synthetic released-UI export (section 11a) and the P6.3 re-rehearsal requirement (`gates/p6.md`) |
+| The F1 mapping-holder is also one of the four evaluators | Confirmed for this pilot (2026-09-21) | High for that evaluator's rows only | Product owner | That evaluator's rows are flagged non-blind and excluded from blind-baseline training per `gates/f1.md`; the other three evaluators are unaffected |
 
 ## 22. Audit finding disposition
 

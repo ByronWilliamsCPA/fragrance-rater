@@ -127,6 +127,12 @@ checkpoints exist to avoid.
 Recommended: land after F1 closes and before D1, so the first pilot is internally consistent and the
 second wave collects the richer signal.
 
+For the initial four F1 evaluators specifically, this deferral is permanent, not merely sequenced:
+each (evaluator, fragrance) pair has one pre-reveal exposure, so a blind directional preference-driver
+judgment ("which attributes pushed your rating up or down") cannot be collected retroactively for
+that pair once F1's baseline closes. The fatigue and comparability reasoning above still justifies
+the deferral; it is recorded here so the trade-off is visible rather than read as a neutral delay.
+
 ## Perfumer as an evaluable dimension
 
 Added 2026-09-19 at the maintainer's request. Related to the above because both ask the same

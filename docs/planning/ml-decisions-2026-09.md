@@ -30,6 +30,7 @@ tags:
 | Q6 | Freeze v1, fix as v2 | A: v1 pinned; register v2; compare | C, modified: fix now and make the corrected scorer (v2) the default because no family ratings exist; keep v1 registered as a reference model for the comparison harness | 2026-09-19 |
 | Q7 | ML dependencies | A: optional dependency group in this repo | A | 2026-09-19 |
 | Q8 | Pairwise judgments during F1 | B: rank the three samples per session | B, decided: rank all three, analyzed as one rank event (see the ADR-005 amendment) | 2026-09-19 |
+| Q9 | Blind scenario/season label before F1 (`product-research-remediation-implementation-plan.md` DEC-01) | (a): a minimal, coarse season/setting label is cheap now and cannot be reconstructed after reveal | (a), narrowed: one or two coarse questions (season fit; setting fit), asked only at the roughly 6 skin-stage candidates per evaluator, not all 49 blotter presentations, to limit fatigue. Folded into R7b (`PROJECT-PLAN.md` section 11a). | 2026-09-21 |
 
 ## Q1. Declare the learning problem
 
@@ -165,6 +166,20 @@ split out as its own field), the ranking procedure (confirmed, analyzed as one r
 independent pairwise comparisons), order/position balancing (explicit constrained randomization),
 session-context fields (added), and skin timepoints (10 min / 1 h / 4 h / 8 h with interval-censored
 longevity). Schema implementation for these changes is R7's scope, not this amendment's.
+
+## Q9. Blind scenario/season label before F1
+
+Raised as DEC-01 in `product-research-remediation-implementation-plan.md` section 4 and confirmed
+as the highest-risk open item in that plan's section 26: a blind (pre-reveal) judgment about which
+season or setting a fragrance suits is only obtainable before the evaluator learns its identity.
+Left unresolved, `PROJECT-PLAN.md`'s R7 row would ship "scenario lookups schema-only," a lookup
+table with no evaluator-facing question, so nothing would populate it during F1.
+
+**Decided 2026-09-21:** add one or two coarse questions (which seasons this suits; which settings
+this suits, from a short fixed list) at the skin stage only, roughly 6 candidates per evaluator,
+not all 49 blotter presentations, per the fatigue caution in
+`preference-prediction-data-capture-assessment.md` section 6.2. Folded into R7b's participant
+instrument in `PROJECT-PLAN.md` section 11a.
 
 ## Sequence once decided
 

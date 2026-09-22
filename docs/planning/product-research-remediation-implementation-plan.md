@@ -88,6 +88,30 @@ this plan; each needs the product owner's explicit answer.
 | DEC-07 | Should the three new gap-analysis documents be corrected in place to cross-reference the architecture review and Milestone R, or superseded by this plan? | (a) Annotate each doc with a pointer to this plan and the relevant R-sprint; (b) leave as-is and rely on this plan alone | (a): a future reader of the standalone docs should not re-discover findings as if new | docs/planning/README.md entries |
 | DEC-08 | Cadence for the real-backend Playwright smoke tier (nightly vs. pre-deploy) | Carried over from P1.8, unresolved before this session too | Not re-decided here; flagged again because R13/R14 touch the same CI surface this plan's frontend items depend on | PROJECT-PLAN.md:200-203 |
 
+### Resolutions, 2026-09-21
+
+Prompted by a review of this plan against the constraint that F1's initial four evaluators get
+exactly one blind pass each. Full review, options, and recommendations were presented to the
+product owner before deciding.
+
+- **DEC-01: resolved (a), narrowed.** Add one or two coarse blind scenario/setting questions, at
+  the skin stage only (roughly 6 candidates per evaluator, not all 49 blotter presentations), to
+  respect the section 6.2 fatigue caution. Recorded as Q9 in `ml-decisions-2026-09.md` and folded
+  into R7b below.
+- **DEC-02: resolved (b) by implementation.** R7 is split into R7a (schema/service) and R7b
+  (participant instrument), each item folded into the sprint that owns its table, per the phase
+  table below. No 16th sprint added.
+- **DEC-03: resolved per the recommended default.** `would_buy` moves out of the blind skin core;
+  executed as part of R7b (remove the question from `calibrationScales.ts:184`'s `skinGroups`).
+  ADR-005's amendment now also notes this is a permanent omission for the initial four evaluators,
+  not an ordinary deferral.
+- **DEC-04: resolved per the recommended default.** The assessment's preference-driver-feature
+  recommendation is withdrawn; ADR-016 is unchanged (still not before F1). ADR-016 now notes the
+  deferral is permanent for the initial four evaluators.
+
+DEC-05 through DEC-08 remain open; they are unrelated to the one-shot-blind-baseline review and are
+not addressed by this update.
+
 ## 5. Requirement-to-code traceability
 
 | Product capability (from task brief) | Delivery path | Current state | Gap |
@@ -385,18 +409,21 @@ Milestone R, it specifies what lands *inside* each already-sequenced sprint.
 | 1 | R2 (not started) | Prerequisite only: no findings from this review land here directly, but nothing below can start until R2 merges | Yes |
 | 2 | R3/R4 (not started) | ROLES-03/S-05/B-10 scoping fix; ADMIN-01 admin checks | Yes (P6-gating) |
 | 3 | R6 (not started) | Vocabulary normalization (DC-03/MS-04); CAL-02 baseline-template validation (DEC-05) | Yes |
-| 4 | R7 (not started) | Exposure metadata (DC-02), season/setting (DC-01, pending DEC-01), pairwise/ranking (DC-08), perceived-notes normalization (DC-15), randomization record (DC-20), familiarity-as-code (DC-24), `would_buy` relocation (DC-06/DEC-03), consent contract (DC-25/Section 18), response-status vocabulary (DC-18) | Yes: all irrecoverable-after-the-fact |
-| 5 | R8 (not started) | Evidence-row eligibility view (DC-04/MS-02), `FeatureSnapshot`/checkpoint enrichment (DC-19/MS-10) | Yes |
+| 4a | R7a, schema/service (not started) | Exposure metadata (DC-02), season/setting columns (DC-01, DEC-01 resolved yes), pairwise/rank-event schema (DC-08), perceived-notes normalization (DC-15), randomization record (DC-20), familiarity-as-code (DC-24), consent-event table (DC-25/Section 18), response-status vocabulary (DC-18) | Yes: all irrecoverable-after-the-fact |
+| 4b | R7b, participant instrument (not started; must merge before P6.3, `PROJECT-PLAN.md` section 4) | Session-context form, blotter recognition/ownership controls, skin-timepoint stamping, scrub-off, unable-to-assess control, deviation-flag control, one-rank-event ranking UI, `would_buy` relocation (DC-06/DEC-03), coarse scenario/setting questions at skin stage (DEC-01); synthetic released-UI export as acceptance evidence | Yes: same irrecoverability as 4a, but only the UI half actually collects it |
+| 5 | R8 (not started) | Evidence-row eligibility view (DC-04/MS-02), `FeatureSnapshot`/checkpoint enrichment (DC-19/MS-10) | Yes, but may land after the P6 go decision: no evaluator-facing UI |
 | 6 | Frontend, any time after R3 | Nav collapse (FE-02), scale-field phone treatment (FE-03), preference-profile page (PREF-01), `EvidencePage` follow-ups (FE-08), Fragella confidence relabel (DEC-06) | No, but should land before F1 for usability, not correctness |
 | 7 | Data dictionary/manifest (new, folds into R7/R8) | DC-16, DC-17, DC-26 | Yes for DC-16/17, before first export for DC-26 |
 | 8 | Post-F1 | D4 (Fragella match/similar), preference-driver features (ADR-016, DEC-04), BLaIR-informed encoder experiment (Section 13), WS-03 collection/ownership as its own milestone (DEC-05) | No: explicitly deferred |
 
 ## 24. Dependencies and critical path
 
-`R2 → {R3, R4 in parallel} → R6 → R7 → R8 → P6 go decision → F1`. This plan adds no new
-cross-sprint dependency beyond what PROJECT-PLAN §11a sequencing note already states; DEC-01
-(season/setting scope) is the one decision that, if answered "yes, widen R7," adds real scope to
-an already-not-started sprint and should be resolved before R7 is estimated.
+`R2 → {R3, R4 in parallel} → R6 → R7a → R7b → P6.3 rehearsal → R8 (any time before F1) → P6 go
+decision → F1`. Updated 2026-09-21: R7 is split into R7a/R7b (DEC-02), and R7b must precede the
+P6.3 synthetic rehearsal, not just the P6 go decision, because a rehearsal run against a pre-R7b
+instrument validates nothing F1 will actually use. R8 has no evaluator-facing UI and may land
+after the P6 go decision, before F1, without this constraint. DEC-01 (season/setting scope) is
+resolved (yes, narrowed to skin-stage-only, see the Resolutions note in section 4).
 
 ## 25. Acceptance criteria and release gates
 
@@ -408,11 +435,13 @@ the R2 parity test.
 
 ## 26. Risks and unresolved owner decisions
 
-All eight items in Section 4's decision register are unresolved and block at least one phase in
-Section 23. The single highest-risk one is DEC-01: if season/setting is required for F1's own
-wear/buy prediction goals but R7 stays schema-only, F1 will collect a baseline that cannot support
-the product's own stated milestone-3 objective, and that gap will not be discoverable until after
-baseline collection has already started (XD-01).
+DEC-01, DEC-03, and DEC-04 were resolved 2026-09-21 (section 4). DEC-02, DEC-05, DEC-06, DEC-07,
+and DEC-08 remain unresolved and block at least one phase in Section 23, but none carries the
+same irreversibility as the resolved items: DEC-05/06/07/08 concern maintainability and
+documentation, and DEC-02 is effectively answered in practice by the R7a/R7b split even though not
+formally closed. The item this section previously called highest-risk, DEC-01, is now resolved and
+folded into R7b; the residual risk is execution, not decision, and is tracked as R7b's synthetic
+released-UI export requirement (`PROJECT-PLAN.md` section 11a) rather than as an open decision.
 
 ## 27. Explicit "defer / do not build yet" list
 

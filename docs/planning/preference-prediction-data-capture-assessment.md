@@ -1,7 +1,7 @@
 # Preference-Prediction Data Capture Assessment
 
 > **Status**: Draft for product-owner review
-> **Version**: 1.3
+> **Version**: 1.4
 > **Updated**: 2026-09-21
 > **Perspective**: Future data scientist responsible for preference-model development
 > **Companions**: [ML Structure Review](ml-structure-review-2026-09.md),
@@ -821,9 +821,9 @@ three outcomes as separate labels throughout retrieval, training, and evaluation
 An internally authored, unreviewed architecture proposal argued for a broad future-state data
 model spanning multi-tenant household scoping, a mobile client, federated learning, and a wide
 event-sourced schema. Most of that proposal's infrastructure is out of scope here: it is
-comparatively cheap to add later, and `commercialization-revenue-options.md` already stages
-multi-tenancy, billing, and tenant-scoped deletion at Stage C4, after paid validation, not before
-it. A senior-architecture review of the same proposal reached the same conclusion independently.
+comparatively cheap to add later, and the project's own commercialization staging already places
+multi-tenancy, billing, and tenant-scoped deletion at a post-paid-validation stage, not before it.
+A senior-architecture review of the same proposal reached the same conclusion independently.
 
 One distinction from that review does belong in this assessment. Infrastructure is reversible;
 a moment's price, context, offer, or consent state that goes unrecorded is not. The five items
@@ -890,9 +890,18 @@ for. Add a consent/contribution-state field, recorded per evaluator or per conse
 at minimum: research use within the household, inclusion in aggregate reporting, and future model
 training contribution. This is distinct from the sensitive-field consent in 13.11; it applies to
 ordinary observations as much as to sensitive context, and it is the field a future export or
-aggregate-benchmark decision would need to check before including a given evaluator's rows,
-per `commercialization-revenue-options.md`'s rule that new commercial uses require specific,
-informed opt-in rather than a buried terms update.
+aggregate-benchmark decision would need to check before including a given evaluator's rows, per
+this project's rule that new commercial uses require specific, informed opt-in rather than a
+buried terms update.
+
+None of the five items above is required before F1's blind pass. 18.1 and 18.2 must exist before
+the first recorded offer or purchase event, which can only occur post-reveal; 18.3 before the
+first follow-up wear-log window opens, also post-reveal; 18.5 rides on the consent screen that
+13.11 already requires before session-context collection, so it costs nothing extra if that screen
+is being built anyway; 18.4 may land whenever a migration next touches the relevant tables. The
+data that genuinely cannot wait, because the initial four evaluators get exactly one pre-reveal
+exposure per fragrance, is scoped in sections 5.1, 6, 11 (Milestone 1), 12 (P0), and 13.13, and is
+tracked in `PROJECT-PLAN.md`'s R7a/R7b sprint rows, not here.
 
 ## 19. Change-control note
 
