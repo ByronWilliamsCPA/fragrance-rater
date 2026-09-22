@@ -1,7 +1,8 @@
-"""Recommendation service implementing ADR-004 weighted affinity scoring.
+"""Recommendation service implementing ADR-004/ADR-007 weighted affinity scoring.
 
 This module implements the recommendation algorithm with:
-- Cumulative note/accord/family affinities from user ratings
+- Note/accord/family affinities from the latest live ordinary encounter per
+  reviewer/version (ADR-007), aggregated with rating weights
 - Veto mechanism for strongly disliked notes
 - Weighted scoring with configurable component weights
 """
@@ -109,9 +110,10 @@ class RecommendationService:
 
     def __init__(self, session: AsyncSession, model: Scorer | None = None) -> None:
         self.session = session
-        # The scoring model. Defaults to the frozen affinity-v1 heuristic; a
-        # registered alternative can be injected to score the same eligible
-        # evidence under the same rules (ML structure review, M-03/M-11).
+        # The scoring model. Defaults to the registered default scorer
+        # (affinity-v2); a registered alternative (e.g. AffinityV1) can be
+        # injected to score the same eligible evidence under the same rules
+        # (ML structure review, M-03/M-11).
         self.model: Scorer = model if model is not None else DEFAULT_SCORER_FACTORY()
 
     async def build_preference_profile(
