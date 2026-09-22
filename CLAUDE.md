@@ -236,7 +236,8 @@ BasedPyright replaces MyPy as the standard type checker (3-5x faster, stricter a
 
 ### PyStrict-Aligned Ruff Rules
 
-Ruff configuration includes PyStrict-aligned rules for ultra-strict code quality:
+Ruff configuration's `[tool.ruff.lint]` "PyStrict additions" group holds these rules for
+ultra-strict code quality:
 
 - **BLE**: Blind except detection (no bare `except:` or `except Exception:`)
 - **EM**: Error message best practices
@@ -247,9 +248,13 @@ Ruff configuration includes PyStrict-aligned rules for ultra-strict code quality
 - **RSE**: Raise statement best practices
 - **TID**: Banned imports, relative import rules
 - **YTT**: Python version checks
-- **FA**: Future annotations
-- **T10**: Debugger statements (no `breakpoint()`, `pdb`)
-- **G**: Logging format strings
+
+A few other quality rules sit in earlier groups of the same `select` list rather than the
+PyStrict addition, but are equally enforced:
+
+- **FA**: Future annotations (type annotations group)
+- **T10**: Debugger statements, no `breakpoint()`/`pdb` (best practices group)
+- **G**: Logging format strings (additional quality group)
 
 ### File-Type Standards
 
@@ -357,8 +362,9 @@ END BASELINE DEVELOPMENT STANDARDS
 
 ## Project Planning Documents
 
-> **Status**: P0-P5 are complete; P1 external evidence, Milestone R's R1-R4 sprints, and the P6
-> pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
+> **Status**: P0, P2-P5 are complete. P1's repository controls are complete but its external
+> evidence is pending through P6; that pending P1 evidence, Milestone R's R1-R4 sprints, and the
+> P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
 > The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
@@ -380,11 +386,14 @@ END BASELINE DEVELOPMENT STANDARDS
 - **ADR-004/007**: Weighted affinity with veto plus current evidence-selection and score semantics
 - **ADR-005**: Controlled calibration and disclosure state
 - **ADR-006**: Canonical version identity, source provenance, aliases, and taxonomy
-- **ADR-008**: Authentik/Traefik production trust boundary
+- **ADR-008**: Authentik/Traefik production trust boundary (nginx currently forwards forgeable `X-Authentik-*` headers unreset; tracked as architecture-review finding S-01)
 - **ADR-009**: Prospective evaluation with frozen checkpoints
+- **ADR-010**: Preference-learning and scenario data model (partially implemented)
 - **ADR-011**: Worn-by ("on others") evidence dimension, captured but excluded from scoring
 - **ADR-012**: Parfumo deprecation and manufacturer-provenance as preferred replacement source
 - **ADR-013**: External ontology and standards crosswalk (Cinquieme Sens, IFRA, Michael Edwards, evaluation methodology)
+- **ADR-014**: Two records share this number (see `docs/planning/adr/README.md`) — frontend E2E/accessibility testing (accepted, amended to WCAG 2.2 AA), and training eligibility/unclassified-family sentinel (proposed)
+- **ADR-016**: Per-dimension preference capture and perfumer as an evaluable dimension (proposed; perfumer read path implemented, scoring use undecided)
 
 ### Current Delivery Sequence
 
@@ -880,5 +889,5 @@ See `.standards/README.md` for detailed merge instructions.
 
 ---
 
-**Last Updated**: 2025-12-29
+**Last Updated**: 2026-09-22
 **Template Version**: 0.1.0

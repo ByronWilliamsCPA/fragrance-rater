@@ -87,9 +87,12 @@ older liking score at the same presentation/stage.
 
 The first recommendation adapter prefers skin to blotter, takes the latest eligible selected
 observation, converts 0–10 liking to -2..2 affinity using `(liking - 5) / 2.5`, and averages that
-with the latest ordinary affinity when both exist. This explicit `affinity-v1` heuristic preserves
-raw scales and limits each version to one contribution. It is not a statistically calibrated
-liking predictor or confidence estimate.
+with the latest ordinary affinity when both exist. This explicit heuristic preserves raw scales
+and limits each version to one contribution. It was introduced as `affinity-v1` and is inherited
+unchanged by `affinity-v2` (the ADR-004 2026-09-19 amendment; see `ml/registry.py`'s
+`DEFAULT_MODEL_KEY`), which is the application default; `affinity-v1` remains registered for
+reference comparisons. Neither is a statistically calibrated liking predictor or confidence
+estimate.
 
 Manager checkpoint endpoints store algorithm version, timestamp, exact input values and source
 feature snapshots, and supplied predictions. Prospective checkpoint creation closes once that
