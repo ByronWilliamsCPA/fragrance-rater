@@ -224,6 +224,7 @@ nav:
       - ADR-008 Authentication Boundary: planning/adr/adr-008-authentication-and-production-boundary.md
       - ADR-009 Prospective Evaluation: planning/adr/adr-009-prospective-evaluation-and-checkpoints.md
       - ADR-010 Preference-Learning Data Model: planning/adr/adr-010-preference-learning-and-scenario-data-model.md
+      - ADR-015 Project-Owned Faceted Olfactory Vocabulary: planning/adr/adr-015-project-owned-faceted-olfactory-vocabulary.md
       - ADR Template: ADRs/adr-template.md
 
   - Reference:

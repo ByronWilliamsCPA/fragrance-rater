@@ -2,7 +2,8 @@
 
 > **Status**: Partially superseded by ADR-007; candidate discovery extended by the 2026-09-15
 > amendment (Fragella-sourced candidates, bounded by ADR-012); scoring corrected by the 2026-09-19
-> amendment (affinity-v2)
+> amendment (affinity-v2); `provider_term_mapping` target generalized further by the 2026-09-24
+> amendment (pointer to ADR-015)
 >
 > **Date**: 2025-12-28
 
@@ -211,6 +212,17 @@ Evidence selection (ADR-007), the veto mechanism, the component weights, and the
 weights are unchanged. `k`, the threshold, and the link scale are heuristic choices recorded in
 the model spec and are candidates for the prospective comparison ADR-009 requires, not tuned
 values.
+
+## 2026-09-24 amendment (pointer to ADR-015)
+
+ADR-015 generalizes `provider_term_mapping`'s target (introduced in the 2026-09-15 amendment
+above, and already broadened from Fragella-only to multi-provider by ADR-013) from a single
+target column to `note_id` XOR `term_id`, so the same table serves both layer-2 normalization
+(mapping a raw term to a `Note`) and layer-3 classification aliasing (mapping to a
+`vocabulary_term`) under ADR-015's four-layer intake model. `provider_key` values now include
+`house:<brand_id>` (a specific niche house) and `evaluator`, alongside the existing `fragella`,
+`edwards`, and crosswalk providers. Candidate discovery, scoring, and Fragella's storage
+boundary above are unchanged. See ADR-015 for the full model.
 
 ## Context
 
@@ -501,4 +513,6 @@ def get_recommendations(
   evidence/provenance type rather than blending it silently
 - [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md): Fragella's storage
   boundary and bounded-lookup role that the 2026-09-15 amendment operates within
+- [ADR-015](./adr-015-project-owned-faceted-olfactory-vocabulary.md): generalizes
+  `provider_term_mapping`'s target to `note_id` XOR `term_id`
 - [Tech Spec API](../tech-spec.md#api-surface): Recommendation endpoints
