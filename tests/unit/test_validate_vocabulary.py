@@ -157,3 +157,80 @@ def test_active_must_be_boolean() -> None:
     terms(document)[1]["active"] = "yes"
     errors = validator.validate_vocabulary(document)
     assert "term dry-woods: active must be true or false" in errors
+
+
+def tree(document: dict[str, object]) -> list[dict[str, object]]:
+    """Return the mutable display tree of a document."""
+    return cast("list[dict[str, object]]", document["display_tree"])
+
+
+def test_node_needs_exactly_one_of_heading_or_term() -> None:
+    document = doc()
+    tree(document)[0]["term"] = "woody"
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[0]: node needs exactly one of heading or term" in errors
+
+
+def test_node_term_must_exist() -> None:
+    document = doc()
+    tree(document).append({"term": "smoky"})
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[1]: unknown term smoky" in errors
+
+
+def test_heading_needs_children() -> None:
+    document = doc()
+    tree(document).append({"heading": "Empty"})
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[1]: heading Empty has no children" in errors
+
+
+def test_active_term_missing_from_tree() -> None:
+    document = doc()
+    terms(document).append(
+        {
+            "code": "smoky",
+            "kind": "descriptor",
+            "label": "Smoky",
+            "usual_family_hint": "woody",
+            "definition": "Smoke.",
+            "active": True,
+        }
+    )
+    errors = validator.validate_vocabulary(document)
+    assert "active term smoky is missing from display_tree" in errors
+
+
+def test_inactive_term_may_not_appear_in_tree() -> None:
+    document = doc()
+    terms(document)[1]["active"] = False
+    errors = validator.validate_vocabulary(document)
+    assert (
+        "display_tree[0].children[0].children[0]: term dry-woods is inactive" in errors
+    )
+
+
+def test_descriptor_may_appear_under_several_nodes() -> None:
+    document = doc()
+    tree(document).append({"heading": "Also", "children": [{"term": "dry-woods"}]})
+    assert validator.validate_vocabulary(document) == []
+
+
+def test_depth_limit() -> None:
+    document = doc()
+    deep: dict[str, object] = {"term": "dry-woods"}
+    for index in range(4):
+        deep = {"heading": f"Level {index}", "children": [deep]}
+    tree(document).append(deep)
+    errors = validator.validate_vocabulary(document)
+    assert any("deeper than 4 levels" in error for error in errors), errors
+
+
+def test_content_hash_is_stable_and_order_insensitive_for_keys() -> None:
+    first = doc()
+    second = doc()
+    header = second["vocabulary"]
+    assert isinstance(header, dict)
+    second["vocabulary"] = dict(reversed(list(header.items())))
+    assert validator.content_hash(first) == validator.content_hash(second)
+    assert len(validator.content_hash(first)) == 64

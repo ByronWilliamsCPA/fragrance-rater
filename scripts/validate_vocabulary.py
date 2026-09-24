@@ -96,6 +96,58 @@ def _validate_terms(
     return errors, by_code
 
 
+def _walk_tree(
+    nodes: object,
+    by_code: dict[str, dict[str, object]],
+    path: str,
+    depth: int,
+    seen: set[str],
+    errors: list[str],
+) -> None:
+    if not isinstance(nodes, list):
+        errors.append(f"{path}: must be a list")
+        return
+    for index, node in enumerate(nodes):
+        where = f"{path}[{index}]"
+        if not isinstance(node, dict):
+            errors.append(f"{where}: node must be a mapping")
+            continue
+        node = cast("dict[str, object]", node)
+        if depth > MAX_TREE_DEPTH:
+            errors.append(
+                f"{where}: display_tree is deeper than {MAX_TREE_DEPTH} levels"
+            )
+            continue
+        has_heading = bool(_text(node.get("heading")))
+        term_code = _text(node.get("term"))
+        if has_heading == bool(term_code):
+            errors.append(f"{where}: node needs exactly one of heading or term")
+        elif term_code:
+            term = by_code.get(term_code)
+            if term is None:
+                errors.append(f"{where}: unknown term {term_code}")
+            elif term.get("active") is not True:
+                errors.append(f"{where}: term {term_code} is inactive")
+            else:
+                seen.add(term_code)
+        children = node.get("children")
+        if children is None:
+            if has_heading and not term_code:
+                errors.append(f"{where}: heading {node.get('heading')} has no children")
+            continue
+        _walk_tree(children, by_code, f"{where}.children", depth + 1, seen, errors)
+
+
+def _validate_tree(tree: object, by_code: dict[str, dict[str, object]]) -> list[str]:
+    errors: list[str] = []
+    seen: set[str] = set()
+    _walk_tree(tree, by_code, "display_tree", 1, seen, errors)
+    for code, term in by_code.items():
+        if term.get("active") is True and code not in seen:
+            errors.append(f"active term {code} is missing from display_tree")
+    return errors
+
+
 def validate_vocabulary(document: object) -> list[str]:
     """Return every rule violation in a vocabulary document."""
     if not isinstance(document, dict):
@@ -106,8 +158,9 @@ def validate_vocabulary(document: object) -> list[str]:
     if errors:
         return errors
     errors.extend(_validate_header(document["vocabulary"]))
-    term_errors, _by_code = _validate_terms(document["terms"])
+    term_errors, by_code = _validate_terms(document["terms"])
     errors.extend(term_errors)
+    errors.extend(_validate_tree(document["display_tree"], by_code))
     return errors
 
 
