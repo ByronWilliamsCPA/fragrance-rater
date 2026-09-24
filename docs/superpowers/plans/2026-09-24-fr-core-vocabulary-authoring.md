@@ -824,7 +824,7 @@ Expected: `status: draft`.
 | `vocabulary_term` fields: code, label, kind, usual_family_hint, active | 2, 4 |
 | Publish check: every active term in the tree | 3 |
 | Publish check: nodes reference terms of the same version | 3 (single-file scope) |
-| Publish check: acyclic, depth at most 4 | 3 (nesting makes cycles impossible; depth tested) |
+| Publish check: acyclic, depth at most 4 | 3 (YAML anchors can build a cycle; the depth limit rejects it) |
 | Publish check: import boundary on display tree | D1 (no display-tree module exists yet) |
 | `content_hash` | 2, 3 |
 | Author vocabulary content now | 4, 5 |

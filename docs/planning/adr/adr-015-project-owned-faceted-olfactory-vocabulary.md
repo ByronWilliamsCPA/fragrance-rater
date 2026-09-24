@@ -61,14 +61,17 @@ protocol.
      space `fs-v2`, asserted via `term_assertion(fragrance_id)`.
 3. **Faceted storage is the source of truth; a separate display tree is UI and teaching only.**
    `vocabulary` realizes ADR-010's `ClassificationSystem` (`code`, `version`, `owner`
-   (`project | external`), `status` (`draft | published | retired`), `content_hash`).
-   `vocabulary_term` carries `kind` (`family | descriptor`) and an informational, nullable
-   `usual_family_hint` for descriptors. `vocabulary_display_node` (`vocabulary_id`, `parent_id`,
-   `term_id` nullable for pure headings, `sort_order`) renders a tree for humans without
-   constraining storage: a strict single tree cannot represent a material or note whose
-   descriptors legitimately span more than one family. A vocabulary version cannot move to
-   `published` unless every active term appears in the tree at least once, every node
-   references terms of the same version, and the tree is acyclic with depth at most 4. An
+   (`project | external`), `status` (`draft | published | retired`), `content_hash`, which
+   excludes `status` so a draft and the same content later published, with no other change,
+   hash identically). `vocabulary_term` carries `kind` (`family | descriptor`), a required text
+   `definition`, and an informational, nullable `usual_family_hint` for descriptors.
+   `vocabulary_display_node` (`vocabulary_id`, `parent_id`, `term_id` nullable for pure
+   headings, `heading` text nullable, exactly one of `heading` or `term_id` set, `sort_order`)
+   renders a tree for humans without constraining storage: a strict single tree cannot represent
+   a material or note whose descriptors legitimately span more than one family. A vocabulary
+   version cannot move to `published` unless every active term appears in the tree at least
+   once, every node references terms of the same version, and the tree is acyclic with depth at
+   most 4. An
    import-boundary test fails if any scoring, feature, or ML module imports the display tree.
 4. **Rank semantics.** Rank 0 is the primary family; only `kind=family` terms may hold it.
    Ranks 1 to 5 are descriptors; only `kind=descriptor` terms may hold them. This is enforced in
@@ -177,11 +180,11 @@ taxonomy mappings, and evaluator perception stay in separate layers.
 
 ### Trade-offs
 
-- Two new tables (`declared_label`, `provider_term_mapping`) plus three more
+- Two new tables (`declared_label`, `provider_term_mapping`) plus five more, the layer-3 set
   (`vocabulary`, `vocabulary_term`, `vocabulary_display_node`, `assertion_source`,
-  `term_assertion`, five in total including the layer-3 set) is a larger schema surface than a
-  single classification table would have been; the alternatives above were rejected because
-  each is worse on some other axis, not because this one is free.
+  `term_assertion`), seven in total, is a larger schema surface than a single classification
+  table would have been; the alternatives above were rejected because each is worse on some
+  other axis, not because this one is free.
 - Nothing in layers 2 through 4 is usable until D1, which itself does not start before F1
   reaches its "proceed to D1" decision; the practical benefit of this ADR is deferred by that
   same gate.
