@@ -12,92 +12,92 @@ terms:
   - code: citrus
     kind: family
     label: Citrus
-    definition: "Bright, juicy, and tangy, like peeling an orange or squeezing a lemon."
+    definition: "Bright, tangy, and sunny, like the fine spray that bursts out when you cut into a lemon."
     active: true
   - code: floral
     kind: family
     label: Floral
-    definition: "Smells of flowers, from a single rose to a full bouquet."
+    definition: "The smell of flowers, from a single buttonhole to a whole garden in full summer bloom."
     active: true
   - code: fruity
     kind: family
     label: Fruity
-    definition: "Smells of ripe fruit other than citrus, like berries, peaches, or apples."
+    definition: "Ripe, juicy, and sweet-tart, like a summer market stall piled high, apart from the citrus."
     active: true
   - code: green
     kind: family
     label: Green
-    definition: "Fresh and leafy, like snapped stems, crushed leaves, or a garden after mowing."
+    definition: "Fresh, sharp, and alive, the smell of growing plants rather than their flowers or fruit."
     active: true
   - code: aromatic
     kind: family
     label: Aromatic
-    definition: "Herbal and fresh, like lavender, rosemary, mint, or a pot of kitchen herbs."
+    definition: "Fresh, clean, and herbal, with a cool, clearing lift that opens up your nose."
     active: true
   - code: spicy
     kind: family
     label: Spicy
-    definition: "Warm or tingly, like the spice rack: pepper, cinnamon, clove, or ginger."
+    definition: "Warm, prickly, or tingling, like opening the jars on a well-stocked kitchen shelf."
     active: true
   - code: woody
     kind: family
     label: Woody
-    definition: "Smells of wood, whether dry and pencil-like, smooth and creamy, or dark and deep."
+    definition: "The smell of trees and timber, ranging from light and dry to smooth, dark, or deep."
     active: true
   - code: resinous
     kind: family
     label: Resinous
-    definition: "Sticky tree resins and balms, rich and glowing, like frankincense or a sticky pine cone."
+    definition: "Sticky, rich, and golden, the thick gums that ooze from cuts in tree bark."
     active: true
   - code: amber
     kind: family
     label: Amber
-    definition: "Warm, sweet, and cozy, built from vanilla, resin, and soft spice glowing together."
+    definition: "Rich, warm sweetness with a dusty, resin-like depth, heavier and less edible than dessert smells."
     active: true
   - code: gourmand
     kind: family
     label: Gourmand
-    definition: "Smells good enough to eat, like desserts, sweets, coffee, or baked treats."
+    definition: "Smells good enough to eat or drink, like a kitchen where treats are being made."
     active: true
   - code: musky
     kind: family
     label: Musky
-    definition: "Soft, clean, skin-like warmth that stays close, like freshly washed skin or laundry."
+    definition: "Soft, smooth, and gently warm, a quiet, lasting smell that stays close rather than filling a room."
     active: true
   - code: animalic
     kind: family
     label: Animalic
-    definition: "Warm, raw, bodily smells, like skin, sweat, fur, or a horse stable."
+    definition: "Warm, raw, and bodily, the smells of people and animals up close, not freshly washed."
     active: true
   - code: leathery
     kind: family
     label: Leathery
-    definition: "Smells of leather goods, from soft suede gloves to a new saddle."
+    definition: "The smell of tanned animal hide, from soft and gentle to rich, polished, or rough."
     active: true
   - code: smoky
     kind: family
     label: Smoky
-    definition: "Smells of smoke and fire, like a campfire, burning incense, or a blown-out match."
+    definition: "The smell of something burning, from soft embers to charred, sooty, or scorched edges."
     active: true
   - code: earthy
     kind: family
     label: Earthy
-    definition: "Damp and natural, like soil, moss, roots, or mushrooms on a forest walk."
+    definition: "Dark, damp, and natural, the smells found low down at ground level outdoors."
     active: true
   - code: aquatic
     kind: family
     label: Aquatic
-    definition: "Watery and airy, like sea spray, a cold stream, or a breezy day outdoors."
+    definition: "Watery, airy, and cool, the fresh smells of water, wind, and weather."
     active: true
   - code: mineral
     kind: family
     label: Mineral
-    definition: "Stony, cool, and lifeless in a good way, like wet rocks, chalk, metal, or ink."
+    definition: "Cool and lifeless in a good way, the non-living smells of stone, metal, and man-made materials."
     active: true
   - code: aldehydic
     kind: family
     label: Aldehydic
-    definition: "Bright, fizzy, and clean, like fresh soap, pressed linen, or a classic powdery perfume."
+    definition: "Bright, fizzy, and squeaky-clean, like the crisp steam rising from a hot iron."
     active: true
 
   # Descriptors (ranks 1 to 5), grouped by usual_family_hint
@@ -105,546 +105,534 @@ terms:
     kind: descriptor
     label: Tart
     usual_family_hint: citrus
-    definition: "Sour and sharp, like lemon juice or a bite of lime."
+    definition: "Sour and mouth-puckering, like lime wedges or a sour candy."
     active: true
   - code: bitter-peel
     kind: descriptor
     label: Bitter peel
     usual_family_hint: citrus
-    definition: "The bitter, oily bite of grapefruit or bitter orange peel and pith."
+    definition: "The bitter, oily bite of grapefruit skin or the chewy strips in marmalade."
     active: true
   - code: sweet-orange
     kind: descriptor
     label: Sweet orange
     usual_family_hint: citrus
-    definition: "Juicy and sweet, like a freshly peeled orange or tangerine."
+    definition: "Juicy and sugary-bright, like peeling a tangerine or a clementine."
     active: true
 
   - code: rosy
     kind: descriptor
     label: Rosy
     usual_family_hint: floral
-    definition: "Smells like a fresh rose, from dewy and pink to deep and jammy."
+    definition: "The classic Valentine's bouquet, or a square of Turkish delight, from dewy and pink to deep and jammy."
     active: true
   - code: heady
     kind: descriptor
     label: Heady
     usual_family_hint: floral
-    definition: "Rich, intense flowers like jasmine or tuberose that can fill a whole room."
+    definition: "Rich, creamy, intense blossoms, like a jasmine vine on a warm evening or a gardenia corsage."
     active: true
   - code: dewy-petals
     kind: descriptor
     label: Dewy petals
     usual_family_hint: floral
-    definition: "Fresh, delicate flowers with a watery touch, like lily of the valley or wet petals."
+    definition: "Fresh, delicate, and watery, like lily of the valley or a spring posy still wet with rain."
     active: true
   - code: narcissus-green
     kind: descriptor
     label: Narcissus green
     usual_family_hint: floral
-    definition: "A sharp, green, hay-like edge found in narcissus and paperwhites, more piercing than a soft bouquet."
+    definition: "Piercing and slightly musty, like paperwhite bulbs flowering indoors or a vase of daffodils."
     active: true
   - code: iris-powdery
     kind: descriptor
     label: Iris-powdery
     usual_family_hint: floral
-    definition: "The cool, soft, dusty smell of iris, a little like raw carrot and face powder."
+    definition: "Cool, dry, and soft, like raw carrot and the inside of a makeup bag."
     active: true
   - code: violet
     kind: descriptor
     label: Violet
     usual_family_hint: floral
-    definition: "Sweet, powdery flower smell, like violet sweets or old-fashioned lipstick."
+    definition: "Sweet, candy-like blossom with a cool leafy edge, like old-fashioned purple candies from a sweet shop."
     active: true
   - code: orange-blossom
     kind: descriptor
     label: Orange blossom
     usual_family_hint: floral
-    definition: "Sweet, sunny, honey-like smell of the flowers on orange and lemon trees."
+    definition: "Sweet, bright, and a little honeyed, like a citrus grove in spring or flower-scented baklava."
     active: true
 
   - code: red-berries
     kind: descriptor
     label: Red berries
     usual_family_hint: fruity
-    definition: "Juicy berries like strawberry, raspberry, and cherry."
+    definition: "Bright and juicy, like strawberries, raspberries, and cherries."
     active: true
   - code: stone-fruit
     kind: descriptor
     label: Stone fruit
     usual_family_hint: fruity
-    definition: "Soft, fuzzy, ripe fruit like peach, apricot, or nectarine."
+    definition: "Soft, fuzzy, and ripe, like a peach, apricot, or nectarine."
     active: true
   - code: tropical-fruit
     kind: descriptor
     label: Tropical fruit
     usual_family_hint: fruity
-    definition: "Lush, sunny fruit like mango, pineapple, passion fruit, or coconut."
+    definition: "Lush and sunny, like mango, pineapple, guava, or coconut."
     active: true
   - code: orchard-fruit
     kind: descriptor
     label: Orchard fruit
     usual_family_hint: fruity
-    definition: "Crisp, juicy fruit like apple, pear, or quince."
+    definition: "Crisp and juicy, like biting into an apple or a ripe pear."
     active: true
   - code: jammy
     kind: descriptor
     label: Jammy
     usual_family_hint: fruity
-    definition: "Cooked, dark, concentrated fruit, like plum jam, figs, or raisins."
+    definition: "Cooked, dark, and concentrated, like simmered plums, dried figs, or raisins."
     active: true
   - code: blackcurrant
     kind: descriptor
     label: Blackcurrant
     usual_family_hint: fruity
-    definition: "Tart, dark berry with a sharp, leafy tang, like blackcurrant cordial."
+    definition: "Tart, dark purple berry with a sharp, leafy, slightly sweaty tang, like a glass of purple cordial."
     active: true
 
   - code: cut-stems
     kind: descriptor
     label: Cut stems
     usual_family_hint: green
-    definition: "The sharp, sappy smell of snapped flower stems or a freshly mown lawn."
+    definition: "The wet, sappy juice of a snapped tulip stalk or a lawn right after mowing."
     active: true
   - code: leafy
     kind: descriptor
     label: Leafy
     usual_family_hint: green
-    definition: "Crushed green leaves, like brushing past a tomato plant or rubbing a leaf."
+    definition: "The pungent, fuzzy smell left on your fingers after touching a tomato plant."
     active: true
   - code: bitter-green
     kind: descriptor
     label: Bitter green
     usual_family_hint: green
-    definition: "Piercing, bitter green, like snapped green beans or a raw green pepper."
+    definition: "Sharp and vegetal, like slicing a raw bell pepper or shelling fresh peas."
     active: true
   - code: hay
     kind: descriptor
     label: Hay
     usual_family_hint: green
-    definition: "Dry, sweet, sun-dried grass, like a hayloft or a fresh bale of straw."
+    definition: "Dry, sweet, sun-baked grass, like a straw bale in late summer or a pet rabbit's bedding."
     active: true
   - code: tea
     kind: descriptor
     label: Tea
     usual_family_hint: green
-    definition: "Smells of tea leaves, from light green tea to dark, smoky black tea."
+    definition: "Light, dry, slightly bitter leaves, like a green teabag steeping in a cup of hot water."
     active: true
   - code: cucumber-crisp
     kind: descriptor
     label: Cucumber-crisp
     usual_family_hint: green
-    definition: "Cool, watery, crunchy freshness, like sliced cucumber or melon rind."
+    definition: "Cool, watery, and crunchy, like the slices in spa water or the pale rind of a melon."
     active: true
 
   - code: lavender
     kind: descriptor
     label: Lavender
     usual_family_hint: aromatic
-    definition: "Clean, herbal, slightly sweet smell of lavender flowers or a lavender sachet."
+    definition: "Clean, herbal, and slightly sweet, like a scented sachet in a linen drawer or a bedtime pillow spray."
     active: true
   - code: minty
     kind: descriptor
     label: Minty
     usual_family_hint: aromatic
-    definition: "Cool and refreshing, like peppermint, spearmint, or toothpaste."
+    definition: "Cool and tingly-fresh, like toothpaste, chewing gum, or a candy cane."
     active: true
   - code: medicinal
     kind: descriptor
     label: Medicinal
     usual_family_hint: aromatic
-    definition: "Sharp, clearing smell like eucalyptus, chest rub, or a first-aid cabinet."
+    definition: "Sharp and vapor-strong, like chest rub, eucalyptus, or a school nurse's first-aid kit."
     active: true
   - code: kitchen-herbs
     kind: descriptor
     label: Kitchen herbs
     usual_family_hint: aromatic
-    definition: "Savory cooking herbs like rosemary, thyme, basil, or sage."
+    definition: "Savory cooking seasoning, like rosemary on roast potatoes, torn basil, or a pinch of dried thyme."
     active: true
   - code: pine-needle
     kind: descriptor
     label: Pine needle
     usual_family_hint: aromatic
-    definition: "Fresh, sharp smell of crushed pine or fir needles, like a Christmas tree."
+    definition: "Fresh, sharp, and bright, like a real Christmas tree or a wreath on the front door."
     active: true
   - code: anise
     kind: descriptor
     label: Anise
     usual_family_hint: aromatic
-    definition: "Sweet licorice smell, like fennel seeds, star anise, or black jelly beans."
+    definition: "Sweet licorice smell, like fennel seeds or black jelly beans."
     active: true
 
   - code: peppery
     kind: descriptor
     label: Peppery
     usual_family_hint: spicy
-    definition: "The tingly, sneezy bite of freshly ground black or pink pepper."
+    definition: "The dry, sneezy bite of freshly cracked peppercorns over a plate of pasta."
     active: true
   - code: baking-spice
     kind: descriptor
     label: Baking spice
     usual_family_hint: spicy
-    definition: "Warm, sweet spices like cinnamon, clove, and nutmeg in a holiday bake."
+    definition: "Warm and sweet, like cinnamon rolls, pumpkin pie, or mulled cider at the holidays."
     active: true
   - code: ginger-bright
     kind: descriptor
     label: Ginger-bright
     usual_family_hint: spicy
-    definition: "Fresh, lively spice like grated ginger root or crushed cardamom pods."
+    definition: "Fresh, juicy heat, like the pink, vinegary slices served with sushi or crushed cardamom pods."
     active: true
   - code: saffron
     kind: descriptor
     label: Saffron
     usual_family_hint: spicy
-    definition: "Warm, dry spice with a leathery, honeyed edge, like saffron rice."
+    definition: "Warm, dry, and honeyed with a leathery edge, like the golden rice in paella or biryani."
     active: true
   - code: cumin
     kind: descriptor
     label: Cumin
     usual_family_hint: spicy
-    definition: "Warm, earthy spice that can smell a little like sweaty skin."
+    definition: "Warm, dusty, and savory, like taco seasoning or curry powder, with a hint of sweaty skin."
     active: true
 
   - code: cedar-dry
     kind: descriptor
     label: Cedar-dry
     usual_family_hint: woody
-    definition: "Dry, crisp wood, like a freshly sharpened pencil or a cedar closet."
+    definition: "Dry, crisp, and sharp, like fresh pencil shavings or a lumber yard."
     active: true
   - code: sandalwood-creamy
     kind: descriptor
     label: Sandalwood-creamy
     usual_family_hint: woody
-    definition: "Smooth, soft, milky wood, like sandalwood incense or a rich body lotion."
+    definition: "Smooth, soft, and mellow, like a rich body lotion or a carved wooden box from India."
     active: true
   - code: oud
     kind: descriptor
     label: Oud
     usual_family_hint: woody
-    definition: "Dark, deep, fermented wood that can smell medicinal, smoky, or like a barn."
+    definition: "Dark, deep, and fermented, with a sharp, funky edge, like the inside of an old whisky barrel."
     active: true
   - code: driftwood
     kind: descriptor
     label: Driftwood
     usual_family_hint: woody
-    definition: "Pale, dry, sun-bleached wood with a salty, beachy feel."
+    definition: "Pale, dry, and salty, like a sun-bleached branch washed up on the beach."
     active: true
   - code: sheer-woods
     kind: descriptor
     label: Sheer woods
     usual_family_hint: woody
-    definition: "Soft, airy, velvety modern wood that feels warm but is hard to pin down."
+    definition: "Faint, smooth, and almost invisible, humming in the background, like a freshly sanded, bare shelf."
     active: true
   - code: radiant-amber-wood
     kind: descriptor
     label: Radiant amber-wood
     usual_family_hint: woody
-    definition: "A soft, glowing mix of wood, amber, and musk that clings to skin, common in modern perfumes."
+    definition: "Dry, warm, and long-lasting, like the trace a modern cologne or body spray leaves on a jacket."
     active: true
   - code: old-paper
     kind: descriptor
     label: Old paper
     usual_family_hint: woody
-    definition: "Dusty, slightly sweet smell of old books, a library, or a cardboard box."
+    definition: "Dusty and slightly sweet, like a secondhand bookshop or a library's back shelves."
     active: true
 
   - code: church-incense
     kind: descriptor
     label: Church incense
     usual_family_hint: resinous
-    definition: "Sacred resin smoke, like frankincense burning in a church or temple."
+    definition: "Sacred, dry, lemony smoke, like frankincense drifting through a cathedral at a Christmas service."
     active: true
   - code: balsam-sweet
     kind: descriptor
     label: Balsam-sweet
     usual_family_hint: resinous
-    definition: "Sticky, sweet, slightly cinnamon tree balm, like warm sap or old-fashioned cough drops."
+    definition: "Thick, soft, and cinnamon-tinged, like an old-fashioned brown cough syrup or a spiced holiday candle."
     active: true
   - code: bitter-resin
     kind: descriptor
     label: Bitter resin
     usual_family_hint: resinous
-    definition: "Dark, bitter, slightly medicinal resin, like myrrh."
+    definition: "Dark, sharp, and slightly medicinal, like a dash of cocktail bitters or a dusty herbal remedy shop."
     active: true
 
   - code: vanilla
     kind: descriptor
     label: Vanilla
     usual_family_hint: amber
-    definition: "Sweet, creamy, comforting smell of vanilla pods or vanilla extract."
-    active: true
-  - code: cozy-warm
-    kind: descriptor
-    label: Cozy warm
-    usual_family_hint: amber
-    definition: "A soft, glowing warmth, like sitting by a fire wrapped in a blanket."
+    definition: "Sweet, creamy, and comforting, like soft-serve ice cream, cake batter, or a warm sugar cookie."
     active: true
   - code: tonka
     kind: descriptor
     label: Tonka
     usual_family_hint: amber
-    definition: "Sweet warmth that smells of almond and hay, like marzipan with a touch of vanilla."
+    definition: "Rich and marzipan-sweet, like almond paste or the filling in an almond croissant."
     active: true
   - code: tobacco
     kind: descriptor
     label: Tobacco
     usual_family_hint: amber
-    definition: "Sweet, dried tobacco leaf, like an open pouch of pipe tobacco, not stale smoke."
+    definition: "Sweet, dried brown leaves, like an unlit cigar or a fresh pipe pouch, not stale ashtray smoke."
     active: true
 
   - code: sugary
     kind: descriptor
     label: Sugary
     usual_family_hint: gourmand
-    definition: "Plain sweetness, like cotton candy, caramel, or a bag of sweets."
+    definition: "Plain, sticky sweetness, like cotton candy, caramel, or toffee apples at a fair."
     active: true
   - code: cocoa
     kind: descriptor
     label: Cocoa
     usual_family_hint: gourmand
-    definition: "Dark, bittersweet smell of cocoa powder or chocolate."
+    definition: "Dark and bittersweet, like brownies in the oven or a mug of hot chocolate."
     active: true
   - code: coffee
     kind: descriptor
     label: Coffee
     usual_family_hint: gourmand
-    definition: "Roasted, bittersweet smell of freshly ground coffee beans."
+    definition: "Roasted and bittersweet, like a cafe first thing in the morning or a fresh bag of espresso beans."
     active: true
   - code: milky
     kind: descriptor
     label: Milky
     usual_family_hint: gourmand
-    definition: "Soft, warm, creamy smell, like warm milk, custard, or fresh cream."
+    definition: "Soft, mild, and creamy, like fresh cream, egg custard, or a warm bedtime drink."
     active: true
   - code: nutty
     kind: descriptor
     label: Nutty
     usual_family_hint: gourmand
-    definition: "Toasty nut smell, like almonds, hazelnuts, or pistachios."
+    definition: "Toasty and rich, like roasted hazelnuts, peanut butter, or pistachios."
     active: true
   - code: boozy
     kind: descriptor
     label: Boozy
     usual_family_hint: gourmand
-    definition: "Smells of alcoholic drinks, like rum, cognac, whisky, or liqueur."
+    definition: "Warm and spirited, like rum-soaked fruitcake, a glass of brandy, or whisky."
     active: true
   - code: rice-and-grain
     kind: descriptor
     label: Rice and grain
     usual_family_hint: gourmand
-    definition: "Soft, toasty cereal smell, like steamed rice, oats, or warm toast."
+    definition: "Soft, toasty, and starchy, like a pot of steaming basmati, warm oatmeal, or fresh toast."
     active: true
   - code: honey
     kind: descriptor
     label: Honey
     usual_family_hint: gourmand
-    definition: "Thick, sweet, waxy honey that can turn warm and slightly animal."
+    definition: "Thick, golden, and sweet, like a beehive or a beeswax candle, sometimes with a warm animal edge."
     active: true
 
   - code: clean-laundry
     kind: descriptor
     label: Clean laundry
     usual_family_hint: musky
-    definition: "The fresh, soft smell of laundry just out of the dryer."
+    definition: "Warm, fluffy towels straight from the dryer, with a sweet fabric-softener softness."
     active: true
   - code: skin-close
     kind: descriptor
     label: Skin-close
     usual_family_hint: musky
-    definition: "Soft, warm musk that smells like your own clean skin, only better."
+    definition: "Faint, warm, and personal, like the inside of your own wrist or a hug from someone you love."
     active: true
-  - code: velvety
+  - code: powdery
     kind: descriptor
-    label: Velvety
+    label: Powdery
     usual_family_hint: musky
-    definition: "A soft, fuzzy, cushioning feel, like cashmere or the skin of a peach."
+    definition: "Soft, dry, and fine, like talc after a bath or a freshly changed baby."
     active: true
 
   - code: barnyard
     kind: descriptor
     label: Barnyard
     usual_family_hint: animalic
-    definition: "Raw farm smell of animals, stable straw, and hide."
+    definition: "Raw, rustic, and pungent, like a horse stable, a petting zoo, or a wet dog."
     active: true
   - code: salty-skin
     kind: descriptor
     label: Salty skin
     usual_family_hint: animalic
-    definition: "Warm skin with a salty, sun-soaked edge, like after a day at the beach."
+    definition: "Warm, sun-kissed body smell, like your arms after a long swim in the ocean."
     active: true
   - code: indolic
     kind: descriptor
     label: Indolic
     usual_family_hint: animalic
-    definition: "A rich, slightly dirty, overripe edge, like heavy flowers such as jasmine left in a warm room."
+    definition: "A rich, slightly dirty, overripe edge, like a vase of flowers left a week too long in a warm room."
     active: true
   - code: unwashed
     kind: descriptor
     label: Unwashed
     usual_family_hint: animalic
-    definition: "Warm, lived-in body smell, like skin or hair a day after washing."
+    definition: "Warm, lived-in body smell, like hair two days after washing or a slept-in pillowcase."
     active: true
   - code: ambergris
     kind: descriptor
     label: Ambergris
     usual_family_hint: animalic
-    definition: "Soft, radiant, salty-sweet warmth, a little like the sea and a little like tobacco."
+    definition: "Soft, faintly sea-sweet warmth, like sun-dried seashells with a hint of tobacco."
     active: true
 
   - code: suede
     kind: descriptor
     label: Suede
     usual_family_hint: leathery
-    definition: "Soft, powdery, gentle leather, like suede gloves."
+    definition: "Soft, dusty, and gentle, like brushed winter gloves or a fuzzy jacket collar."
     active: true
   - code: saddle-leather
     kind: descriptor
     label: Saddle leather
     usual_family_hint: leathery
-    definition: "Rich, polished leather, like a new saddle, handbag, or leather shoes."
+    definition: "Rich and polished, like a designer handbag, freshly shined shoes, or new car seats."
     active: true
   - code: rubbery
     kind: descriptor
     label: Rubbery
     usual_family_hint: leathery
-    definition: "Smells of rubber, like bike tires, a pencil eraser, or rain boots."
+    definition: "Dense and sharp, like new bike tires, a pencil eraser, or rain boots."
     active: true
 
   - code: campfire
     kind: descriptor
     label: Campfire
     usual_family_hint: smoky
-    definition: "Burning wood smoke, like a campfire, fireplace, or smoked meat."
+    definition: "Burning logs and wood smoke, like a fireplace, bonfire night, or a smokehouse."
     active: true
   - code: tarry
     kind: descriptor
     label: Tarry
     usual_family_hint: smoky
-    definition: "Thick, dark smell of tar, like fresh road asphalt or smoked leather."
+    definition: "Thick, dark, and oily, like fresh road asphalt, a roofing crew at work, or railroad ties."
     active: true
   - code: struck-match
     kind: descriptor
     label: Struck match
     usual_family_hint: smoky
-    definition: "The sharp, sulfury flash of a just-struck match or a fired cap gun."
+    definition: "The sharp, sulfury flash of a fired cap gun or Fourth of July fireworks."
     active: true
 
   - code: mossy
     kind: descriptor
     label: Mossy
     usual_family_hint: earthy
-    definition: "Damp, slightly bitter smell of moss growing on tree bark and stones."
+    definition: "Damp, bitter, and shady, like the north side of an old tree trunk or a green-coated garden wall."
     active: true
   - code: forest-floor
     kind: descriptor
     label: Forest floor
     usual_family_hint: earthy
-    definition: "Damp fallen leaves and rotting wood, like a walk in the woods after rain."
+    definition: "Damp, decaying autumn leaves and soft rotting logs, like kicking through a leaf pile after rain."
     active: true
   - code: mushroom
     kind: descriptor
     label: Mushroom
     usual_family_hint: earthy
-    definition: "Earthy, savory smell of fresh mushrooms or a damp cellar."
+    definition: "Savory and slightly musty, like shaved truffle over pasta or a bowl of porcini soup."
     active: true
   - code: rooty
     kind: descriptor
     label: Rooty
     usual_family_hint: earthy
-    definition: "Dry or damp roots, like vetiver grass roots, raw carrot, or potato skins."
+    definition: "Dry and dusty-brown, like scrubbed potato skins, raw beetroot, or freshly pulled parsnips."
     active: true
   - code: wet-soil
     kind: descriptor
     label: Wet soil
     usual_family_hint: earthy
-    definition: "Freshly dug or watered garden soil, like a flower pot after watering."
+    definition: "Dark and rich, like a freshly dug garden bed or a potted plant just after watering."
     active: true
   - code: patchouli
     kind: descriptor
     label: Patchouli
     usual_family_hint: earthy
-    definition: "Dark, earthy, slightly sweet and damp leaf smell, familiar from 1970s perfume oils."
+    definition: "Dark, sweet, and musty, like a damp wine cellar or an old wardrobe full of wool coats."
     active: true
 
   - code: sea-spray
     kind: descriptor
     label: Sea spray
     usual_family_hint: aquatic
-    definition: "Fresh, salty sea air, like standing on a windy beach."
+    definition: "Fresh, salty air whipped off the waves, like standing on a ferry deck."
     active: true
   - code: open-air
     kind: descriptor
     label: Open air
     usual_family_hint: aquatic
-    definition: "Crisp, clean outdoor air, like sheets dried on a line or the air before a storm."
+    definition: "Crisp, cold, and bright, like the first breath outside on a winter morning or before a storm."
     active: true
   - code: clear-water
     kind: descriptor
     label: Clear water
     usual_family_hint: aquatic
-    definition: "Cool, clean, watery freshness, like a mountain stream or a glass of cold water."
+    definition: "Cool, clean, and almost scentless, like a mountain stream or a glass straight from the cold tap."
     active: true
   - code: seaweed
     kind: descriptor
     label: Seaweed
     usual_family_hint: aquatic
-    definition: "Salty, briny, iodine smell of seaweed and rock pools at low tide."
+    definition: "Salty and briny, like rock pools, fresh oysters, or kelp washed up at low tide."
     active: true
 
   - code: wet-stone
     kind: descriptor
     label: Wet stone
     usual_family_hint: mineral
-    definition: "Cool, clean smell of rain on warm pavement or river pebbles."
+    definition: "Cool and flinty, like pebbles in a riverbed or a hosed-down concrete patio, with no hint of dirt."
     active: true
   - code: chalky
     kind: descriptor
     label: Chalky
     usual_family_hint: mineral
-    definition: "Dry, dusty, stony smell, like chalk, plaster, or a cool stone wall."
+    definition: "Dry and dusty, like a classroom blackboard, fresh plaster, or a cave wall."
     active: true
   - code: metallic
     kind: descriptor
     label: Metallic
     usual_family_hint: mineral
-    definition: "Cold, sharp smell of metal, like coins, keys, or a steel railing."
+    definition: "Cold and sharp, like a handful of coins, a bunch of keys, or a steel railing."
     active: true
   - code: ink
     kind: descriptor
     label: Ink
     usual_family_hint: mineral
-    definition: "Smell of fountain-pen ink, fresh printing, or a new notebook."
+    definition: "Dark and faintly bitter, like a fresh newspaper, a fountain pen, or a printer cartridge."
+    active: true
+  - code: sharp-chemical
+    kind: descriptor
+    label: Sharp chemical
+    usual_family_hint: mineral
+    definition: "Harsh and stinging, like nail polish remover, rubbing alcohol, or permanent markers."
     active: true
 
   - code: soapy
     kind: descriptor
     label: Soapy
     usual_family_hint: aldehydic
-    definition: "Clean, bubbly smell of a fresh bar of soap."
-    active: true
-  - code: powdery
-    kind: descriptor
-    label: Powdery
-    usual_family_hint: aldehydic
-    definition: "Soft, dry, fine smell of face powder or baby powder."
+    definition: "Slick and clean, like lathering your hands at the sink or sinking into a bubble bath."
     active: true
   - code: waxy
     kind: descriptor
     label: Waxy
     usual_family_hint: aldehydic
-    definition: "Smooth, fatty smell of candle wax, crayons, or lipstick."
+    definition: "Smooth, fatty, and slightly dull, like a new box of crayons or lip balm."
     active: true
   - code: sparkling
     kind: descriptor
     label: Sparkling
     usual_family_hint: aldehydic
-    definition: "Fizzy, lifting brightness, like the first rush of champagne bubbles."
-    active: true
-  - code: sharp-chemical
-    kind: descriptor
-    label: Sharp chemical
-    usual_family_hint: aldehydic
-    definition: "Harsh, stinging sharpness, like nail polish remover, rubbing alcohol, or marker pens."
+    definition: "Lively and prickly-bright, like the first rush of champagne bubbles or a freshly opened soda."
     active: true
 
 display_tree:
@@ -672,7 +660,6 @@ display_tree:
           - term: kitchen-herbs
           - term: pine-needle
           - term: anise
-          - term: tea
       - term: aquatic
         children:
           - term: sea-spray
@@ -706,16 +693,12 @@ display_tree:
       - term: aldehydic
         children:
           - term: soapy
-          - term: powdery
           - term: waxy
           - term: sparkling
-          - term: sharp-chemical
-          - term: clean-laundry
       - term: musky
         children:
           - term: clean-laundry
           - term: skin-close
-          - term: velvety
           - term: powdery
   - heading: Warm and sweet
     children:
@@ -729,7 +712,6 @@ display_tree:
       - term: amber
         children:
           - term: vanilla
-          - term: cozy-warm
           - term: tonka
           - term: tobacco
       - term: resinous
@@ -774,6 +756,7 @@ display_tree:
           - term: chalky
           - term: metallic
           - term: ink
+          - term: sharp-chemical
           - term: struck-match
   - heading: Dark and wild
     children:
