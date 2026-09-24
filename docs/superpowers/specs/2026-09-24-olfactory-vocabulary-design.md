@@ -89,8 +89,10 @@ rows); no fragrance profile is ever built from Fragella data.
 
 **`vocabulary`** (layer 3): realizes ADR-010's `ClassificationSystem`. `code`, `version`,
 `owner` (`project | external`), `status` (`draft | published | retired`), `content_hash`.
-The project vocabulary is `fr-core`. Edwards becomes an external, family-only vocabulary;
-`vocabulary.py`'s hardcoded strings migrate to it.
+The project vocabulary is `fr-core`. Edwards becomes an external, family-only vocabulary; the
+Edwards family strings currently stored as values in `Fragrance.primary_family` and
+`Fragrance.subfamily` migrate to it (`core/vocabulary.py` holds no Edwards constants; verified
+2026-09-24).
 
 **`vocabulary_term`**: `vocabulary_id`, `code`, `label`, `kind` (`family | descriptor`),
 `usual_family_hint` (nullable, descriptors only, informational), `active`.

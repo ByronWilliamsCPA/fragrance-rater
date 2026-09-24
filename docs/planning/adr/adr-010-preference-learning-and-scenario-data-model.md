@@ -49,9 +49,11 @@ still-open sequence.
 ADR-015 realizes `ClassificationSystem`, proposed in the Decision below and still unbuilt, as
 `vocabulary`/`vocabulary_term`/`vocabulary_display_node`/`assertion_source`/`term_assertion`
 (layer 3 of a four-layer intake model). Michael Edwards becomes the first external,
-family-only `vocabulary` row rather than the classification system itself; `core/vocabulary.py`'s
-hardcoded family strings migrate onto it in milestone D1, after `fr-core` schema and services
-are built. This does not change any already-implemented slice described above; it specifies how
+family-only `vocabulary` row rather than the classification system itself; the Edwards family
+strings currently stored as values in `Fragrance.primary_family` and `Fragrance.subfamily`
+migrate onto it in milestone D1 (`core/vocabulary.py` holds no Edwards constants; verified
+2026-09-24), after `fr-core` schema and services are built. This does not change any
+already-implemented slice described above; it specifies how
 the still-proposed `ClassificationSystem` portion of this ADR gets built. See ADR-015 for the
 full model and its own sequencing (layer 1 under R8, layers 2 to 4 in D1).
 
