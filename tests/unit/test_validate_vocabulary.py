@@ -4,13 +4,17 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import re
+import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import pytest
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
     from types import ModuleType
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -26,7 +30,15 @@ def load_script(name: str) -> ModuleType:
     return module
 
 
-validator = load_script("validate_vocabulary")
+class _ValidatorModule(Protocol):
+    """Static shape of scripts/validate_vocabulary.py for the dynamic import above."""
+
+    validate_vocabulary: Callable[[object], list[str]]
+    content_hash: Callable[[object], str]
+    main: Callable[[], int]
+
+
+validator = cast("_ValidatorModule", load_script("validate_vocabulary"))
 
 VALID: dict[str, object] = {
     "vocabulary": {
@@ -64,6 +76,34 @@ VALID: dict[str, object] = {
     ],
 }
 
+VALID_YAML_TEXT = """\
+vocabulary:
+  code: fr-core
+  version: "0.1.0"
+  owner: project
+  status: draft
+  license_id: project-owned
+  provenance: "Authored independently."
+terms:
+  - code: woody
+    kind: family
+    label: Woody
+    definition: "Smells of wood."
+    active: true
+  - code: dry-woods
+    kind: descriptor
+    label: Dry woods
+    usual_family_hint: woody
+    definition: "Dry, cedar-like wood."
+    active: true
+display_tree:
+  - heading: Woods
+    children:
+      - term: woody
+        children:
+          - term: dry-woods
+"""
+
 
 def doc() -> dict[str, object]:
     """Return a fresh deep copy of the valid document."""
@@ -73,6 +113,11 @@ def doc() -> dict[str, object]:
 def terms(document: dict[str, object]) -> list[dict[str, object]]:
     """Return the mutable terms list of a document."""
     return cast("list[dict[str, object]]", document["terms"])
+
+
+def tree(document: dict[str, object]) -> list[dict[str, object]]:
+    """Return the mutable display tree of a document."""
+    return cast("list[dict[str, object]]", document["display_tree"])
 
 
 def test_valid_document_has_no_errors() -> None:
@@ -90,6 +135,13 @@ def test_missing_top_level_key(key: str) -> None:
     document = doc()
     del document[key]
     assert f"missing top-level key: {key}" in validator.validate_vocabulary(document)
+
+
+def test_unknown_top_level_key() -> None:
+    document = doc()
+    document["extra"] = "nope"
+    errors = validator.validate_vocabulary(document)
+    assert "unknown top-level key: extra" in errors
 
 
 @pytest.mark.parametrize(
@@ -110,6 +162,84 @@ def test_header_rules(field: str, value: str, message: str) -> None:
     header[field] = value
     errors = validator.validate_vocabulary(document)
     assert any(error.startswith(message) for error in errors), errors
+
+
+def test_non_mapping_header() -> None:
+    document = doc()
+    document["vocabulary"] = "nope"
+    assert validator.validate_vocabulary(document) == ["vocabulary must be a mapping"]
+
+
+def test_unknown_header_key() -> None:
+    document = doc()
+    header = cast("dict[str, object]", document["vocabulary"])
+    header["extra"] = "nope"
+    errors = validator.validate_vocabulary(document)
+    assert "vocabulary: unknown key: extra" in errors
+
+
+@pytest.mark.parametrize(
+    ("field", "message"),
+    [
+        ("code", "vocabulary.code has leading or trailing whitespace"),
+        ("version", "vocabulary.version has leading or trailing whitespace"),
+    ],
+)
+def test_header_whitespace(field: str, message: str) -> None:
+    document = doc()
+    header = cast("dict[str, object]", document["vocabulary"])
+    header[field] = f" {header[field]} "
+    errors = validator.validate_vocabulary(document)
+    assert message in errors
+
+
+def test_empty_terms_list() -> None:
+    document = doc()
+    document["terms"] = []
+    errors = validator.validate_vocabulary(document)
+    assert "terms must be a non-empty list" in errors
+
+
+def test_non_list_terms() -> None:
+    document = doc()
+    document["terms"] = "nope"
+    errors = validator.validate_vocabulary(document)
+    assert "terms must be a non-empty list" in errors
+
+
+def test_non_mapping_term() -> None:
+    document = doc()
+    terms(document).append(cast("dict[str, object]", "nope"))
+    errors = validator.validate_vocabulary(document)
+    assert "terms[2] must be a mapping" in errors
+
+
+def test_invalid_term_code_slug() -> None:
+    document = doc()
+    terms(document)[1]["code"] = "Dry Woods"
+    errors = validator.validate_vocabulary(document)
+    assert "terms[1]: code must be a lowercase slug" in errors
+
+
+def test_unknown_term_key() -> None:
+    document = doc()
+    terms(document)[1]["extra"] = "nope"
+    errors = validator.validate_vocabulary(document)
+    assert "terms[1]: unknown key: extra" in errors
+
+
+def test_term_code_whitespace() -> None:
+    document = doc()
+    terms(document)[1]["code"] = " dry-woods "
+    errors = validator.validate_vocabulary(document)
+    assert "terms[1]: code has leading or trailing whitespace" in errors
+
+
+def test_term_label_whitespace() -> None:
+    document = doc()
+    terms(document)[1]["label"] = " Dry woods "
+    errors = validator.validate_vocabulary(document)
+    assert "term dry-woods: label has leading or trailing whitespace" in errors
 
 
 def test_duplicate_term_code() -> None:
@@ -138,6 +268,13 @@ def test_missing_definition() -> None:
     assert "term dry-woods: definition is required" in errors
 
 
+def test_missing_label() -> None:
+    document = doc()
+    terms(document)[1]["label"] = ""
+    errors = validator.validate_vocabulary(document)
+    assert "term dry-woods: label is required" in errors
+
+
 def test_family_may_not_carry_hint() -> None:
     document = doc()
     terms(document)[0]["usual_family_hint"] = "woody"
@@ -152,6 +289,13 @@ def test_hint_must_name_a_family() -> None:
     assert "term dry-woods: usual_family_hint dry-woods is not a family" in errors
 
 
+def test_hint_must_point_to_an_active_family() -> None:
+    document = doc()
+    terms(document)[0]["active"] = False
+    errors = validator.validate_vocabulary(document)
+    assert "term dry-woods: usual_family_hint woody is not an active family" in errors
+
+
 def test_active_must_be_boolean() -> None:
     document = doc()
     terms(document)[1]["active"] = "yes"
@@ -159,14 +303,17 @@ def test_active_must_be_boolean() -> None:
     assert "term dry-woods: active must be true or false" in errors
 
 
-def tree(document: dict[str, object]) -> list[dict[str, object]]:
-    """Return the mutable display tree of a document."""
-    return cast("list[dict[str, object]]", document["display_tree"])
-
-
-def test_node_needs_exactly_one_of_heading_or_term() -> None:
+@pytest.mark.parametrize(
+    "node",
+    [
+        {"heading": "Woods", "term": "woody", "children": [{"term": "dry-woods"}]},
+        {"children": [{"term": "dry-woods"}]},
+    ],
+    ids=["both-heading-and-term", "children-only"],
+)
+def test_node_needs_exactly_one_of_heading_or_term(node: dict[str, object]) -> None:
     document = doc()
-    tree(document)[0]["term"] = "woody"
+    tree(document)[0] = node
     errors = validator.validate_vocabulary(document)
     assert "display_tree[0]: node needs exactly one of heading or term" in errors
 
@@ -183,6 +330,58 @@ def test_heading_needs_children() -> None:
     tree(document).append({"heading": "Empty"})
     errors = validator.validate_vocabulary(document)
     assert "display_tree[1]: heading Empty has no children" in errors
+
+
+def test_heading_with_empty_children_list_is_an_error() -> None:
+    document = doc()
+    tree(document).append({"heading": "Empty", "children": []})
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[1]: heading Empty has no children" in errors
+
+
+def test_non_heading_node_with_empty_children_list_is_fine() -> None:
+    document = doc()
+    tree(document).append({"term": "woody", "children": []})
+    assert validator.validate_vocabulary(document) == []
+
+
+def test_unknown_node_key() -> None:
+    document = doc()
+    tree(document)[0]["extra"] = "nope"
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[0]: unknown key: extra" in errors
+
+
+def test_node_heading_whitespace() -> None:
+    document = doc()
+    tree(document)[0]["heading"] = " Woods "
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[0]: heading has leading or trailing whitespace" in errors
+
+
+def test_node_term_whitespace() -> None:
+    document = doc()
+    root = tree(document)[0]
+    children = cast("list[dict[str, object]]", root["children"])
+    children[0]["term"] = " woody "
+    errors = validator.validate_vocabulary(document)
+    assert (
+        "display_tree[0].children[0]: term has leading or trailing whitespace" in errors
+    )
+
+
+def test_non_mapping_node() -> None:
+    document = doc()
+    tree(document).append(cast("dict[str, object]", "nope"))
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[1]: node must be a mapping" in errors
+
+
+def test_non_list_children() -> None:
+    document = doc()
+    tree(document)[0]["children"] = "nope"
+    errors = validator.validate_vocabulary(document)
+    assert "display_tree[0].children: must be a list" in errors
 
 
 def test_active_term_missing_from_tree() -> None:
@@ -226,11 +425,126 @@ def test_depth_limit() -> None:
     assert any("deeper than 4 levels" in error for error in errors), errors
 
 
+def test_depth_four_tree_has_no_depth_error() -> None:
+    document = doc()
+    tree(document).append(
+        {
+            "heading": "Outer",
+            "children": [
+                {
+                    "heading": "Inner",
+                    "children": [
+                        {"term": "woody", "children": [{"term": "dry-woods"}]}
+                    ],
+                }
+            ],
+        }
+    )
+    errors = validator.validate_vocabulary(document)
+    assert not any("deeper than" in error for error in errors), errors
+
+
 def test_content_hash_is_stable_and_order_insensitive_for_keys() -> None:
     first = doc()
     second = doc()
-    header = second["vocabulary"]
-    assert isinstance(header, dict)
+    header = cast("dict[str, object]", second["vocabulary"])
     second["vocabulary"] = dict(reversed(list(header.items())))
     assert validator.content_hash(first) == validator.content_hash(second)
     assert len(validator.content_hash(first)) == 64
+
+
+def test_content_hash_changes_when_definition_changes() -> None:
+    first = doc()
+    second = doc()
+    terms(second)[0]["definition"] = "Different definition entirely."
+    assert validator.content_hash(first) != validator.content_hash(second)
+
+
+def test_content_hash_unchanged_when_only_status_changes() -> None:
+    first = doc()
+    second = doc()
+    header = cast("dict[str, object]", second["vocabulary"])
+    header["status"] = "published"
+    assert validator.content_hash(first) == validator.content_hash(second)
+
+
+def test_content_hash_does_not_mutate_input() -> None:
+    document = doc()
+    validator.content_hash(document)
+    header = cast("dict[str, object]", document["vocabulary"])
+    assert header["status"] == "draft"
+
+
+def test_cli_exit_0_prints_ok_and_hash(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vocab_path = tmp_path / "fr-core-v0.yaml"
+    vocab_path.write_text(VALID_YAML_TEXT, encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(vocab_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert captured.out.startswith(f"OK {vocab_path}")
+    assert re.search(r"sha256=[0-9a-f]{64}\s*$", captured.out)
+
+
+def test_cli_exit_1_on_rule_violation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vocab_path = tmp_path / "bad.yaml"
+    vocab_path.write_text(
+        VALID_YAML_TEXT.replace("status: draft", "status: final"), encoding="utf-8"
+    )
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(vocab_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "vocabulary.status must be one of" in captured.err
+
+
+def test_cli_exit_2_on_missing_file(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    missing = tmp_path / "missing.yaml"
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(missing)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "cannot read" in captured.err
+
+
+def test_cli_exit_2_on_non_utf8_bytes(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bad_path = tmp_path / "bad-encoding.yaml"
+    bad_path.write_bytes(b"\xff\xfe")
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(bad_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "cannot read" in captured.err
+
+
+def test_cli_unknown_key_with_date_value_exits_1_without_traceback(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vocab_path = tmp_path / "date-key.yaml"
+    vocab_path.write_text(
+        VALID_YAML_TEXT + "reviewed_on: 2026-09-24\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(vocab_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "unknown top-level key: reviewed_on" in captured.err
+    assert "Traceback" not in captured.err
