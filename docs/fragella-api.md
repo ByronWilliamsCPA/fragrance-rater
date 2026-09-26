@@ -9,19 +9,21 @@ tags:
   - reference
 ---
 
-Reviewed September 25, 2026. This project reference links to the
+Reviewed September 25, 2026, by reading the vendor's published documentation pages at the
+linked URLs. This project reference links to the
 [vendor API documentation](https://api.fragella.com/docs.html) rather than
 maintaining a copy of its full specification, examples or catalog data.
 For Fragrance Rater's own API, use the [API reference](api-reference.md).
 
 ## Existing implementation
 
-`src/fragrance_rater/services/fragella_client.py` implements search and usage
-lookups. `FragellaLookupService.run_lookup()` persists the query, requesting
-operator, status, error information and parsed result objects in
-`FragellaLookup`. It does not automatically promote these results into the
-catalog or a `SourceSnapshot`. The stored parsed results are still retained
-vendor data; an audit purpose does not make the operation non-storing.
+`src/fragrance_rater/services/fragella_client.py` implements `FragellaClient`, the HTTP client
+for vendor search and usage lookups. `src/fragrance_rater/services/fragella_lookup_service.py`
+implements `FragellaLookupService.run_lookup()`, which persists the query, requesting operator,
+status, error information and parsed result objects in `FragellaLookup`. It does not
+automatically promote these results into the catalog or a `SourceSnapshot`. The stored parsed
+results are still retained vendor data; an audit purpose does not make the operation
+non-storing.
 
 The current parser accepts a year represented as an integer or decimal
 string, and note entries represented as strings or objects with a `name`.
@@ -37,7 +39,8 @@ catalog import or model training.
 ## Permissions and publication
 
 The [public API terms](https://api.fragella.com/terms-of-use.html), displayed
-as updated May 4, 2026 and checked September 25, 2026, restrict standalone
+as updated May 4, 2026 and checked September 25, 2026 by reading that published terms
+page, restrict standalone
 distribution of API data and large-scale storage that substitutes for fresh
 API access unless the subscription expressly permits it. They also reserve
 rights in the service content. Review current terms and any applicable

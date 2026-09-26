@@ -31,19 +31,31 @@ order and therefore needs its own presentation version.
 
 ## Response conventions
 
-- One answer per circle group. Rectangular checkboxes indicate multi-select questions, subject to the exclusivity instruction printed with the question.
+- One answer per circle group. Rectangular checkboxes indicate multi-select questions, subject to the exclusivity
+  instruction printed with the question.
 - A numbered liking response is ordinal raw evidence on `hedonic-9-v1`; it is not a renamed legacy 0–10 response.
-- `cannot_assess`, `missed`, `not_asked`, `skipped` and `interrupted` remain separate from answered values. A blank on an administered question is unanswered unless explicit evidence supports another status. Do not guess whether the person could not assess or preferred to skip. Not asked requires instrument/administration evidence; it cannot be inferred just from a blank. A paper question being present is not proof it was administered.
-- A negative current detection result leaves current-timepoint liking unanswered with reason `not_detected`. It does not invalidate earlier responses or an assessable retrospective final judgment.
-- Keep observed time, elapsed time, paper completion time and later transcription time distinct. If a clock time crosses midnight, record the actual date during transcription rather than guessing.
-- Unselected suitability options mean not selected in a prompted multi-select, not an explicit dislike or avoidance judgment.
-- In season suitability, choose individual seasons OR year-round OR none OR cannot judge. In setting suitability, choose settings (including Other) OR none OR cannot judge.
+- `cannot_assess`, `missed`, `not_asked`, `skipped` and `interrupted` remain separate from answered values. A blank on
+  an administered question is unanswered unless explicit evidence supports another status. Do not guess whether the
+  person could not assess or preferred to skip. Not asked requires instrument/administration evidence; it cannot be
+  inferred just from a blank. A paper question being present is not proof it was administered.
+- A negative current detection result leaves current-timepoint liking unanswered with reason `not_detected`. It does not
+  invalidate earlier responses or an assessable retrospective final judgment.
+- Keep observed time, elapsed time, paper completion time and later transcription time distinct. If a clock time crosses
+  midnight, record the actual date during transcription rather than guessing.
+- Unselected suitability options mean not selected in a prompted multi-select, not an explicit dislike or avoidance
+  judgment.
+- In season suitability, choose individual seasons OR year-round OR none OR cannot judge. In setting suitability, choose
+  settings (including Other) OR none OR cannot judge.
 - For session conditions, None noticed and Prefer not to answer are alternatives to selecting conditions.
-- Internal product identity, experimental role, repeat link, randomization and physical-sample mapping stay in an operator record. The record must identify who can access the mapping and when each relevant disclosure occurred. The random blind code on the worksheet must resolve to that record without showing it to the participant.
+- Internal product identity, experimental role, repeat link, randomization and physical-sample mapping stay in an
+  operator record. The record must identify who can access the mapping and when each relevant disclosure occurred. The
+  random blind code on the worksheet must resolve to that record without showing it to the participant.
 
 ## Scale definitions
 
-`wear-intent-5-v1`: definitely would not; probably would not; unsure; probably would; definitely would. Cannot assess is a response status, outside the ordered scale. The skin and blotter questions share option labels, but they are distinct outcomes.
+`wear-intent-5-v1`: definitely would not; probably would not; unsure; probably would; definitely would. Cannot assess is
+a response status, outside the ordered scale. The skin and blotter questions share option labels, but they are distinct
+outcomes.
 
 `hedonic-9-v1`:
 
@@ -59,9 +71,32 @@ order and therefore needs its own presentation version.
 | 8 | Like very much |
 | 9 | Like extremely |
 
-`detection-v1`: clearly detectable; faintly detectable; not detectable. Cannot assess and Missed are separately coded response statuses even though displayed next to the detection choices for convenience. This is self-reported detection, not an objective concentration measure.
+`detection-v1`: clearly detectable; faintly detectable; not detectable. Cannot assess and Missed are separately coded
+response statuses even though displayed next to the detection choices for convenience. This is self-reported detection,
+not an objective concentration measure.
 
-`recognition-v1`: unfamiliar; vaguely familiar; think I know the identity. Identity guess is separate raw text; a guess is not verified identity. Prior ownership/wear is yes/no/unknown about the fragrance the participant believes it is. Formal disclosure and recognition are separate fields.
+`recognition-v1`: unfamiliar; vaguely familiar; think I know the identity. Identity guess is separate raw text; a guess
+is not verified identity. Prior ownership/wear is yes/no/unknown about the fragrance the participant believes it is.
+Formal disclosure and recognition are separate fields.
+
+## Divergence from accepted decisions
+
+Decision, stated first: this draft is preserved verbatim as the project owner decided. Where its
+wording, scales, or timing conflict with an accepted decision, the accepted decision governs until
+an amendment to this instrument is itself accepted. Nothing in this document amends ADR-005, ML
+Decision Q9, or ADR-016; the table below only records where the two disagree.
+
+| Item | Draft 0.5 | Accepted decision | Source |
+| --- | --- | --- | --- |
+| Liking/wear scales | `hedonic-9-v1` (1 to 9 ordinal liking) and `wear-intent-5-v1` (5-category wear intent) | Unchanged: 0 to 10 integer; add verbal anchors at 0, 5, and 10 (0/5 for the 0 to 5 descriptors) | ADR-005 amendment, "Liking / wear / buy / appreciation scale" row |
+| Skin timepoints | `SK-TIME` repeated at nominal 15, 60 and 240 minutes, plus an optional `SK-LATE-DETECT` check around eight hours | 10 minutes, 1 hour, 4 hours, 8 hours | ADR-005 amendment, "Skin timepoints" row |
+| Season/setting | `BL-SEASON`/`BL-SETTING` optional on the blotter worksheet; `SK-SEASON`/`SK-SETTING` optional on the skin worksheet (the only skin suitability fields) | `season_fit` and `setting_fit` mandatory on every skin-stage row, not collected on blotter; completeness is counted against eligible skin-stage rows only | ML Decisions Q9; `docs/planning/gates/f1.md` |
+| `SK-DRIVER` | Optional free-text pre-reveal preference-driver explanation | A structured per-dimension preference-driver field is deferred past F1 for the initial four evaluators, a permanent deferral for them, not an ordinary delay | ADR-016 Sequencing section and its 2026-09-21 amendment |
+| `VAL-BUY` reporting | Reported as one field among the C offer/value tables | Must be reported as a separately linked post-reveal outcome with its own n | ADR-005 2026-09-21 amendment ("would_buy" row); ADR-009 amendment (reported beside liking "with its own n"), both reconciled by PR #124 |
+
+`SK-DRIVER`'s free text is not the structured field ADR-016 describes; if it is ever adopted as
+that field's substitute, that substitution needs its own explicit ADR-016 decision, not an
+assumption made in this handoff.
 
 ## Skin worksheet
 
@@ -82,7 +117,9 @@ order and therefore needs its own presentation version.
 | SK-STOP | Washed or scrubbed off? When? Why stop, wash or miss a check? | No/yes plus event time and raw reason. Keep assessable partial responses. |
 | SK-LATE-DETECT | Optional detection around eight hours | Only if scheduled: about eight hours. Record actual date/time/elapsed and detection/status. Keep the earlier final judgment. Additional samples need their own identified sheet. Unscheduled checks are not missed scheduled checks; preserve any unsolicited observation separately. |
 
-Do not label a four-hour cutoff as exact longevity. Detected at 240 minutes and no longer observed gives a lower bound; detected at 240 and absent at 480 gives an interval. A wash event has a separate reason. Formal censoring derivation/version is an implementation todo.
+Do not label a four-hour cutoff as exact longevity. Detected at 240 minutes and no longer observed gives a lower bound;
+detected at 240 and absent at 480 gives an interval. A wash event has a separate reason. Formal censoring
+derivation/version is an implementation todo.
 
 ## Blotter worksheet
 
@@ -117,55 +154,128 @@ Do not label a four-hour cutoff as exact longevity. Detected at 240 minutes and 
 
 ## Deliberate omissions and remaining protocol decisions
 
-The blind pages do not ask confidence, projection, perceived intensity, density/weight, the full seven exploratory descriptors, separate season avoidance, family selection, or descriptor prominence. Detection is not projection or an intensity scale. Price/value/purchase intent now have their own later module. A maximum-willingness-to-pay question is deliberately not included in this first integrated version; profile thresholds and exact-offer responses supply the initial value evidence. Full inventory counts/volumes, actual acquisitions and actual wear events are also not elicited here. These omissions are not neutral answers.
+The blind pages do not ask confidence, projection, perceived intensity, density/weight, the full seven exploratory
+descriptors, separate season avoidance, family selection, or descriptor prominence. Detection is not projection or an
+intensity scale. Price/value/purchase intent now have their own later module. A maximum-willingness-to-pay question is
+deliberately not included in this first integrated version; profile thresholds and exact-offer responses supply the
+initial value evidence. Full inventory counts/volumes, actual acquisitions and actual wear events are also not elicited
+here. These omissions are not neutral answers.
 
-The primary target/stage, original scales, skin/holdout scope, timing windows and final eligibility rules remain release decisions; this packet explicitly uses groups of up to three blotters and retains equal ranks. The packet preserves the current draft's 15/60/240-minute skin checks and optional 480-minute detection. The organizer page provides explicit blanks for the study-specific blotter wait interval and other release settings; no scientific timing optimum or approval is implied. Do not use unfilled settings as an operational protocol.
+The primary target/stage, original scales, skin/holdout scope, timing windows and final eligibility rules remain release
+decisions; this packet explicitly uses groups of up to three blotters and retains equal ranks. The packet preserves the
+current draft's 15/60/240-minute skin checks and optional 480-minute detection. The organizer page provides explicit
+blanks for the study-specific blotter wait interval and other release settings; no scientific timing optimum or approval
+is implied. Do not use unfilled settings as an operational protocol.
 
-The implemented packet revisions do not adopt the proposed taxonomy hierarchy. Preserve original blind answers, exact question versions and the later information context. Final non-detection must not discard an assessable final wear/overall-liking answer.
+The implemented packet revisions do not adopt the proposed taxonomy hierarchy. Preserve original blind answers, exact
+question versions and the later information context. Final non-detection must not discard an assessable final
+wear/overall-liking answer.
 
 ## Organizer annotation contract
 
-The organizer pages are used after original answers are preserved. They are not participant data and must not be distributed as a rater checklist.
+The organizer pages are used after original answers are preserved. They are not participant data and must not be
+distributed as a rater checklist.
 
-- Preserve the original paper/scan, page/response reference, participant, presentation, stage/time and instrument version. A copied phrase is linked to its original answer, not treated as another observation.
-- Record coder identity, annotation date, review state and the vocabulary/mapping version actually used. Record the exact vocabulary release and artifact hash; proposed definitions must not be labeled as an unchanged approved release.
-- Family candidates allow zero, one or several; a primary family is optional and belongs to this annotation, not an inferred participant selection. Add explicit supporting evidence for the family assignments.
-- For each exact phrase record candidate concept(s), relation/status, evidence and uncertainty. The v0.5 worksheet explicitly requests target-broader/target-narrower, close, exact, related or composite direction/type; no precise relation is implied by convenience of display. `Unresolved` is a resolution status, not an odor code.
-- `Draft/reviewed/rejected` describes annotation review. It does not establish source permissions, study eligibility or truth of an ingredient claim. `Reviewed` must have a traceable reviewer/date in the annotation history; attach a review record if different from the coder/date in the header.
-- Four printed rows are writing space, not a storage cap. Append pages with the same source IDs. No descriptor rank is elicited or imposed; later coding cannot recover unasked prominence.
-- Keep source notes/accords, evaluator perceptions and material assertions separate. Do not infer families by copying browse-tree ancestry, or treat a material-named descriptor as a formula claim.
-- For an independent coding rehearsal, give coders the relevant odor text and context before preference or value outcomes. No printed guidance is a participant observation.
-- No transcript, annotation or new vocabulary version silently changes the inputs of an already frozen forecast. Retrospective reanalysis is a separate derived artifact.
+- Preserve the original paper/scan, page/response reference, participant, presentation, stage/time and instrument
+  version. A copied phrase is linked to its original answer, not treated as another observation.
+- Record coder identity, annotation date, review state and the vocabulary/mapping version actually used. Record the
+  exact vocabulary release and artifact hash; proposed definitions must not be labeled as an unchanged approved release.
+- Family candidates allow zero, one or several; a primary family is optional and belongs to this annotation, not an
+  inferred participant selection. Add explicit supporting evidence for the family assignments.
+- For each exact phrase record candidate concept(s), relation/status, evidence and uncertainty. The v0.5 worksheet
+  explicitly requests target-broader/target-narrower, close, exact, related or composite direction/type; no precise
+  relation is implied by convenience of display. `Unresolved` is a resolution status, not an odor code.
+- `Draft/reviewed/rejected` describes annotation review. It does not establish source permissions, study eligibility or
+  truth of an ingredient claim. `Reviewed` must have a traceable reviewer/date in the annotation history; attach a
+  review record if different from the coder/date in the header.
+- Four printed rows are writing space, not a storage cap. Append pages with the same source IDs. No descriptor rank is
+  elicited or imposed; later coding cannot recover unasked prominence.
+- Keep source notes/accords, evaluator perceptions and material assertions separate. Do not infer families by copying
+  browse-tree ancestry, or treat a material-named descriptor as a formula claim.
+- For an independent coding rehearsal, give coders the relevant odor text and context before preference or value
+  outcomes. No printed guidance is a participant observation.
+- No transcript, annotation or new vocabulary version silently changes the inputs of an already frozen forecast.
+  Retrospective reanalysis is a separate derived artifact.
 
 ## Integrated follow-up: distribution and capture rules
 
-Complete the planned blind sheets first and preserve them. After the relevant blind block and repeats are closed, release A, then B, then C. Prefer releasing after the entire panel if further exposures could be influenced. Check holdouts and other participants before showing prices. A copy of the combined owner-review packet must not circulate during blind sessions.
+Complete the planned blind sheets first and preserve them. After the relevant blind block and repeats are closed,
+release A, then B, then C. Prefer releasing after the entire panel if further exposures could be influenced. Check
+holdouts and other participants before showing prices. A copy of the combined owner-review packet must not circulate
+during blind sessions.
 
-A records retrospective intended-use roles before money/profile prompts. It is not a new real-time blind checkpoint, even if price/identity remain unknown. Link its source experiences and preserve any prior knowledge. B records individual size/format thresholds and references. C records one particular offer, intended wearer and information state; use another assessment ID for a different offer or purpose.
+A records retrospective intended-use roles before money/profile prompts. It is not a new real-time blind checkpoint,
+even if price/identity remain unknown. Link its source experiences and preserve any prior knowledge. B records
+individual size/format thresholds and references. C records one particular offer, intended wearer and information state;
+use another assessment ID for a different offer or purpose.
 
-Every follow-up page carries evaluator, date/time/zone and profile or assessment IDs; sample-specific pages link the original trial/sheet. Repeated printed cards require entry/reference IDs. Their count is not a response cap. Preserve paper, raw answers, actual occurrence time, later entry time and corrections with authorship. Format labels may overlap: a travel decant can be one nominal-size entry with multiple source labels, not two independent budget observations. Unspecified sizes/ranges/currency stay unspecified.
+Every follow-up page carries evaluator, date/time/zone and profile or assessment IDs; sample-specific pages link the
+original trial/sheet. Repeated printed cards require entry/reference IDs. Their count is not a response cap. Preserve
+paper, raw answers, actual occurrence time, later entry time and corrections with authorship. Format labels may overlap:
+a travel decant can be one nominal-size entry with multiple source labels, not two independent budget observations.
+Unspecified sizes/ranges/currency stay unspecified.
 
-For profile amounts, enough experience means enough to consider purchasing **that size**. It does not require an own-skin trial; an unfamiliar sample can itself be the purchase being considered. The routine total is comfortable spending, exceptional total is considered only for an exceptional purchase, and ceiling is a stated maximum or explicit no-fixed-ceiling answer. Do not infer the thresholds from quantities owned, from each other or from a single rejected offer. Inventory counts, nominal/remaining mL and actual transactions remain distinct and are not requested in these forms.
+For profile amounts, enough experience means enough to consider purchasing **that size**. It does not require an
+own-skin trial; an unfamiliar sample can itself be the purchase being considered. The routine total is comfortable
+spending, exceptional total is considered only for an exceptional purchase, and ceiling is a stated maximum or explicit
+no-fixed-ceiling answer. Do not infer the thresholds from quantities owned, from each other or from a single rejected
+offer. Inventory counts, nominal/remaining mL and actual transactions remain distinct and are not requested in these
+forms.
 
-For all questions, an untouched blank is unanswered unless administration evidence supports not asked/skipped. Explicit cannot judge, unknown/not sure and prefer-not responses retain their actual meaning. Use `not_applicable` for a skipped comparison with no reference or a non-wearer's personal-use effect; preserve the reason. No fixed ceiling is an answered categorical statement, not an infinite numeric value. A completed multi-select with no marks is not automatically a chosen None. Preserve ambiguous paper responses for review rather than silently repairing them.
+For all questions, an untouched blank is unanswered unless administration evidence supports not asked/skipped. Explicit
+cannot judge, unknown/not sure and prefer-not responses retain their actual meaning. Use `not_applicable` for a skipped
+comparison with no reference or a non-wearer's personal-use effect; preserve the reason. No fixed ceiling is an answered
+categorical statement, not an infinite numeric value. A completed multi-select with no marks is not automatically a
+chosen None. Preserve ambiguous paper responses for review rather than silently repairing them.
 
-A person's reference may be shared across size rows while its stated price/size basis remains fixed. A 100 mL price cannot imply a purchasable 10 mL offer. If reference price is uncertain, show its actual remembered/unknown status; a supplied choice remains context-limited rather than a verified current-price comparison. Do not compute liking divided by price, exact cost per wear, calibrated purchase probability, demand curves or causal price effects from these responses.
+A person's reference may be shared across size rows while its stated price/size basis remains fixed. A 100 mL price
+cannot imply a purchasable 10 mL offer. If reference price is uncertain, show its actual remembered/unknown status; a
+supplied choice remains context-limited rather than a verified current-price comparison. Do not compute liking divided
+by price, exact cost per wear, calibrated purchase probability, demand curves or causal price effects from these
+responses.
 
-The offer page captures prior price/brand/identity/notes knowledge. The operator record separately logs exact information actually disclosed with times and links to the private physical/version identity. Keep source/seller information off the participant card if it reveals concealed identity. Lock shown prices as snapshots; later catalog changes do not alter an earlier response. Known tax/shipping treatment and availability remain explicit; unknown amounts must not be filled by assumption. A planned sample purchase is not an acquisition, and “smelled on another person” is not an own-skin trial.
+The offer page captures prior price/brand/identity/notes knowledge. The operator record separately logs exact
+information actually disclosed with times and links to the private physical/version identity. Keep source/seller
+information off the participant card if it reveals concealed identity. Lock shown prices as snapshots; later catalog
+changes do not alter an earlier response. Known tax/shipping treatment and availability remain explicit; unknown amounts
+must not be filled by assumption. A planned sample purchase is not an acquisition, and “smelled on another person” is
+not an own-skin trial.
 
-A gift response belongs to the buyer under a gift context. Another wearer's reported exposure is attributed to that buyer and may be unknown; it is not the recipient's liking/wear/value response. A self-use assessment and a gift assessment need distinct assessment IDs if both are collected. Profile selection does not imply purchase behavior, and declined full-bottle intent does not erase sampling interest.
+A gift response belongs to the buyer under a gift context. Another wearer's reported exposure is attributed to that
+buyer and may be unknown; it is not the recipient's liking/wear/value response. A self-use assessment and a gift
+assessment need distinct assessment IDs if both are collected. Profile selection does not imply purchase behavior, and
+declined full-bottle intent does not erase sampling interest.
 
 ## Link, routing and correction rules
 
-**Profile participation:** selecting formats and selecting an alternative remain exclusive. None/Prefer not to answer skip entries. Not sure permits any entries the person can judge; it does not require them. An optional entry is not evidence that an uncertain format selection was actually definite. Unknown markers apply independently to size, price and currency; blank and explicit unknown are different.
+**Profile participation:** selecting formats and selecting an alternative remain exclusive. None/Prefer not to answer
+skip entries. Not sure permits any entries the person can judge; it does not require them. An optional entry is not
+evidence that an uncertain format selection was actually definite. Unknown markers apply independently to size, price
+and currency; blank and explicit unknown are different.
 
-**Linkage and purchase context:** Profile/Entry IDs on offer page 1 are organizer-managed. Matched means the actual compatible entry is recorded; no match, profile not collected, unresolved and not checked remain distinct. Profile participation is not a prerequisite for a value answer. Record review time/author/basis for a later link. The independently optional use-role pointer resolves to a follow-up record + role entry ID and that entry's actual source trial(s). Both requires the relevant blotter and skin source instances. Avoid joining by fragrance name alone. No post-price intended use overwrites the pre-price role.
+**Linkage and purchase context:** Profile/Entry IDs on offer page 1 are organizer-managed. Matched means the actual
+compatible entry is recorded; no match, profile not collected, unresolved and not checked remain distinct. Profile
+participation is not a prerequisite for a value answer. Record review time/author/basis for a later link. The
+independently optional use-role pointer resolves to a follow-up record + role entry ID and that entry's actual source
+trial(s). Both requires the relevant blotter and skin source instances. Avoid joining by fragrance name alone. No
+post-price intended use overwrites the pre-price role.
 
-**Offer preparation:** organizer pre-fills candidate fields on both offer and comparison pages from the same card, including its exact format/mL/price/currency/basis, then verifies both before showing them. Log any discrepancy with both source records and actual seen-time. A corrected disclosure and any new answer are separately timed and linked; neither replaces an earlier response. An intended private offer does not establish what was actually seen.
+**Offer preparation:** organizer pre-fills candidate fields on both offer and comparison pages from the same card,
+including its exact format/mL/price/currency/basis, then verifies both before showing them. Log any discrepancy with
+both source records and actual seen-time. A corrected disclosure and any new answer are separately timed and linked;
+neither replaces an earlier response. An intended private offer does not establish what was actually seen.
 
-**Sequence and selection:** keep a per-respondent sequence group/position with prior assessment and disclosure IDs. Record distinct skin/holdout and value-subset rules, eligible lists, selected/omitted IDs and reasons before their affected use. Do not label repeated priced choices independent first-price observations or generalize a preference-selected value subset to the entire panel. Selecting skin holdouts from observed favorite blotters does not support the intended general prediction claim without a suitable evaluation design.
+**Sequence and selection:** keep a per-respondent sequence group/position with prior assessment and disclosure IDs.
+Record distinct skin/holdout and value-subset rules, eligible lists, selected/omitted IDs and reasons before their
+affected use. Do not label repeated priced choices independent first-price observations or generalize a
+preference-selected value subset to the entire panel. Selecting skin holdouts from observed favorite blotters does not
+support the intended general prediction claim without a suitable evaluation design.
 
-**Recognition and coding:** join the existing timed recognition/disclosure to observations through evaluator/session/presentation and actual time. Preserve spontaneous comparisons without telling participants to look for repeats. Vague familiarity is not verified identity; eligibility requires the declared rule. Permit supported overlapping/no families and leading descriptors. Rehearsal can discover unresolved coding boundaries; only approved versioned definitions may support affected normalized reports/features.
+**Recognition and coding:** join the existing timed recognition/disclosure to observations through
+evaluator/session/presentation and actual time. Preserve spontaneous comparisons without telling participants to look
+for repeats. Vague familiarity is not verified identity; eligibility requires the declared rule. Permit supported
+overlapping/no families and leading descriptors. Rehearsal can discover unresolved coding boundaries; only approved
+versioned definitions may support affected normalized reports/features.
 
 ## Follow-up questions and exact response sets
 

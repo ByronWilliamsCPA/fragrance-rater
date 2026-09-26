@@ -11,7 +11,11 @@ tags:
 ---
 
 Prepared September 25, 2026 against repository baseline `56397d6` and
-[FR-PANEL draft 0.5](../measurement/blind-evaluation-instrument-v0.5.md).
+[FR-PANEL draft 0.5](../measurement/blind-evaluation-instrument-v0.5.md). Reconciled
+September 26, 2026 against `main` at `81996f2`, after PR #124. Where this document conflicts
+with an accepted decision, the instrument's
+[Divergence from accepted decisions](../measurement/blind-evaluation-instrument-v0.5.md#divergence-from-accepted-decisions)
+section governs.
 **Confirmed direction:** conduct evaluation through the web UI; paper is a
 version-matched backup and a way to review the process. The screen/state
 design below is proposed. It does not release a protocol, change the
@@ -40,9 +44,13 @@ question count.
 | Value decision | Separate personal value, buying now and next step; optional reasons, reference comparison and cost-related own use. | All remaining `VAL-*` except organizer `VAL-PROFILE-LINK` |
 
 Free description precedes ratings. Do not prime blind answers with house
-notes, taxonomy checklists or AI suggestions. Season and setting suitability
-remain optional on **both** blotter and skin forms; actual session conditions
-are separate. Non-detection is not dislike, and final non-detection does not
+notes, taxonomy checklists or AI suggestions. This draft's position is that
+season and setting suitability remain optional on **both** blotter and skin
+forms; actual session conditions are separate. ML Decisions Q9 instead makes
+`season_fit` and `setting_fit` mandatory on every skin-stage row only, not on
+blotter; see the instrument's
+[Divergence from accepted decisions](../measurement/blind-evaluation-instrument-v0.5.md#divergence-from-accepted-decisions)
+section. Non-detection is not dislike, and final non-detection does not
 invalidate an assessable retrospective judgment.
 
 In digital presentation, ask prior-offer knowledge before first displaying
@@ -150,9 +158,11 @@ stage locks and delayed identity reveal. It does not implement this instrument:
 `SampleObservationPanel` manually posts a form with structured scales before
 description; `ResponseInput` uses 0-10 liking/wear/buy and Boolean detection;
 `lock_stage()` requires one detection answer, not scheduled-task completion;
-`reveal_blocker()` gates enrollment locks; controlled history and ML evaluation
-label observations 0-10. Skin-plan actions currently use recorder/enrollment
-authorization. A new UI alone cannot correct these storage and gate differences.
+`reveal_blocker()` blocks the `reveal()` transition only on skin-plan, blotter
+and skin lock completion, not on this instrument's richer missing-task closure
+rules; controlled history and ML evaluation label observations 0-10. Skin-plan
+actions currently use recorder/enrollment authorization. A new UI alone cannot
+correct these storage and gate differences.
 
 | ID | Implementation outcome | Evidence required before use |
 | --- | --- | --- |
@@ -164,6 +174,24 @@ authorization. A new UI alone cannot correct these storage and gate differences.
 | WEB-06 | Identified paper transcription, conflict/correction history and backup/restore. | Recover partly saved web/paper work without losing either source or backdating entry. |
 | WEB-07 | Scale-, construct- and endpoint-aware history, exports and model manifests. | Drafts excluded; late detection cannot replace final judgment; holdouts/post-price evidence remain appropriately excluded. |
 | WEB-08 | Human participant, organizer and recorder rehearsal on intended deployment/devices. | Capture, interruptions, timing, disclosure, value branches, burden and recovery demonstrated. |
+
+### Relationship to R7a, R7b and P6.3
+
+WEB-01 through WEB-08 are proposed inputs to `PROJECT-PLAN.md` section 11a's R7a and R7b
+sprints (and, for WEB-08, to the P6.3 synthetic-rehearsal gate). They are not a separate
+delivery plan running alongside Milestone R; where a WEB item names work R7a or R7b already
+scopes, the plan row is authoritative and this table exists to trace, not to duplicate, it.
+
+| WEB item | Nearest plan item | Note |
+| --- | --- | --- |
+| WEB-01 | R7a | R7a's `instrument_version` on `programs` (written at activation) and scenario/season/setting lookup columns cover pinning instrument/presentation versions and release scope. |
+| WEB-02 | R7a | R7a's typed tables, real timestamps, response-status code and deviation/quality-flag table cover versioned storage and corrections; R7a is schema/service work, so draft-autosave and idempotent-submit UI mechanics are not yet detailed there. |
+| WEB-03 | R7b | R7b builds the session-start form, blotter form, fixed-timepoint skin flow and end-of-session rank event. WEB-03's "both-stage suitability" conflicts with ML Decisions Q9 (skin-stage only); see the instrument's Divergence section. |
+| WEB-04 | No counterpart; would need a plan amendment | Organizer release-group permissioning and allocation workflow are not named in R7a, R7b or P6.3; R4 covers API-level disclosure controls, not this release-group flow. |
+| WEB-05 | No counterpart; would need a plan amendment | R7b only removes blind `would_buy` from the skin form; the unpriced-role, profile/reference and offer/value follow-up module is not scoped in R7a, R7b or P6.3. |
+| WEB-06 | No counterpart; would need a plan amendment | Identified paper transcription and web/paper conflict recovery are not named in R7a, R7b or P6.3. |
+| WEB-07 | R8 (outside R7a/R7b/P6.3) | `training_eligibility`, `v_training_rows` and the checkpoint/feature-snapshot fields are R8's, sequenced after R7a/R7b rather than part of them. |
+| WEB-08 | P6.3 | P6.3 is the full setup-to-report rehearsal on the exact R7b instrument build F1 will use; it is a hard gate on P6 until R7b has merged. |
 
 Start with WEB-01/02, then participant and organizer flows, follow-up and
 recovery. WEB-07's consumer protections are needed before any new responses
