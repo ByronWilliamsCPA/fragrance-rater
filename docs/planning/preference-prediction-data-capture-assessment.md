@@ -1,7 +1,7 @@
 # Preference-Prediction Data Capture Assessment
 
 > **Status**: Draft for product-owner review
-> **Version**: 1.2
+> **Version**: 1.3
 > **Updated**: 2026-09-21
 > **Perspective**: Future data scientist responsible for preference-model development
 > **Companions**: [ML Structure Review](ml-structure-review-2026-09.md),
@@ -432,8 +432,9 @@ Add or complete:
 ### P0: before baseline collection
 
 - Complete R6 vocabulary normalization and feature-space versioning.
-- Complete R7 session timing, sample provenance, familiarity, ranking, scrub-off, and context
-  capture; require the UI to write the fields rather than creating empty context objects.
+- Complete R7a session timing, sample provenance, familiarity, ranking, scrub-off, and context
+  schema; complete R7b so the released UI writes the fields rather than creating empty context
+  objects.
 - Complete R8 evidence-level eligibility, frozen source/feature provenance, and authoritative
   training view.
 - Decide whether minimal season/setting judgments belong in this baseline. If yes, define them now;
@@ -816,7 +817,95 @@ three outcomes as separate labels throughout retrieval, training, and evaluation
 - `docs/planning/ml-structure-review-2026-09.md`
 - `docs/research/perfume-purchasing-research-validation.md`
 
-## 18. Change-control note
+## 18. Data-capture additions from the future-state ML architecture review
+
+An internally authored, unreviewed architecture proposal argued for a broad future-state data
+model spanning multi-tenant household scoping, a mobile client, federated learning, and a wide
+event-sourced schema. Most of that proposal's infrastructure is out of scope here: it is
+comparatively cheap to add later, and the project's own commercialization staging already places
+multi-tenancy, billing, and tenant-scoped deletion at a post-paid-validation stage, not before it.
+A senior-architecture review of the same proposal reached the same conclusion independently.
+
+One distinction from that review does belong in this assessment. Infrastructure is reversible;
+a moment's price, context, offer, or consent state that goes unrecorded is not. The five items
+below are the data-capture additions worth adopting now, at low cost, without adopting the
+proposal's infrastructure framing. None of them require a new ADR; none change
+`PROJECT-PLAN.md` sequence, status, or `ml-decisions-2026-09.md`.
+
+### 18.1 Offer choice set at purchase time
+
+Section 4.3 already requires offer timestamp, currency, price, size, and availability for the
+purchased item. It does not capture what else was on offer at that moment. A `would_buy` or
+purchase event recorded against a single price point cannot separate "I would not buy this
+fragrance" from "I would not buy this fragrance at this price when a comparable option was
+cheaper." Add, alongside the existing offer snapshot:
+
+- the alternative formats/sizes and prices visible at the same offer timestamp, when known;
+- shipping, fees, and other landed-cost components, so a derived landed cost can be compared
+  across formats and retailers;
+- a reference to which alternative, if any, was chosen instead.
+
+This is an extension of the offer snapshot already required by 4.3, not a new entity. Record it
+as part of the same timestamped, immutable offer record.
+
+### 18.2 Acquisition format and access mode
+
+Section 4.3's purchase format list (sample, decant, travel, bottle) does not distinguish a
+partial/split purchase or a discovery set from a single-item purchase, and no existing field
+records how the evaluator physically accessed the fragrance being rated. Add:
+
+- two acquisition-format values, `bought_split_or_partial` and `bought_discovery_set`, alongside
+  the existing sample/decant/travel/bottle values;
+- an access-mode code at the encounter level: local tester, free sample, paid sample, discovery
+  set, or bottle-only.
+
+Access mode is a confounder for both liking and purchase intent: a paid sample and a free tester
+carry different selection pressure even when the sensory encounter is identical.
+
+### 18.3 Wear-log coverage flag
+
+Section 13.9 establishes that a missing wear or purchase event must resolve to pending,
+unavailable, or censored, never a silent negative. That contract assumes a wear log exists to be
+absent from. It does not yet distinguish an evaluator who was never asked to keep a wear log from
+one who was asked and did not respond. Add a wear-log coverage flag per evaluator/fragrance
+opportunity window, recorded alongside the existing censoring states, so absence of any wear
+events can be read as "no log requested" rather than defaulting to the same unresolved-opportunity
+state as "log requested, nothing recorded yet."
+
+### 18.4 Tenant/household scope column
+
+No model in `src/fragrance_rater/models/` carries a household, tenant, or scope identifier today;
+the household is implicit in a single shared database. This is not a request to build
+multi-tenancy now. It is a request to add one unused, constant-valued scope column to the core
+private-data tables (evaluator, observation, encounter, offer/behavioral-event records) while
+those tables are still small and their schema is still cheap to change. A column that is always
+the same value costs nothing to carry and nothing to migrate later; backfilling a scope key onto
+years of accumulated rows after the fact, if a future stage ever needs it, is materially more
+expensive and risks silently misattributing historical rows during the backfill.
+
+### 18.5 Consent/contribution-state field
+
+Section 13.11 already requires a consent text/version and timestamp before collecting sensitive
+optional context. It does not yet capture what an evaluator has agreed a given record may be used
+for. Add a consent/contribution-state field, recorded per evaluator or per consent event, covering
+at minimum: research use within the household, inclusion in aggregate reporting, and future model
+training contribution. This is distinct from the sensitive-field consent in 13.11; it applies to
+ordinary observations as much as to sensitive context, and it is the field a future export or
+aggregate-benchmark decision would need to check before including a given evaluator's rows, per
+this project's rule that new commercial uses require specific, informed opt-in rather than a
+buried terms update.
+
+None of the five items above is required before F1's blind pass. 18.1 and 18.2 must exist before
+the first recorded offer or purchase event, which can only occur post-reveal; 18.3 before the
+first follow-up wear-log window opens, also post-reveal; 18.5 rides on the consent screen that
+13.11 already requires before session-context collection, so it costs nothing extra if that screen
+is being built anyway; 18.4 may land whenever a migration next touches the relevant tables. The
+data that cannot wait, because every pre-reveal exposure the initial four evaluators get (blotter,
+hidden-repeat blotter, and skin) falls within F1's single blind pass, is
+scoped in sections 5.1, 6, 11 (Milestone 1), 12 (P0), and 13.13, and is tracked in
+`PROJECT-PLAN.md`'s R7a/R7b sprint rows, not here.
+
+## 19. Change-control note
 
 This assessment identifies data requirements and sequencing risks. Changes to the baseline panel,
 blind core, outcome placement, Fragella use, training eligibility, or accepted model decision rule

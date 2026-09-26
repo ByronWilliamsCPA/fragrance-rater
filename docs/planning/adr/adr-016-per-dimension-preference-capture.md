@@ -1,8 +1,9 @@
 # ADR-016: Per-Dimension Preference Capture and Perfumer as an Evaluable Dimension
 
-> **Status**: Proposed, requires maintainer decision, not implemented
+> **Status**: Proposed, requires maintainer decision, not implemented; amended 2026-09-21
+> (permanence for the initial four F1 evaluators)
 >
-> **Date**: 2026-09-19
+> **Date**: 2026-09-19 | **Amended**: 2026-09-21
 
 **Numbering note**: `main` already contains ADR-014 (frontend e2e and accessibility), merged in
 PR #103 without being added to the index. PR #105 has since merged a second, unrelated ADR-014
@@ -126,6 +127,24 @@ checkpoints exist to avoid.
 
 Recommended: land after F1 closes and before D1, so the first pilot is internally consistent and the
 second wave collects the richer signal.
+
+For the initial four F1 evaluators specifically, this deferral is permanent, not merely sequenced.
+See the 2026-09-21 amendment below for the exposure cardinality and why the permanence conclusion
+still holds.
+
+## 2026-09-21 amendment: permanence for the initial four F1 evaluators
+
+The paragraph above asserted that each (evaluator, fragrance) pair has one pre-reveal exposure.
+That understated the count: a pair can have up to three pre-reveal exposures (blotter, a second
+blotter presentation for the 6 hidden-repeat fragrances, and skin for the roughly 6 skin
+candidates), all within F1's single blind pass; see ADR-005's 2026-09-21 amendment.
+
+The permanence conclusion does not rest on the exposure count; it rests on the instrument. Neither
+the blotter nor the skin instrument has a structured preference-driver field ("which attributes
+pushed your rating up or down"), and this ADR is not implemented before F1, so no pre-reveal stage
+collects it. Once identities are revealed, it cannot be collected retroactively for any initial
+evaluator's pair. The fatigue and comparability reasoning above still justifies the deferral; it is
+recorded here so the trade-off is visible rather than read as a neutral delay.
 
 ## Perfumer as an evaluable dimension
 

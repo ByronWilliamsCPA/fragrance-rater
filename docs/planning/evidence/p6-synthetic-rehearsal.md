@@ -16,6 +16,8 @@ tags:
 
 **Release commit and image digests:** Pending
 
+**R7b participant-instrument build exercised (commit SHA and image digests):** Pending
+
 Use unmistakably synthetic evaluator names, catalog versions, observations, and outcomes. Record
 the UTC start/end time, operator, role account, expected result, observed result, pass/fail, and
 private artifact reference for each step.

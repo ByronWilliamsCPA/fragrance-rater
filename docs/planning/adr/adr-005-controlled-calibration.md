@@ -1,8 +1,9 @@
 # ADR-005: Controlled Calibration and Disclosure State
 
-> **Status**: Accepted
+> **Status**: Accepted; amended 2026-09-19 (protocol research reconciliation) and 2026-09-21
+> (exposure cardinality and would_buy permanence)
 >
-> **Date**: 2026-09-11
+> **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21
 
 ## Context
 
@@ -116,13 +117,39 @@ settles the daily-load, calendar-spread, and judgment-set half of the protocol d
   [Controlled Calibration V1](../../calibration-v1.md) and the baseline evidence
   (`docs/planning/evidence/baseline-v3.1-universal-and-holdout.md`) are unchanged; no version
   needs to be re-selected or renumbered.
-- Milestone R sprint R7 implements the resulting schema changes (session-context fields,
-  familiarity encoding, `would_buy` relocation, the ranking/pairwise tables, skin-observation
-  timepoints) per its existing scope; this amendment is R7's input, not a substitute for it.
+- Milestone R sprint R7a implements the resulting schema changes (session-context fields,
+  familiarity encoding, the ranking/pairwise tables, skin-observation timepoints); R7b implements
+  the resulting participant-instrument changes, including `would_buy` relocation, per each sprint's
+  existing scope. This amendment is R7a/R7b's input, not a substitute for either.
 - ADR-009's declared-learning-problem amendment quotes holdout error "against the hidden-repeat
   noise ceiling." Read that phrase alongside the repeat-design row above: 6 repeats per evaluator
   support a pooled, wide-uncertainty benchmark, not a precise individual ceiling. See the
   companion ADR-009 terminology amendment.
+- Moving `would_buy` out of the blinded per-sample core is a permanent omission for the initial F1
+  evaluators, not an ordinary deferral. See the 2026-09-21 amendment below for the exact exposure
+  cardinality and why the permanence conclusion still holds.
+
+## 2026-09-21 amendment: exposure cardinality and would_buy permanence
+
+The bullet above asserted that each (evaluator, fragrance) pair gets one pre-reveal blotter or skin
+exposure. That understated the count. Every pre-reveal exposure falls within F1's single blind pass,
+because identities stay hidden until all blotter stages, repeats, and planned skin stages are locked
+(`docs/calibration-v1.md`): one blotter presentation per fragrance, a second blind blotter
+presentation for the 6 hidden-repeat fragrances
+(`docs/planning/evidence/baseline-v3.1-universal-and-holdout.md`), and a skin-stage exposure for
+the roughly 6 candidates each evaluator carries forward to skin. The skin plan does not currently
+say whether a hidden-repeat fragrance may be selected for skin, so a pair can have up to three
+pre-reveal exposures.
+
+The permanence conclusion does not rest on the exposure count; it rests on the instrument. Today's
+skin core asks `would_buy` (`calibrationScales.ts:184`). DEC-03 removes it in R7b, and R7b is a
+hard gate on P6.3 (`gates/p6.md`), so F1 runs on an instrument that asks `would_buy` at no
+pre-reveal stage. Once F1's blind pass is over and identities are revealed, a blind, price-free
+`would_buy` judgment cannot be collected for any initial evaluator's pair. The decision to move
+`would_buy` out of the blinded core stands (an offer-conditioned `would_buy` would itself leak
+identity through price and size, so it is necessarily post-reveal), but the loss is acknowledged
+here rather than left implicit. ADR-009's matching 2026-09-21 amendment redefines `would_buy` as a
+separately linked post-reveal outcome.
 
 ## Related
 

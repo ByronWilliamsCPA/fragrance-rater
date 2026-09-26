@@ -30,6 +30,7 @@ tags:
 | Q6 | Freeze v1, fix as v2 | A: v1 pinned; register v2; compare | C, modified: fix now and make the corrected scorer (v2) the default because no family ratings exist; keep v1 registered as a reference model for the comparison harness | 2026-09-19 |
 | Q7 | ML dependencies | A: optional dependency group in this repo | A | 2026-09-19 |
 | Q8 | Pairwise judgments during F1 | B: rank the three samples per session | B, decided: rank all three, analyzed as one rank event (see the ADR-005 amendment) | 2026-09-19 |
+| Q9 | Blind scenario/season label before F1 (`product-research-remediation-implementation-plan.md` DEC-01) | (a): a minimal, coarse season/setting label is cheap now and cannot be reconstructed after reveal | (a), narrowed: two mandatory fields (`season_fit`, `setting_fit`) on every skin-stage row, asked only at the roughly 6 skin-stage candidates per evaluator, not all 49 blotter presentations, to limit fatigue; blotter rows are excluded from the completeness denominator. Folded into R7b (`PROJECT-PLAN.md` section 11a). | 2026-09-21 |
 
 ## Q1. Declare the learning problem
 
@@ -164,20 +165,35 @@ placement (moved out of the blinded core, matching ADR-007), descriptive dimensi
 split out as its own field), the ranking procedure (confirmed, analyzed as one rank event, not
 independent pairwise comparisons), order/position balancing (explicit constrained randomization),
 session-context fields (added), and skin timepoints (10 min / 1 h / 4 h / 8 h with interval-censored
-longevity). Schema implementation for these changes is R7's scope, not this amendment's.
+longevity). Schema implementation for these changes is R7a's scope, not this amendment's.
+
+## Q9. Blind scenario/season label before F1
+
+Raised as DEC-01 in `product-research-remediation-implementation-plan.md` section 4; it was the
+highest-risk open item in that plan's section 26 until the resolution below: a blind (pre-reveal) judgment about which season or setting a fragrance suits is only
+obtainable before the evaluator learns its identity. Left unresolved, `PROJECT-PLAN.md`'s R7 row
+would ship "scenario lookups schema-only," a lookup table with no evaluator-facing question, so
+nothing would populate it during F1.
+
+**Decided 2026-09-21:** add two mandatory fields, `season_fit` and `setting_fit`, on every skin-stage
+row (from a short fixed list), at the skin stage only, roughly 6 candidates per evaluator, not all
+49 blotter presentations, per the fatigue caution in
+`preference-prediction-data-capture-assessment.md` section 6.2. Completeness denominators are
+eligible skin-stage rows only; blotter rows are excluded; the R7b export and the F1 report use the
+same denominators. Folded into R7b's participant instrument in `PROJECT-PLAN.md` section 11a.
 
 ## Sequence once decided
 
 Scheduled as Milestone R in [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation):
-Q2 and Q5 are R6, Q3 and Q8 are R7 (R5's research reconciliation is done; R7's schema now also
-carries the daily-load, calendar, scale, familiarity, `would_buy`, descriptor, and
-session-context changes from the ADR-005 amendment), Q6 is done, Q7 is R15.
+Q2 and Q5 are R6, Q3 and Q8 are R7a (R5's research reconciliation is done; R7a's schema now also
+carries the daily-load, calendar, scale, familiarity, descriptor, and session-context changes from
+the ADR-005 amendment; `would_buy` relocation is R7b's), Q6 is done, Q7 is R15.
 
 1. ADR-009 amendment recording Q1. Done.
 2. Vocabulary migration and shared resolver for the 43 versions (Q2).
 3. Protocol research reconciliation, recorded as the ADR-005 amendment (R5). Done.
 4. Pairwise and behavioral tables with the session ranking prompt, plus the R5-derived schema
-   changes (Q3, Q8, R7).
+   changes (Q3, Q8, R7a).
 5. affinity-v2 as the default scorer, v1 retained for comparison (Q6, Q4). Implemented 2026-09-19;
    see the ADR-004 amendment.
 6. Intensity-source flag (Q5) and the optional dependency group (Q7).

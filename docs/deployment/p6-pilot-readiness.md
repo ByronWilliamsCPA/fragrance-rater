@@ -39,6 +39,11 @@ Stop before rehearsal unless all items pass:
   [printable evaluation and outage form](../printable-evaluation-form.md), and a rollback owner
   are ready.
 - The target deployment has a verified backup and no active real pilot session.
+- R7b (`docs/planning/PROJECT-PLAN.md` section 11a, the participant-facing blind-instrument build)
+  has merged, the candidate commit includes that merge, and the candidate commit and image digests
+  are the exact participant-instrument build F1 will use, recorded in the rehearsal evidence per
+  `docs/planning/gates/p6.md` P6.3. This is a hard gate on P6.3: rehearsing against a pre-R7b
+  build proves nothing about the instrument F1 will use.
 
 Record the entry result in the [readiness decision](../planning/evidence/p6-readiness-decision.md).
 
