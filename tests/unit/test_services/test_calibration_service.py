@@ -9,6 +9,7 @@ import pytest_asyncio
 from fastapi import HTTPException
 from pydantic import ValidationError
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.models.calibration import (
     Observation,
@@ -328,6 +329,72 @@ async def test_add_member_rejects_gtin_conflicting_with_an_older_snapshot(protoc
                 gtin="036000291452",
             ),
         )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({"source_type": "parfumo"}, id="invalid-source-type"),
+        pytest.param({"permission_state": "anything"}, id="invalid-permission"),
+        pytest.param(
+            {"source_url": None, "source_reference": None}, id="both-identifiers-null"
+        ),
+        pytest.param(
+            {"source_url": "", "source_reference": ""}, id="both-identifiers-empty"
+        ),
+        pytest.param(
+            {"source_url": None, "source_reference": "  "}, id="whitespace-reference"
+        ),
+    ],
+)
+async def test_source_snapshot_rejects_invalid_provenance(
+    protocol, overrides: dict[str, object]
+):
+    """ADR-012's CHECK constraints, not just each writer's own discipline,
+    keep a SourceSnapshot from carrying an unknown source_type or
+    permission_state, or no non-blank citation at all - a future write path
+    that bypasses ParfumoScraper or the manifest validator would otherwise
+    not be caught."""
+    service, *_ = protocol
+    values: dict[str, object] = {
+        "fragrance_id": "secret-version-2",
+        "source_type": "manufacturer_provided",
+        "permission_state": "retain_and_train",
+        "fields": ["concentration"],
+        "source_url": "https://example.test/secret-version-2",
+        "source_reference": None,
+        "payload": {},
+    }
+    values.update(overrides)
+    service.db.add(SourceSnapshot(**values))
+    with pytest.raises(IntegrityError):
+        await service.db.flush()
+
+
+@pytest.mark.asyncio
+async def test_source_snapshot_accepts_a_reference_only_row(protocol):
+    """A manufacturer confirmation with no URL (a letter or email reply) is
+    valid provenance as long as source_reference is non-blank."""
+    service, *_ = protocol
+    snapshot = SourceSnapshot(
+        fragrance_id="secret-version-2",
+        source_type="manufacturer_provided",
+        permission_state="retain_and_train",
+        fields=["concentration"],
+        source_url=None,
+        source_reference="Email reply from the house, 2026-09-20",
+        payload={},
+    )
+    service.db.add(snapshot)
+    await service.db.flush()
+
+    stored = await service.db.scalar(
+        select(SourceSnapshot).where(SourceSnapshot.id == snapshot.id)
+    )
+    assert stored is not None
+    assert stored.source_url is None
+    assert stored.fields == ["concentration"]
 
 
 @pytest.mark.asyncio

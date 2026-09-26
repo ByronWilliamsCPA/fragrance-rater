@@ -268,10 +268,28 @@ class SourceSnapshot(Base):
     which field. source_url is relaxed to nullable and source_reference
     added alongside it because a manufacturer confirmation arriving by
     letter, email, or phone has no URL to cite; the CHECK constraint below
-    requires at least one of the two.
+    requires at least one of the two to be non-blank.
     """
 
     __tablename__ = "calibration_source_snapshots"
+    # #ASSUME: data-integrity: `source_type` and `permission_state` have
+    # exactly the legal values ADR-012's 2026-09-15 amendment enumerates, and
+    # every row carries at least one non-blank provenance identifier
+    # (`source_url` or `source_reference`; an empty or whitespace-only string
+    # is not provenance). Enforcing these in the schema, rather than only in
+    # `ParfumoScraper._save_source` and `scripts/validate_calibration_manifest.py`,
+    # keeps a future write path from recording evidence with an unknown
+    # retention permission or no citation at all, matching the IN(...)
+    # precedent on PilotOperationalEvent.event_type and FragellaLookup.status.
+    # These expressions must stay textually identical to migration
+    # a3f8c1d9e2b7 (`_HAS_SOURCE_CHECK` there).
+    # #VERIFY: covered by the unit test
+    # test_source_snapshot_rejects_invalid_provenance in
+    # test_calibration_service, which asserts each violation fails at
+    # flush(), and by the integration test
+    # test_upgrade_rejects_invalid_provenance in
+    # test_source_snapshot_provenance_migration, which asserts the migrated
+    # schema rejects the same rows.
     __table_args__ = (
         CheckConstraint(
             "source_type IN ('project_owned', 'manufacturer_provided', "
@@ -284,7 +302,10 @@ class SourceSnapshot(Base):
             name="ck_calibration_source_snapshots_permission_state",
         ),
         CheckConstraint(
-            "source_url IS NOT NULL OR source_reference IS NOT NULL",
+            (
+                "COALESCE(TRIM(source_url), '') <> '' "
+                "OR COALESCE(TRIM(source_reference), '') <> ''"
+            ),
             name="ck_calibration_source_snapshots_has_source",
         ),
     )
