@@ -28,26 +28,30 @@ ADRs document significant architectural decisions along with their context and c
 | [ADR-001](./adr-001-initial-architecture.md) | Initial Architecture - Docker Compose Monolith | Accepted | 2025-12-28 |
 | [ADR-002](./adr-002-data-source-strategy.md) | Data Source Strategy - Tiered Acquisition | Amended by ADR-006, ADR-012 | 2025-12-28 |
 | [ADR-003](./adr-003-llm-integration.md) | LLM Integration - OpenRouter for Recommendations | Accepted | 2025-12-28 |
-| [ADR-004](./adr-004-recommendation-algorithm.md) | V1 Recommendation Scoring Algorithm | Partially superseded by ADR-007; extended by 2026-09-15 amendment; scoring corrected by 2026-09-19 amendment (affinity-v2) | 2025-12-28 |
+| [ADR-004](./adr-004-recommendation-algorithm.md) | V1 Recommendation Scoring Algorithm | Partially superseded by ADR-007; extended by 2026-09-15 amendment; scoring corrected by 2026-09-19 amendment (affinity-v2); `provider_term_mapping` target to be further generalized by ADR-017 (Proposed, 2026-09-24) | 2025-12-28 |
 | [ADR-005](./adr-005-controlled-calibration.md) | Controlled Calibration and Disclosure State | Accepted | 2026-09-11 |
 | [ADR-006](./adr-006-version-identity-and-source-provenance.md) | Version Identity, Source Provenance, and Vocabulary | Accepted | 2026-09-11 |
 | [ADR-007](./adr-007-preference-evidence-and-score-semantics.md) | Preference Evidence and Score Semantics | Accepted | 2026-09-11 |
 | [ADR-008](./adr-008-authentication-and-production-boundary.md) | Authentication and Production Trust Boundary | Accepted | 2026-09-11 |
 | [ADR-009](./adr-009-prospective-evaluation-and-checkpoints.md) | Prospective Evaluation and Frozen Checkpoints | Accepted; amended 2026-09-19 (declared learning problem) | 2026-09-11 |
-| [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md) | Preference-Learning and Scenario Data Model | Partially implemented | 2026-09-12 |
+| [ADR-010](./adr-010-preference-learning-and-scenario-data-model.md) | Preference-Learning and Scenario Data Model | Partially implemented; `ClassificationSystem` to be realized by ADR-017 (Proposed, 2026-09-24) | 2026-09-12 |
 | [ADR-011](./adr-011-worn-by-evidence-dimension.md) | Worn-By Evidence Dimension | Accepted | 2026-09-12 |
 | [ADR-012](./adr-012-data-source-compliance-and-manufacturer-provenance.md) | Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance | Accepted | 2026-09-15 |
-| [ADR-013](./adr-013-external-ontology-and-standards-crosswalk.md) | External Ontology and Standards Crosswalk | Accepted; amends ADR-004, ADR-010 | 2026-09-15 |
+| [ADR-013](./adr-013-external-ontology-and-standards-crosswalk.md) | External Ontology and Standards Crosswalk | Accepted; amends ADR-004, ADR-010; to be amended by ADR-017 (Proposed, 2026-09-24) | 2026-09-15 |
 | [ADR-014](./adr-014-frontend-e2e-and-accessibility-strategy.md) | Frontend E2E and Accessibility Testing Strategy | Accepted; amended 2026-09-19 to WCAG 2.2 AA | 2026-09-18 |
 | [ADR-014](./adr-014-training-eligibility-and-unclassified-family.md) | Training Eligibility and the Unclassified Family Sentinel ⚠️ **duplicate number** | Proposed | 2026-09-19 |
 | [ADR-016](./adr-016-per-dimension-preference-capture.md) | Per-Dimension Preference Capture and Perfumer as an Evaluable Dimension | Proposed; perfumer read path implemented, scoring use undecided | 2026-09-19 |
+| [ADR-017](./adr-017-project-owned-faceted-olfactory-vocabulary.md) | Project-Owned Faceted Olfactory Vocabulary | Proposed; amends ADR-004, ADR-010, ADR-013 | 2026-09-24 |
 
 > ⚠️ **Two records share the number ADR-014.** PR #103 merged
 > `adr-014-frontend-e2e-and-accessibility-strategy.md` without adding a row here, so the index
 > stopped at ADR-013 and PR #105 took 014 for an unrelated decision. Both are now in `main`.
 > Renaming a merged record is the owner's call, not something to do incidentally, so both are
-> listed rather than silently reconciled. ADR-015 is free; renumbering the training-eligibility
-> record to it would resolve the clash.
+> listed rather than silently reconciled. ADR-016 has since been taken by a later, unrelated
+> record (per its own numbering note); ADR-015 remains free, reserved for renumbering the
+> training-eligibility record to resolve this clash. The project-owned-vocabulary record above
+> could not use either free number without pre-empting that renumbering, so it takes the next
+> free number, 017, instead.
 
 ## Creating ADRs
 

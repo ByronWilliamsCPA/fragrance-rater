@@ -1,8 +1,20 @@
 # ADR-013: External Ontology and Standards Crosswalk
 
-> **Status**: Accepted; amends ADR-004, ADR-010
+> **Status**: Accepted; amends ADR-004, ADR-010; amended by ADR-017 (2026-09-24)
 >
 > **Date**: 2026-09-15
+
+## 2026-09-24 amendment (pointer to ADR-017)
+
+ADR-017 makes the project's olfactory vocabulary project-owned (`fr-core`) rather than
+externally authored. Decision item 1 above named Cinquieme Sens the candidate primary source
+for core vocabulary meaning; that role moves to crosswalk target only. Cinquieme Sens's
+outreach and reuse-rights review (Decision item 1, Follow-up) are unchanged and still gate any
+ingestion; only its intended role changes, from "defines what our concepts mean" to "one more
+external system mapped onto vocabulary the project already owns and can draft, approve, and
+revise on its own schedule." Decision item 7's `provider_term_mapping` generalization is
+further extended by ADR-017 item 10, target generalized to `note_id` XOR `term_id`. See
+ADR-017 for the full model.
 
 ## Context
 
@@ -79,4 +91,6 @@ The parallel research also described "35 diagnostic dimensions" (short codes suc
 - [ADR-006](adr-006-version-identity-and-source-provenance.md): source provenance, alias, and taxonomy layering this ADR relies on; governs reuse-rights review for every new source named here
 - [ADR-010](adr-010-preference-learning-and-scenario-data-model.md): `ClassificationSystem`/`FragranceClassification` and `FeatureDefinition`/`FeatureValue`, both used as landing spots here instead of new entities
 - [ADR-012](adr-012-data-source-compliance-and-manufacturer-provenance.md): Wikidata and Fragella source-tier classification, unchanged by this ADR
+- [ADR-017](adr-017-project-owned-faceted-olfactory-vocabulary.md): amends this ADR's Decision
+  item 1, Cinquieme Sens moves from candidate primary vocabulary authority to crosswalk target
 - `docs/planning/evidence/data-model-gap-analysis.md`: source of the "Michael Edwards Wheel is hardcoded and unversioned" finding this ADR addresses
