@@ -632,6 +632,7 @@ def test_cli_exit_2_on_duplicate_mapping_key(
     assert exit_code == 2
     assert "cannot read" in captured.err
     assert "Traceback" not in captured.err
+    assert not captured.out
 
 
 def test_cli_exit_2_on_malformed_yaml(
@@ -647,6 +648,7 @@ def test_cli_exit_2_on_malformed_yaml(
     assert exit_code == 2
     assert "cannot read" in captured.err
     assert "Traceback" not in captured.err
+    assert not captured.out
 
 
 def _deeply_nested_display_tree_yaml(depth: int) -> str:
