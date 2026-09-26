@@ -210,6 +210,8 @@ nav:
       - P6 Pilot Readiness: deployment/p6-pilot-readiness.md
 
   - Measurement:
+      - Blind Instrument Draft 0.5: measurement/blind-evaluation-instrument-v0.5.md
+      - Web Evaluation Workflow: planning/blind-evaluation-web-workflow.md
       - Recommendation Outcomes: measurement/recommendation-outcomes.md
 
   - Architecture Decisions:
@@ -228,6 +230,7 @@ nav:
 
   - Reference:
       - CI Gates: ci-gates.md
+      - Fragella Source-Use Boundary: fragella-api.md
       - Known Vulnerabilities: known-vulnerabilities.md
       - OpenSSF Compliance: OPENSSF_COMPLIANCE.md
       - Python Compatibility: PYTHON_COMPATIBILITY.md
