@@ -81,23 +81,45 @@ def validate_manifest(document: object) -> list[str]:
         # a CHECK constraint requiring at least one of the two. Mirroring
         # that here, instead of keeping source_url unconditionally required,
         # is what lets a direct reply be recorded as P1.1 evidence without
-        # inventing a public URL for a private reply.
-        # #VERIFY: covered by tests for source_url-only, source_reference-only,
-        # both, and neither.
+        # inventing a public URL for a private reply. A key that is present
+        # but the wrong type (an int, a list, a dict, an explicit JSON
+        # null) is a distinct authoring mistake from omitting the key
+        # entirely, so it must fail validation rather than being silently
+        # treated the same as "absent" - `entry.get(...)` alone can't tell
+        # those two cases apart, hence the explicit `"source_url" in entry`
+        # membership check below.
+        # #VERIFY: covered by
+        # tests/unit/test_release_readiness.py::TestSourceEvidence
+        # (url-only, reference-only, both, neither, wrong-type and
+        # blank-string source_url/source_reference, and a malformed
+        # source_url that would otherwise crash urlparse and lose every
+        # error accumulated so far).
         source_url = entry.get("source_url")
         source_reference = entry.get("source_reference")
-        has_url = isinstance(source_url, str) and bool(source_url.strip())
-        has_reference = isinstance(source_reference, str) and bool(
-            source_reference.strip()
-        )
+        has_url = False
+        if "source_url" in entry:
+            if isinstance(source_url, str) and source_url.strip():
+                has_url = True
+            else:
+                errors.append(f"{prefix}.source_url must be a non-empty string")
+        has_reference = False
+        if "source_reference" in entry:
+            if isinstance(source_reference, str) and source_reference.strip():
+                has_reference = True
+            else:
+                errors.append(f"{prefix}.source_reference must be a non-empty string")
         if not has_url and not has_reference:
             errors.append(
                 f"{prefix} must have a non-empty source_url or source_reference"
             )
         if has_url:
-            parsed = urlparse(source_url)
-            if parsed.scheme != "https" or not parsed.netloc:
+            try:
+                parsed = urlparse(source_url)
+            except ValueError:
                 errors.append(f"{prefix}.source_url must be an absolute HTTPS URL")
+            else:
+                if parsed.scheme != "https" or not parsed.netloc:
+                    errors.append(f"{prefix}.source_url must be an absolute HTTPS URL")
         if entry.get("physical_sample_confirmed") is not True:
             errors.append(f"{prefix}.physical_sample_confirmed must be true")
         # #ASSUME: data-integrity: gtin is optional (some physical samples
