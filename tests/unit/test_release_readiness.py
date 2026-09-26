@@ -178,6 +178,104 @@ def test_manifest_reports_non_string_identifiers_without_crashing() -> None:
     assert "entries[0].fragrance_id must be non-empty text" in errors
 
 
+def _document_with_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Wrap a single manifest entry in a minimal valid document envelope."""
+    return {
+        "program_name": "Baseline",
+        "program_version": "v1",
+        "entries": [entry],
+    }
+
+
+class TestSourceEvidence:
+    """P1.1 evidence contract (ADR-012's SourceSnapshot amendment):
+    source_url and source_reference each stand alone as evidence, so at
+    least one must be present and a non-blank string. A key that is
+    present but the wrong type (an int, a list, a dict, an explicit JSON
+    null) is a distinct authoring mistake from omitting the key entirely
+    and must be reported as its own error, not silently treated the same
+    as "absent". Also covers the urlparse crash a malformed source_url
+    (e.g. an unterminated IPv6 host) would otherwise cause, which must be
+    turned into a validation error rather than losing every error already
+    accumulated for the run.
+    """
+
+    def test_source_url_only_is_sufficient(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_url="https://example.test/scent")
+        assert validator.validate_manifest(_document_with_entry(entry)) == []
+
+    def test_source_reference_only_is_sufficient(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_reference="Email from brand rep, 2026-09-20")
+        del entry["source_url"]
+        assert validator.validate_manifest(_document_with_entry(entry)) == []
+
+    def test_both_source_url_and_reference_present_is_accepted(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(
+            source_url="https://example.test/scent",
+            source_reference="Email from brand rep, 2026-09-20",
+        )
+        assert validator.validate_manifest(_document_with_entry(entry)) == []
+
+    def test_neither_source_field_is_rejected(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry()
+        del entry["source_url"]
+        errors = validator.validate_manifest(_document_with_entry(entry))
+        assert any(
+            "must have a non-empty source_url or source_reference" in error
+            for error in errors
+        )
+
+    @pytest.mark.parametrize("bad_value", [123, ["a"], {"a": "b"}, None])
+    def test_source_url_wrong_type_is_rejected(self, bad_value: object) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_url=bad_value)
+        errors = validator.validate_manifest(_document_with_entry(entry))
+        assert any("source_url must be a non-empty string" in error for error in errors)
+
+    def test_source_url_blank_string_is_rejected(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_url="   ")
+        errors = validator.validate_manifest(_document_with_entry(entry))
+        assert any("source_url must be a non-empty string" in error for error in errors)
+
+    @pytest.mark.parametrize("bad_value", [123, ["a"], {"a": "b"}, None])
+    def test_source_reference_wrong_type_is_rejected(self, bad_value: object) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_reference=bad_value)
+        errors = validator.validate_manifest(_document_with_entry(entry))
+        assert any(
+            "source_reference must be a non-empty string" in error for error in errors
+        )
+
+    def test_source_reference_blank_string_is_rejected(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_reference="   ")
+        del entry["source_url"]
+        errors = validator.validate_manifest(_document_with_entry(entry))
+        assert any(
+            "source_reference must be a non-empty string" in error for error in errors
+        )
+
+    def test_malformed_source_url_is_reported_not_a_crash(self) -> None:
+        """An unterminated IPv6 host raises ValueError from urlparse
+        itself; the validator must catch it and keep every error already
+        accumulated for this entry rather than losing them to an
+        unhandled exception."""
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_url="https://[::1", physical_sample_confirmed=False)
+        errors = validator.validate_manifest(_document_with_entry(entry))
+        assert any(
+            "source_url must be an absolute HTTPS URL" in error for error in errors
+        )
+        # The malformed URL must not have short-circuited validation of
+        # the rest of the entry (physical_sample_confirmed is also wrong).
+        assert any("physical_sample_confirmed" in error for error in errors)
+
+
 def valid_p6_readiness() -> dict[str, Any]:
     """Return a complete machine-readable P6 go record."""
     return {

@@ -258,14 +258,66 @@ class ModelCheckpoint(Base):
 
 
 class SourceSnapshot(Base):
-    """Refreshable source evidence stored independently of human observations."""
+    """Refreshable source evidence stored independently of human observations.
+
+    ADR-012's 2026-09-15 amendment: source_type and permission_state record
+    not just where a fact came from but what may be done with it (retained
+    and trained on, QC-only, or excluded outright). fields names which
+    Fragrance column(s) this specific snapshot evidences, so two snapshots
+    for the same fragrance can disagree on which source is authoritative for
+    which field. source_url is relaxed to nullable and source_reference
+    added alongside it because a manufacturer confirmation arriving by
+    letter, email, or phone has no URL to cite; the CHECK constraint below
+    requires at least one of the two to be non-blank.
+    """
 
     __tablename__ = "calibration_source_snapshots"
+    # #ASSUME: data-integrity: `source_type` and `permission_state` have
+    # exactly the legal values ADR-012's 2026-09-15 amendment enumerates, and
+    # every row carries at least one non-blank provenance identifier
+    # (`source_url` or `source_reference`; an empty or whitespace-only string
+    # is not provenance). Enforcing these in the schema, rather than only in
+    # `ParfumoScraper._save_source` and `scripts/validate_calibration_manifest.py`,
+    # keeps a future write path from recording evidence with an unknown
+    # retention permission or no citation at all, matching the IN(...)
+    # precedent on PilotOperationalEvent.event_type and FragellaLookup.status.
+    # These expressions must stay textually identical to migration
+    # a3f8c1d9e2b7 (`_HAS_SOURCE_CHECK` there).
+    # #VERIFY: covered by the unit test
+    # test_source_snapshot_rejects_invalid_provenance in
+    # test_calibration_service, which asserts each violation fails at
+    # flush(), and by the integration test
+    # test_upgrade_rejects_invalid_provenance in
+    # test_source_snapshot_provenance_migration, which asserts the migrated
+    # schema rejects the same rows.
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN ('project_owned', 'manufacturer_provided', "
+            "'open_licensed', 'bounded_lookup', 'excluded_legacy')",
+            name="ck_calibration_source_snapshots_source_type",
+        ),
+        CheckConstraint(
+            "permission_state IN ('retain_and_train', 'retain_for_qc_only', "
+            "'excluded_no_new_writes')",
+            name="ck_calibration_source_snapshots_permission_state",
+        ),
+        CheckConstraint(
+            (
+                "COALESCE(TRIM(source_url), '') <> '' "
+                "OR COALESCE(TRIM(source_reference), '') <> ''"
+            ),
+            name="ck_calibration_source_snapshots_has_source",
+        ),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     fragrance_id: Mapped[str] = mapped_column(
         ForeignKey("fragrances.id", ondelete="RESTRICT")
     )
-    source_url: Mapped[str] = mapped_column(String(1000))
+    source_type: Mapped[str] = mapped_column(String(30))
+    permission_state: Mapped[str] = mapped_column(String(30))
+    fields: Mapped[list[str]] = mapped_column(JSON)
+    source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    source_reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
     verification_status: Mapped[str] = mapped_column(String(30), default="unverified")
     retrieved_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
     payload: Mapped[dict[str, object]] = mapped_column(JSON)
