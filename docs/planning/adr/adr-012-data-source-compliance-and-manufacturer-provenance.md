@@ -1,8 +1,9 @@
 # ADR-012: Data Source Compliance - Parfumo Deprecation and Manufacturer Provenance
 
-> **Status**: Accepted; amends ADR-002; SourceSnapshot provenance specified by the
-> 2026-09-15 amendment and implemented per the same amendment; vendor-licensed data added as a
-> source tier by the 2026-09-21 amendment below
+> **Status**: Accepted; amends ADR-002; SourceSnapshot provenance specified by the 2026-09-15
+> amendment is partially implemented: the schema columns have landed and the Parfumo write path
+> now fails closed, but the amendment's listed follow-ups remain open; vendor-licensed data added
+> as a source tier by the 2026-09-21 amendment below
 >
 > **Date**: 2026-09-15
 
@@ -120,9 +121,11 @@ data (Wikidata) but has no tier for a fragrance-database vendor's structured fie
 under a direct license. Research into candidate vendors (Fragrances of the World, WikiParfum,
 Fragrantica and Parfumo under a direct commercial agreement distinct from the scraping this ADR
 already excludes, PERFUMIST, and several conditional aggregators still pending upstream-provenance
-diligence) surfaced a real path to closing the 0/43 gap `baseline-v3.1-catalog-coverage.md`
-documents, but one the existing hierarchy has no place for. This amendment adds that tier and
-records the request-shape decision that governs how it is pursued, without yet implementing it:
+diligence) surfaced a real path to closing the 0/33 gap `baseline-v3.1-catalog-coverage.md`
+documents for the 33-fragrance baseline (the 43-fragrance vendor-request figure below adds the 10
+validation holdouts), but one the existing hierarchy has no place for. This amendment adds that
+tier and records the request-shape decision that governs how it is pursued, without yet
+implementing it:
 no vendor has agreed to a license as of this writing, so there is nothing to backfill and no
 justification for a schema change today, the same spec-now-implement-later pattern the
 2026-09-15 amendment above used for `SourceSnapshot` itself.
@@ -172,19 +175,23 @@ marketing language as sufficient clearance on its own: rejected, for the same re
 excluded and FragDB was left conditional, downstream license terms do not establish upstream
 rights.
 
-**Consequences.** Positive: gives the outreach effort already underway (`tmp_cleanup/letters/`,
-Tier 1 and Tier 2 vendor letters) a named source tier and permission state to land evidence in
-once a vendor responds, instead of forcing a licensed vendor fact into `manufacturer_provided` or
-`open_licensed` where it does not belong. Trade-offs: adds a source tier with no data behind it
-yet; if no vendor responds, this amendment records a decision with no immediate effect on
-coverage, and the project falls back to the manufacturer-outreach and Wikidata paths the
-2026-09-15 amendment already established.
+**Consequences.** Positive: gives the outreach effort already underway (the owner's private
+outreach records, not committed to this repository, covering Tier 1 and Tier 2 vendor letters) a
+named source tier and permission state to land evidence in once a vendor responds, instead of
+forcing a licensed vendor fact into `manufacturer_provided` or `open_licensed` where it does not
+belong. Trade-offs: adds a source tier with no data behind it yet; if no vendor responds, this
+amendment records a decision with no immediate effect on coverage, and the project falls back to
+the manufacturer-outreach and Wikidata paths the 2026-09-15 amendment already established.
 
 Follow-up (implementation, not part of this decision):
 
 - Add `vendor_licensed` to `SourceSnapshot.source_type`'s CHECK constraint and to Decision item
-  3's source hierarchy text, once a vendor agreement is actually signed, not speculatively ahead
-  of one.
+  3's source hierarchy text once, and only once, all three of the following hold: a signed
+  agreement, completed upstream-provenance diligence per the standard above, and an explicit
+  grant covering the rights this amendment lists (local storage, ML training, embeddings,
+  recommendation-model use, and commercial use where applicable). Only a grant that covers
+  training rights maps to `retain_and_train`; a narrower grant maps to a narrower
+  `permission_state`.
 - Record per-vendor diligence findings, license terms, and correspondence in the local outreach
   packet, not in this ADR; this ADR records the durable request-shape and hierarchy decision
   only.
@@ -343,7 +350,8 @@ identity matching.
 
 ### Follow-up (implementation, not part of this decision)
 
-- Remove or flag-gate `ParfumoScraper` and its CLI commands.
+- The Parfumo import path now refuses to write (fails closed per Decision item 1); removing
+  `ParfumoScraper` and its CLI commands outright remains open.
 - Add source-type and permission-state fields to `SourceSnapshot` per item 4 above.
 - Re-verify each Parfumo-sourced entry in `baseline-v3.1-parfumo-source-resolution.md` as
   manufacturer replies and open-data cross-checks arrive.
