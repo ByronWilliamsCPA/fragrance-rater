@@ -9,41 +9,23 @@ Parfumo uses Cloudflare protection - be respectful of their resources.
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
 import logging
 import re
 import time
-import uuid
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import urlsplit
 
 import httpx
 from bs4 import BeautifulSoup, Tag
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
 
-from fragrance_rater.models.calibration import (
-    Membership,
-    Perfumer,
-    SourceSnapshot,
-    VersionPerfumer,
-)
-from fragrance_rater.models.fragrance import (
-    Fragrance,
-    FragranceAccord,
-    FragranceNote,
-    Note,
-)
+from fragrance_rater.core.exceptions import BusinessLogicError
 from fragrance_rater.utils.gtin import is_valid_gtin
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
-
-    from fragrance_rater.core.vocabulary import GenderTarget
 
 
 @dataclass
@@ -1062,470 +1044,73 @@ class ParfumoScraper:
             except (ValueError, AttributeError):
                 continue
 
+    # #CRITICAL: data-integrity/external: ADR-012 Decision 1 retires
+    # ParfumoScraper's import path ("ParfumoScraper and the import-data
+    # parfumo-url / parfumo-search CLI commands are deprecated; no new
+    # writes through this path"). `search_and_import` and `import_from_url`
+    # are the only entry points into that path, and each raises
+    # BusinessLogicError as its first statement: before any network
+    # request to Parfumo and before any `self.db` read or write. The
+    # read-only `search()` listing used by the CLI is left in place.
+    # #VERIFY: covered by TestParfumoScraperWriteRefusal, which patches
+    # search()/scrape_perfume_page() to fail if called and asserts both
+    # entry points raise BusinessLogicError without invoking them.
+    _PARFUMO_WRITE_REFUSED_MESSAGE: ClassVar[str] = (
+        "Parfumo import writes are deprecated (ADR-012 Decision 1): "
+        "ParfumoScraper no longer writes new Fragrance or SourceSnapshot "
+        "rows. See docs/planning/adr/"
+        "adr-012-data-source-compliance-and-manufacturer-provenance.md."
+    )
+    _PARFUMO_WRITE_REFUSED_RULE: ClassVar[str] = "adr_012_parfumo_write_deprecated"
+
     async def search_and_import(
         self,
         name: str,
         brand: str | None = None,
     ) -> str | None:
-        """Search Parfumo and import the best match.
-
-        # #CRITICAL: data-integrity: this silently picks one candidate
-        # (brand match, else name match, else the first result) with no
-        # human confirmation and no visibility into `concentration`/
-        # `year` - exactly the class of decision ADR-006's "no guessed
-        # fragrance concentration or version" invariant exists to
-        # prevent (see the Caron Aimez-Moi finding in docs/planning/
-        # evidence/baseline-v3.1-parfumo-source-resolution.md, where the
-        # same name matched several distinct releases). This method has
-        # no production caller today (CLI's `parfumo-search` command
-        # uses `search()` + `import_from_url()` directly so an operator
-        # reviews concentration/year before choosing a URL); do not wire
-        # it into an API route or background job for calibration-
-        # critical catalog entries without adding the same human-
-        # confirmation step first.
-        # #VERIFY: if this gains a caller, add a test asserting it
-        # refuses to auto-pick when multiple results share `name`.
+        """Refuse to search Parfumo and import through the deprecated write path.
 
         Args:
-            name (str): Fragrance name to search for.
-            brand (str | None): Optional brand to filter results.
+            name (str): Fragrance name (not searched; see raise).
+            brand (str | None): Optional brand (not searched; see raise).
 
         Returns:
-            str | None: Fragrance ID if imported/found, None otherwise.
+            str | None: Never returns. The annotation is kept so existing
+                CLI callers still type-check until the deprecated commands
+                are removed (ADR-012 follow-up).
+
+        Raises:
+            BusinessLogicError: Always. See ADR-012
+                Decision 1. Raised before any network request, so this
+                deprecated path never contacts Parfumo.
         """
-        query = f"{name} {brand}" if brand else name
-        # #ASSUME: concurrency: search()/scrape_perfume_page() are
-        # synchronous (a blocking httpx.Client, plus time.sleep()-based
-        # rate limiting and retry backoff up to
-        # BACKOFF_BASE_SECONDS * 2**attempt per attempt). Calling them
-        # directly from this async method would run all of that blocking
-        # I/O on the event loop thread. asyncio.to_thread offloads each
-        # call to the default thread pool executor so the loop stays free
-        # while the request/backoff runs. This is safe today because the
-        # only caller of ParfumoScraper is the one-shot CLI
-        # (fragrance-rater import-data parfumo-*), which awaits a single
-        # scraper method per process invocation with no other concurrent
-        # async work sharing the loop.
-        # #VERIFY: if ParfumoScraper is ever called from a live server
-        # process (e.g. a FastAPI route) where other requests share the
-        # event loop, confirm the thread-pool offload here (and in
-        # import_from_url/cli.py) is still sufficient, or migrate to an
-        # httpx.AsyncClient-based implementation instead.
-        results = await asyncio.to_thread(self.search, query, limit=5)
-
-        if not results:
-            return None
-
-        # Find best match
-        best_match: SearchResult | None = None
-        for result in results:
-            if brand and brand.lower() in result.brand.lower():
-                best_match = result
-                break
-            if name.lower() in result.name.lower():
-                best_match = result
-                break
-
-        if not best_match:
-            best_match = results[0]
-
-        # Scrape full details (see #ASSUME above: offloaded to a thread so
-        # this blocking call doesn't stall the event loop).
-        scraped = await asyncio.to_thread(self.scrape_perfume_page, best_match.url)
-
-        if not scraped or not scraped.name:
-            return None
-
-        final_name = scraped.name or best_match.name
-        final_brand = scraped.brand or best_match.brand
-
-        if not final_name or not final_brand:
-            return None
-
-        # Check if fragrance already exists
-        # Critical finding 2: soft-delete filter.
-        stmt = (
-            select(Fragrance)
-            .where(
-                Fragrance.parfumo_url == scraped.url,
-                Fragrance.deleted_at.is_(None),
-            )
-            .order_by(Fragrance.created_at, Fragrance.id)
+        raise BusinessLogicError(
+            self._PARFUMO_WRITE_REFUSED_MESSAGE,
+            rule=self._PARFUMO_WRITE_REFUSED_RULE,
+            context={"name": name, "brand": brand},
         )
-        result = await self.db.execute(stmt)
-        existing = result.scalars().first()
-
-        if existing:
-            # Update with scraped data
-            await self._update_fragrance(existing, scraped)
-            return existing.id
-
-        # Create new fragrance
-        return await self._create_fragrance(scraped, final_name, final_brand)
 
     async def import_from_url(self, url: str) -> str | None:
-        """Import a fragrance directly from its Parfumo URL.
+        """Refuse to import a fragrance from a Parfumo URL (deprecated path).
 
         Args:
-            url (str): Full Parfumo URL (e.g., https://www.parfumo.com/Perfumes/brand/name)
+            url (str): Parfumo URL (not fetched; see raise).
 
         Returns:
-            str | None: Fragrance ID if imported, None on failure.
+            str | None: Never returns. The annotation is kept so existing
+                CLI callers still type-check until the deprecated commands
+                are removed (ADR-012 follow-up).
+
+        Raises:
+            BusinessLogicError: Always. See ADR-012
+                Decision 1. Raised before any network request, so this
+                deprecated path never contacts Parfumo.
         """
-        # #ASSUME: concurrency: see search_and_import() above for the full
-        # rationale - scrape_perfume_page() is a blocking sync call (httpx
-        # + time.sleep()-based rate limiting/backoff), offloaded via
-        # asyncio.to_thread so this async method doesn't stall the event
-        # loop. Safe today because the only caller is the one-shot CLI.
-        # #VERIFY: re-examine before calling ParfumoScraper from a live
-        # server route sharing an event loop with other requests.
-        scraped = await asyncio.to_thread(self.scrape_perfume_page, url)
-
-        if not scraped or not scraped.name or not scraped.brand:
-            return None
-
-        # Check if exists
-        # Critical finding 2: soft-delete filter.
-        stmt = (
-            select(Fragrance)
-            .where(
-                Fragrance.parfumo_url == scraped.url,
-                Fragrance.deleted_at.is_(None),
-            )
-            .order_by(Fragrance.created_at, Fragrance.id)
+        raise BusinessLogicError(
+            self._PARFUMO_WRITE_REFUSED_MESSAGE,
+            rule=self._PARFUMO_WRITE_REFUSED_RULE,
+            context={"url": url},
         )
-        result = await self.db.execute(stmt)
-        existing = result.scalars().first()
-
-        if existing:
-            await self._update_fragrance(existing, scraped)
-            return existing.id
-
-        return await self._create_fragrance(scraped, scraped.name, scraped.brand)
-
-    async def _create_fragrance(
-        self,
-        scraped: ScrapedFragrance,
-        name: str,
-        brand: str,
-    ) -> str:
-        """Create a new fragrance from scraped data.
-
-        Args:
-            scraped (ScrapedFragrance): Scraped fragrance data.
-            name (str): Fragrance name.
-            brand (str): Brand name.
-
-        Returns:
-            str: New fragrance ID.
-        """
-        # #CRITICAL: data-integrity: gender_target must use the same
-        # capitalized vocabulary (Masculine/Feminine/Unisex) as the Kaggle
-        # importer and the API's gender_target filter schema (see
-        # core/vocabulary.py, Major finding 5). _extract_gender() returns
-        # lowercase values scraped from page text; map them to the
-        # canonical form here rather than storing the lowercase form
-        # directly, or gender_target filtering silently excludes every
-        # fragrance imported through this scraper.
-        # #VERIFY: covered by a scraper test asserting the stored value is
-        # always a member of GENDER_TARGETS.
-        gender_map: dict[str, GenderTarget] = {
-            "feminine": "Feminine",
-            "masculine": "Masculine",
-            "unisex": "Unisex",
-        }
-
-        fragrance = Fragrance(
-            id=str(uuid.uuid4()),
-            name=name,
-            brand=brand,
-            concentration=scraped.concentration or "Unknown",
-            version_key=self._version_key(scraped.url),
-            gender_target=gender_map.get(scraped.gender or "", "Unisex"),
-            launch_year=scraped.year,
-            primary_family=self._infer_family(scraped),
-            # Left empty rather than duplicating primary_family: an empty
-            # subfamily is treated as "unknown" by
-            # RecommendationService.build_preference_profile (Major
-            # finding 6), which is the correct semantics here since this
-            # scraper does not currently extract a real subfamily.
-            subfamily="",
-            data_source="parfumo",
-            parfumo_url=scraped.url,
-        )
-
-        self.db.add(fragrance)
-        await self.db.flush()
-
-        await self._save_source(fragrance.id, scraped)
-        # Add notes
-        await self._add_notes(fragrance.id, scraped)
-
-        # Add accords
-        for accord_name, intensity in scraped.accords.items():
-            accord = FragranceAccord(
-                fragrance_id=fragrance.id,
-                accord_type=accord_name,
-                intensity=intensity,
-            )
-            self.db.add(accord)
-
-        await self.db.commit()
-        return fragrance.id
-
-    @staticmethod
-    def _version_key(url: str) -> str:
-        """Build a readable, bounded key with full-URL collision resistance."""
-        url_tail = url.rsplit("/", 1)[-1]
-        url_digest = hashlib.sha256(url.encode(), usedforsecurity=False).hexdigest()[
-            :16
-        ]
-        return f"parfumo:{url_tail[:174]}:{url_digest}"
-
-    async def _update_fragrance(
-        self,
-        fragrance: Fragrance,
-        scraped: ScrapedFragrance,
-    ) -> None:
-        """Update existing fragrance with scraped data.
-
-        Args:
-            fragrance (Fragrance): Existing fragrance to update.
-            scraped (ScrapedFragrance): Scraped data.
-        """
-        # Update basic fields if not set
-        await self.db.execute(
-            select(Fragrance.id).where(Fragrance.id == fragrance.id).with_for_update()
-        )
-        assigned = await self.db.scalar(
-            select(Membership.id).where(Membership.fragrance_id == fragrance.id)
-        )
-        if not assigned and not fragrance.launch_year and scraped.year:
-            fragrance.launch_year = scraped.year
-
-        if not fragrance.parfumo_url:
-            fragrance.parfumo_url = scraped.url
-
-        await self._save_source(fragrance.id, scraped)
-        # Note: We don't overwrite existing notes/accords
-        # to preserve user's data integrity
-
-        await self.db.commit()
-
-    async def _save_source(self, fragrance_id: str, scraped: ScrapedFragrance) -> None:
-        """Append source evidence and preserve every perfumer attribution."""
-        self.db.add(
-            SourceSnapshot(
-                fragrance_id=fragrance_id,
-                source_type="excluded_legacy",
-                permission_state="excluded_no_new_writes",
-                fields=["concentration", "launch_year", "brand"],
-                source_url=scraped.url,
-                payload=asdict(scraped),
-            )
-        )
-        names = scraped.perfumers or ([scraped.perfumer] if scraped.perfumer else [])
-        for name in names:
-            perfumer = await self.db.scalar(
-                select(Perfumer).where(Perfumer.name == name)
-            )
-            if perfumer is None:
-                try:
-                    async with self.db.begin_nested():
-                        perfumer = Perfumer(name=name)
-                        self.db.add(perfumer)
-                        await self.db.flush()
-                except IntegrityError:
-                    perfumer = await self.db.scalar(
-                        select(Perfumer).where(Perfumer.name == name)
-                    )
-            if perfumer is None:
-                msg = f"Perfumer {name!r} was not readable after insert conflict"
-                raise RuntimeError(msg)
-            link = await self.db.get(VersionPerfumer, (fragrance_id, perfumer.id))
-            if link is None:
-                try:
-                    async with self.db.begin_nested():
-                        self.db.add(
-                            VersionPerfumer(
-                                fragrance_id=fragrance_id,
-                                perfumer_id=perfumer.id,
-                                source_url=scraped.url,
-                            )
-                        )
-                        await self.db.flush()
-                except IntegrityError:
-                    logger.info(
-                        "Perfumer attribution already exists: fragrance_id=%s perfumer=%r",
-                        fragrance_id,
-                        name,
-                    )
-        await self.db.flush()
-
-    async def _add_notes(self, fragrance_id: str, scraped: ScrapedFragrance) -> None:
-        """Add notes to fragrance.
-
-        Args:
-            fragrance_id (str): Fragrance ID.
-            scraped (ScrapedFragrance): Scraped data with notes.
-        """
-        note_types = [
-            ("top", scraped.top_notes),
-            ("heart", scraped.heart_notes),
-            ("flat", scraped.flat_notes),
-            ("base", scraped.base_notes),
-        ]
-
-        for note_type, note_names in note_types:
-            for note_name in note_names:
-                # Get or create note
-                stmt = select(Note).where(Note.name == note_name)
-                result = await self.db.execute(stmt)
-                note = result.scalar_one_or_none()
-
-                if not note:
-                    note = Note(
-                        id=str(uuid.uuid4()),
-                        name=note_name,
-                        category=self._categorize_note(note_name),
-                    )
-                    self.db.add(note)
-                    await self.db.flush()
-
-                await self._add_fragrance_note(
-                    fragrance_id, note.id, note_type, note_name
-                )
-
-    # #CRITICAL: concurrency: a duplicate (fragrance_id, note_id, position)
-    # triple - e.g. the same note listed twice in the same pyramid section
-    # on the scraped page - raises IntegrityError against the
-    # UNIQUE(fragrance_id, note_id, position) constraint. Without per-row
-    # isolation that error poisons the whole session (PendingRollbackError)
-    # and would abort the rest of this fragrance's notes and accords, not
-    # just the offending note.
-    # #VERIFY: session.begin_nested() opens a SAVEPOINT scoped to just this
-    # insert; only that SAVEPOINT rolls back on conflict, so the outer
-    # session stays usable for the remaining notes and the accords added
-    # right after _add_notes returns. Covered by a regression test
-    # importing a note that legitimately appears in two different
-    # positions (allowed) and by a same-position duplicate (skipped, not
-    # fatal).
-    async def _add_fragrance_note(
-        self, fragrance_id: str, note_id: str, position: str, note_name: str
-    ) -> None:
-        """Insert one fragrance-note row, isolated in its own SAVEPOINT.
-
-        Args:
-            fragrance_id (str): Owning fragrance ID.
-            note_id (str): Referenced note ID.
-            position (str): Pyramid position (top, heart, base).
-            note_name (str): Note name, for the warning log on conflict.
-        """
-        try:
-            async with self.db.begin_nested():
-                self.db.add(
-                    FragranceNote(
-                        fragrance_id=fragrance_id, note_id=note_id, position=position
-                    )
-                )
-                await self.db.flush()
-        except IntegrityError:
-            logger.warning(
-                "Skipping duplicate fragrance note: fragrance_id=%s note=%r position=%s",
-                fragrance_id,
-                note_name,
-                position,
-            )
-
-    def _infer_family(self, scraped: ScrapedFragrance) -> str:
-        """Infer fragrance family from accords and notes.
-
-        Args:
-            scraped (ScrapedFragrance): Scraped fragrance data.
-
-        Returns:
-            str: Best guess at fragrance family.
-        """
-        # Common family keywords
-        families = {
-            "woody": ["wood", "cedar", "sandalwood", "oud", "vetiver", "patchouli"],
-            "floral": ["rose", "jasmine", "lily", "violet", "tuberose", "peony"],
-            "oriental": ["vanilla", "amber", "musk", "incense", "spice"],
-            "fresh": ["citrus", "bergamot", "lemon", "grapefruit", "aquatic", "marine"],
-            "aromatic": ["lavender", "sage", "rosemary", "herbs"],
-            "gourmand": ["caramel", "chocolate", "coffee", "honey", "sugar"],
-            "leather": ["leather", "suede", "tobacco"],
-            "chypre": ["oakmoss", "bergamot", "labdanum"],
-            "fougere": ["lavender", "coumarin", "oakmoss", "fern"],
-        }
-
-        # Check accords first
-        for family, keywords in families.items():
-            for keyword in keywords:
-                if any(keyword in acc for acc in scraped.accords):
-                    return family
-
-        # Check all notes
-        all_notes = (
-            scraped.top_notes
-            + scraped.heart_notes
-            + scraped.flat_notes
-            + scraped.base_notes
-        )
-        all_notes_lower = [n.lower() for n in all_notes]
-
-        for family, keywords in families.items():
-            for keyword in keywords:
-                if any(keyword in note for note in all_notes_lower):
-                    return family
-
-        return "unknown"
-
-    def _categorize_note(self, note_name: str) -> str:
-        """Categorize a note.
-
-        Args:
-            note_name (str): Name of the note.
-
-        Returns:
-            str: Category string.
-        """
-        note_lower = note_name.lower()
-
-        categories = {
-            "citrus": ["bergamot", "lemon", "orange", "grapefruit", "lime", "mandarin"],
-            "floral": [
-                "rose",
-                "jasmine",
-                "lily",
-                "violet",
-                "iris",
-                "peony",
-                "tuberose",
-            ],
-            "woody": ["cedar", "sandalwood", "oud", "vetiver", "birch", "guaiac"],
-            "spicy": ["pepper", "cinnamon", "cardamom", "clove", "ginger", "saffron"],
-            "fruity": [
-                "apple",
-                "peach",
-                "pear",
-                "berry",
-                "plum",
-                "cherry",
-                "pineapple",
-            ],
-            "green": ["grass", "leaf", "galbanum", "basil", "mint", "tea"],
-            "balsamic": ["vanilla", "benzoin", "tonka", "labdanum", "peru balsam"],
-            "animalic": ["musk", "civet", "castoreum", "ambergris", "leather"],
-            "aromatic": ["lavender", "sage", "rosemary", "thyme", "artemisia"],
-            "aquatic": ["marine", "sea", "ocean", "water", "ozone"],
-        }
-
-        for category, keywords in categories.items():
-            if any(kw in note_lower for kw in keywords):
-                return category
-
-        return "other"
 
     def close(self) -> None:
         """Close the HTTP client."""

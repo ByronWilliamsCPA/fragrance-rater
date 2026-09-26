@@ -25,26 +25,18 @@ instead of a fake success path - see
 
 import dataclasses
 import logging
-import threading
-from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import httpx
 import pytest
 from bs4 import BeautifulSoup
-from sqlalchemy import select
 
-from fragrance_rater.core.vocabulary import GENDER_TARGETS
-from fragrance_rater.models.calibration import Perfumer, SourceSnapshot, VersionPerfumer
-from fragrance_rater.models.evaluation import Evaluation
-from fragrance_rater.models.fragrance import Fragrance, FragranceNote
-from fragrance_rater.models.reviewer import Reviewer
+from fragrance_rater.core.exceptions import BusinessLogicError
 from fragrance_rater.services.parfumo_scraper import (
     ParfumoScraper,
     ScrapedFragrance,
     SearchResult,
 )
-from fragrance_rater.utils.timestamps import now_naive_utc
 
 # Sample HTML for testing
 SAMPLE_PERFUME_PAGE = """
@@ -685,78 +677,11 @@ class TestParseLivesearchItem:
         assert result.year is None
 
 
-class TestParfumoScraperHelpers:
-    """Tests for helper methods."""
-
-    def test_infer_family_woody(self):
-        """Test inferring woody family."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-
-        scraped = ScrapedFragrance(
-            url="test",
-            name="Test",
-            brand="Brand",
-            base_notes=["Cedar", "Sandalwood"],
-        )
-
-        family = scraper._infer_family(scraped)
-        assert family == "woody"
-
-    def test_infer_family_floral(self):
-        """Test inferring floral family."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-
-        scraped = ScrapedFragrance(
-            url="test",
-            name="Test",
-            brand="Brand",
-            heart_notes=["Rose", "Jasmine"],
-        )
-
-        family = scraper._infer_family(scraped)
-        assert family == "floral"
-
-    def test_infer_family_fresh(self):
-        """Test inferring fresh family from citrus."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-
-        scraped = ScrapedFragrance(
-            url="test",
-            name="Test",
-            brand="Brand",
-            top_notes=["Bergamot", "Lemon", "Grapefruit"],
-        )
-
-        family = scraper._infer_family(scraped)
-        assert family == "fresh"
-
-    def test_categorize_note_citrus(self):
-        """Test categorizing citrus notes."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-
-        assert scraper._categorize_note("Bergamot") == "citrus"
-        assert scraper._categorize_note("Lemon") == "citrus"
-        assert scraper._categorize_note("Orange") == "citrus"
-
-    def test_categorize_note_floral(self):
-        """Test categorizing floral notes."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-
-        assert scraper._categorize_note("Rose") == "floral"
-        assert scraper._categorize_note("Jasmine") == "floral"
-
-    def test_categorize_note_woody(self):
-        """Test categorizing woody notes."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-
-        assert scraper._categorize_note("Cedar") == "woody"
-        assert scraper._categorize_note("Sandalwood") == "woody"
-
-    def test_categorize_note_unknown(self):
-        """Test categorizing unknown notes."""
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-
-        assert scraper._categorize_note("Something Random") == "other"
+# TestParfumoScraperHelpers (test_infer_family_woody/floral/fresh,
+# test_categorize_note_citrus/floral/woody/unknown) is removed along with
+# _infer_family and _categorize_note themselves: neither helper had a
+# src/ caller left once _add_notes (their only caller) was removed as
+# dead write-path code - see TestParfumoScraperWriteRefusal.
 
 
 class TestParfumoScraperRateLimiting:
@@ -1079,277 +1004,70 @@ class TestParfumoScraperBackoff:
 
 
 @pytest.mark.asyncio
-class TestParfumoScraperGenderVocabulary:
-    """Major finding 5: scraper output must match the API's gender enum.
+class TestParfumoScraperWriteRefusal:
+    """ADR-012 Decision 1 deprecates the Parfumo import path.
 
-    The Kaggle importer and the API's gender_target schemas both use the
-    capitalized "Masculine"/"Feminine"/"Unisex" vocabulary
-    (core.vocabulary.GENDER_TARGETS). _extract_gender() scrapes lowercase
-    values from page text; _create_fragrance() must map them to the
-    canonical form rather than storing the lowercase scrape output
-    directly, or gender_target filtering silently excludes every
-    fragrance imported through this scraper.
+    Both entry points must refuse before any network request to Parfumo and
+    before any database access, so each test patches the network methods
+    to fail if they are called at all.
     """
 
-    @pytest.mark.parametrize(
-        ("scraped_gender", "expected"),
-        [
-            ("masculine", "Masculine"),
-            ("feminine", "Feminine"),
-            ("unisex", "Unisex"),
-            (None, "Unisex"),  # unknown/unscraped gender defaults to Unisex
-            ("nonsense-value", "Unisex"),  # unrecognized value also defaults
-        ],
-    )
-    async def test_stored_gender_target_matches_api_vocabulary(
-        self, async_session, scraped_gender, expected
+    async def test_import_from_url_refuses_before_any_network_request(
+        self, async_session
     ):
+        """Refuses immediately; scrape_perfume_page is never invoked."""
         scraper = ParfumoScraper.__new__(ParfumoScraper)
         scraper.db = async_session
 
-        scraped = ScrapedFragrance(
-            url="https://parfumo.com/Perfumes/test/test",
-            name="Vocabulary Test",
-            brand="Vocabulary Brand",
-            gender=scraped_gender,
-        )
+        with (
+            patch.object(
+                scraper,
+                "scrape_perfume_page",
+                side_effect=AssertionError("scrape_perfume_page must not be called"),
+            ) as mock_scrape,
+            pytest.raises(BusinessLogicError, match="ADR-012"),
+        ):
+            await scraper.import_from_url("https://parfumo.com/Perfumes/test/refused")
 
-        fragrance_id = await scraper._create_fragrance(
-            scraped, scraped.name, scraped.brand
-        )
+        mock_scrape.assert_not_called()
 
-        assert fragrance_id is not None
-        # Fetch what was actually persisted rather than trusting the
-        # in-memory object, so the assertion covers the DB round trip too.
-        result = await async_session.execute(
-            select(Fragrance).where(Fragrance.id == fragrance_id)
-        )
-        fragrance = result.scalar_one()
-
-        assert fragrance.gender_target == expected
-        assert fragrance.gender_target in GENDER_TARGETS
-
-
-@pytest.mark.asyncio
-class TestParfumoScraperNoteSavepointIsolation:
-    """Regression tests for Critical finding 3, scraper side.
-
-    Mirrors the Kaggle importer regression tests: a note legitimately
-    appearing in two pyramid positions must not crash the scrape, and a
-    genuine same-position duplicate must be skipped by the per-row
-    SAVEPOINT rather than poisoning the whole session.
-    """
-
-    async def test_note_in_two_positions_is_not_a_conflict(self, async_session):
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-        scraper.db = async_session
-
-        scraped = ScrapedFragrance(
-            url="https://parfumo.com/Perfumes/test/two-position-musk",
-            name="Two Position Musk",
-            brand="Test Brand",
-            heart_notes=["Musk"],
-            base_notes=["Musk"],
-        )
-
-        fragrance_id = await scraper._create_fragrance(
-            scraped, scraped.name, scraped.brand
-        )
-
-        result = await async_session.execute(
-            select(FragranceNote).where(FragranceNote.fragrance_id == fragrance_id)
-        )
-        fragrance_notes = result.scalars().all()
-        positions = sorted(fn.position for fn in fragrance_notes)
-        assert positions == ["base", "heart"]
-        assert len({fn.id for fn in fragrance_notes}) == 2
-
-    async def test_true_duplicate_position_is_skipped_not_fatal(self, async_session):
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-        scraper.db = async_session
-
-        scraped = ScrapedFragrance(
-            url="https://parfumo.com/Perfumes/test/duplicate-top",
-            name="Duplicate Top Note Scrape",
-            brand="Test Brand",
-            top_notes=["Bergamot", "Bergamot"],
-        )
-
-        fragrance_id = await scraper._create_fragrance(
-            scraped, scraped.name, scraped.brand
-        )
-
-        result = await async_session.execute(
-            select(FragranceNote).where(FragranceNote.fragrance_id == fragrance_id)
-        )
-        fragrance_notes = result.scalars().all()
-        # The duplicate insert was caught and skipped by the per-row
-        # SAVEPOINT; the scrape still completes (fragrance_id is not None)
-        # rather than crashing on the second insert.
-        assert len(fragrance_notes) == 1
-        assert fragrance_notes[0].position == "top"
-
-
-@pytest.mark.asyncio
-class TestParfumoScraperAsyncOffload:
-    """Important finding: search()/scrape_perfume_page() are blocking sync
-    calls (a sync httpx.Client plus time.sleep()-based rate limiting and
-    retry backoff). import_from_url() and search_and_import() are async
-    methods that call them directly; without offloading to a thread, that
-    blocking I/O runs on the event loop thread and stalls it for the
-    duration of the request/backoff. Both methods now wrap the blocking
-    calls in asyncio.to_thread(); these tests compare thread identities to
-    confirm the offload deterministically, without wall-clock thresholds.
-    """
-
-    async def test_import_from_url_does_not_block_event_loop(
-        self, async_session, monkeypatch
+    async def test_search_and_import_refuses_before_any_network_request(
+        self, async_session
     ):
+        """Refuses immediately; neither search nor scrape_perfume_page runs."""
         scraper = ParfumoScraper.__new__(ParfumoScraper)
         scraper.db = async_session
-        event_loop_thread = threading.get_ident()
-        worker_thread: int | None = None
 
-        def fake_scrape_perfume_page(url: str) -> ScrapedFragrance:
-            nonlocal worker_thread
-            worker_thread = threading.get_ident()
-            return ScrapedFragrance(url=url, name="Blocking Test", brand="Test Brand")
+        with (
+            patch.object(
+                scraper,
+                "search",
+                side_effect=AssertionError("search must not be called"),
+            ) as mock_search,
+            patch.object(
+                scraper,
+                "scrape_perfume_page",
+                side_effect=AssertionError("scrape_perfume_page must not be called"),
+            ) as mock_scrape,
+            pytest.raises(BusinessLogicError, match="ADR-012"),
+        ):
+            await scraper.search_and_import("Refused Search Result", "Test Brand")
 
-        monkeypatch.setattr(scraper, "scrape_perfume_page", fake_scrape_perfume_page)
-        fragrance_id = await scraper.import_from_url(
-            "https://parfumo.com/Perfumes/test/blocking"
-        )
-
-        assert fragrance_id is not None
-        assert worker_thread is not None
-        assert worker_thread != event_loop_thread
-
-    async def test_search_and_import_does_not_block_event_loop(
-        self, async_session, monkeypatch
-    ):
-        scraper = ParfumoScraper.__new__(ParfumoScraper)
-        scraper.db = async_session
-        event_loop_thread = threading.get_ident()
-        worker_threads: list[int] = []
-
-        def fake_search(query: str, limit: int = 10) -> list[SearchResult]:
-            worker_threads.append(threading.get_ident())
-            return [
-                SearchResult(
-                    name="Blocking Result",
-                    brand="Test Brand",
-                    url="https://parfumo.com/Perfumes/test/blocking-search",
-                )
-            ]
-
-        def fake_scrape_perfume_page(url: str) -> ScrapedFragrance:
-            worker_threads.append(threading.get_ident())
-            return ScrapedFragrance(url=url, name="Blocking Result", brand="Test Brand")
-
-        monkeypatch.setattr(scraper, "search", fake_search)
-        monkeypatch.setattr(scraper, "scrape_perfume_page", fake_scrape_perfume_page)
-
-        fragrance_id = await scraper.search_and_import("Blocking Result", "Test Brand")
-
-        assert fragrance_id is not None
-        assert len(worker_threads) == 2
-        assert all(worker != event_loop_thread for worker in worker_threads)
+        mock_search.assert_not_called()
+        mock_scrape.assert_not_called()
 
 
-def test_version_key_hashes_the_full_url_after_bounded_readable_prefix():
-    """Long URLs with the same truncated tail prefix retain distinct identities."""
-    prefix = "x" * 190
-    first = ParfumoScraper._version_key(f"https://parfumo.com/Perfumes/a/{prefix}-one")
-    second = ParfumoScraper._version_key(f"https://parfumo.com/Perfumes/b/{prefix}-two")
-    assert first != second
-    assert len(first) <= 200
-    assert len(second) <= 200
-
-
-@pytest.mark.asyncio
-async def test_source_snapshots_preserve_collaborators_flat_notes_and_unknown_concentration(
-    async_session,
-):
-    """Refresh appends source evidence without inventing a pyramid or touching ratings."""
-    scraper = ParfumoScraper.__new__(ParfumoScraper)
-    scraper.db = async_session
-    scraped = ScrapedFragrance(
-        url="https://parfumo.com/Perfumes/test/source-evidence",
-        name="Source evidence",
-        brand="Test",
-        flat_notes=["Vetiver", "Musk"],
-        perfumers=["First Nose", "Second Nose"],
-        rating=8.1,
-        rating_count=31,
-    )
-    fragrance_id = await scraper._create_fragrance(scraped, scraped.name, scraped.brand)
-    fragrance = await async_session.get(Fragrance, fragrance_id)
-    assert fragrance.concentration == "Unknown"
-    notes = list(
-        await async_session.scalars(
-            select(FragranceNote).where(FragranceNote.fragrance_id == fragrance_id)
-        )
-    )
-    assert len(notes) == 2
-    assert {note.position for note in notes} == {"flat"}
-    names = set(
-        await async_session.scalars(
-            select(Perfumer.name)
-            .join(VersionPerfumer)
-            .where(VersionPerfumer.fragrance_id == fragrance_id)
-        )
-    )
-    assert names == {"First Nose", "Second Nose"}
-    first_snapshot = await async_session.scalar(
-        select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
-    )
-    assert first_snapshot is not None
-    first_snapshot.retrieved_at = now_naive_utc() - timedelta(minutes=1)
-    reviewer = Reviewer(id="source-reviewer", name="Source Reviewer")
-    async_session.add(reviewer)
-    await async_session.flush()
-    rating = Evaluation(
-        fragrance_id=fragrance_id,
-        reviewer_id=reviewer.id,
-        rating=2,
-        notes="Pencil shavings",
-    )
-    async_session.add(rating)
-    await async_session.flush()
-    scraped.rating = 9.0
-    scraped.rating_count = 45
-    scraped.flat_notes = ["Rose"]
-    await scraper._update_fragrance(fragrance, scraped)
-    latest_snapshot = next(
-        snapshot
-        for snapshot in await async_session.scalars(
-            select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
-        )
-        if snapshot.payload["rating_count"] == 45
-    )
-    latest_snapshot.retrieved_at = now_naive_utc()
-    snapshots = list(
-        await async_session.scalars(
-            select(SourceSnapshot)
-            .where(SourceSnapshot.fragrance_id == fragrance_id)
-            .order_by(SourceSnapshot.retrieved_at)
-        )
-    )
-    assert len(snapshots) == 2
-    assert snapshots[0].payload["rating"] == 8.1
-    assert snapshots[0].payload["flat_notes"] == ["Vetiver", "Musk"]
-    assert snapshots[1].payload["rating_count"] == 45
-    assert snapshots[1].payload["flat_notes"] == ["Rose"]
-    assert all(snapshot.source_url == scraped.url for snapshot in snapshots)
-    links = list(
-        await async_session.scalars(
-            select(VersionPerfumer).where(VersionPerfumer.fragrance_id == fragrance_id)
-        )
-    )
-    assert len(links) == 2
-    await async_session.refresh(rating)
-    assert rating.rating == 2
-    assert rating.notes == "Pencil shavings"
+# _version_key, _create_fragrance, _update_fragrance, and _save_source
+# (and their tests, including test_version_key_hashes_the_full_url_
+# after_bounded_readable_prefix and the multi-snapshot append-only
+# history test that predated this file's ADR-012 work) are removed:
+# search_and_import/import_from_url no longer call any of them, so none
+# had a src/ caller left. See TestParfumoScraperWriteRefusal above for
+# current coverage of the write path itself. TestParfumoScraperAsyncOffload
+# is removed for the same reason: it asserted import_from_url/
+# search_and_import offloaded scrape_perfume_page()/search() to a worker
+# thread via asyncio.to_thread, but neither method calls either function
+# anymore, so there is nothing left to offload.
 
 
 def test_unstructured_notes_remain_flat_during_extraction():
