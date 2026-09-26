@@ -1,7 +1,7 @@
 # Preference-Prediction Data Capture Assessment
 
 > **Status**: Draft for product-owner review
-> **Version**: 1.4
+> **Version**: 1.3
 > **Updated**: 2026-09-21
 > **Perspective**: Future data scientist responsible for preference-model development
 > **Companions**: [ML Structure Review](ml-structure-review-2026-09.md),
@@ -432,8 +432,9 @@ Add or complete:
 ### P0: before baseline collection
 
 - Complete R6 vocabulary normalization and feature-space versioning.
-- Complete R7 session timing, sample provenance, familiarity, ranking, scrub-off, and context
-  capture; require the UI to write the fields rather than creating empty context objects.
+- Complete R7a session timing, sample provenance, familiarity, ranking, scrub-off, and context
+  schema; complete R7b so the released UI writes the fields rather than creating empty context
+  objects.
 - Complete R8 evidence-level eligibility, frozen source/feature provenance, and authoritative
   training view.
 - Decide whether minimal season/setting judgments belong in this baseline. If yes, define them now;
@@ -899,9 +900,10 @@ the first recorded offer or purchase event, which can only occur post-reveal; 18
 first follow-up wear-log window opens, also post-reveal; 18.5 rides on the consent screen that
 13.11 already requires before session-context collection, so it costs nothing extra if that screen
 is being built anyway; 18.4 may land whenever a migration next touches the relevant tables. The
-data that genuinely cannot wait, because the initial four evaluators get exactly one pre-reveal
-exposure per fragrance, is scoped in sections 5.1, 6, 11 (Milestone 1), 12 (P0), and 13.13, and is
-tracked in `PROJECT-PLAN.md`'s R7a/R7b sprint rows, not here.
+data that cannot wait, because the initial four evaluators see each fragrance blind only once
+(except the 6 hidden-repeat fragrances, seen blind twice with an unchanged core questionnaire), is
+scoped in sections 5.1, 6, 11 (Milestone 1), 12 (P0), and 13.13, and is tracked in
+`PROJECT-PLAN.md`'s R7a/R7b sprint rows, not here.
 
 ## 19. Change-control note
 

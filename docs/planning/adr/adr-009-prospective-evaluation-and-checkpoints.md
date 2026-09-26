@@ -1,8 +1,10 @@
 # ADR-009: Prospective Evaluation and Frozen Checkpoints
 
-> **Status**: Accepted; amended 2026-09-19 (declared learning problem)
+> **Status**: Accepted; amended 2026-09-19 (declared learning problem; repeat-benchmark
+> terminology) and 2026-09-21 (mapping-holder evaluator excluded from training, retained in
+> evaluation)
 >
-> **Date**: 2026-09-11 | **Amended**: 2026-09-19
+> **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21
 
 ## Context
 
@@ -91,6 +93,22 @@ edge rather than its center avoids adopting a model whose apparent gain is an ar
 same pooled noise.
 
 Related: [ADR-005](adr-005-controlled-calibration.md), 2026-09-19 amendment.
+
+## 2026-09-21 amendment: mapping-holder evaluator excluded from training, retained in evaluation
+
+For F1, the evaluator who also holds the blind-to-identity mapping cannot be made blind by
+software (see `gates/f1.md`). Confirmed by the product owner 2026-09-26 (resolving the finding
+recorded 2026-09-21 in `PROJECT-PLAN.md`'s risk table): that evaluator's rows are excluded from
+blind-baseline model TRAINING, but remain in evaluation. Per-evaluator metrics (the Metrics row in
+the declared-learning-problem table above) still report that evaluator's paired MAE and Spearman
+correlation, so a reader can see how their non-blind rows compare to the three blind evaluators'.
+
+This also changes how the pooled repeat benchmark (2026-09-19 amendment, above) is reported: it is
+reported both ways, as 18 pairs pooled across the three blind evaluators and as all 24 pairs
+including the mapping-holder's 6, so a reader can see whether including non-blind repeat pairs
+moves the pooled benchmark.
+
+Related: [PROJECT-PLAN.md](../PROJECT-PLAN.md), section 21 risk table; [F1 gate](../gates/f1.md).
 
 ## Related
 

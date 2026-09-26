@@ -1,8 +1,9 @@
 # ADR-016: Per-Dimension Preference Capture and Perfumer as an Evaluable Dimension
 
-> **Status**: Proposed, requires maintainer decision, not implemented
+> **Status**: Proposed, requires maintainer decision, not implemented; amended 2026-09-21
+> (permanence for the initial four F1 evaluators)
 >
-> **Date**: 2026-09-19
+> **Date**: 2026-09-19 | **Amended**: 2026-09-21
 
 **Numbering note**: `main` already contains ADR-014 (frontend e2e and accessibility), merged in
 PR #103 without being added to the index. PR #105 has since merged a second, unrelated ADR-014
@@ -127,11 +128,25 @@ checkpoints exist to avoid.
 Recommended: land after F1 closes and before D1, so the first pilot is internally consistent and the
 second wave collects the richer signal.
 
-For the initial four F1 evaluators specifically, this deferral is permanent, not merely sequenced:
-each (evaluator, fragrance) pair has one pre-reveal exposure, so a blind directional preference-driver
-judgment ("which attributes pushed your rating up or down") cannot be collected retroactively for
-that pair once F1's baseline closes. The fatigue and comparability reasoning above still justifies
-the deferral; it is recorded here so the trade-off is visible rather than read as a neutral delay.
+For the initial four F1 evaluators specifically, this deferral is permanent, not merely sequenced.
+See the 2026-09-21 amendment below for the exposure cardinality and why the permanence conclusion
+still holds.
+
+## 2026-09-21 amendment: permanence for the initial four F1 evaluators
+
+The paragraph above asserted that each (evaluator, fragrance) pair has one pre-reveal exposure.
+That overstated the case: per the baseline evidence
+(`docs/planning/evidence/baseline-v3.1-universal-and-holdout.md`), each evaluator sees each
+fragrance blind once, except 6 hidden-repeat fragrances, which are presented blind a second time
+with the unchanged core questionnaire.
+
+The permanence conclusion still holds: a blind directional preference-driver judgment ("which
+attributes pushed your rating up or down") is not part of the core questionnaire today, and repeat
+comparability requires that questionnaire stay identical across both presentations of a
+hidden-repeat fragrance, so even the repeated presentation cannot be used to add it. It therefore
+cannot be collected retroactively for any (evaluator, fragrance) pair once F1's baseline closes.
+The fatigue and comparability reasoning above still justifies the deferral; it is recorded here so
+the trade-off is visible rather than read as a neutral delay.
 
 ## Perfumer as an evaluable dimension
 

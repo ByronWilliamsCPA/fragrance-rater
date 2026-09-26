@@ -17,7 +17,7 @@ the same pull request.
 | P4 | Participant experience | Complete | P3 complete | Participant workflows require no IDs or API tools |
 | P5 | Manager and operations experience | Complete | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
 | P6 | Integrated pilot readiness | In progress; external execution pending | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
-| R | Review remediation and ML foundation | In progress; ML skeleton and affinity-v2 done | P5 complete | R1-R4 merged before the P6 go decision; R2 and R5-R8 merged before F1 |
+| R | Review remediation and ML foundation | In progress; ML skeleton and affinity-v2 done | P5 complete | R1-R4 and R7a-R7b merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 |
 | F1 | Initial family perfume pilot | Planned | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
 | D1 | Source and vocabulary foundation | Planned | F1 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |

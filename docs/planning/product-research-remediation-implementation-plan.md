@@ -15,7 +15,7 @@ are **factually accurate at the code level**: every claim independently spot-che
 current routes, models, migrations, and tests matched. Their weakness is not correctness, it is
 **staleness against `PROJECT-PLAN.md` and the two prior architecture/ML reviews**: most of what
 they flag is not a new discovery, it is already-decided, already-scheduled work inside Milestone R
-(sprints R3, R4, R6, R7, R8), none of which cite the architecture review or the ML structure
+(sprints R3, R4, R6, R7a, R7b, R8), none of which cite the architecture review or the ML structure
 review. Treating this session's documents as a fresh remediation sequence would create a **parallel,
 duplicate tracking system** that drifts from `PROJECT-PLAN.md`, the actual authority.
 
@@ -30,14 +30,16 @@ The research/marketing evidence work is in good shape: the two known-fabricated 
 `perfume-purchasing-research-validation.md` already did rigorous primary-source verification;
 independent re-checking in this review did not surface any error in it.
 
-The most material finding is in the ML/data domain: **season, setting, and application context
-have no schema representation at all**, R7 (the sprint meant to add it) is scoped only as
-"scenario lookups schema-only" (no label collection), and the data-capture assessment treats
-season/setting as a required pre-baseline capability. This is a real, unresolved conflict between
-two planning documents and needs an explicit owner decision before F1, not a silent default.
+The most material finding was in the ML/data domain: **season, setting, and application context
+had no schema representation at all**, R7 (the sprint meant to add it, since split into R7a/R7b)
+was scoped only as "scenario lookups schema-only" (no label collection), and the data-capture
+assessment treated season/setting as a required pre-baseline capability. This was a real conflict
+between two planning documents; it is now resolved (DEC-01, Section 4): `season_fit` and
+`setting_fit` are mandatory fields on every skin-stage row, recorded as Q9 in
+`ml-decisions-2026-09.md` and folded into R7a (schema) and R7b (participant instrument).
 
 **Net recommendation**: fold this session's findings into the existing Milestone R sprint scopes
-(primarily R2, R6, R7, R8) rather than creating new milestones, except for the handful of
+(primarily R2, R6, R7a, R7b, R8) rather than creating new milestones, except for the handful of
 genuinely new findings identified in Section 4 (decision register) and Section 6 (prioritized
 findings), which need owner decisions to be routed correctly.
 
@@ -79,11 +81,11 @@ this plan; each needs the product owner's explicit answer.
 
 | ID | Decision | Options | Recommended default | Blocks |
 | :--- | :--- | :--- | :--- | :--- |
-| DEC-01 | Is season/setting/occasion a first-generation prediction input, or deferred? | (a) Widen R7 to collect a minimal season/setting/occasion label at observation time; (b) keep R7 schema-only and defer all context-conditioned prediction past F1 | (a): a minimal, coarse label (season + indoor/outdoor + solo/social) is cheap to collect now and cannot be reconstructed later; full scenario taxonomy can wait | R7 scope, DC-01, XD-01 |
-| DEC-02 | Do the ten §13 data-contract items (data dictionary, instrument version, response-status vocabulary, randomization record, quality-vs-eligibility split, supersession, censoring, time-varying ownership, consent, release manifest) get their own sprint, or fold into R2/R6/R7/R8? | (a) New pre-baseline sprint (call it R16); (b) fold each item into the R-sprint that owns its table | (b), itemized in Section 23 phase table: avoids a 16th sprint and keeps each item next to the schema it modifies | R2, R6, R7, R8 scopes; DC-16..26 |
-| DEC-03 | Reconcile `would_buy` placement: current UI asks it as a 0-10 skin-stage question; ADR-005's 2026-09-19 amendment implies it should move | Move `would_buy` out of the blind skin core into a separate, explicitly-labeled decision question with offer/scenario context fields, per DC-06 | Move it; keep the 0-10 scale for backward comparability but gate it behind a context capture (DEC-01) | R7, DC-06, `calibrationScales.ts:184` |
+| DEC-01 | Is season/setting/occasion a first-generation prediction input, or deferred? | (a) Widen R7 to collect a minimal season/setting/occasion label at observation time; (b) keep R7 schema-only and defer all context-conditioned prediction past F1 | (a): a minimal, coarse label (season + indoor/outdoor + solo/social) is cheap to collect now and cannot be reconstructed later; full scenario taxonomy can wait | R7a/R7b scope, DC-01, XD-01 |
+| DEC-02 | Do the ten §13 data-contract items (data dictionary, instrument version, response-status vocabulary, randomization record, quality-vs-eligibility split, supersession, censoring, time-varying ownership, consent, release manifest) get their own sprint, or fold into R2/R6/R7/R8? | (a) New pre-baseline sprint (call it R16); (b) fold each item into the R-sprint that owns its table | (b), itemized in Section 23 phase table: avoids a 16th sprint and keeps each item next to the schema it modifies | R2, R6, R7a, R7b, R8 scopes; DC-16..26 |
+| DEC-03 | Reconcile `would_buy` placement: current UI asks it as a 0-10 skin-stage question; ADR-005's 2026-09-19 amendment implies it should move | Move `would_buy` out of the blind skin core into a separate, explicitly-labeled decision question with offer/scenario context fields, per DC-06 | Move it; keep the 0-10 scale for backward comparability but gate it behind a context capture (DEC-01) | R7b, DC-06, `calibrationScales.ts:184` |
 | DEC-04 | Does the assessment's P1 recommendation to add preference-driver features conflict with ADR-016 and should it be withdrawn? | ADR-016 status is `Proposed, requires maintainer decision, not implemented`, with 7 open questions and an explicit "should not land before F1" | Withdraw the assessment's P1 recommendation; defer to ADR-016's own resolution process, which is separately gated to not land before F1 | DC-14, XD-03 |
-| DEC-05 | Route the two genuinely-new UX findings (WS-03 collection/ownership tracking, CAL-02 validated 33-fragrance baseline template) into a milestone | Neither exists in any R-sprint or ADR today | Add CAL-02 (baseline template validation) to R6/R7 scope (it's cheap, schema-adjacent); scope WS-03 (collection/ownership) as its own future milestone after F1: it's a full feature, not a gap fix | ROLES/WS review, PROJECT-PLAN §11a |
+| DEC-05 | Route the two genuinely-new UX findings (WS-03 collection/ownership tracking, CAL-02 validated 33-fragrance baseline template) into a milestone | Neither exists in any R-sprint or ADR today | Add CAL-02 (baseline template validation) to R6/R7a scope (it's cheap, schema-adjacent); scope WS-03 (collection/ownership) as its own future milestone after F1: it's a full feature, not a gap fix | ROLES/WS review, PROJECT-PLAN §11a |
 | DEC-06 | Relabel Fragella's raw `Confidence` field in the manager UI away from "confidence" | FRAG-01: low severity, but ADR-007 reserves that term project-wide | Rename to "Fragella match confidence" or similar, small frontend-only change | ProgramSetupPage.tsx:405-406 |
 | DEC-07 | Should the three new gap-analysis documents be corrected in place to cross-reference the architecture review and Milestone R, or superseded by this plan? | (a) Annotate each doc with a pointer to this plan and the relevant R-sprint; (b) leave as-is and rely on this plan alone | (a): a future reader of the standalone docs should not re-discover findings as if new | docs/planning/README.md entries |
 | DEC-08 | Cadence for the real-backend Playwright smoke tier (nightly vs. pre-deploy) | Carried over from P1.8, unresolved before this session too | Not re-decided here; flagged again because R13/R14 touch the same CI surface this plan's frontend items depend on | PROJECT-PLAN.md:200-203 |
@@ -94,10 +96,13 @@ Prompted by a review of this plan against the constraint that F1's initial four 
 exactly one blind pass each. Full review, options, and recommendations were presented to the
 product owner before deciding.
 
-- **DEC-01: resolved (a), narrowed.** Add one or two coarse blind scenario/setting questions, at
-  the skin stage only (roughly 6 candidates per evaluator, not all 49 blotter presentations), to
-  respect the section 6.2 fatigue caution. Recorded as Q9 in `ml-decisions-2026-09.md` and folded
-  into R7b below.
+- **DEC-01: resolved (a), narrowed.** The recommended default above was a coarse season +
+  indoor/outdoor + solo/social label at every observation; the decision narrows that to two
+  mandatory fields, `season_fit` and `setting_fit`, collected only at the skin stage (roughly 6
+  candidates per evaluator, not all 49 blotter presentations), to respect the section 6.2 fatigue
+  caution. Completeness denominators are eligible skin-stage rows only; blotter rows are excluded.
+  Recorded as Q9 in `ml-decisions-2026-09.md` and folded into R7a (schema) and R7b (participant
+  instrument, question wording) below.
 - **DEC-02: resolved (b) by implementation.** R7 is split into R7a (schema/service) and R7b
   (participant instrument), each item folded into the sprint that owns its table, per the phase
   table below. No 16th sprint added.
@@ -118,7 +123,7 @@ not addressed by this update.
 | :--- | :--- | :--- | :--- |
 | Reviewing perfumes | P4 (complete) | Implemented | None |
 | Recording ownership/collection state | Not in any milestone | **Absent** (WS-03) | New scope, DEC-05 |
-| Controlled blind baseline of 33 perfumes | Milestone R5 (protocol, done), R6/R7 (schema) | Protocol decided; no template/count enforcement in UI (`session_size` defaults to 3, `ProgramSetupPage.tsx:475`) | CAL-02 |
+| Controlled blind baseline of 33 perfumes | Milestone R5 (protocol, done), R6/R7a (schema) | Protocol decided; no template/count enforcement in UI (`session_size` defaults to 3, `ProgramSetupPage.tsx:475`) | CAL-02 |
 | Core preference profile | P2 (complete, measurement); no profile-page UI | Computed, not surfaced as a page (PREF-01) | New frontend item, Section 10 |
 | Future candidate recommendations | D4 (planned, gated) | Recommendation delivery/feedback (non-Fragella) implemented; Fragella candidate discovery absent | Tracked correctly as Planned |
 | Recorder-vs-subject provenance | R3/R4 (in progress) | `recorded_by`/`reviewer_id`/`worn_by_reviewer_id` exist for evidence rows; cross-reviewer read scoping (Q5) not yet enforced | ROLES-03 (duplicate of S-05/B-10, already scheduled) |
@@ -139,7 +144,7 @@ re-file these as new issues**: cross-reference the slug in any tracker entry.
 | ROLES-04 | Acting-for-another lacks complete grant model outside calibration | Partially implemented | Medium | Same root cause as ROLES-03 |
 | WS-03 | No personal collection/ownership tracking | **Confirmed missing, genuinely new** | High | Zero model/route/ADR references |
 | WS-04 | No consumer catalog/browse route | Confirmed missing | Medium | 9-route table has no browse/detail route |
-| CAL-02 | 33-fragrance baseline has no validated template | **Confirmed, not covered by any R-sprint today**; DEC-05 recommends adding it to R6/R7 scope, reflected in the Section 23 phase table | High | `session_size` UI field defaults to 3, unconstrained |
+| CAL-02 | 33-fragrance baseline has no validated template | **Confirmed, not covered by any R-sprint today**; DEC-05 recommends adding it to R6/R7a scope, reflected in the Section 23 phase table | High | `session_size` UI field defaults to 3, unconstrained |
 | PREF-01 | No preference-library/profile page | Confirmed missing | High | Computed evidence exists, not surfaced |
 | PREF-02 | Recommendations gate on `MIN_EVALUATIONS = 3`, not 33 | Confirmed, matches doc | Medium | `recommendation_service.py:47` |
 | ADMIN-01 | Reviewer/fragrance CRUD has no admin/manager check | Confirmed | High | `api/reviewers.py`, `api/fragrances.py` |
@@ -197,21 +202,22 @@ below is scoped to the R-sprint that should own it per DEC-02.
 
 | Change | Owning sprint | Rationale |
 | :--- | :--- | :--- |
-| `PresentationExposure` sub-table or columns on `Presentation`: `occurred_on` (date), `presented_at` (timestamptz), `evaluator_timezone`, `application_method`, `dose_sprays`, `sample_source_type` (decant/original/sample-card), `container_opened_on` | R7 | DC-02, DC-05: physical exposure identity is unrecoverable after the fact |
-| `SessionContext` columns/table replacing the unused `CalibrationSession.context` JSON default: `season_code`, `setting_code` (indoor/outdoor), `social_code` (solo/social), free-text note | R7, gated on DEC-01 | DC-01: the single largest confirmed gap |
+| `PresentationExposure` sub-table or columns on `Presentation`: `occurred_on` (date), `presented_at` (timestamptz), `evaluator_timezone`, `application_method`, `dose_sprays`, `sample_source_type` (decant/original/sample-card), `container_opened_on` | R7a | DC-02, DC-05: physical exposure identity is unrecoverable after the fact |
+| `SessionContext` columns/table replacing the unused `CalibrationSession.context` JSON default: `season_code`, `setting_code` (indoor/outdoor), `social_code` (solo/social), free-text note | R7a | DC-01: the single largest confirmed gap. Session-level context (when and where the session ran), distinct from DEC-01's per-row fragrance judgments below |
+| `season_fit` and `setting_fit` on skin-stage observations: the evaluator's blind judgment of which seasons and settings the fragrance suits, from a short fixed list; mandatory at the skin stage, not asked at blotter | R7a (schema), R7b (questions) | DEC-01, Q9 in `ml-decisions-2026-09.md` |
 | `v_training_rows` view plus `training_eligibility_code`/`exclusion_reason` on `evaluations` and `calibration_observations` (not just `fragrances`) | R8 | DC-04/MS-02: do not let the existing `fragrances`-scoped column be mistaken for this |
 | `NoteAlias`, `accord_types` lookup, `intensity_source` on `fragrance_accords`, `FragranceNote.rank` | R6 | DC-03/MS-04 |
-| `PairwiseComparison`, `BehavioralEvent` tables | R7 | DC-08, DC-09 |
+| `PairwiseComparison`, `BehavioralEvent` tables | R7a | DC-08, DC-09 |
 | `FeatureSnapshot` rows; `ModelCheckpoint` gains exclusions/filters/params/digest/taxonomy version | R8 | DC-19/MS-10 |
-| Randomization/deviation record on `Membership`/`Presentation` (intended vs. actual order, seed) | R7 | DC-20 |
-| Response-status enum (skipped / unable-to-assess / interrupted / not-asked / invalidated / technical-failure) replacing bare NULL on optional observation fields | R7 or R8 | DC-18 |
-| Familiarity as a versioned code plus a prior-ownership boolean, replacing the bare 0-5 int | R7 | DC-24, ADR-005 amendment |
-| `would_buy` relocated out of the blind skin-stage core into a decision block with scenario/offer fields | R7 | DC-06, DEC-03 |
+| Randomization/deviation record on `Membership`/`Presentation` (intended vs. actual order, seed) | R7a | DC-20 |
+| Response-status enum (skipped / unable-to-assess / interrupted / not-asked / invalidated / technical-failure) replacing bare NULL on optional observation fields | R7a | DC-18 |
+| Familiarity as a versioned code plus a prior-ownership boolean, replacing the bare 0-5 int | R7a | DC-24, ADR-005 amendment |
+| `would_buy` relocated out of the blind skin-stage core into a decision block with scenario/offer fields | R7b | DC-06, DEC-03 |
 
 ## 8. Required data-dictionary additions
 
 A machine-readable data dictionary (DC-16) does not exist and is not in any sprint's scope. Add
-it as an R7 deliverable: one YAML or JSON file under `docs/data/` enumerating every evidence-table
+it as an R7a deliverable: one YAML or JSON file under `docs/data/` enumerating every evidence-table
 column, its response-status vocabulary, valid range, and whether it is derived or captured.
 Include instrument/questionnaire versioning (DC-17): bind `Program.version` (currently a bare
 protocol name string) to a frozen set of question wordings and scale anchors, so a future protocol
@@ -351,7 +357,7 @@ used. Concretely:
 DC-25 (consent contract) is unimplemented and out of any current sprint scope. This matters now
 because ADR-005's 2026-09-19 amendment already mandates collecting illness/allergy/hunger/hormonal
 session context: sensitive data with no consent model, retention policy, or field-level access
-control yet. Route this into R7 alongside the `SessionContext` work from Section 7, since they
+control yet. Route this into R7a alongside the `SessionContext` work from Section 7, since they
 touch the same table; do not collect the sensitive fields before the consent contract exists.
 
 Fragella licensing is already correctly documented (ADR-012, ADR-004): bounded lookup only, no
@@ -410,20 +416,21 @@ Milestone R, it specifies what lands *inside* each already-sequenced sprint.
 | 2 | R3/R4 (not started) | ROLES-03/S-05/B-10 scoping fix; ADMIN-01 admin checks | Yes (P6-gating) |
 | 3 | R6 (not started) | Vocabulary normalization (DC-03/MS-04); CAL-02 baseline-template validation (DEC-05) | Yes |
 | 4a | R7a, schema/service (not started) | Exposure metadata (DC-02), season/setting columns (DC-01, DEC-01 resolved yes), pairwise/rank-event schema (DC-08), perceived-notes normalization (DC-15), randomization record (DC-20), familiarity-as-code (DC-24), consent-event table (DC-25/Section 18), response-status vocabulary (DC-18) | Yes: all irrecoverable-after-the-fact |
-| 4b | R7b, participant instrument (not started; must merge before P6.3, `PROJECT-PLAN.md` section 4) | Session-context form, blotter recognition/ownership controls, skin-timepoint stamping, scrub-off, unable-to-assess control, deviation-flag control, one-rank-event ranking UI, `would_buy` relocation (DC-06/DEC-03), coarse scenario/setting questions at skin stage (DEC-01); synthetic released-UI export as acceptance evidence | Yes: same irrecoverability as 4a, but only the UI half actually collects it |
+| 4b | R7b, participant instrument (not started; must merge before P6.3, `PROJECT-PLAN.md` section 4) | Session-context form, blotter recognition/ownership controls, skin-timepoint stamping, scrub-off, unable-to-assess control, deviation-flag control, one-rank-event ranking UI, `would_buy` relocation (DC-06/DEC-03), mandatory `season_fit`/`setting_fit` fields at skin stage (DEC-01, Q9); synthetic released-UI export as acceptance evidence | Yes: same irrecoverability as 4a, but only the UI half actually collects it |
 | 5 | R8 (not started) | Evidence-row eligibility view (DC-04/MS-02), `FeatureSnapshot`/checkpoint enrichment (DC-19/MS-10) | Yes, but may land after the P6 go decision: no evaluator-facing UI |
 | 6 | Frontend, any time after R3 | Nav collapse (FE-02), scale-field phone treatment (FE-03), preference-profile page (PREF-01), `EvidencePage` follow-ups (FE-08), Fragella confidence relabel (DEC-06) | No, but should land before F1 for usability, not correctness |
-| 7 | Data dictionary/manifest (new, folds into R7/R8) | DC-16, DC-17, DC-26 | Yes for DC-16/17, before first export for DC-26 |
+| 7 | Data dictionary/manifest (new, DC-16/17 fold into R7a, DC-26 folds into R8) | DC-16, DC-17, DC-26 | Yes for DC-16/17, before first export for DC-26 |
 | 8 | Post-F1 | D4 (Fragella match/similar), preference-driver features (ADR-016, DEC-04), BLaIR-informed encoder experiment (Section 13), WS-03 collection/ownership as its own milestone (DEC-05) | No: explicitly deferred |
 
 ## 24. Dependencies and critical path
 
-`R2 → {R3, R4 in parallel} → R6 → R7a → R7b → P6.3 rehearsal → R8 (any time before F1) → P6 go
-decision → F1`. Updated 2026-09-21: R7 is split into R7a/R7b (DEC-02), and R7b must precede the
-P6.3 synthetic rehearsal, not just the P6 go decision, because a rehearsal run against a pre-R7b
-instrument validates nothing F1 will actually use. R8 has no evaluator-facing UI and may land
-after the P6 go decision, before F1, without this constraint. DEC-01 (season/setting scope) is
-resolved (yes, narrowed to skin-stage-only, see the Resolutions note in section 4).
+`R2 → {R3, R4 in parallel} → R6 → R7a → R7b → P6.3 rehearsal → P6 go decision → F1`, with R8
+landing any time before F1 but not gating the go decision. Updated 2026-09-21: R7 is split into
+R7a/R7b (DEC-02), and R7b must precede the P6.3 synthetic rehearsal, not just the P6 go decision,
+because a rehearsal run against a pre-R7b instrument validates nothing F1 will use. R8
+has no evaluator-facing UI and may land after the P6 go decision, before F1, without this
+constraint. DEC-01 (season/setting scope) is resolved (yes, narrowed to skin-stage-only, see the
+Resolutions note in section 4).
 
 ## 25. Acceptance criteria and release gates
 
@@ -435,11 +442,10 @@ the R2 parity test.
 
 ## 26. Risks and unresolved owner decisions
 
-DEC-01, DEC-03, and DEC-04 were resolved 2026-09-21 (section 4). DEC-02, DEC-05, DEC-06, DEC-07,
+DEC-01, DEC-02, DEC-03, and DEC-04 were resolved 2026-09-21 (section 4). DEC-05, DEC-06, DEC-07,
 and DEC-08 remain unresolved and block at least one phase in Section 23, but none carries the
 same irreversibility as the resolved items: DEC-05/06/07/08 concern maintainability and
-documentation, and DEC-02 is effectively answered in practice by the R7a/R7b split even though not
-formally closed. The item this section previously called highest-risk, DEC-01, is now resolved and
+documentation. The item this section previously called highest-risk, DEC-01, is now resolved and
 folded into R7b; the residual risk is execution, not decision, and is tracked as R7b's synthetic
 released-UI export requirement (`PROJECT-PLAN.md` section 11a) rather than as an open decision.
 

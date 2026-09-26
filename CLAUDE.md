@@ -357,9 +357,9 @@ END BASELINE DEVELOPMENT STANDARDS
 
 ## Project Planning Documents
 
-> **Status**: P0-P5 are complete; P1 external evidence, Milestone R's R1-R4 sprints, and the P6
-> pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
-> The project plan owns milestone status.
+> **Status**: P0-P5 are complete; P1 external evidence, Milestone R's R1-R4 and R7a-R7b sprints
+> (R7b via the P6.3 synthetic rehearsal), and the P6 pilot-readiness gate precede F1 family perfume
+> testing (R2 and R5-R8 also gate F1 directly). The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
@@ -396,7 +396,7 @@ END BASELINE DEVELOPMENT STANDARDS
 | P3 | Role-aware routed product foundation |
 | P4 | Complete participant experience |
 | P5 | Complete manager, reporting, and operations experience |
-| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 gate P6 closure, R2 and R5-R8 gate F1 |
+| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), R2 and R5-R8 gate F1 |
 | P6 | Deployed synthetic rehearsal and pilot-readiness decision |
 | F1 | Initial family pilot using actual perfumes |
 | D1 | Source and vocabulary foundation |
