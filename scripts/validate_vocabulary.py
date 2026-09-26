@@ -19,7 +19,7 @@ from typing import cast
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
-SLUG = re.compile(r"^[a-z][a-z0-9-]*$")
+SLUG = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 STATUSES = ("draft", "published", "retired")
 OWNERS = ("project", "external")
@@ -34,6 +34,7 @@ TERM_KEYS = frozenset(
 )
 NODE_KEYS = frozenset({"heading", "term", "children"})
 MAX_TREE_DEPTH = 4
+MAX_DEFINITION_WORDS = 20
 
 
 def _text(value: object) -> str:
@@ -77,11 +78,12 @@ def _validate_header(header: object) -> list[str]:
         errors.append(f"vocabulary.owner must be one of {OWNERS}")
     if header.get("status") not in STATUSES:
         errors.append(f"vocabulary.status must be one of {STATUSES}")
-    errors.extend(
-        f"vocabulary.{field} is required"
-        for field in ("license_id", "provenance")
-        if not _text(header.get(field))
-    )
+    for field in ("license_id", "provenance"):
+        raw_value = header.get(field)
+        if isinstance(raw_value, str) and raw_value != raw_value.strip():
+            errors.append(f"vocabulary.{field} has leading or trailing whitespace")
+        if not _text(raw_value):
+            errors.append(f"vocabulary.{field} is required")
     return errors
 
 
@@ -108,34 +110,56 @@ def _validate_terms(
         if isinstance(raw_code, str) and raw_code != raw_code.strip():
             errors.append(f"terms[{index}]: code has leading or trailing whitespace")
         code = _text(raw_code)
-        if not SLUG.match(code):
+        valid_code = bool(SLUG.match(code))
+        if not valid_code:
             errors.append(f"terms[{index}]: code must be a lowercase slug")
-            continue
-        if code in by_code:
+        elif code in by_code:
             errors.append(f"duplicate term code: {code}")
             continue
-        by_code[code] = term
+        else:
+            by_code[code] = term
+        # #ASSUME: data-integrity: an invalid code has no safe value to name
+        # this term by in the messages below (it may be empty, or share text
+        # with an unrelated term), so fall back to its position; a valid,
+        # not-yet-duplicate code still identifies it even once recorded.
+        # #VERIFY: covered by test_invalid_term_code_still_validates_other_fields.
+        identifier = f"term {code}" if valid_code else f"terms[{index}]"
         raw_label = term.get("label")
         if isinstance(raw_label, str) and raw_label != raw_label.strip():
-            errors.append(f"term {code}: label has leading or trailing whitespace")
+            errors.append(f"{identifier}: label has leading or trailing whitespace")
         label = _text(raw_label).casefold()
         if not label:
-            errors.append(f"term {code}: label is required")
+            errors.append(f"{identifier}: label is required")
         elif label in labels:
             errors.append(f"duplicate term label: {label}")
         labels.add(label)
         if term.get("kind") not in KINDS:
-            errors.append(f"term {code}: kind must be family or descriptor")
-        if not _text(term.get("definition")):
-            errors.append(f"term {code}: definition is required")
+            errors.append(f"{identifier}: kind must be family or descriptor")
+        raw_definition = term.get("definition")
+        if isinstance(raw_definition, str) and raw_definition != raw_definition.strip():
+            errors.append(
+                f"{identifier}: definition has leading or trailing whitespace"
+            )
+        definition = _text(raw_definition)
+        if not definition:
+            errors.append(f"{identifier}: definition is required")
+        elif len(definition.split()) > MAX_DEFINITION_WORDS:
+            errors.append(
+                f"{identifier}: definition has more than {MAX_DEFINITION_WORDS} words"
+            )
         if not isinstance(term.get("active"), bool):
-            errors.append(f"term {code}: active must be true or false")
+            errors.append(f"{identifier}: active must be true or false")
     for code, term in by_code.items():
         hint = term.get("usual_family_hint")
         if hint is None:
             continue
         if term.get("kind") == "family":
             errors.append(f"term {code}: families may not have usual_family_hint")
+            continue
+        if isinstance(hint, str) and hint != hint.strip():
+            errors.append(
+                f"term {code}: usual_family_hint has leading or trailing whitespace"
+            )
             continue
         target = by_code.get(str(hint))
         if target is None or target.get("kind") != "family":
@@ -216,19 +240,31 @@ def validate_vocabulary(document: object) -> list[str]:
     """Return every rule violation in a vocabulary document."""
     if not isinstance(document, dict):
         return ["document must be a mapping"]
+    # #ASSUME: data-integrity: document is now known to be a mapping, but
+    # ruamel's safe loader can still populate it with keys or values of any
+    # YAML-representable type (ints, dates, nested lists), not just the
+    # header/term/node shape this file expects; every field read below is
+    # checked for both presence and type before being treated as trusted
+    # structure, so a missing section is reported without masking errors
+    # already found in the sections that are present.
+    # #VERIFY: covered by the header/term/node key allow-list tests, the
+    # whitespace/slug/semver/word-count field checks, and
+    # test_missing_top_level_key_still_reports_other_errors.
     document = cast("dict[str, object]", document)
     errors = [
         f"missing top-level key: {key}" for key in TOP_LEVEL if key not in document
     ]
-    if errors:
-        return errors
     errors.extend(
         f"unknown top-level key: {key}" for key in document if key not in TOP_LEVEL_KEYS
     )
-    errors.extend(_validate_header(document["vocabulary"]))
-    term_errors, by_code = _validate_terms(document["terms"])
-    errors.extend(term_errors)
-    errors.extend(_validate_tree(document["display_tree"], by_code))
+    by_code: dict[str, dict[str, object]] = {}
+    if "vocabulary" in document:
+        errors.extend(_validate_header(document["vocabulary"]))
+    if "terms" in document:
+        term_errors, by_code = _validate_terms(document["terms"])
+        errors.extend(term_errors)
+    if "display_tree" in document:
+        errors.extend(_validate_tree(document["display_tree"], by_code))
     return errors
 
 
@@ -239,6 +275,15 @@ def content_hash(document: object) -> str:
     content later flipped to ``published``, with no other change, hash
     identically. The input is deep-copied before ``status`` is dropped; the
     caller's document is never mutated.
+
+    Raises:
+        TypeError: If ``document`` contains a value ``json.dumps`` cannot
+            serialize. Not reachable from ``main()``, which only calls this
+            after ``validate_vocabulary`` reports no errors; every field
+            that function accepts is a JSON-safe type. A caller that
+            passes an unvalidated document directly can still hit this.
+        ValueError: If ``document`` contains a circular reference. Same
+            caveat as above: unreachable via ``main()``.
     """
     hashed = copy.deepcopy(document)
     if isinstance(hashed, dict):
@@ -251,31 +296,67 @@ def content_hash(document: object) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
-def main() -> int:
-    """Validate a vocabulary file and print its content hash."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("path", type=Path)
-    args = parser.parse_args()
-    path = cast("Path", args.path)
+def _validate_path(path: Path) -> int:
+    """Validate a single vocabulary file and print its content hash.
+
+    Returns:
+        0 if the file is valid, 1 if it violates a publish rule, 2 if it
+        could not be read at all.
+    """
     try:
+        # #ASSUME: external-resources: path names a regular, readable file
+        # containing YAML text small enough for ruamel's recursive-descent
+        # parser to handle within Python's default recursion limit. A
+        # missing file, an unreadable encoding, malformed YAML, or a
+        # duplicate mapping key all raise here; a display tree nested
+        # deeply enough (roughly 500+ levels) exhausts the recursion limit
+        # instead, which is not an OSError/YAMLError subclass and needs its
+        # own branch below.
+        # #VERIFY: covered by tests for a missing file, non-UTF-8 bytes,
+        # malformed YAML, a duplicate mapping key, and 500-level nested
+        # YAML text.
         document = cast(
             "object", YAML(typ="safe").load(path.read_text(encoding="utf-8"))
         )
     except (OSError, UnicodeDecodeError, YAMLError) as exc:
         print(f"cannot read {path}: {exc}", file=sys.stderr)
         return 2
+    except RecursionError:
+        print(f"cannot read {path}: nesting too deep", file=sys.stderr)
+        return 2
     errors = validate_vocabulary(document)
     for error in errors:
         print(error, file=sys.stderr)
     if errors:
         return 1
-    try:
-        digest = content_hash(document)
-    except (TypeError, ValueError) as exc:
-        print(f"cannot compute content hash: {exc}", file=sys.stderr)
-        return 1
+    digest = content_hash(document)
     print(f"OK {path} sha256={digest}")
     return 0
+
+
+def main() -> int:
+    """Validate one or more vocabulary files and print each one's content hash."""
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        epilog=(
+            "Exit codes: 0 every file is valid, and each prints "
+            "'OK <path> sha256=<hex>' (the file's content hash); 1 at "
+            "least one file violates a publish rule, listed on stderr; "
+            "2 a file could not be read at all (missing, unreadable "
+            "encoding, malformed or duplicate-key YAML, a display tree "
+            "nested too deeply to parse) or the command line was used "
+            "incorrectly."
+        ),
+    )
+    parser.add_argument(
+        "path",
+        type=Path,
+        nargs="+",
+        help="path to a vocabulary YAML file to validate (repeatable)",
+    )
+    args = parser.parse_args()
+    paths = cast("list[Path]", args.path)
+    return max(_validate_path(path) for path in paths)
 
 
 if __name__ == "__main__":

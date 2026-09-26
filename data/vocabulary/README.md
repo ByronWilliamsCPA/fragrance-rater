@@ -4,7 +4,7 @@
 descriptors that a note, material, or fragrance can carry at ranks 1 to 5, and a display tree
 for browsing and teaching. Design and rules:
 [olfactory vocabulary spec](../../docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md)
-and ADR-015.
+and ADR-017.
 
 ## Rules
 
@@ -18,6 +18,8 @@ and ADR-015.
   ScenTree or any other published classification into this directory.
 - Every key at the header, term, and display-node level is on an allow list; an unrecognized
   key is a validation error, not a silently-ignored typo.
+- Every `definition` is one sentence of 20 words or fewer; the validator counts words by
+  splitting on whitespace and reports the term code if it runs longer.
 
 ## Validate
 
@@ -25,8 +27,12 @@ and ADR-015.
 uv run python scripts/validate_vocabulary.py data/vocabulary/fr-core-v0.yaml
 ```
 
-Exit 0 prints the file's SHA-256 content hash, which the D1 `vocabulary.content_hash` column
+The validator accepts one or more file paths in a single run; pre-commit invokes it this way
+on every changed file under `data/vocabulary/`.
+
+Exit 0 prints each file's SHA-256 content hash, which the D1 `vocabulary.content_hash` column
 will record. The hash excludes `vocabulary.status`, so a draft and the same content later
-flipped to `published` hash identically. Exit 1 lists rule violations. Exit 2 means the file
-could not be read, including a missing file, an unreadable encoding, or a command-line usage
-error (argparse).
+flipped to `published` hash identically. Exit 1 lists rule violations. Exit 2 means a file
+could not be read at all: a missing file, an unreadable encoding, malformed YAML, a duplicate
+mapping key, a display tree nested too deeply for the parser to handle, or a command-line
+usage error (argparse).

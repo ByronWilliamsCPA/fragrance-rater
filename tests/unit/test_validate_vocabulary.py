@@ -137,6 +137,18 @@ def test_missing_top_level_key(key: str) -> None:
     assert f"missing top-level key: {key}" in validator.validate_vocabulary(document)
 
 
+def test_missing_top_level_key_still_reports_other_errors() -> None:
+    document = doc()
+    del document["terms"]
+    header = cast("dict[str, object]", document["vocabulary"])
+    header["status"] = "final"
+    errors = validator.validate_vocabulary(document)
+    assert "missing top-level key: terms" in errors
+    assert any(
+        error.startswith("vocabulary.status must be one of") for error in errors
+    ), errors
+
+
 def test_unknown_top_level_key() -> None:
     document = doc()
     document["extra"] = "nope"
@@ -183,6 +195,8 @@ def test_unknown_header_key() -> None:
     [
         ("code", "vocabulary.code has leading or trailing whitespace"),
         ("version", "vocabulary.version has leading or trailing whitespace"),
+        ("license_id", "vocabulary.license_id has leading or trailing whitespace"),
+        ("provenance", "vocabulary.provenance has leading or trailing whitespace"),
     ],
 )
 def test_header_whitespace(field: str, message: str) -> None:
@@ -217,6 +231,23 @@ def test_non_mapping_term() -> None:
 def test_invalid_term_code_slug() -> None:
     document = doc()
     terms(document)[1]["code"] = "Dry Woods"
+    errors = validator.validate_vocabulary(document)
+    assert "terms[1]: code must be a lowercase slug" in errors
+
+
+def test_invalid_term_code_still_validates_other_fields() -> None:
+    document = doc()
+    terms(document)[1]["code"] = "Dry Woods"
+    terms(document)[1]["label"] = ""
+    errors = validator.validate_vocabulary(document)
+    assert "terms[1]: code must be a lowercase slug" in errors
+    assert "terms[1]: label is required" in errors
+
+
+@pytest.mark.parametrize("code", ["a--b", "a-", "1abc", "-a"])
+def test_slug_rejects_malformed_codes(code: str) -> None:
+    document = doc()
+    terms(document)[1]["code"] = code
     errors = validator.validate_vocabulary(document)
     assert "terms[1]: code must be a lowercase slug" in errors
 
@@ -268,6 +299,26 @@ def test_missing_definition() -> None:
     assert "term dry-woods: definition is required" in errors
 
 
+def test_definition_whitespace() -> None:
+    document = doc()
+    terms(document)[1]["definition"] = " Dry, cedar-like wood. "
+    errors = validator.validate_vocabulary(document)
+    assert "term dry-woods: definition has leading or trailing whitespace" in errors
+
+
+def test_definition_word_count_at_limit_is_fine() -> None:
+    document = doc()
+    terms(document)[1]["definition"] = " ".join(["word"] * 20) + "."
+    assert validator.validate_vocabulary(document) == []
+
+
+def test_definition_word_count_over_limit_is_an_error() -> None:
+    document = doc()
+    terms(document)[1]["definition"] = " ".join(["word"] * 21) + "."
+    errors = validator.validate_vocabulary(document)
+    assert "term dry-woods: definition has more than 20 words" in errors
+
+
 def test_missing_label() -> None:
     document = doc()
     terms(document)[1]["label"] = ""
@@ -294,6 +345,15 @@ def test_hint_must_point_to_an_active_family() -> None:
     terms(document)[0]["active"] = False
     errors = validator.validate_vocabulary(document)
     assert "term dry-woods: usual_family_hint woody is not an active family" in errors
+
+
+def test_usual_family_hint_whitespace() -> None:
+    document = doc()
+    terms(document)[1]["usual_family_hint"] = " woody "
+    errors = validator.validate_vocabulary(document)
+    assert (
+        "term dry-woods: usual_family_hint has leading or trailing whitespace" in errors
+    )
 
 
 def test_active_must_be_boolean() -> None:
@@ -533,11 +593,18 @@ def test_cli_exit_2_on_non_utf8_bytes(
     assert "cannot read" in captured.err
 
 
-def test_cli_unknown_key_with_date_value_exits_1_without_traceback(
+def test_cli_unknown_key_with_non_string_value_exits_1_without_traceback(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """An unknown key's value type does not change the outcome.
+
+    The extra ``reviewed_on`` key is a YAML date here, not a string; the
+    test only exercises that this type does not change the reported error
+    or crash while iterating the document, not any date-specific behavior
+    (the validator never reads the value of an unknown key at all).
+    """
     vocab_path = tmp_path / "date-key.yaml"
     vocab_path.write_text(
         VALID_YAML_TEXT + "reviewed_on: 2026-09-24\n", encoding="utf-8"
@@ -548,3 +615,123 @@ def test_cli_unknown_key_with_date_value_exits_1_without_traceback(
     assert exit_code == 1
     assert "unknown top-level key: reviewed_on" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_cli_exit_2_on_duplicate_mapping_key(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vocab_path = tmp_path / "dup-key.yaml"
+    vocab_path.write_text(
+        VALID_YAML_TEXT + "vocabulary:\n  code: fr-core-again\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(vocab_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "cannot read" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_cli_exit_2_on_malformed_yaml(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    vocab_path = tmp_path / "malformed.yaml"
+    vocab_path.write_text("vocabulary: [unclosed\n  code: fr-core\n", encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(vocab_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "cannot read" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def _deeply_nested_display_tree_yaml(depth: int) -> str:
+    """Build a valid header/terms document with a display_tree nested text.
+
+    Unlike the dict-literal depth tests above, this builds the nesting as
+    raw YAML text, so it exercises ruamel's parser itself rather than the
+    validator's own recursive tree walk.
+    """
+    lines = [
+        "vocabulary:",
+        "  code: fr-core",
+        '  version: "0.1.0"',
+        "  owner: project",
+        "  status: draft",
+        "  license_id: project-owned",
+        '  provenance: "Authored independently."',
+        "terms:",
+        "  - code: woody",
+        "    kind: family",
+        "    label: Woody",
+        '    definition: "Smells of wood."',
+        "    active: true",
+        "display_tree:",
+    ]
+    indent = "  "
+    for level in range(depth):
+        lines.append(f'{indent}- heading: "L{level}"')
+        lines.append(f"{indent}  children:")
+        indent += "    "
+    lines.append(f"{indent}- term: woody")
+    return "\n".join(lines) + "\n"
+
+
+def test_cli_exit_2_on_deeply_nested_yaml_text(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ~500-level nested display_tree overflows ruamel's own parser.
+
+    200 levels is still well inside the recursion limit and produces the
+    ordinary "deeper than 4 levels" rule violation (exit 1); this is about
+    the parser itself, not the validator's tree walk, so it must be built
+    as YAML text rather than a Python dict literal.
+    """
+    vocab_path = tmp_path / "too-deep.yaml"
+    vocab_path.write_text(_deeply_nested_display_tree_yaml(500), encoding="utf-8")
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(vocab_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "cannot read" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_cli_accepts_multiple_paths(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    good_path = tmp_path / "good.yaml"
+    good_path.write_text(VALID_YAML_TEXT, encoding="utf-8")
+    bad_path = tmp_path / "bad.yaml"
+    bad_path.write_text(
+        VALID_YAML_TEXT.replace("status: draft", "status: final"), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["validate_vocabulary.py", str(good_path), str(bad_path)]
+    )
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.out.startswith(f"OK {good_path}")
+    assert "vocabulary.status must be one of" in captured.err
+
+
+def test_committed_fr_core_v0_yaml_validates(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Runs the publish-gate rules in CI (via pytest), not only by hand."""
+    vocab_path = ROOT / "data" / "vocabulary" / "fr-core-v0.yaml"
+    monkeypatch.setattr(sys, "argv", ["validate_vocabulary.py", str(vocab_path)])
+    exit_code = validator.main()
+    captured = capsys.readouterr()
+    assert exit_code == 0, captured.err
+    assert captured.out.startswith(f"OK {vocab_path}")
