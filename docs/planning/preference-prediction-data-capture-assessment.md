@@ -900,8 +900,8 @@ the first recorded offer or purchase event, which can only occur post-reveal; 18
 first follow-up wear-log window opens, also post-reveal; 18.5 rides on the consent screen that
 13.11 already requires before session-context collection, so it costs nothing extra if that screen
 is being built anyway; 18.4 may land whenever a migration next touches the relevant tables. The
-data that cannot wait, because the initial four evaluators see each fragrance blind only once
-(except the 6 hidden-repeat fragrances, seen blind twice with an unchanged core questionnaire), is
+data that cannot wait, because every pre-reveal exposure the initial four evaluators get (blotter,
+hidden-repeat blotter, and skin) falls within F1's single blind pass, is
 scoped in sections 5.1, 6, 11 (Milestone 1), 12 (P0), and 13.13, and is tracked in
 `PROJECT-PLAN.md`'s R7a/R7b sprint rows, not here.
 

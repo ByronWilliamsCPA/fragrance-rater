@@ -132,21 +132,24 @@ settles the daily-load, calendar-spread, and judgment-set half of the protocol d
 ## 2026-09-21 amendment: exposure cardinality and would_buy permanence
 
 The bullet above asserted that each (evaluator, fragrance) pair gets one pre-reveal blotter or skin
-exposure. That overstated the case: per the baseline evidence
-(`docs/planning/evidence/baseline-v3.1-universal-and-holdout.md`), each evaluator sees each of the
-33 baseline fragrances blind once, except 6 hidden-repeat fragrances, which are presented blind a
-second time with the unchanged core questionnaire; each evaluator also sees the 10 holdouts blind
-once. Repeat comparability requires an identical instrument across both presentations of a
-hidden-repeat fragrance, so the repeat presentation cannot be used to add `would_buy` or a
-preference-driver question either.
+exposure. That understated the count. Every pre-reveal exposure falls within F1's single blind pass,
+because identities stay hidden until all blotter stages, repeats, and planned skin stages are locked
+(`docs/calibration-v1.md`): one blotter presentation per fragrance, a second blind blotter
+presentation for the 6 hidden-repeat fragrances
+(`docs/planning/evidence/baseline-v3.1-universal-and-holdout.md`), and a skin-stage exposure for
+the roughly 6 candidates each evaluator carries forward to skin. The skin plan does not currently
+say whether a hidden-repeat fragrance may be selected for skin, so a pair can have up to three
+pre-reveal exposures.
 
-The permanence conclusion stands: because no baseline, holdout, or hidden-repeat fragrance gets a
-third pre-reveal presentation to the same evaluator, and the hidden repeat's questionnaire is fixed
-for comparability, a blind, price-free `would_buy` judgment cannot be collected for that
-(evaluator, fragrance) pair once F1's baseline pass is over. The decision to move
+The permanence conclusion does not rest on the exposure count; it rests on the instrument. Today's
+skin core asks `would_buy` (`calibrationScales.ts:184`). DEC-03 removes it in R7b, and R7b is a
+hard gate on P6.3 (`gates/p6.md`), so F1 runs on an instrument that asks `would_buy` at no
+pre-reveal stage. Once F1's blind pass is over and identities are revealed, a blind, price-free
+`would_buy` judgment cannot be collected for any initial evaluator's pair. The decision to move
 `would_buy` out of the blinded core stands (an offer-conditioned `would_buy` would itself leak
 identity through price and size, so it is necessarily post-reveal), but the loss is acknowledged
-here rather than left implicit.
+here rather than left implicit. ADR-009's matching 2026-09-21 amendment redefines `would_buy` as a
+separately linked post-reveal outcome.
 
 ## Related
 

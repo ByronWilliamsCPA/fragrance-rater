@@ -135,18 +135,16 @@ still holds.
 ## 2026-09-21 amendment: permanence for the initial four F1 evaluators
 
 The paragraph above asserted that each (evaluator, fragrance) pair has one pre-reveal exposure.
-That overstated the case: per the baseline evidence
-(`docs/planning/evidence/baseline-v3.1-universal-and-holdout.md`), each evaluator sees each
-fragrance blind once, except 6 hidden-repeat fragrances, which are presented blind a second time
-with the unchanged core questionnaire.
+That understated the count: a pair can have up to three pre-reveal exposures (blotter, a second
+blotter presentation for the 6 hidden-repeat fragrances, and skin for the roughly 6 skin
+candidates), all within F1's single blind pass; see ADR-005's 2026-09-21 amendment.
 
-The permanence conclusion still holds: a blind directional preference-driver judgment ("which
-attributes pushed your rating up or down") is not part of the core questionnaire today, and repeat
-comparability requires that questionnaire stay identical across both presentations of a
-hidden-repeat fragrance, so even the repeated presentation cannot be used to add it. It therefore
-cannot be collected retroactively for any (evaluator, fragrance) pair once F1's baseline closes.
-The fatigue and comparability reasoning above still justifies the deferral; it is recorded here so
-the trade-off is visible rather than read as a neutral delay.
+The permanence conclusion does not rest on the exposure count; it rests on the instrument. Neither
+the blotter nor the skin instrument has a structured preference-driver field ("which attributes
+pushed your rating up or down"), and this ADR is not implemented before F1, so no pre-reveal stage
+collects it. Once identities are revealed, it cannot be collected retroactively for any initial
+evaluator's pair. The fatigue and comparability reasoning above still justifies the deferral; it is
+recorded here so the trade-off is visible rather than read as a neutral delay.
 
 ## Perfumer as an evaluable dimension
 

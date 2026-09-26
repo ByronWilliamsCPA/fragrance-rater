@@ -2,7 +2,7 @@
 
 > **Status**: Accepted; amended 2026-09-19 (declared learning problem; repeat-benchmark
 > terminology) and 2026-09-21 (mapping-holder evaluator excluded from training, retained in
-> evaluation)
+> evaluation; `would_buy` as a post-reveal outcome), both confirmed by the product owner 2026-09-26
 >
 > **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21
 
@@ -55,7 +55,7 @@ declarations (ML Decisions 2026-09, Q1) as the `affinity-v1` and first learned-m
 | :--- | :--- |
 | Unit of prediction | One (evaluator, fragrance version) pair in a declared stage |
 | Primary target | The latest eligible pre-reveal controlled `liking` (0 to 10) for the pair, preferring a locked skin stage over a locked blotter stage, on its original scale |
-| Secondary targets | `would_wear` and `would_buy` (0 to 10) from the same observation, reported beside liking in every scorecard; never pooled with the boolean recommendation-feedback fields of the same names |
+| Secondary targets | `would_wear` and `would_buy` (0 to 10) from the same observation, reported beside liking in every scorecard; never pooled with the boolean recommendation-feedback fields of the same names. `would_buy` is superseded by the 2026-09-21 amendment below |
 | Ordinary ratings | A separate 1 to 5 outcome for the ordinary workflow, never mapped onto liking for evaluation; the `(liking - 5) / 2.5` map in ADR-007 is a scoring convenience, not an equivalence |
 | Feature basis | A versioned, low-dimensional representation (about 20 to 30 dimensions): controlled accord vocabulary, Michael Edwards family as a versioned classification, note-family groups from the versioned alias and taxonomy layer, later D2 co-occurrence factors |
 | Model class | Partially pooled (hierarchical) linear or ordinal models: shared coefficients fit across evaluators, per-evaluator deviations shrunk toward them |
@@ -109,6 +109,19 @@ including the mapping-holder's 6, so a reader can see whether including non-blin
 moves the pooled benchmark.
 
 Related: [PROJECT-PLAN.md](../PROJECT-PLAN.md), section 21 risk table; [F1 gate](../gates/f1.md).
+
+## 2026-09-21 amendment: `would_buy` as a post-reveal outcome
+
+DEC-03 (`product-research-remediation-implementation-plan.md` section 4, confirmed by the product
+owner 2026-09-26) moves `would_buy` out of the blind skin core in R7b, and R7b is a hard gate on
+P6.3, so no F1 pre-reveal observation contains `would_buy`. The Secondary targets row above can
+therefore no longer take it "from the same observation" as pre-reveal liking. `would_buy` becomes a
+separately linked post-reveal outcome: one decision-block response per (evaluator, fragrance
+version) pair, collected with its offer and scenario context fields (DC-06), eligible only when
+that decision block is completed after reveal, and reported beside liking with its own n (completed
+decision blocks) as its denominator. It is never pooled with the pre-reveal targets. `would_wear`
+is unchanged: a same-observation secondary target at the skin stage. See ADR-005's 2026-09-21
+amendment for why a blind `would_buy` cannot be recovered for the initial four evaluators.
 
 ## Related
 
