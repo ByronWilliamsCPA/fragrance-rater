@@ -83,16 +83,17 @@ Formal disclosure and recognition are separate fields.
 
 Decision, stated first: this draft is preserved verbatim as the project owner decided. Where its
 wording, scales, or timing conflict with an accepted decision, the accepted decision governs until
-an amendment to this instrument is itself accepted. Nothing in this document amends ADR-005, ML
-Decision Q9, or ADR-016; the table below only records where the two disagree.
+an amendment to this instrument is itself accepted. Nothing in this document amends ADR-005,
+ADR-009, ML Decision Q9, or ADR-016; the table below only records where the two disagree.
 
 | Item | Draft 0.5 | Accepted decision | Source |
 | --- | --- | --- | --- |
 | Liking/wear scales | `hedonic-9-v1` (1 to 9 ordinal liking) and `wear-intent-5-v1` (5-category wear intent) | Unchanged: 0 to 10 integer; add verbal anchors at 0, 5, and 10 (0/5 for the 0 to 5 descriptors) | ADR-005 amendment, "Liking / wear / buy / appreciation scale" row |
 | Skin timepoints | `SK-TIME` repeated at nominal 15, 60 and 240 minutes, plus an optional `SK-LATE-DETECT` check around eight hours | 10 minutes, 1 hour, 4 hours, 8 hours | ADR-005 amendment, "Skin timepoints" row |
 | Season/setting | `BL-SEASON`/`BL-SETTING` optional on the blotter worksheet; `SK-SEASON`/`SK-SETTING` optional on the skin worksheet (the only skin suitability fields) | `season_fit` and `setting_fit` mandatory on every skin-stage row, not collected on blotter; completeness is counted against eligible skin-stage rows only | ML Decisions Q9; `docs/planning/gates/f1.md` |
+| Session context | `SE-CONDITIONS` records congestion/illness, allergy symptoms, personal scent, ambient odors and optional temperature/humidity; it has no hunger, food/caffeine timing, or menstrual/hormonal field | Record per session: illness, nasal congestion, allergy symptoms, hunger, hours since food/caffeine, personal fragrance worn, ambient odor, room temperature/humidity, time of day; menstrual/hormonal context optional and refusable | ADR-005 amendment, "Session-context fields" row |
 | `SK-DRIVER` | Optional free-text pre-reveal preference-driver explanation | A structured per-dimension preference-driver field is deferred past F1 for the initial four evaluators, a permanent deferral for them, not an ordinary delay | ADR-016 Sequencing section and its 2026-09-21 amendment |
-| `VAL-BUY` reporting | Reported as one field among the C offer/value tables | Must be reported as a separately linked post-reveal outcome with its own n | ADR-005 2026-09-21 amendment ("would_buy" row); ADR-009 amendment (reported beside liking "with its own n"), both reconciled by PR #124 |
+| `VAL-BUY` reporting | Reported as one field among the C offer/value tables; C allows another assessment ID for a different offer or purpose, so one evaluator can give several `VAL-BUY` answers for the same fragrance version | Must be reported as a separately linked post-reveal outcome with its own n; at most one decision-block response per (evaluator, fragrance version), so later offer assessments do not add to that outcome | ADR-005 2026-09-21 amendment ("would_buy" row); ADR-009 amendment (one decision-block response per pair, reported beside liking "with its own n"), both reconciled by PR #124 |
 
 `SK-DRIVER`'s free text is not the structured field ADR-016 describes; if it is ever adopted as
 that field's substitute, that substitution needs its own explicit ADR-016 decision, not an
