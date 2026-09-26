@@ -3,7 +3,11 @@ title: "Olfactory Vocabulary: Faceted Terms, Source-Attributed Assertions, and F
 schema_type: common
 status: draft
 owner: core-maintainer
-purpose: "Design a project-owned faceted olfactory vocabulary (primary family plus ranked descriptors), modeled on ScenTree's classification shape but not its content, with a four-layer pipeline that lets niche houses, Fragella, and evaluators all report in their own words while classification stays ours."
+purpose: >-
+  Design a project-owned faceted olfactory vocabulary (primary family plus ranked
+  descriptors), modeled on ScenTree's classification shape but not its content, with a
+  four-layer pipeline that lets niche houses, Fragella, and evaluators all report in their
+  own words while classification stays ours.
 tags:
   - taxonomy
   - design
@@ -12,9 +16,10 @@ tags:
 ---
 
 Date: 2026-09-24
-Milestone: layer 1 rides **R8** (pre-F1, already planned); layers 2 to 4 are **D1**
-(`Depends on: F1`, [PROJECT-PLAN.md section 13](../../planning/PROJECT-PLAN.md)).
-Governing ADRs: ADR-004, ADR-006, ADR-010, ADR-012, ADR-013; proposes ADR-015.
+Milestone: the ADR-012 `SourceSnapshot` amendment columns ride **R8** (pre-F1, already planned);
+`declared_label` and layers 2 to 4 are **D1** (`Depends on: F1`,
+[PROJECT-PLAN.md section 13](../../planning/PROJECT-PLAN.md)).
+Governing ADRs: ADR-004, ADR-006, ADR-010, ADR-012, ADR-013; proposes ADR-017.
 
 ## Problem
 
@@ -59,10 +64,11 @@ mapped to any vocabulary.
 LAYER 1  RAW DECLARATION   what a source said, stored as given
   SourceSnapshot   exists; ADR-012 amendment columns applied under R8
   Observation      exists; evaluator data, separate from source evidence
-  declared_label   NEW
+  declared_label   NEW (D1; not R8, unlike the SourceSnapshot columns above)
 LAYER 2  NORMALIZATION     raw text -> canonical concept
   Note                     exists; category/subcategory deprecated in favor of layer 3
-  provider_term_mapping    NEW (ADR-004/013 spec, never built)
+  provider_term_mapping    NEW (ADR-004/013 spec, never built; R6 ships NoteAlias first,
+                            already planned pre-F1, migrated into this table in D1)
 LAYER 3  CLASSIFICATION    canonical concept -> our vocabulary
   vocabulary, vocabulary_term, vocabulary_display_node, assertion_source, term_assertion
 LAYER 4  PROFILE           fragrance -> family + ranked descriptors
@@ -84,13 +90,18 @@ rows); no fragrance profile is ever built from Fragella data.
 
 **`provider_term_mapping`** (layer 2): `provider_key` (`fragella`, `house:<brand_id>`,
 `evaluator`, `edwards`, ...), `raw_term`, target `note_id` XOR `term_id`, `status`
-(`draft | approved | rejected`), `reviewer`, `reviewed_at`. Many-to-one only after approval
-(tech-spec D1 contract). Ambiguous labels stay unresolved until reviewed.
+(`draft | approved | rejected`), `reviewer`, `reviewed_at`, `source_value_hash` (ADR-004; a hash
+of the provider's canonical value as read at `verified_at`, so re-verification can detect a
+silent upstream rename). Many-to-one only after approval (tech-spec D1 contract). Ambiguous
+labels stay unresolved until reviewed. Milestone R6 ships `NoteAlias`, already planned and
+pre-F1, for the same note-normalization problem; D1 migrates `NoteAlias` rows into this table
+rather than keeping both.
 
 **`vocabulary`** (layer 3): realizes ADR-010's `ClassificationSystem`. `code`, `version`,
-`owner` (`project | external`), `status` (`draft | published | retired`), `content_hash`.
-`content_hash` excludes `status`: a draft file and the same content later flipped to
-`published`, with no other change, hash identically. The project vocabulary is `fr-core`.
+`owner` (`project | external`), `status` (`draft | published | retired`), `license_id`,
+`provenance`, `content_hash`. `content_hash` excludes `status`: a draft file and the same content
+later flipped to `published`, with no other change, hash identically. The project vocabulary is
+`fr-core`.
 Edwards becomes an external, family-only vocabulary; the Edwards family strings currently
 stored as values in `Fragrance.primary_family` and `Fragrance.subfamily` migrate to it
 (`core/vocabulary.py` holds no Edwards constants; verified 2026-09-24).
@@ -179,12 +190,14 @@ ScenTree refusal or revocation.
 
 A vocabulary version cannot move to `published` unless: every active term appears in the tree
 at least once (a descriptor may appear under several families); all nodes reference terms of
-the same version; the tree is acyclic with depth at most 4. An import-boundary test fails if
-any scoring, feature, or ML module imports the display tree.
+the same version; the tree is acyclic with depth at most 4, where the top-level list is level 1
+and each `children` list adds one level (a heading, family, descriptor chain is 3 levels deep,
+leaving one level of headroom). An import-boundary test fails if any scoring, feature, or ML
+module imports the display tree.
 
 ## ADR changes
 
-- **New ADR-015**: project-owned faceted olfactory vocabulary and source-attributed assertions.
+- **New ADR-017**: project-owned faceted olfactory vocabulary and source-attributed assertions.
 - **ADR-013 pointer amendment**: Cinquieme Sens moves from primary vocabulary authority to a
   crosswalk target; the canonical vocabulary is project-owned.
 - **ADR-010 pointer amendment**: `ClassificationSystem` is realized as `vocabulary`; Edwards
@@ -231,7 +244,7 @@ classifications and explicit mapping versions. No source's own classification is
 | 3 | Evaluator descriptors in the rating flow | 1 | New calibration protocol version after F1 |
 | 4 | Fragrance profile, `fs-v2` | 1, and 2 or 3 | D1 or later |
 | 5 | Material layer (notes to candidate materials, flagged inferred) | 1, ScenTree rights | Later D milestone |
-| next | House intake instrument | this spec | Next spec; raw capture rides R8 |
+| next | House intake instrument | this spec | Next spec; raw capture (`declared_label`) rides D1 |
 
 ## Out of scope
 

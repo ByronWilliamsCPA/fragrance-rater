@@ -5,7 +5,9 @@ component: Strategy
 source: "docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md"
 status: draft
 owner: core-maintainer
-purpose: "Author the project-owned fr-core olfactory vocabulary v0 as a validated, versioned data file, without building any D1 schema or services."
+purpose: >-
+  Author the project-owned fr-core olfactory vocabulary v0 as a validated, versioned data
+  file, without building any D1 schema or services.
 tags:
   - taxonomy
   - validation
@@ -96,11 +98,19 @@ display_tree:              # nested list; UI/teaching only, never read by scorin
 - Modify: `docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md` (the `vocabulary`
   entity paragraph)
 - Modify: `docs/planning/adr/adr-010-preference-learning-and-scenario-data-model.md`
-  (the `## 2026-09-24 amendment (pointer to ADR-015)` section)
+  (the `## 2026-09-24 amendment (pointer to ADR-017)` section)
 
 - [ ] **Step 1: Find both claims**
 
-Run: `grep -n "vocabulary.py" docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md docs/planning/adr/adr-010-preference-learning-and-scenario-data-model.md docs/planning/adr/adr-015-project-owned-faceted-olfactory-vocabulary.md`
+Run:
+
+```bash
+grep -n "vocabulary.py" \
+  docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md \
+  docs/planning/adr/adr-010-preference-learning-and-scenario-data-model.md \
+  docs/planning/adr/adr-017-project-owned-faceted-olfactory-vocabulary.md
+```
+
 Expected: one or more hits that say Edwards strings in `vocabulary.py` migrate.
 Abort if: no hits (someone already fixed it; skip to Task 2).
 
@@ -119,11 +129,14 @@ Expected: every remaining hit includes "holds no Edwards constants".
 - [ ] **Step 4: Commit**
 
 ```bash
-git add docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md docs/planning/adr/adr-010-preference-learning-and-scenario-data-model.md docs/planning/adr/adr-015-project-owned-faceted-olfactory-vocabulary.md
+git add \
+  docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md \
+  docs/planning/adr/adr-010-preference-learning-and-scenario-data-model.md \
+  docs/planning/adr/adr-017-project-owned-faceted-olfactory-vocabulary.md
 git commit -S -m "docs(taxonomy): correct where Edwards family strings live"
 ```
 
-(Stage `adr-015` only if Step 1 found a hit there.)
+(Stage `adr-017` only if Step 1 found a hit there.)
 
 ---
 
@@ -448,7 +461,13 @@ that.)
 
 - [ ] **Step 5: Lint**
 
-Run: `uv run ruff check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py && uv run ruff format --check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py`
+Run:
+
+```bash
+uv run ruff check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py
+uv run ruff format --check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py
+```
+
 Expected: no findings. Fix real findings; do not add `noqa`.
 
 - [ ] **Step 6: Commit**
@@ -624,7 +643,13 @@ Expected: all PASS.
 
 - [ ] **Step 5: Lint and commit**
 
-Run: `uv run ruff check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py && uv run ruff format --check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py`
+Run:
+
+```bash
+uv run ruff check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py
+uv run ruff format --check scripts/validate_vocabulary.py tests/unit/test_validate_vocabulary.py
+```
+
 Expected: no findings.
 
 ```bash
@@ -661,9 +686,10 @@ understandable to a family evaluator with no perfumery training.
 - [ ] **Step 3: Author descriptors**
 
 Write 50 to 90 `kind: descriptor` terms: finer qualities a subject can carry at ranks 1 to 5
-(for example: sheer musk, powdery, soapy clean, salty, rubbery, milky, pencil shavings). Each has `usual_family_hint` naming one family code, and a one-sentence plain
-definition. Descriptors must not simply repeat a family label (no descriptor `woody` beside a
-family `woody`).
+(for example: sheer musk, powdery, soapy clean, salty, rubbery, milky, pencil shavings). Each
+has `usual_family_hint` naming one family code, and a one-sentence plain definition.
+Descriptors must not simply repeat a family label (no descriptor `woody` beside a family
+`woody`).
 
 - [ ] **Step 4: Author the display tree**
 
@@ -680,16 +706,25 @@ Abort if: errors are printed. Fix the content, not the validator.
 
 - [ ] **Step 6: Independence check**
 
-Run: `grep -inE "^\s+label: (Butyric Buttery|Burnt Leather|Balsamic Ambery|Solvents|Sulfuric|Undergrowth)$" data/vocabulary/fr-core-v0.yaml`
-Expected: no output. These are ScenTree's distinctive published family names (the brief lists
-all 17, verified against descriptors_list.html on 2026-09-24). Generic words like Citrus or
-Woody are fine. Abort if: a match appears; rename it.
+ScenTree's family and descriptor names are the material under a rights question (ADR item 9)
+and must never be reproduced in this public repository, including inside a grep pattern. This
+step reads its patterns from local, uncommitted files supplied by the operator instead of
+quoting ScenTree text inline: `SCENTREE_FAMILIES_PATH` (ScenTree's 17 published family names,
+one per line, verified against `descriptors_list.html` on 2026-09-24) and
+`SCENTREE_DESCRIPTORS_PATH` (the twelve descriptor names the brief shows, one per line). Both
+live outside this repository (for example a private notes directory, or a gitignored
+`tmp_cleanup/` path); ask the operator for their location before running this step.
 
-Then run: `grep -inE "^\s+label: (Cool spices|Terpenic|Dry woods|Camphoric|Citric|Zesty|Grassy|Ambery woods|Orris root|Buttery|Light flowers|White flowers)$" data/vocabulary/fr-core-v0.yaml`
-These are the only ScenTree descriptors the brief shows. Any match is reported to the product
-owner in the task summary, not aborted: some are ordinary perfumery words. The full ScenTree
-descriptor list was never fetched, so descriptor overlap beyond these twelve cannot be checked
-mechanically; the owner's review is the control.
+Run: `grep -inE "^\s+label: " data/vocabulary/fr-core-v0.yaml | grep -iFf "$SCENTREE_FAMILIES_PATH"`
+Expected: no output. Generic words like Citrus or Woody are fine; a match means a distinctive
+ScenTree family name was reproduced verbatim. Abort if: a match appears; rename it.
+
+Then run:
+`grep -inE "^\s+label: " data/vocabulary/fr-core-v0.yaml | grep -iFf "$SCENTREE_DESCRIPTORS_PATH"`
+Any match is reported to the product owner in the task summary, not aborted: some are ordinary
+perfumery words. The full ScenTree descriptor list was never fetched, so descriptor overlap
+beyond the brief's twelve names cannot be checked mechanically; the owner's review is the
+control.
 
 - [ ] **Step 7: Commit**
 
@@ -716,14 +751,14 @@ database.
 
 - [ ] **Step 1: Confirm the output path is ignored**
 
-Run: `git -C /home/byron/dev/fragrance-rater check-ignore -v tmp_cleanup/vocab-review/coverage-probe-v0.csv`
+Run: `git -C "$(git rev-parse --show-toplevel)" check-ignore -v tmp_cleanup/vocab-review/coverage-probe-v0.csv`
 Expected: a `.gitignore` rule matching `tmp_cleanup/`.
 Abort if: no rule matches.
 
 - [ ] **Step 2: Classify every note name**
 
 For each of the 285 note names, assign the single best `fr-core` family code, or `NONE` if no
-family fits. Write `/home/byron/dev/fragrance-rater/tmp_cleanup/vocab-review/coverage-probe-v0.csv`
+family fits. Write `$(git rev-parse --show-toplevel)/tmp_cleanup/vocab-review/coverage-probe-v0.csv`
 with columns `note_name,count,family_code,fit` where `fit` is `good`, `weak`, or `none`.
 
 - [ ] **Step 3: Summarize gaps**
@@ -762,7 +797,7 @@ If no shared gap exists, record that in the task report and make no commit.
 descriptors that a note, material, or fragrance can carry at ranks 1 to 5, and a display tree
 for browsing and teaching. Design and rules:
 [olfactory vocabulary spec](../../docs/superpowers/specs/2026-09-24-olfactory-vocabulary-design.md)
-and ADR-015.
+and ADR-017.
 
 ## Rules
 
@@ -826,6 +861,7 @@ Expected: `status: draft`.
 | Publish check: nodes reference terms of the same version | 3 (single-file scope) |
 | Publish check: acyclic, depth at most 4 | 3 (YAML anchors can build a cycle; the depth limit rejects it) |
 | Publish check: import boundary on display tree | D1 (no display-tree module exists yet) |
+| Publish check: each term definition is one sentence, 20 words or fewer | 2, 4 |
 | `content_hash` | 2, 3 |
 | Author vocabulary content now | 4, 5 |
 | Everything in layers 1 to 4 that needs schema or services | D1, not this plan |

@@ -1,7 +1,7 @@
 # ADR-010: Preference-Learning and Scenario Data Model
 
 > **Status**: Partially implemented (approved by product owner for the ML-testing slice below);
-> the scenario/pairwise/behavioral-event portions remain Proposed; amended by ADR-015 (2026-09-24)
+> the scenario/pairwise/behavioral-event portions remain Proposed; amended by ADR-017 (2026-09-24)
 >
 > **Date**: 2026-09-12 | **Updated**: 2026-09-12
 
@@ -44,9 +44,9 @@ columns, the full scenario/context domain, `PairwiseComparison`, `BehavioralEven
 `ClassificationSystem`) remains Proposed and unimplemented; see the gap analysis for the
 still-open sequence.
 
-## 2026-09-24 amendment (pointer to ADR-015)
+## 2026-09-24 amendment (pointer to ADR-017)
 
-ADR-015 realizes `ClassificationSystem`, proposed in the Decision below and still unbuilt, as
+ADR-017 realizes `ClassificationSystem`, proposed in the Decision below and still unbuilt, as
 `vocabulary`/`vocabulary_term`/`vocabulary_display_node`/`assertion_source`/`term_assertion`
 (layer 3 of a four-layer intake model). Michael Edwards becomes the first external,
 family-only `vocabulary` row rather than the classification system itself; the Edwards family
@@ -54,7 +54,7 @@ strings currently stored as values in `Fragrance.primary_family` and `Fragrance.
 migrate onto it in milestone D1 (`core/vocabulary.py` holds no Edwards constants; verified
 2026-09-24), after `fr-core` schema and services are built. This does not change any
 already-implemented slice described above; it specifies how
-the still-proposed `ClassificationSystem` portion of this ADR gets built. See ADR-015 for the
+the still-proposed `ClassificationSystem` portion of this ADR gets built. See ADR-017 for the
 full model and its own sequencing (layer 1 under R8, layers 2 to 4 in D1).
 
 ## Context
@@ -164,6 +164,6 @@ documentation updated in the same pull request, and no destructive change to exi
 - [ADR-006](adr-006-version-identity-and-source-provenance.md)
 - [ADR-007](adr-007-preference-evidence-and-score-semantics.md)
 - [ADR-009](adr-009-prospective-evaluation-and-checkpoints.md)
-- [ADR-015](adr-015-project-owned-faceted-olfactory-vocabulary.md): realizes this ADR's
+- [ADR-017](adr-017-project-owned-faceted-olfactory-vocabulary.md): realizes this ADR's
   `ClassificationSystem` as `vocabulary`; Michael Edwards becomes an external family-only
   vocabulary row

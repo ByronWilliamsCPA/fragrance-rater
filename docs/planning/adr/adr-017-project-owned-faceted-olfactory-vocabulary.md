@@ -1,4 +1,4 @@
-# ADR-015: Project-Owned Faceted Olfactory Vocabulary
+# ADR-017: Project-Owned Faceted Olfactory Vocabulary
 
 > **Status**: Proposed; amends ADR-004, ADR-010, ADR-013
 >
@@ -7,9 +7,11 @@
 **Numbering note**: the design that produced this record (see the spec linked under Related)
 called out its target number as ADR-014, but `main` already carries two records under that
 number (`adr-014-frontend-e2e-and-accessibility-strategy.md`, merged in PR #103, and
-`adr-014-training-eligibility-and-unclassified-family.md`, merged in PR #105); `docs/planning/adr/README.md`
-already flags the clash and states ADR-015 is free. ADR-016 (2026-09-19) already took the same
-approach to avoid a third collision. This record takes 015 for the same reason.
+`adr-014-training-eligibility-and-unclassified-family.md`, merged in PR #105);
+`docs/planning/adr/README.md` already flags the clash. The index leaves ADR-015 free
+specifically for renumbering the duplicate training-eligibility record into it; ADR-016
+(2026-09-19) already took the next free number for an unrelated record. Neither free number fits
+this one, so it takes 017.
 
 ## Context
 
@@ -53,7 +55,12 @@ protocol.
      read only for alias discovery when drafting `provider_term_mapping` rows; no fragrance
      profile is ever built from Fragella data.
    - **Layer 2, normalization**: raw text to canonical concept, via `provider_term_mapping`
-     (ADR-004/ADR-013, generalized here per item 7 below).
+     (ADR-004/ADR-013, generalized here per item 10 below). Milestone R6 ships `NoteAlias`
+     (`raw_label`, `canonical_note_id`, `mapping_version`), already planned and pre-F1
+     (PROJECT-PLAN.md's R6 row; `ml-structure-review-2026-09.md` X-01), to fix `Note.name`
+     case-sensitivity (`oak moss` versus `oakmoss`) ahead of F1. D1 does not duplicate that
+     work: it generalizes the same mechanism into `provider_term_mapping`, migrating `NoteAlias`
+     rows into it rather than running both indefinitely.
    - **Layer 3, classification**: canonical concept to `fr-core`, via `vocabulary`,
      `vocabulary_term`, `vocabulary_display_node`, `assertion_source`, `term_assertion` (all
      new; see items 3 to 6).
@@ -61,18 +68,20 @@ protocol.
      space `fs-v2`, asserted via `term_assertion(fragrance_id)`.
 3. **Faceted storage is the source of truth; a separate display tree is UI and teaching only.**
    `vocabulary` realizes ADR-010's `ClassificationSystem` (`code`, `version`, `owner`
-   (`project | external`), `status` (`draft | published | retired`), `content_hash`, which
-   excludes `status` so a draft and the same content later published, with no other change,
-   hash identically). `vocabulary_term` carries `kind` (`family | descriptor`), a required text
-   `definition`, and an informational, nullable `usual_family_hint` for descriptors.
-   `vocabulary_display_node` (`vocabulary_id`, `parent_id`, `term_id` nullable for pure
-   headings, `heading` text nullable, exactly one of `heading` or `term_id` set, `sort_order`)
-   renders a tree for humans without constraining storage: a strict single tree cannot represent
-   a material or note whose descriptors legitimately span more than one family. A vocabulary
-   version cannot move to `published` unless every active term appears in the tree at least
-   once, every node references terms of the same version, and the tree is acyclic with depth at
-   most 4. An
-   import-boundary test fails if any scoring, feature, or ML module imports the display tree.
+   (`project | external`), `status` (`draft | published | retired`), `license_id`,
+   `provenance`, `content_hash`, which excludes `status` so a draft and the same content later
+   published, with no other change, hash identically). `vocabulary_term` carries `kind`
+   (`family | descriptor`), a required text `definition`, and an informational, nullable
+   `usual_family_hint` for descriptors. `vocabulary_display_node` (`vocabulary_id`, `parent_id`,
+   `term_id` nullable for pure headings, `heading` text nullable, exactly one of `heading` or
+   `term_id` set, `sort_order`) renders a tree for humans without constraining storage: a strict
+   single tree cannot represent a material or note whose descriptors legitimately span more than
+   one family. A vocabulary version cannot move to `published` unless every active term appears
+   in the tree at least once, every node references terms of the same version, and the tree is
+   acyclic with depth at most 4 (the top-level list is level 1; each `children` list adds one
+   level, so a heading, family, descriptor chain is 3 levels deep and one level of headroom
+   remains). An import-boundary test fails if any scoring, feature, or ML module imports the
+   display tree.
 4. **Rank semantics.** Rank 0 is the primary family; only `kind=family` terms may hold it.
    Ranks 1 to 5 are descriptors; only `kind=descriptor` terms may hold them. This is enforced in
    the service, backed by a cross-table check, and pinned by tests. Rank is ordinal olfactory
@@ -124,12 +133,16 @@ protocol.
    ML training on them is permitted, and the terms for commercial use.
 10. **`provider_term_mapping`'s target is generalized to `note_id` XOR `term_id`.** This lets
     the same table serve layer 2 normalization (mapping to a `Note`) and layer 3 classification
-    aliasing (mapping to a `vocabulary_term`) without a second near-duplicate table.
-11. **Sequencing.** Layer 1 (`declared_label` plus the ADR-012 `SourceSnapshot` amendment
-    columns) rides milestone R8, already planned and pre-F1. Layers 2 through 4 are milestone
-    D1, gated on F1's "proceed to D1" decision. Content work, drafting `fr-core` v0 terms and
-    the display tree, may proceed now as a versioned project-owned file; schema and services
-    are not built before D1.
+    aliasing (mapping to a `vocabulary_term`) without a second near-duplicate table. It carries
+    `source_value_hash` (ADR-004), a hash of the provider's canonical value as read at
+    `verified_at`, so a re-verification pass can detect a silent upstream rename; this is
+    unchanged by the target generalization.
+11. **Sequencing.** The ADR-012 `SourceSnapshot` amendment columns ride milestone R8, already
+    planned and pre-F1. `declared_label` and layers 2 through 4 are milestone D1, gated on F1's
+    "proceed to D1" decision, consistent with this ADR being desk work that cannot affect F1
+    (see Context); `declared_label` is not pulled ahead of that gate. Content work, drafting
+    `fr-core` v0 terms and the display tree, may proceed now as a versioned project-owned file;
+    schema and services are not built before D1.
 
 ### Alternatives considered
 
@@ -172,7 +185,9 @@ taxonomy mappings, and evaluator perception stay in separate layers.
   authority's rights clearance, and without forcing a house's own words into the project's
   taxonomy at the point of capture.
 - Closes the ADR-010 `ClassificationSystem` and ADR-004 `provider_term_mapping` gaps with one
-  coherent four-layer model instead of two separately-built, overlapping mechanisms.
+  coherent four-layer model. R6's `NoteAlias` note-normalization table still ships before F1 as
+  already planned; D1 migrates its rows into the generalized `provider_term_mapping` instead of
+  running `NoteAlias` and `provider_term_mapping` as two permanently overlapping mechanisms.
 - Keeps ScenTree's useful shape (one primary family, ranked descriptors) available for design
   purposes now, while keeping its content entirely out of storage until permission is resolved.
 - The evidence-chain training filter and per-source purge give the project a concrete answer to
@@ -185,9 +200,9 @@ taxonomy mappings, and evaluator perception stay in separate layers.
   `term_assertion`), seven in total, is a larger schema surface than a single classification
   table would have been; the alternatives above were rejected because each is worse on some
   other axis, not because this one is free.
-- Nothing in layers 2 through 4 is usable until D1, which itself does not start before F1
-  reaches its "proceed to D1" decision; the practical benefit of this ADR is deferred by that
-  same gate.
+- Nothing in `declared_label` or layers 2 through 4 is usable until D1, which itself does not
+  start before F1 reaches its "proceed to D1" decision; the practical benefit of this ADR is
+  deferred by that same gate.
 - The spreadsheet round-trip review adds a manual step (export, edit, import) to every
   vocabulary change; a web review UI is explicitly out of scope for this ADR, so that manual
   step is the interim cost of shipping the service layer first.
@@ -196,10 +211,10 @@ taxonomy mappings, and evaluator perception stay in separate layers.
 
 - Layer 1: a `declared_label` insert fails with both or neither carrier populated; `raw_text`
   round-trips exactly for representative inputs (for example `vanille`, `Acqua di Giò`).
-- Layer 2 (D1 required fixtures): `oak moss`/`oakmoss` and `vanille`/`vanilla` resolve only via
-  approved mappings; an ambiguous label such as `amber` stays unresolved until reviewed; unknown
-  terms queue for review; mapped duplicates dedupe within a fragrance for statistics while every
-  source label survives unchanged.
+- Layer 2 (D1 required fixtures, first proven under R6's `NoteAlias`): `oak moss`/`oakmoss` and
+  `vanille`/`vanilla` resolve only via approved mappings; an ambiguous label such as `amber`
+  stays unresolved until reviewed; unknown terms queue for review; mapped duplicates dedupe
+  within a fragrance for statistics while every source label survives unchanged.
 - Layer 3: family-only-at-rank-0 is enforced; both partial unique indexes hold; supersede
   preserves the prior set rather than deleting it; vocabulary version pinning holds across a
   publish; the display-tree import-boundary test fails on any scoring/feature/ML import.
