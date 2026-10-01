@@ -55,7 +55,7 @@ jobs:
             dockerfile: 'frontend/Dockerfile'
             context: './frontend'
             image-tag: 'fragrance_rater-frontend:scan'
-    uses: ByronWilliamsCPA/.github/.github/workflows/python-container-security.yml@b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89  # main
+    uses: ByronWilliamsCPA/.github/.github/workflows/python-container-security.yml@c75ea0780b8731a00a0b6ff46b68d69b45fb08b6  # main
     with:
       dockerfile-path: ${{ matrix.dockerfile }}
       build-context: ${{ matrix.context }}
