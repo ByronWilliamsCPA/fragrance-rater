@@ -602,13 +602,16 @@ what has actually shipped. As of 2026-09-21:
   in `docs/ci-gates.md`'s residual-gaps section rather than root-caused here; treat this repository's
   reported coverage percentage as a floor, not an exact count.
 - **WS-9 / R2 PR 1 (migration tooling and naming) is in review as of 2026-10-02.** It closes D-03, D-04, D-05,
-  D-07, D-11, D-17, D-19, and D-20 (merge commit to be recorded here on merge); D-02, D-09, D-10, D-15, and X-25 remain
-  for R2 PR 2. Two corrections to this review's D-03 found while doing it: the migrated schema now has 44 CHECKs, 20
+  D-07, D-11, D-17, D-19, and D-20 (merge commit to be recorded here on merge). **R2 PR 2**, stacked on it, closes
+  D-02, D-09 (Q17's default, "yes", applied), D-10, D-15 for role, status, stage, and phase (the other enum-shaped columns
+  it lists remain unconstrained), and ML review X-25. D-09 needed one change this review did not name: the ORM
+  relationships `Fragrance.evaluations` and `Reviewer.evaluations` carried `cascade="all, delete-orphan"`, which would
+  have deleted the evaluations in Python before the new database RESTRICT could fire. Two corrections to this review's D-03 found while doing it: the migrated schema now has 44 CHECKs, 20
   with PostgreSQL-invented names (PR #125 added CHECKs after this review); and autogenerate never proposed `DROP
   CONSTRAINT` for unnamed CHECKs, because Alembic does not compare CHECK constraints at all. The real risk was the
   reverse: a dropped or renamed CHECK was invisible to autogenerate. R2 PR 1 therefore adds a constraint-name parity
   test alongside `compare_metadata`.
-- All other workstreams (WS-2 through WS-8, WS-10, WS-11, and the rest of WS-9) remain open; see PROJECT-PLAN.md for
+- All other workstreams (WS-2 through WS-8, WS-10, WS-11, and the rest of WS-9: D-01 (ADR-012 fields landed in PR #125; the rest is R8), D-08, D-12, D-16, D-21, D-22) remain open; see PROJECT-PLAN.md for
   current status.
 
 ## 8. Template feedback

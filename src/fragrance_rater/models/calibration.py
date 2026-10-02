@@ -30,7 +30,11 @@ class Program(Base):
     """Immutable protocol definition once activated."""
 
     __tablename__ = "calibration_programs"
-    __table_args__ = (UniqueConstraint("name", "version"),)
+    __table_args__ = (
+        UniqueConstraint("name", "version"),
+        # D-15: activation and enrollment gate on these exact strings.
+        CheckConstraint("status IN ('draft', 'active')", name="status_valid"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     name: Mapped[str] = mapped_column(String(200))
     version: Mapped[str] = mapped_column(String(50))
@@ -40,10 +44,26 @@ class Program(Base):
     locked_at: Mapped[datetime | None]
 
 
+MEMBERSHIP_ROLES: tuple[str, ...] = (
+    "UNIVERSAL_BASELINE",
+    "HIDDEN_REPEAT",
+    "HOLDOUT",
+    "ACTIVE_LEARNING",
+    "RETEST",
+    "OWNED_VALIDATION",
+    "OTHER",
+)
+_ROLE_CHECK = "role IN (" + ", ".join(f"'{role}'" for role in MEMBERSHIP_ROLES) + ")"
+
+
 class Membership(Base):
     """Version-resolved stimulus with concealed experimental role."""
 
     __tablename__ = "calibration_memberships"
+    # D-15/X-25: `role = 'HOLDOUT'` is the leakage-prevention mechanism, so a
+    # misspelled role would make a holdout trainable. Keep in sync with
+    # schemas.calibration.Role (a unit test asserts the two agree).
+    __table_args__ = (CheckConstraint(_ROLE_CHECK, name="role_valid"),)
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     program_id: Mapped[str] = mapped_column(
         ForeignKey("calibration_programs.id", ondelete="RESTRICT"), index=True
@@ -53,7 +73,7 @@ class Membership(Base):
     )
     role: Mapped[str] = mapped_column(String(30))
     repeat_of_id: Mapped[str | None] = mapped_column(
-        ForeignKey("calibration_memberships.id", ondelete="RESTRICT")
+        ForeignKey("calibration_memberships.id", ondelete="RESTRICT"), index=True
     )
     group_name: Mapped[str] = mapped_column(String(200), default="Baseline")
     selection: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
@@ -102,7 +122,7 @@ class Presentation(Base):
         ForeignKey("calibration_sessions.id", ondelete="RESTRICT"), index=True
     )
     membership_id: Mapped[str] = mapped_column(
-        ForeignKey("calibration_memberships.id", ondelete="RESTRICT")
+        ForeignKey("calibration_memberships.id", ondelete="RESTRICT"), index=True
     )
     blind_code: Mapped[str] = mapped_column(String(24))
     position: Mapped[int] = mapped_column(Integer)
@@ -230,6 +250,12 @@ class Observation(Base):
             "perceived_notes IS NULL OR ltrim(CAST(perceived_notes AS TEXT)) LIKE '[%'",
             name="perceived_notes_is_array",
         ),
+        # D-15: Stage and the phase values CalibrationService writes.
+        CheckConstraint("stage IN ('BLOTTER', 'SKIN')", name="stage_valid"),
+        CheckConstraint(
+            "phase IN ('PRE_REVEAL', 'PREVIOUSLY_REVEALED', 'POST_REVEAL')",
+            name="phase_valid",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     presentation_id: Mapped[str] = mapped_column(
@@ -293,7 +319,7 @@ class ModelCheckpoint(Base):
     __tablename__ = "calibration_checkpoints"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     enrollment_id: Mapped[str] = mapped_column(
-        ForeignKey("calibration_enrollments.id", ondelete="RESTRICT")
+        ForeignKey("calibration_enrollments.id", ondelete="RESTRICT"), index=True
     )
     algorithm_version: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
@@ -355,7 +381,7 @@ class SourceSnapshot(Base):
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     fragrance_id: Mapped[str] = mapped_column(
-        ForeignKey("fragrances.id", ondelete="RESTRICT")
+        ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
     )
     source_type: Mapped[str] = mapped_column(String(30))
     permission_state: Mapped[str] = mapped_column(String(30))
@@ -425,7 +451,9 @@ class VersionPerfumer(Base):
         ForeignKey("fragrances.id", ondelete="RESTRICT"), primary_key=True
     )
     perfumer_id: Mapped[str] = mapped_column(
-        ForeignKey("calibration_perfumers.id", ondelete="RESTRICT"), primary_key=True
+        ForeignKey("calibration_perfumers.id", ondelete="RESTRICT"),
+        primary_key=True,
+        index=True,
     )
     source_url: Mapped[str] = mapped_column(String(1000))
 
