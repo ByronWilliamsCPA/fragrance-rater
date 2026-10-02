@@ -373,7 +373,8 @@ reports point reviewers at code that is in fact tested.
 **Context**: Discovered while adding house-intake review tests in fragrance-rater. Every test
 submitted a record, yet `HouseIntakeService.submit` showed as unexecuted (51.7% for the module).
 With `concurrency = ["greenlet", "thread"]` the same test run measured 97%; the review service
-went from 67.0% to 93%.
+went from 67.0% to 93%. This project now sets the option; project-wide reported coverage rose
+from 87.9% to 93.2% with no test changes.
 
 **Suggested Fix**: Add `concurrency = ["greenlet", "thread"]` to `[tool.coverage.run]` in the
 generated `pyproject.toml` whenever the template includes SQLAlchemy's asyncio extra (greenlet is
