@@ -8,10 +8,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
 
-from fragrance_rater.core.database import Base
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
@@ -19,54 +16,19 @@ from fragrance_rater.models.reviewer import Reviewer
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
-# #CRITICAL: data-integrity: SQLite does not enforce foreign key constraints
-# (including ondelete="RESTRICT") unless "PRAGMA foreign_keys = ON" is issued
-# per connection. The shared tests/conftest.py async_session/async_engine
-# fixtures never set this pragma, so they cannot exercise the RESTRICT path
-# this test is built to verify. A dedicated engine/session pair with FK
-# enforcement turned on is used instead, scoped to this module only, so no
-# other suite's behavior (which may rely on today's relaxed FK enforcement)
-# changes as a side effect of this fix.
-# #VERIFY: if a future test needs FK enforcement more broadly, promote this
-# fixture to tests/conftest.py deliberately rather than assuming it already
-# applies there.
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 
-@pytest_asyncio.fixture(scope="function")
-async def fk_enforced_engine():
-    """Async SQLite engine with real foreign key (RESTRICT/CASCADE) enforcement."""
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-
-    # StaticPool keeps one underlying DBAPI connection alive for the whole
-    # engine (required for an in-memory SQLite database to persist across
-    # checkouts), so setting the pragma once here applies for every session
-    # created against this engine afterward. A sync "connect" event listener
-    # (the usual pysqlite recipe) does not work against the aiosqlite async
-    # driver: the DBAPI connection it receives requires a greenlet context
-    # to await, which isn't present in a plain event callback.
-    async with engine.begin() as conn:
-        await conn.exec_driver_sql("PRAGMA foreign_keys=ON")
-        await conn.run_sync(Base.metadata.create_all)
-    yield engine
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    await engine.dispose()
-
-
+# The shared tests/conftest.py engines turn on SQLite foreign-key enforcement
+# for every connection (R2, architecture review D-07), so the RESTRICT path
+# this module verifies runs against the standard fixture. The alias keeps the
+# tests' intent visible at the call site.
 @pytest_asyncio.fixture(scope="function")
 async def fk_enforced_session(
-    fk_enforced_engine,
+    async_session: AsyncSession,
 ) -> AsyncGenerator[AsyncSession, None]:
-    """Async session bound to the FK-enforced engine."""
-    session_maker = async_sessionmaker(
-        fk_enforced_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with session_maker() as session:
-        yield session
+    """Async session whose engine enforces foreign keys, as PostgreSQL does."""
+    yield async_session
 
 
 def _make_fragrance(fragrance_id: str) -> Fragrance:

@@ -35,9 +35,11 @@ from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import StaticPool, create_engine
+from sqlalchemy import Engine, StaticPool, create_engine, event
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import ConnectionPoolEntry
 
 from fragrance_rater.core.database import Base
 from fragrance_rater.models.fragrance import TrainingEligibility
@@ -265,6 +267,25 @@ async def _seed_training_eligibilities(conn) -> None:
     await conn.run_sync(_insert)
 
 
+def _enforce_sqlite_foreign_keys(engine: Engine) -> None:
+    """Turn on SQLite foreign-key enforcement for every new connection.
+
+    SQLite ignores FOREIGN KEY clauses unless each connection opts in, so
+    without this every ``ondelete="RESTRICT"`` guard (ADR-011, checkpoint,
+    observation, membership, and prediction protection) went unexercised by
+    the unit suite (architecture review D-07). PostgreSQL always enforces
+    them, so this makes the test engine behave like production.
+    """
+
+    @event.listens_for(engine, "connect")
+    def _set_pragma(
+        dbapi_connection: DBAPIConnection, _record: ConnectionPoolEntry
+    ) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
 @pytest_asyncio.fixture(scope="function")
 async def async_engine():
     """Create async SQLite engine for testing."""
@@ -273,6 +294,7 @@ async def async_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    _enforce_sqlite_foreign_keys(engine.sync_engine)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _seed_training_eligibilities(conn)
@@ -302,6 +324,7 @@ def sync_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    _enforce_sqlite_foreign_keys(engine)
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
@@ -422,6 +445,7 @@ async def test_app(tmp_path):
         db_url,
         connect_args={"check_same_thread": False},
     )
+    _enforce_sqlite_foreign_keys(engine.sync_engine)
 
     # Create all tables
     async with engine.begin() as conn:

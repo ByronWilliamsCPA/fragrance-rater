@@ -144,6 +144,19 @@ All contributions MUST meet these requirements:
 - **Coverage**: All public functions must have type hints
 - **Verification**: `uv run basedpyright src`
 
+### Database Migrations
+
+Read [`alembic/README`](alembic/README) before changing a model or adding a migration. The rules:
+
+- Always create migrations with `uv run alembic revision -m "..."` (optionally `--autogenerate`). Never hand-type a
+  revision id.
+- Give every new constraint a name. Each `CheckConstraint` takes a short rule name (`name="liking_range"`); the naming
+  convention on `Base.metadata` adds the `ck_<table>_` prefix.
+- Rollback is restore, not downgrade. Write a real `downgrade()`, or raise `RuntimeError` naming the backup to restore
+  when reversing the migration would lose data.
+- Before pushing, upgrade a scratch PostgreSQL 16 database to head, run the `P1_DATABASE_URL`-gated parity tests, and
+  confirm `uv run alembic check` reports no new operations. CI's `postgres-integration` job runs the same tests.
+
 ### Security
 
 - **No Hardcoded Secrets**: Use environment variables or secure vaults

@@ -134,44 +134,88 @@ class Observation(Base):
 
     __tablename__ = "calibration_observations"
     __table_args__ = (
-        CheckConstraint("liking IS NULL OR (liking >= 0 AND liking <= 10)"),
-        CheckConstraint("intensity IS NULL OR (intensity >= 0 AND intensity <= 5)"),
         CheckConstraint(
-            "detected IS NULL OR detected OR (intensity = 0 AND intensity IS NOT NULL AND liking IS NULL)"
-        ),
-        CheckConstraint("elapsed_minutes >= 0"),
-        CheckConstraint("confidence IS NULL OR (confidence >= 0 AND confidence <= 5)"),
-        CheckConstraint("sweetness IS NULL OR (sweetness >= 0 AND sweetness <= 5)"),
-        CheckConstraint("freshness IS NULL OR (freshness >= 0 AND freshness <= 5)"),
-        CheckConstraint("density IS NULL OR (density >= 0 AND density <= 5)"),
-        CheckConstraint(
-            "familiarity IS NULL OR (familiarity >= 0 AND familiarity <= 5)"
-        ),
-        CheckConstraint("dryness IS NULL OR (dryness >= 0 AND dryness <= 5)"),
-        CheckConstraint(
-            "clean_soapy IS NULL OR (clean_soapy >= 0 AND clean_soapy <= 5)"
+            "liking IS NULL OR (liking >= 0 AND liking <= 10)",
+            name="liking_range",
         ),
         CheckConstraint(
-            "earthy_rooty IS NULL OR (earthy_rooty >= 0 AND earthy_rooty <= 5)"
+            "intensity IS NULL OR (intensity >= 0 AND intensity <= 5)",
+            name="intensity_range",
         ),
         CheckConstraint(
-            "bodily_animalic IS NULL OR (bodily_animalic >= 0 AND bodily_animalic <= 5)"
+            "detected IS NULL OR detected OR (intensity = 0 AND intensity IS NOT NULL AND liking IS NULL)",
+            name="undetected_requires_zero_intensity",
         ),
-        CheckConstraint("discomfort IS NULL OR (discomfort >= 0 AND discomfort <= 5)"),
+        CheckConstraint("elapsed_minutes >= 0", name="elapsed_minutes_nonnegative"),
         CheckConstraint(
-            "opening_liking IS NULL OR (opening_liking >= 0 AND opening_liking <= 10)"
+            "confidence IS NULL OR (confidence >= 0 AND confidence <= 5)",
+            name="confidence_range",
         ),
         CheckConstraint(
-            "drydown_liking IS NULL OR (drydown_liking >= 0 AND drydown_liking <= 10)"
+            "sweetness IS NULL OR (sweetness >= 0 AND sweetness <= 5)",
+            name="sweetness_range",
         ),
-        CheckConstraint("would_wear IS NULL OR (would_wear >= 0 AND would_wear <= 10)"),
-        CheckConstraint("would_buy IS NULL OR (would_buy >= 0 AND would_buy <= 10)"),
+        CheckConstraint(
+            "freshness IS NULL OR (freshness >= 0 AND freshness <= 5)",
+            name="freshness_range",
+        ),
+        CheckConstraint(
+            "density IS NULL OR (density >= 0 AND density <= 5)",
+            name="density_range",
+        ),
+        CheckConstraint(
+            "familiarity IS NULL OR (familiarity >= 0 AND familiarity <= 5)",
+            name="familiarity_range",
+        ),
+        CheckConstraint(
+            "dryness IS NULL OR (dryness >= 0 AND dryness <= 5)",
+            name="dryness_range",
+        ),
+        CheckConstraint(
+            "clean_soapy IS NULL OR (clean_soapy >= 0 AND clean_soapy <= 5)",
+            name="clean_soapy_range",
+        ),
+        CheckConstraint(
+            "earthy_rooty IS NULL OR (earthy_rooty >= 0 AND earthy_rooty <= 5)",
+            name="earthy_rooty_range",
+        ),
+        CheckConstraint(
+            "bodily_animalic IS NULL OR (bodily_animalic >= 0 AND bodily_animalic <= 5)",
+            name="bodily_animalic_range",
+        ),
+        CheckConstraint(
+            "discomfort IS NULL OR (discomfort >= 0 AND discomfort <= 5)",
+            name="discomfort_range",
+        ),
+        CheckConstraint(
+            "opening_liking IS NULL OR (opening_liking >= 0 AND opening_liking <= 10)",
+            name="opening_liking_range",
+        ),
+        CheckConstraint(
+            "drydown_liking IS NULL OR (drydown_liking >= 0 AND drydown_liking <= 10)",
+            name="drydown_liking_range",
+        ),
+        CheckConstraint(
+            "would_wear IS NULL OR (would_wear >= 0 AND would_wear <= 10)",
+            name="would_wear_range",
+        ),
+        CheckConstraint(
+            "would_buy IS NULL OR (would_buy >= 0 AND would_buy <= 10)",
+            name="would_buy_range",
+        ),
         CheckConstraint(
             "artistic_appreciation IS NULL OR "
-            "(artistic_appreciation >= 0 AND artistic_appreciation <= 10)"
+            "(artistic_appreciation >= 0 AND artistic_appreciation <= 10)",
+            name="artistic_appreciation_range",
         ),
-        CheckConstraint("projection IS NULL OR (projection >= 0 AND projection <= 5)"),
-        CheckConstraint("longevity_minutes IS NULL OR longevity_minutes >= 0"),
+        CheckConstraint(
+            "projection IS NULL OR (projection >= 0 AND projection <= 5)",
+            name="projection_range",
+        ),
+        CheckConstraint(
+            "longevity_minutes IS NULL OR longevity_minutes >= 0",
+            name="longevity_minutes_nonnegative",
+        ),
         # `perceived_notes` is plain `JSON`, not `JSONB` (see the column
         # below), so `jsonb_typeof` does not apply, and PostgreSQL's
         # `json_typeof` isn't the same function as SQLite's `json_type`, so
@@ -184,7 +228,7 @@ class Observation(Base):
         # alembic/versions/9ded7f54996c_ml_prediction_snapshots.py.
         CheckConstraint(
             "perceived_notes IS NULL OR ltrim(CAST(perceived_notes AS TEXT)) LIKE '[%'",
-            name="ck_calibration_observations_perceived_notes_is_array",
+            name="perceived_notes_is_array",
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -294,19 +338,19 @@ class SourceSnapshot(Base):
         CheckConstraint(
             "source_type IN ('project_owned', 'manufacturer_provided', "
             "'open_licensed', 'bounded_lookup', 'excluded_legacy')",
-            name="ck_calibration_source_snapshots_source_type",
+            name="source_type",
         ),
         CheckConstraint(
             "permission_state IN ('retain_and_train', 'retain_for_qc_only', "
             "'excluded_no_new_writes')",
-            name="ck_calibration_source_snapshots_permission_state",
+            name="permission_state",
         ),
         CheckConstraint(
             (
                 "COALESCE(TRIM(source_url), '') <> '' "
                 "OR COALESCE(TRIM(source_reference), '') <> ''"
             ),
-            name="ck_calibration_source_snapshots_has_source",
+            name="has_source",
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -350,7 +394,9 @@ class FragellaLookup(Base):
     # schema, matching the existing IN(...) precedent on
     # PilotOperationalEvent.event_type.
     # #VERIFY: covered by a test asserting a third value fails at flush().
-    __table_args__ = (CheckConstraint("status IN ('error', 'success')"),)
+    __table_args__ = (
+        CheckConstraint("status IN ('error', 'success')", name="status_valid"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     fragrance_id: Mapped[str] = mapped_column(
         ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
