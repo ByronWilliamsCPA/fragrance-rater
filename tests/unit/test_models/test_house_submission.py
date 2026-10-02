@@ -15,6 +15,7 @@ def submitted(**overrides: object) -> HouseSubmission:
         "submitted_at": now_naive_utc(),
         "submitted_by": "maison-a-rep",
         "permission_state": "retain_and_train",
+        "review_status": "pending",
         "payload": {"fragrance_name": "X"},
     }
     values.update(overrides)
@@ -36,6 +37,16 @@ async def test_complete_submitted_row_is_accepted(async_session):
         {"permission_state": None},
         {"submitted_at": None},
         {"submitted_by": None},
+        {"review_status": None},
+        {"review_status": "approved"},
+        {"review_status": "adopted"},
+        {"review_status": "declined", "reviewed_by": "manager"},
+        {
+            "review_status": "declined",
+            "reviewed_by": "manager",
+            "reviewed_at": now_naive_utc(),
+            "review_note": "   ",
+        },
     ],
 )
 async def test_house_submission_constraints(async_session, overrides):
@@ -61,3 +72,31 @@ async def test_a_record_can_be_superseded_only_once(async_session):
         )
     with pytest.raises(IntegrityError):
         await async_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_a_draft_has_no_review_status(async_session):
+    async_session.add(
+        HouseSubmission(
+            house="Maison A",
+            created_by="maison-a-rep",
+            status="draft",
+            review_status="pending",
+            payload={"fragrance_name": "X"},
+        )
+    )
+    with pytest.raises(IntegrityError):
+        await async_session.flush()
+
+
+@pytest.mark.asyncio
+async def test_a_declined_row_with_reason_is_accepted(async_session):
+    async_session.add(
+        submitted(
+            review_status="declined",
+            reviewed_by="manager",
+            reviewed_at=now_naive_utc(),
+            review_note="We cannot confirm this is the 2019 formulation.",
+        )
+    )
+    await async_session.flush()

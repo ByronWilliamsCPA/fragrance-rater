@@ -1,7 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { mockApi } from './support/mock-api'
-import type { HouseAccess, HouseSubmission } from '../src/api/houseIntake'
+import { bootstrapRoutes, managerAccess, mockApi } from './support/mock-api'
+import type { HouseAccess, HouseSubmission, ReviewContext } from '../src/api/houseIntake'
 import { emptyPayload } from '../src/api/houseIntake'
 
 const axeTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
@@ -24,6 +24,12 @@ const draft: HouseSubmission = {
   supersedes_id: null,
   superseded_by_id: null,
   payload: { ...emptyPayload(), fragrance_name: 'Cèdre Nocturne' },
+  review_status: null,
+  reviewed_at: null,
+  review_note: null,
+  reviewed_by: null,
+  fragrance_id: null,
+  source_snapshot_id: null,
 }
 
 async function openForm(page: Page) {
@@ -73,3 +79,75 @@ test('a house account never requests household endpoints', async ({ page }) => {
     []
   )
 })
+
+const pending: HouseSubmission = {
+  ...draft,
+  status: 'submitted',
+  submitted_at: '2026-10-02T09:00:00',
+  submitted_by: 'maison-rep',
+  permission_state: 'retain_and_train',
+  review_status: 'pending',
+  payload: {
+    ...draft.payload,
+    concentration: 'EDP',
+    launch_year: 2019,
+    marketed_for: 'Unisex',
+    perfumers: ['Ana Ruiz'],
+  },
+}
+
+const reviewContext: ReviewContext = {
+  submission: pending,
+  proposed: {
+    name: 'Cèdre Nocturne',
+    brand: 'Maison A',
+    concentration: 'EDP',
+    launch_year: 2019,
+    gender_target: 'Unisex',
+  },
+  candidates: [
+    {
+      id: 'f-1',
+      name: 'Cèdre Nocturne',
+      brand: 'Maison A',
+      concentration: 'Eau de Parfum',
+      version_key: 'legacy',
+      launch_year: 2018,
+      gender_target: 'Unisex',
+      primary_family: 'Woody',
+      subfamily: 'Dry Woods',
+      comparison: {
+        name: 'same',
+        brand: 'same',
+        concentration: 'same',
+        launch_year: 'differs',
+        gender_target: 'same',
+      },
+    },
+  ],
+}
+
+async function openReview(page: Page) {
+  await mockApi(page, {
+    ...bootstrapRoutes(managerAccess),
+    '/house-intake/access': { username: 'manager', house: null, manager: true },
+    '/house-intake/submissions': [pending],
+    '/house-intake/submissions/sub-1/review': reviewContext,
+  })
+  await page.goto('/house')
+  await page.getByRole('button', { name: 'Review Cèdre Nocturne' }).click()
+  await page.getByLabel(/Maison A · Cèdre Nocturne · Eau de Parfum/).check()
+  await expect(page.getByRole('table')).toBeVisible()
+}
+
+for (const colorScheme of ['light', 'dark'] as const) {
+  test.describe(`House review (WCAG 2.2 AA, ${colorScheme} theme)`, () => {
+    test.use({ colorScheme })
+
+    test('the review screen has no automatically detectable violations', async ({ page }) => {
+      await openReview(page)
+      const results = await new AxeBuilder({ page }).withTags(axeTags).analyze()
+      expect(results.violations, JSON.stringify(results.violations, null, 2)).toEqual([])
+    })
+  })
+}

@@ -1369,3 +1369,55 @@ article {
   background: transparent;
   color: var(--color-ink);
 }
+
+/* ---- House review (manager) -------------------------------------------- */
+
+.house-review-panel {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: var(--rule-hairline) solid var(--color-rule-strong);
+}
+
+.review-filter {
+  flex-wrap: wrap;
+  margin: var(--space-4) 0;
+}
+
+/* A ruled comparison sheet: fact, catalog, house, decision. */
+.review-facts {
+  width: 100%;
+  margin: var(--space-2) 0 var(--space-5);
+  border-collapse: collapse;
+  font-size: var(--text-label);
+}
+
+.review-facts th,
+.review-facts td {
+  padding: var(--space-2) var(--space-3) var(--space-2) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+  text-align: left;
+  vertical-align: top;
+}
+
+.review-facts thead th {
+  border-bottom-color: var(--color-rule-strong);
+  font-weight: var(--weight-bold);
+}
+
+.review-facts tbody th {
+  font-weight: var(--weight-medium);
+  color: var(--color-ink-muted);
+}
+
+.review-facts .choice {
+  margin: 0;
+}
+
+.house-review-panel__decline {
+  margin-top: var(--space-6);
+}
+
+/* Four short columns fit a phone; the wrapper only scrolls if a value is long. */
+.review-facts-wrap {
+  overflow-x: auto;
+}

@@ -18,6 +18,7 @@ vi.mock('axios', () => ({
 }))
 
 const HOUSE = { username: 'maison-rep', house: 'Maison A', manager: false }
+const MANAGER = { username: 'manager', house: null, manager: true }
 
 function record(overrides: Partial<HouseSubmission> = {}): HouseSubmission {
   return {
@@ -33,6 +34,12 @@ function record(overrides: Partial<HouseSubmission> = {}): HouseSubmission {
     supersedes_id: null,
     superseded_by_id: null,
     payload: { ...emptyPayload(), fragrance_name: 'Cèdre Nocturne' },
+    review_status: null,
+    reviewed_at: null,
+    review_note: null,
+    reviewed_by: null,
+    fragrance_id: null,
+    source_snapshot_id: null,
     ...overrides,
   }
 }
@@ -265,14 +272,47 @@ describe('House intake form', () => {
     expect(screen.getByLabelText('Fragrance name')).toHaveValue('Cèdre Nocturne')
   })
 
-  it('gives a manager a read-only view across houses', async () => {
-    serve([record({ house: 'Atelier B' })])
-    render(<HouseIntakePage access={{ username: 'manager', house: null, manager: true }} />)
+  it('lists submitted records for a manager, awaiting review first', async () => {
+    serve([
+      record({ id: 'p', house: 'Atelier B', status: 'submitted', review_status: 'pending' }),
+      record({
+        id: 'a',
+        status: 'submitted',
+        review_status: 'adopted',
+        payload: { ...emptyPayload(), fragrance_name: 'Iris Poudré' },
+      }),
+    ])
+    render(<HouseIntakePage access={MANAGER} />)
 
     expect(await screen.findByText(/Atelier B/)).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'Describe a new fragrance' })
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'View Cèdre Nocturne' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Awaiting review (1)' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(screen.getByRole('button', { name: 'Review Cèdre Nocturne' })).toBeInTheDocument()
+    expect(screen.queryByText('Iris Poudré')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Accepted (1)' }))
+    expect(screen.getByRole('button', { name: 'View Iris Poudré' })).toBeInTheDocument()
+  })
+
+  it('shows the house the outcome of a review, with the reason', async () => {
+    serve([
+      record({
+        status: 'submitted',
+        submitted_at: '2026-10-02T09:00:00',
+        review_status: 'declined',
+        reviewed_at: '2026-10-03T09:00:00',
+        review_note: 'We need the barcode to tell this from the 2012 release.',
+      }),
+    ])
+    render(<HouseIntakePage access={HOUSE} />)
+    expect(await screen.findByText(/Not accepted/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'View Cèdre Nocturne' }))
+    expect(screen.getByText('Reason')).toBeInTheDocument()
+    expect(screen.getByText(/We need the barcode/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Review' })).not.toBeInTheDocument()
   })
 })
