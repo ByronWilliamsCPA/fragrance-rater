@@ -1122,3 +1122,250 @@ article {
 .attribution__label {
   color: var(--color-ink-muted);
 }
+
+/* ---- House intake form ------------------------------------------------- */
+
+/*
+ * The house form is the one long form in the app, completed once per
+ * fragrance by someone outside the household. It keeps the score-sheet
+ * idiom: numbered sections divided by a rule, labels above controls, and
+ * errors stamped beside the control they belong to with the same heavy left
+ * rule the feedback banners use. No new colour: every value is a token.
+ */
+.house-form {
+  max-width: 48rem;
+}
+
+.house-form__section {
+  margin: var(--space-8) 0 0;
+  padding-top: var(--space-4);
+  border-top: var(--rule-hairline) solid var(--color-rule-strong);
+}
+
+.house-form__number {
+  font-family: var(--font-mono);
+  color: var(--color-ink-muted);
+}
+
+.house-form__intro {
+  max-width: var(--measure);
+}
+
+.house-form__year {
+  max-width: 8rem;
+}
+
+.house-form__fixed {
+  margin-bottom: var(--space-5);
+}
+
+.house-form__actions {
+  align-items: center;
+  margin-top: var(--space-8);
+}
+
+.field {
+  margin: 0 0 var(--space-5);
+}
+
+.field > label {
+  margin-bottom: var(--space-1);
+}
+
+.field-hint {
+  max-width: var(--measure);
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-caption);
+  line-height: var(--leading-normal);
+  color: var(--color-ink-muted);
+}
+
+.field-error {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-label);
+  font-weight: var(--weight-bold);
+  color: var(--color-error-ink);
+}
+
+.field--invalid,
+.choice-group--invalid,
+.choice--invalid,
+.entry-list:has(.field-error) {
+  padding-left: var(--space-3);
+  border-left: var(--space-1) solid var(--color-error-rule);
+}
+
+[aria-invalid='true'] {
+  border-color: var(--color-error-rule);
+}
+
+/* Error summary: the first thing focused when a save or submit is refused. */
+.error-summary {
+  margin: var(--space-4) 0 var(--space-6);
+  padding: var(--space-4);
+  color: var(--color-error-ink);
+  background: var(--color-error-bg);
+  border-left: var(--space-1) solid var(--color-error-rule);
+}
+
+.error-summary h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-error-ink);
+}
+
+.error-summary ul {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.error-summary a {
+  color: var(--color-error-ink);
+  font-weight: var(--weight-bold);
+}
+
+/*
+ * Radios and checkboxes. The base stylesheet makes every input a full-width
+ * block; a choice is a small box beside its label instead.
+ */
+.choice-group {
+  margin: 0 0 var(--space-5);
+}
+
+.choice-group legend {
+  margin-bottom: var(--space-2);
+}
+
+.choice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  margin: 0 0 var(--space-2);
+}
+
+.choice > .field-error {
+  grid-column: 1 / -1;
+}
+
+.choice input[type='radio'],
+.choice input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 0;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  accent-color: var(--color-mark);
+}
+
+.choice label {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-normal);
+  color: var(--color-ink);
+  cursor: pointer;
+}
+
+.choice__hint {
+  grid-column: 2;
+}
+
+/* Ordered entry lists: notes, accords, perfumers, barcodes. */
+.entry-list {
+  margin: 0 0 var(--space-5);
+}
+
+.entry-list legend {
+  margin-bottom: var(--space-1);
+}
+
+.entry-list__entries {
+  margin: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.entry-list__entry {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-1) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.entry-list__entry input {
+  margin: 0;
+}
+
+.entry-list__position {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-ink-muted);
+  text-align: right;
+}
+
+.entry-list__actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.entry-list__actions button {
+  padding: var(--space-1) var(--space-3);
+}
+
+.entry-list__add label {
+  margin: var(--space-2) 0 0;
+}
+
+.entry-list__add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: end;
+}
+
+.entry-list__add-row input {
+  margin: var(--space-1) 0 0;
+}
+
+@media (max-width: 40rem) {
+  .entry-list__entry {
+    grid-template-columns: 1.5rem minmax(0, 1fr);
+  }
+
+  .entry-list__actions {
+    grid-column: 2;
+  }
+}
+
+/* Read-only record and "check your answers". */
+.house-summary h4 {
+  margin-top: var(--space-6);
+}
+
+.summary-list {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.house-summary__description {
+  white-space: pre-wrap;
+}
+
+.link-button {
+  /* 2.5.8 Target Size: inline, so the 24px AA floor rather than 44px. */
+  min-height: 1.5rem;
+  padding: 0;
+  color: var(--color-mark);
+  background: transparent;
+  border: 0;
+  font-weight: var(--weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.link-button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-ink);
+}
