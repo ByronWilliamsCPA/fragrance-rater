@@ -84,6 +84,9 @@ class Settings(BaseSettings):
         calibration_admin_usernames (list[str]): Verified Authentik usernames
             permitted to administer controlled calibration programs. Empty by
             default, which denies calibration administration.
+        house_contributor_group (str): Authentik group whose members are
+            confined to the house-intake routes even when unmapped, so
+            removing a mapping never widens an external account's access.
         house_contributors (dict[str, str]): Verified Authentik username to
             the fragrance house it submits for. Those accounts are confined to
             the house-intake routes. Empty by default.
@@ -265,6 +268,19 @@ class Settings(BaseSettings):
     # construction when a username is both a manager and a house contributor,
     # and test_house_fence.py asserts a house identity is refused on every
     # non-intake route.
+    # #CRITICAL: security: offboarding must fail closed. Removing a username
+    # from `house_contributors` alone would lift its fence and turn a still-
+    # active external account into an ordinary household account. Any
+    # identity in this Authentik group stays fenced whether or not it is
+    # mapped to a house.
+    # #VERIFY: test_a_group_member_stays_fenced_after_its_mapping_is_removed.
+    house_contributor_group: str = Field(
+        default="fragrance-houses",
+        description=(
+            "Authentik group whose members are always confined to the house "
+            "submission routes, mapped or not. Empty disables the group rule."
+        ),
+    )
     house_contributors: dict[str, str] = Field(
         default_factory=dict,
         description=(

@@ -23,22 +23,26 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from fragrance_rater.core.vocabulary import (
+    EARLIEST_LAUNCH_YEAR,
+    GenderTarget,
+    MarketStatus,
+)
 from fragrance_rater.utils.gtin import is_valid_gtin
 
 Concentration = Literal[
     "EDC", "EDT", "EDP", "PARFUM", "EXTRAIT", "OIL", "SOLID", "OTHER"
 ]
-Availability = Literal["in_production", "limited_edition", "upcoming", "discontinued"]
-MarketedFor = Literal["Feminine", "Masculine", "Unisex", "not_specified"]
+# Shared with the catalog (core/vocabulary.py) so a house's answer lands in a
+# catalog column without translation.
+Availability = MarketStatus
+MarketedFor = GenderTarget | Literal["not_specified"]
 NoteStructure = Literal["pyramid", "linear"]
 NotePosition = Literal["top", "heart", "base", "unspecified"]
 PermissionScope = Literal["retain_and_train", "retain_for_qc_only"]
 SubmissionStatus = Literal["draft", "submitted"]
 ReviewStatus = Literal["pending", "adopted", "declined", "superseded"]
 
-#: Earliest launch year accepted. Houses such as Farina (1709) and Floris
-#: (1730) still sell fragrances from the eighteenth century.
-EARLIEST_LAUNCH_YEAR = 1700
 #: How many years ahead an upcoming launch may be announced.
 LAUNCH_YEAR_LEAD = 3
 
@@ -197,6 +201,72 @@ class HouseSubmissionPayload(BaseModel):
         return self
 
 
+LabelKind = Literal["note", "accord", "family", "descriptor"]
+
+
+class DeclaredLabel(BaseModel):
+    """One house label in ADR-017's layer-1 ``declared_label`` row shape.
+
+    The table itself is built in D1. Adoption stores these rows in the
+    evidence payload now, so D1 copies them rather than re-parsing a house's
+    words, and the mapping from the house form is defined (and tested) once.
+    """
+
+    label_kind: LabelKind
+    raw_text: str
+    position: NotePosition
+    source_order: int | None
+
+
+def declared_labels(payload: HouseSubmissionPayload) -> list[DeclaredLabel]:
+    """Express a submission's olfactory words as layer-1 rows.
+
+    ``source_order`` is the house's order within one (kind, position) group:
+    for notes, the rank within the tier, which is the order R6's
+    ``FragranceNote.rank`` will hold once the words are mapped. A family has
+    no order. The free-text description is prose, not a label, and stays in
+    the payload as written.
+
+    Args:
+        payload (HouseSubmissionPayload): Validated submission content.
+
+    Returns:
+        list[DeclaredLabel]: Notes, then accords, then the family, verbatim.
+    """
+    labels: list[DeclaredLabel] = []
+    tier_counts: dict[str, int] = {}
+    for note in payload.notes:
+        order = tier_counts.get(note.position, 0)
+        tier_counts[note.position] = order + 1
+        labels.append(
+            DeclaredLabel(
+                label_kind="note",
+                raw_text=note.text,
+                position=note.position,
+                source_order=order,
+            )
+        )
+    labels.extend(
+        DeclaredLabel(
+            label_kind="accord",
+            raw_text=accord,
+            position="unspecified",
+            source_order=order,
+        )
+        for order, accord in enumerate(payload.accords)
+    )
+    if payload.family_as_described and payload.family_as_described.strip():
+        labels.append(
+            DeclaredLabel(
+                label_kind="family",
+                raw_text=payload.family_as_described,
+                position="unspecified",
+                source_order=None,
+            )
+        )
+    return labels
+
+
 class SubmissionProblem(BaseModel):
     """One reason a draft cannot be submitted yet, keyed to the form field."""
 
@@ -295,6 +365,7 @@ class HouseAccessResponse(BaseModel):
     username: str
     house: str | None
     manager: bool
+    house_account: bool = False
 
 
 class HouseSubmissionResponse(BaseModel):

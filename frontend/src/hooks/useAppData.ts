@@ -31,6 +31,13 @@ export function useAppData() {
         .then((response) => response.data)
         .catch(() => null)
       setHouseAccess(house)
+      if (house?.house_account && !house.house) {
+        // Offboarded: still fenced by the server, with no house to submit for.
+        setError(
+          'This fragrance house account is no longer active. Contact the Fragrance Rater manager if you need access again.'
+        )
+        return
+      }
       if (house?.house) {
         setAccess({ username: house.username, manager: false, house: house.house })
         loaded.current = true

@@ -71,9 +71,15 @@ async def test_access_reports_house_manager_and_family(test_app):
         "username": "maison-a-rep",
         "house": "Maison A",
         "manager": False,
+        "house_account": True,
     }
     response = await test_app.get(f"{PREFIX}/access", headers=MANAGER)
-    assert response.json() == {"username": "manager", "house": None, "manager": True}
+    assert response.json() == {
+        "username": "manager",
+        "house": None,
+        "manager": True,
+        "house_account": False,
+    }
     response = await test_app.get(f"{PREFIX}/access", headers=FAMILY)
     assert response.json()["house"] is None
     assert (await test_app.get(f"{PREFIX}/access")).status_code == 401
@@ -280,3 +286,62 @@ async def test_fence_lets_house_contributors_reach_intake_and_health(test_app):
 async def test_fence_does_not_affect_family_members(test_app):
     response = await test_app.get("/api/v1/reviewers", headers=FAMILY)
     assert response.status_code == 200
+
+
+FORMER_HOUSE = {
+    "X-Authentik-Username": "former-rep",
+    "X-Authentik-Groups": "staff|fragrance-houses",
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.security
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("get", "/api/v1/reviewers"),
+        ("post", "/api/v1/fragrances"),
+        ("get", "/api/v1/calibration/access"),
+    ],
+)
+async def test_a_group_member_stays_fenced_after_its_mapping_is_removed(
+    test_app, method, path
+):
+    # "former-rep" is not in house_contributors, as after offboarding.
+    response = await getattr(test_app, method)(path, headers=FORMER_HOUSE)
+    assert response.status_code == 403
+    assert response.json()["detail"]["error"] == "HOUSE_CONTRIBUTOR_FENCED"
+
+
+@pytest.mark.asyncio
+@pytest.mark.security
+async def test_an_unmapped_house_account_has_nothing_left_to_use(test_app):
+    access = await test_app.get(f"{PREFIX}/access", headers=FORMER_HOUSE)
+    assert access.json() == {
+        "username": "former-rep",
+        "house": None,
+        "manager": False,
+        "house_account": True,
+    }
+    listed = await test_app.get(f"{PREFIX}/submissions", headers=FORMER_HOUSE)
+    assert listed.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.security
+async def test_a_house_group_member_never_acts_as_manager(test_app, monkeypatch):
+    monkeypatch.setattr(
+        settings, "calibration_admin_usernames", ["manager", "former-rep"]
+    )
+    access = await test_app.get(f"{PREFIX}/access", headers=FORMER_HOUSE)
+    assert access.json()["manager"] is False
+    assert (
+        await test_app.get(f"{PREFIX}/submissions", headers=FORMER_HOUSE)
+    ).status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.security
+async def test_other_groups_do_not_fence_family_members(test_app):
+    headers = {**FAMILY, "X-Authentik-Groups": "family|fragrance-houses-archive"}
+    assert (await test_app.get("/api/v1/reviewers", headers=headers)).status_code == 200

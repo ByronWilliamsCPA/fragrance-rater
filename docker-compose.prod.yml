@@ -24,6 +24,7 @@ services:
       CALIBRATION_ADMIN_USERNAMES: ${CALIBRATION_ADMIN_USERNAMES:?Set a JSON array of verified Authentik manager usernames}
       # JSON object of Authentik username -> fragrance house; empty grants no house access.
       HOUSE_CONTRIBUTORS: ${HOUSE_CONTRIBUTORS:-{}}
+      HOUSE_CONTRIBUTOR_GROUP: ${HOUSE_CONTRIBUTOR_GROUP:-fragrance-houses}
 
     # Production replicas (for load balancing).
     # Defaults to 1: rate_limit.py's Limiter uses slowapi's default in-memory

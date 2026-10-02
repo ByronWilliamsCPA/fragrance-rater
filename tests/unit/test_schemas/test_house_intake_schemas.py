@@ -5,9 +5,10 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
+from fragrance_rater.core.vocabulary import EARLIEST_LAUNCH_YEAR
 from fragrance_rater.schemas.house_intake import (
-    EARLIEST_LAUNCH_YEAR,
     HouseSubmissionPayload,
+    declared_labels,
     submission_problems,
 )
 
@@ -184,3 +185,82 @@ def test_missing_attestation_and_contact_reported():
         )
     }
     assert fields == {"attested", "contact_name", "contact_role"}
+
+
+def test_declared_labels_match_the_layer_one_row_shape():
+    payload = complete(
+        notes=[
+            {"text": "Bergamote de Calabre", "position": "top"},
+            {"text": "Pink pepper", "position": "top"},
+            {"text": "Iris", "position": "heart"},
+            {"text": "Musk", "position": "base"},
+        ],
+        accords=["woody", "smoky"],
+        family_as_described="Boisé aromatique",
+    )
+    rows = [label.model_dump() for label in declared_labels(payload)]
+    assert rows == [
+        {
+            "label_kind": "note",
+            "raw_text": "Bergamote de Calabre",
+            "position": "top",
+            "source_order": 0,
+        },
+        {
+            "label_kind": "note",
+            "raw_text": "Pink pepper",
+            "position": "top",
+            "source_order": 1,
+        },
+        {
+            "label_kind": "note",
+            "raw_text": "Iris",
+            "position": "heart",
+            "source_order": 0,
+        },
+        {
+            "label_kind": "note",
+            "raw_text": "Musk",
+            "position": "base",
+            "source_order": 0,
+        },
+        {
+            "label_kind": "accord",
+            "raw_text": "woody",
+            "position": "unspecified",
+            "source_order": 0,
+        },
+        {
+            "label_kind": "accord",
+            "raw_text": "smoky",
+            "position": "unspecified",
+            "source_order": 1,
+        },
+        {
+            "label_kind": "family",
+            "raw_text": "Boisé aromatique",
+            "position": "unspecified",
+            "source_order": None,
+        },
+    ]
+
+
+def test_linear_notes_keep_list_order_without_a_tier():
+    payload = complete(
+        note_structure="linear",
+        notes=[
+            {"text": "Oud", "position": "unspecified"},
+            {"text": "Rose", "position": "unspecified"},
+        ],
+    )
+    assert [
+        (label.raw_text, label.position, label.source_order)
+        for label in declared_labels(payload)
+    ] == [
+        ("Oud", "unspecified", 0),
+        ("Rose", "unspecified", 1),
+    ]
+
+
+def test_eighteenth_century_launch_years_are_accepted():
+    assert complete(launch_year=1709).launch_year == 1709

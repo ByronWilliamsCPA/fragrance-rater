@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.models.house_intake import HouseSubmission
@@ -192,10 +192,21 @@ class HouseIntakeService:
         # not be adopted. A record already adopted or declined keeps its
         # outcome: that decision was made on what the house said at the time.
         # #VERIFY: test_submitted_correction_supersedes_pending_original.
+        # #CRITICAL: concurrency: conditional on `pending` in the database, not
+        # on a value read earlier, so a manager's adopt or decline that
+        # commits between the two keeps its outcome (the same compare-and-set
+        # HouseReviewService._claim uses).
+        # #VERIFY: test_supersede_never_overwrites_a_review.
         if row.supersedes_id is not None:
-            original = await self.db.get(HouseSubmission, row.supersedes_id)
-            if original is not None and original.review_status == "pending":
-                original.review_status = "superseded"
+            await self.db.execute(
+                update(HouseSubmission)
+                .where(
+                    HouseSubmission.id == row.supersedes_id,
+                    HouseSubmission.review_status == "pending",
+                )
+                .values(review_status="superseded")
+                .execution_options(synchronize_session="fetch")
+            )
         await self.db.flush()
         return self.to_response(row, None)
 
@@ -264,7 +275,23 @@ class HouseIntakeService:
         return row
 
     async def _draft(self, submission_id: str, house: str) -> HouseSubmission:
-        row = await self._visible(submission_id, house)
+        # #CRITICAL: concurrency: colleagues at one house share drafts. The row
+        # lock serializes this status check with any concurrent submit, edit,
+        # or delete, so a request that loaded the row as a draft cannot then
+        # rewrite or delete it after another request submitted it. SQLite
+        # ignores FOR UPDATE; its single writer gives the same ordering.
+        # #VERIFY: test_a_stale_draft_read_cannot_edit_a_submitted_record.
+        row = await self.db.scalar(
+            select(HouseSubmission)
+            .where(HouseSubmission.id == submission_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if row is None or row.house != house:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "NOT_FOUND", "message": "Submission not found."},
+            )
         if row.status != "draft":
             msg = (
                 "This record has been submitted and can no longer be edited. "

@@ -5,9 +5,11 @@ Adopting answers two questions per ADR-006 and ADR-012:
 - Which catalog version does the house's statement describe? Either an
   existing live ``Fragrance`` or a new one built from the house's own values.
 - Which of the house's facts does the manager accept? Each accepted fact is
-  listed in ``SourceSnapshot.fields``; only launch year and gender target may
-  also change the catalog. A different name, brand, or concentration means a
-  different version, never a correction to apply in place.
+  listed in ``SourceSnapshot.fields``; line, launch year, market status, and
+  gender target may also change the catalog (launch year and gender target
+  only while no calibration program uses the version, per ADR-006). A
+  different name, brand, or concentration means a different version, never a
+  correction to apply in place.
 """
 
 from __future__ import annotations
@@ -16,26 +18,39 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from fragrance_rater.core.vocabulary import GenderTarget
+from fragrance_rater.core.vocabulary import GenderTarget, MarketStatus
 from fragrance_rater.schemas.house_intake import HouseSubmissionResponse
 
 ConfirmableField = Literal[
-    "name", "brand", "concentration", "launch_year", "gender_target"
+    "name",
+    "brand",
+    "line",
+    "concentration",
+    "launch_year",
+    "market_status",
+    "gender_target",
 ]
-UpdatableField = Literal["launch_year", "gender_target"]
+UpdatableField = Literal["line", "launch_year", "market_status", "gender_target"]
 Comparison = Literal["same", "differs", "house_silent"]
 
 #: Facts in the order a reviewer reads them.
 CONFIRMABLE_FIELDS: tuple[ConfirmableField, ...] = (
     "name",
     "brand",
+    "line",
     "concentration",
     "launch_year",
+    "market_status",
     "gender_target",
 )
 #: Facts whose difference means "this is another version", not "fix the row".
 IDENTITY_FIELDS: frozenset[ConfirmableField] = frozenset(
     {"name", "brand", "concentration"}
+)
+#: Facts ADR-006 freezes once a calibration program uses the version; these
+#: must stay a subset of ``FragranceService.update``'s identity fields.
+CALIBRATION_LOCKED_FIELDS: frozenset[UpdatableField] = frozenset(
+    {"launch_year", "gender_target"}
 )
 
 
@@ -50,9 +65,13 @@ class ProposedFacts(BaseModel):
 
     name: str
     brand: str
+    line: str | None
     concentration: str | None
     launch_year: int | None
+    market_status: MarketStatus | None
     gender_target: GenderTarget | None
+    #: The house's barcodes, normalized to GTIN-14.
+    gtins: list[str]
 
 
 class CatalogCandidate(BaseModel):
@@ -61,13 +80,23 @@ class CatalogCandidate(BaseModel):
     id: str
     name: str
     brand: str
+    line: str | None
     concentration: str
     version_key: str
     launch_year: int | None
+    market_status: MarketStatus | None
     gender_target: str
     primary_family: str
     subfamily: str
     comparison: dict[ConfirmableField, Comparison]
+    #: Barcodes already linked to this version (GTIN-14).
+    gtins: list[str]
+    #: The house's barcodes that already identify this version: the
+    #: strongest sign it is the right match.
+    gtin_matches: list[str]
+    #: A calibration program uses this version, so its launch year and gender
+    #: target cannot change (ADR-006).
+    in_calibration: bool
 
 
 class ReviewContext(BaseModel):
@@ -116,6 +145,7 @@ class AdoptInput(StrictInput):
     confirmed_fields: list[ConfirmableField] = Field(default_factory=list)
     apply_updates: list[UpdatableField] = Field(default_factory=list)
     record_perfumers: bool = False
+    record_barcodes: bool = False
     review_note: str | None = Field(default=None, max_length=2000)
 
 

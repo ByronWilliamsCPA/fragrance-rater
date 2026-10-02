@@ -64,18 +64,35 @@ export type HouseSubmission = {
 
 export type ReviewStatus = 'pending' | 'adopted' | 'declined' | 'superseded'
 
-export type ConfirmableField = 'name' | 'brand' | 'concentration' | 'launch_year' | 'gender_target'
-export type UpdatableField = 'launch_year' | 'gender_target'
+export type ConfirmableField =
+  'name' | 'brand' | 'line' | 'concentration' | 'launch_year' | 'market_status' | 'gender_target'
+export type UpdatableField = 'line' | 'launch_year' | 'market_status' | 'gender_target'
 export type Comparison = 'same' | 'differs' | 'house_silent'
 export type GenderTarget = 'Masculine' | 'Feminine' | 'Unisex'
 
 export const confirmableFields: ReadonlyArray<{ field: ConfirmableField; label: string }> = [
   { field: 'name', label: 'Name' },
   { field: 'brand', label: 'Brand' },
+  { field: 'line', label: 'Collection or line' },
   { field: 'concentration', label: 'Concentration' },
   { field: 'launch_year', label: 'Launch year' },
+  { field: 'market_status', label: 'On sale' },
   { field: 'gender_target', label: 'Gender target' },
 ]
+
+/** Facts the catalog may take from the house; the rest only confirm. */
+export const updatableFields: ReadonlySet<ConfirmableField> = new Set([
+  'line',
+  'launch_year',
+  'market_status',
+  'gender_target',
+])
+
+/** Facts ADR-006 freezes once a calibration program uses the version. */
+export const calibrationLockedFields: ReadonlySet<ConfirmableField> = new Set([
+  'launch_year',
+  'gender_target',
+])
 
 /** A different name, brand, or concentration means another version, not a fix. */
 export const identityFields: ReadonlySet<ConfirmableField> = new Set([
@@ -87,22 +104,33 @@ export const identityFields: ReadonlySet<ConfirmableField> = new Set([
 export type ProposedFacts = {
   name: string
   brand: string
+  line: string | null
   concentration: string | null
   launch_year: number | null
+  market_status: Availability | null
   gender_target: GenderTarget | null
+  /** Normalized to GTIN-14. */
+  gtins: string[]
 }
 
 export type CatalogCandidate = {
   id: string
   name: string
   brand: string
+  line: string | null
   concentration: string
   version_key: string
   launch_year: number | null
+  market_status: Availability | null
   gender_target: string
   primary_family: string
   subfamily: string
   comparison: Record<ConfirmableField, Comparison>
+  gtins: string[]
+  /** House barcodes already linked to this version: the strongest match signal. */
+  gtin_matches: string[]
+  /** A calibration program uses it, so launch year and gender target are frozen. */
+  in_calibration: boolean
 }
 
 export type ReviewContext = {
@@ -124,10 +152,17 @@ export type AdoptInput = {
   confirmed_fields: ConfirmableField[]
   apply_updates: UpdatableField[]
   record_perfumers: boolean
+  record_barcodes: boolean
   review_note: string | null
 }
 
-export type HouseAccess = { username: string; house: string | null; manager: boolean }
+export type HouseAccess = {
+  username: string
+  house: string | null
+  manager: boolean
+  /** An external house account; with no `house`, one whose mapping was removed. */
+  house_account?: boolean
+}
 
 export type SubmissionProblem = { field: string; message: string }
 

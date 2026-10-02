@@ -55,6 +55,12 @@ Requirements:
 version key distinguish versions. Unknown concentration remains unknown. Once assigned to a
 controlled program, identity fields are immutable.
 
+`Fragrance` also carries two house-confirmable facts outside version identity: `line` (collection)
+and `market_status` (the house's commercial status, distinct from D4 sample availability).
+`FragranceGtin` links each barcode to exactly one version and cites the `SourceSnapshot` that
+established it. The house intake form maps every field onto these or onto layer-1 declared labels
+([house intake design](../superpowers/specs/2026-10-02-house-intake-design.md)).
+
 `Note`, `FragranceNote`, and `FragranceAccord` represent normalized catalog features while
 preserving source-specific evidence separately. Parent product/house modeling and inventory
 management are outside current scope.
