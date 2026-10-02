@@ -5,7 +5,14 @@ from sqlalchemy import select
 
 from fragrance_rater.core.config import settings
 from fragrance_rater.core.database import get_db
-from fragrance_rater.models.calibration import Perfumer, SourceSnapshot, VersionPerfumer
+from fragrance_rater.models.calibration import (
+    Membership,
+    Perfumer,
+    Program,
+    SourceSnapshot,
+    VersionPerfumer,
+)
+from fragrance_rater.models.fragrance import FragranceGtin
 from fragrance_rater.models.house_intake import HouseSubmission
 
 PREFIX = "/api/v1/house-intake"
@@ -155,9 +162,12 @@ async def test_review_context_proposes_facts_and_compares_candidates(test_app):
     assert context["proposed"] == {
         "name": "Cèdre Nocturne",
         "brand": "Maison A",
+        "line": None,
         "concentration": "EDP",
         "launch_year": 2019,
+        "market_status": "in_production",
         "gender_target": "Unisex",
+        "gtins": [],
     }
     names = [candidate["name"] for candidate in context["candidates"]]
     assert "Unrelated" not in names
@@ -167,10 +177,14 @@ async def test_review_context_proposes_facts_and_compares_candidates(test_app):
     assert first["comparison"] == {
         "name": "differs",
         "brand": "same",
+        "line": "house_silent",
         "concentration": "same",
         "launch_year": "differs",
+        "market_status": "differs",
         "gender_target": "same",
     }
+    assert first["in_calibration"] is False
+    assert first["gtins"] == []
 
     searched = await test_app.get(
         f"{PREFIX}/submissions/{record['id']}/review",
@@ -216,6 +230,20 @@ async def test_adopt_writes_snapshot_with_house_permission(test_app):
         "text": "Bergamote de Calabre",
         "position": "top",
     }
+    assert snapshot.payload["declared_labels"][:2] == [
+        {
+            "label_kind": "note",
+            "raw_text": "Bergamote de Calabre",
+            "position": "top",
+            "source_order": 0,
+        },
+        {
+            "label_kind": "note",
+            "raw_text": "Musk",
+            "position": "base",
+            "source_order": 0,
+        },
+    ]
 
     updated = (
         await test_app.get(f"/api/v1/fragrances/{fragrance['id']}", headers=MANAGER)
@@ -342,7 +370,14 @@ async def test_adopting_as_a_new_version_uses_the_house_values(test_app):
     assert created["gender_target"] == "Feminine"
     snapshot = await stored(SourceSnapshot, adopted["source_snapshot_id"])
     # The manager chose the gender target, so the house is not cited for it.
-    assert snapshot.fields == ["name", "brand", "concentration", "launch_year"]
+    assert snapshot.fields == [
+        "name",
+        "brand",
+        "concentration",
+        "launch_year",
+        "market_status",
+    ]
+    assert created["market_status"] == "in_production"
 
 
 @pytest.mark.asyncio
@@ -507,3 +542,140 @@ async def test_adopting_a_correction_does_not_duplicate_attributions(test_app):
         "Luc Martin",
         "Mei Chen",
     ]
+
+
+GTIN = "3508440005953"
+GTIN_14 = "03508440005953"
+
+
+async def put_in_calibration(fragrance_id):
+    from fragrance_rater.main import app
+
+    sessions = app.dependency_overrides[get_db]()
+    session = await anext(sessions)
+    try:
+        program = Program(name="Baseline", version="1")
+        session.add(program)
+        await session.flush()
+        session.add(
+            Membership(
+                program_id=program.id,
+                fragrance_id=fragrance_id,
+                role="UNIVERSAL_BASELINE",
+                group_name="Baseline",
+            )
+        )
+        await session.commit()
+    finally:
+        await sessions.aclose()
+
+
+@pytest.mark.asyncio
+async def test_line_and_market_status_can_be_applied(test_app):
+    fragrance = await catalog(test_app, name="Cèdre Nocturne", launch_year=2019)
+    record = await submitted(test_app, line="Les Bois", availability="discontinued")
+    response = await test_app.post(
+        f"{PREFIX}/submissions/{record['id']}/adopt",
+        json=adopt_existing(
+            fragrance["id"],
+            confirmed_fields=["name", "line", "market_status", "launch_year"],
+            apply_updates=["line", "market_status"],
+        ),
+        headers=MANAGER,
+    )
+    assert response.status_code == 200, response.text
+    updated = (
+        await test_app.get(f"/api/v1/fragrances/{fragrance['id']}", headers=MANAGER)
+    ).json()
+    assert (updated["line"], updated["market_status"]) == ("Les Bois", "discontinued")
+    snapshot = await stored(SourceSnapshot, response.json()["source_snapshot_id"])
+    assert snapshot.fields == ["name", "line", "launch_year", "market_status"]
+
+
+@pytest.mark.asyncio
+async def test_calibration_locks_identity_updates(test_app):
+    fragrance = await catalog(test_app, name="Cèdre Nocturne")
+    await put_in_calibration(fragrance["id"])
+    record = await submitted(test_app, line="Les Bois")
+    context = (
+        await test_app.get(
+            f"{PREFIX}/submissions/{record['id']}/review", headers=MANAGER
+        )
+    ).json()
+    assert context["candidates"][0]["in_calibration"] is True
+
+    blocked = await test_app.post(
+        f"{PREFIX}/submissions/{record['id']}/adopt",
+        json=adopt_existing(fragrance["id"]),
+        headers=MANAGER,
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["detail"]["error"] == "CALIBRATION_LOCKED"
+    unchanged = (
+        await test_app.get(f"/api/v1/fragrances/{fragrance['id']}", headers=MANAGER)
+    ).json()
+    assert unchanged["launch_year"] == 2018
+    assert (await stored(HouseSubmission, record["id"])).review_status == "pending"
+
+    # Facts outside the lock still apply.
+    allowed = await test_app.post(
+        f"{PREFIX}/submissions/{record['id']}/adopt",
+        json=adopt_existing(
+            fragrance["id"],
+            confirmed_fields=["name", "brand", "line"],
+            apply_updates=["line"],
+        ),
+        headers=MANAGER,
+    )
+    assert allowed.status_code == 200, allowed.text
+
+
+@pytest.mark.asyncio
+async def test_barcodes_are_recorded_with_evidence_and_rank_matches(test_app):
+    fragrance = await catalog(test_app, name="Cèdre Nocturne")
+    record = await submitted(test_app, gtins=[GTIN])
+    response = await test_app.post(
+        f"{PREFIX}/submissions/{record['id']}/adopt",
+        json=adopt_existing(fragrance["id"], record_barcodes=True),
+        headers=MANAGER,
+    )
+    assert response.status_code == 200, response.text
+    link = await stored(FragranceGtin, GTIN_14)
+    assert link.fragrance_id == fragrance["id"]
+    assert link.source_snapshot_id == response.json()["source_snapshot_id"]
+
+    # A later submission carrying the same barcode finds this version first,
+    # even under a name the catalog search alone would not match.
+    await catalog(test_app, name="Another Maison A scent")
+    later = await submitted(test_app, gtins=[GTIN], fragrance_name="Nuit de Cèdre")
+    context = (
+        await test_app.get(
+            f"{PREFIX}/submissions/{later['id']}/review", headers=MANAGER
+        )
+    ).json()
+    assert context["proposed"]["gtins"] == [GTIN_14]
+    assert context["candidates"][0]["id"] == fragrance["id"]
+    assert context["candidates"][0]["gtin_matches"] == [GTIN_14]
+
+
+@pytest.mark.asyncio
+async def test_a_barcode_on_another_version_is_refused(test_app):
+    first = await catalog(test_app, name="Cèdre Nocturne")
+    record = await submitted(test_app, gtins=[GTIN])
+    await test_app.post(
+        f"{PREFIX}/submissions/{record['id']}/adopt",
+        json=adopt_existing(first["id"], record_barcodes=True),
+        headers=MANAGER,
+    )
+    other = await catalog(test_app, name="Cèdre Nocturne", version_key="2024")
+    again = await submitted(test_app, gtins=[GTIN])
+    response = await test_app.post(
+        f"{PREFIX}/submissions/{again['id']}/adopt",
+        json=adopt_existing(other["id"], record_barcodes=True),
+        headers=MANAGER,
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["error"] == "GTIN_CONFLICT"
+    assert "version legacy" in response.json()["detail"]["message"]
+    assert (await stored(FragranceGtin, GTIN_14)).fragrance_id == first["id"]
+    assert (await stored(HouseSubmission, again["id"])).review_status == "pending"

@@ -11,6 +11,7 @@ from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
+    FragranceGtin,
     FragranceNote,
     Note,
     TrainingEligibility,
@@ -31,6 +32,7 @@ __all__ = [
     "Evaluation",
     "Fragrance",
     "FragranceAccord",
+    "FragranceGtin",
     "FragranceNote",
     "HouseSubmission",
     "LLMInvocation",

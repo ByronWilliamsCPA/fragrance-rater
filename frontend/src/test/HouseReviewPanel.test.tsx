@@ -34,7 +34,10 @@ const submission: HouseSubmission = {
     concentration: 'EDP',
     launch_year: 2019,
     marketed_for: 'not_specified',
+    availability: 'discontinued',
+    version_label: '2023 Reformulation',
     perfumers: ['Ana Ruiz'],
+    gtins: ['3508440005953'],
   },
   review_status: 'pending',
   reviewed_at: null,
@@ -54,13 +57,20 @@ const match: CatalogCandidate = {
   gender_target: 'Unisex',
   primary_family: 'Woody',
   subfamily: 'Dry Woods',
+  line: null,
+  market_status: 'in_production',
   comparison: {
     name: 'same',
     brand: 'same',
+    line: 'house_silent',
     concentration: 'same',
     launch_year: 'differs',
+    market_status: 'differs',
     gender_target: 'house_silent',
   },
+  gtins: [],
+  gtin_matches: [],
+  in_calibration: false,
 }
 const otherVersion: CatalogCandidate = {
   ...match,
@@ -74,9 +84,12 @@ const context: ReviewContext = {
   proposed: {
     name: 'Cèdre Nocturne',
     brand: 'Maison A',
+    line: null,
     concentration: 'EDP',
     launch_year: 2019,
+    market_status: 'discontinued',
     gender_target: null,
+    gtins: ['03508440005953'],
   },
   candidates: [match, otherVersion],
 }
@@ -112,9 +125,10 @@ describe('Manager review of a house submission', () => {
     const table = screen.getByRole('table')
     const rows = within(table).getAllByRole('row')
     expect(within(rows[1]).getByLabelText('Accept')).toBeChecked()
-    const year = within(table).getByLabelText('Accept and update the catalog')
+    const yearRow = within(table).getByRole('rowheader', { name: 'Launch year' }).closest('tr')!
+    const year = within(yearRow).getByLabelText('Accept and update the catalog')
     expect(year).not.toBeChecked()
-    expect(within(table).getByText('The house did not say')).toBeInTheDocument()
+    expect(within(table).getAllByText('The house did not say')).toHaveLength(2)
 
     fireEvent.click(year)
     confirm('Adopt as evidence', 'Confirm adoption')
@@ -126,6 +140,7 @@ describe('Manager review of a house submission', () => {
       confirmed_fields: ['name', 'brand', 'concentration', 'launch_year'],
       apply_updates: ['launch_year'],
       record_perfumers: true,
+      record_barcodes: true,
       review_note: null,
     })
     await waitFor(() => expect(onReviewed).toHaveBeenCalled())
@@ -148,13 +163,14 @@ describe('Manager review of a house submission', () => {
     expect(screen.getByLabelText('Edwards family')).toHaveValue('Unclassified')
     fireEvent.change(screen.getByLabelText(/Gender target/), { target: { value: 'Feminine' } })
     expect(adopt).toBeEnabled()
-    expect(screen.getAllByText('Recorded from the house')).toHaveLength(4)
+    expect(screen.getAllByText('Recorded from the house')).toHaveLength(5)
+    expect(screen.getByLabelText('Version key')).toHaveValue('2023-reformulation')
 
     confirm('Adopt as evidence', 'Confirm adoption')
     await waitFor(() => expect(post).toHaveBeenCalled())
     expect(post.mock.calls[0][1].target).toEqual({
       kind: 'new',
-      version_key: 'original',
+      version_key: '2023-reformulation',
       primary_family: 'Unclassified',
       subfamily: 'Unclassified',
       gender_target: 'Feminine',
@@ -185,5 +201,30 @@ describe('Manager review of a house submission', () => {
         params: { q: 'Cedre' },
       })
     )
+  })
+
+  it('shows sale status in words and lets the manager skip linking barcodes', async () => {
+    await renderPanel()
+    fireEvent.click(screen.getByLabelText(/Cèdre Nocturne · Eau de Parfum/))
+    const table = screen.getByRole('table')
+    expect(within(table).getByText('On sale now')).toBeInTheDocument()
+    expect(within(table).getByText('Discontinued')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText(/Link the house’s barcodes/))
+    confirm('Adopt as evidence', 'Confirm adoption')
+    await waitFor(() => expect(post).toHaveBeenCalled())
+    expect(post.mock.calls[0][1].record_barcodes).toBe(false)
+  })
+
+  it('marks calibration-locked facts as unchangeable', async () => {
+    get.mockResolvedValue({
+      data: { ...context, candidates: [{ ...match, in_calibration: true }] },
+    })
+    await renderPanel()
+    expect(screen.getByText(/Used in calibration/)).toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText(/Cèdre Nocturne · Eau de Parfum/))
+    expect(screen.getByText('Differs: locked by calibration')).toBeInTheDocument()
+    // Sale status is not an identity fact, so it can still be updated.
+    expect(screen.getByLabelText('Accept and update the catalog')).toBeInTheDocument()
   })
 })

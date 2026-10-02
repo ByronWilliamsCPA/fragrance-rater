@@ -41,6 +41,39 @@ name.
 | | Authority confirmation | yes | |
 | | Note to the reviewer | | |
 
+## Where each answer lands
+
+Every field of the house form has one defined home. Catalog facts land in catalog columns when a
+manager accepts them. The house's olfactory words land, verbatim, in the adopted `SourceSnapshot`
+payload in ADR-017's layer-1 `declared_label` row shape (`label_kind`, `raw_text`, `position`,
+`source_order`), so D1 copies rows instead of re-parsing text. The values a house picks from
+(concentration codes, sale status, gender) come from `core/vocabulary.py`, the same module the
+catalog schemas use, and a test fails if the two drift apart.
+
+| House field | Lands in | Notes |
+| --- | --- | --- |
+| Fragrance name | `fragrances.name` | Identity; a mismatch means another version |
+| House (from account) | `fragrances.brand` | Identity |
+| Collection or line | `fragrances.line` | New nullable column; not identity, updatable |
+| Concentration | `fragrances.concentration` | Codes map to the catalog's short forms (`CATALOG_CONCENTRATIONS`); spellings such as "Eau de Parfum" compare equal to EDP |
+| Formulation or edition | `fragrances.version_key` (new version) | Seeds the suggested version key; the manager confirms it |
+| Launch year | `fragrances.launch_year` | Both layers accept 1700 onward; frozen once in calibration |
+| On sale | `fragrances.market_status` | New nullable column, same vocabulary; the house's commercial status, not D4's sample availability |
+| Marketed for | `fragrances.gender_target` | Same `GenderTarget` vocabulary; "does not say" is never cited to the house; frozen once in calibration |
+| Perfumers | `calibration_version_perfumers` | Cites the product page, or the submission URN |
+| Product page | `SourceSnapshot.source_url` | Citation for every adopted fact |
+| Barcodes | `fragrance_gtins` | New table: GTIN-14 primary key, one SKU to one version, each row citing its snapshot; a barcode already on another version stops adoption |
+| Notes (tier and order) | snapshot `declared_labels` (`note`) | `source_order` is the rank within the tier, the value R6's `FragranceNote.rank` will hold; `unspecified` corresponds to the catalog's `flat` |
+| Accords | snapshot `declared_labels` (`accord`) | No intensity is invented from list position (X-04) |
+| Family, as described | snapshot `declared_labels` (`family`) | The Edwards family is the manager's own classification |
+| Official description | snapshot `declared` payload | Prose, not a label |
+| Permission | `SourceSnapshot.permission_state` | The house's choice; never widened |
+| Name, role, attestation, reviewer note | snapshot `source_reference` and payload | Who stands behind the statement |
+
+Writing the house's notes and accords into `fragrance_notes` and `fragrance_accords` is deliberately
+not done here. It needs R6's normalized notes, ranks, and accord vocabulary, plus D1's reviewed
+mappings (ADR-017 layers 2 and 3).
+
 ## Decisions
 
 1. **Houses answer in their own words.** Notes, accords, and family are stored exactly as entered. Outer
@@ -79,9 +112,11 @@ reviewed. A record that has already been adopted or declined keeps its outcome w
    supplies only what a house cannot: the version key, the Edwards family (`Unclassified` per ADR-014 when none
    fits), and a gender target if the house did not state one.
 2. *Which facts does the manager accept?* Each fact is compared with the chosen version and is either `same`,
-   `differs`, or `house_silent`. Facts that agree are accepted by default. If the launch year or gender target
-   differs, it can be accepted only by also writing it to the catalog, because evidence must never cite a value
-   the catalog does not hold. If the name, brand, or concentration differs, it cannot be accepted, because that
+   `differs`, or `house_silent`. Facts that agree are accepted by default. If the line, launch year, sale
+   status, or gender target differs, it can be accepted only by also writing it to the catalog, because
+   evidence must never cite a value the catalog does not hold. Those writes go through the catalog's own
+   update path, so ADR-006's lock applies: once a calibration program uses a version, its launch year and
+   gender target cannot change, and the review screen marks them as locked. If the name, brand, or concentration differs, it cannot be accepted, because that
    usually means a different version. A catalog typo should be fixed first. A fact the house did not give is
    never cited to it, including a gender target the manager chose for a new version.
 
@@ -92,6 +127,8 @@ An adoption writes, in one transaction:
   `source_reference` naming the submission and the representative, `verification_status=verified`, and a payload
   holding the house's full declaration verbatim;
 - the catalog updates the manager accepted, or the new catalog version (`data_source=manufacturer`);
+- optionally, the house's barcodes as `fragrance_gtins` rows citing the snapshot. Candidates that already
+  hold one of the house's barcodes are listed first;
 - optionally, the house's perfumer credits, citing the product page (or a `urn:fragrance-rater:house-submission:`
   reference when the house gave no page). An attribution that already exists is not duplicated.
 
@@ -109,11 +146,22 @@ catalog and evidence ids.
 - `HOUSE_CONTRIBUTORS` is a JSON object mapping a verified Authentik username to a house name, for example
   `{"ana.ruiz@maison-aurele": "Maison Aurele"}`. Colleagues at one house share its records. Startup fails if a
   username is also in `CALIBRATION_ADMIN_USERNAMES` or maps to a blank house name.
-- Onboarding a house: create the Authentik user (ideally in a dedicated group bound to this application only),
-  add the username to `HOUSE_CONTRIBUTORS`, and redeploy. Removing the mapping revokes access immediately. Their
-  submitted records stay.
+- `HOUSE_CONTRIBUTOR_GROUP` (default `fragrance-houses`) names the Authentik group every house account belongs
+  to. The fence applies to anyone mapped to a house *or* in that group, so removing a mapping never widens an
+  external account's access. A group member with no mapping can reach only the intake routes, has no house to
+  submit for, never acts as a manager there, and sees "account no longer active". This works only if Traefik's
+  forward-auth `authResponseHeaders` copies `X-authentik-groups`, as it does the username header. Verify that in
+  the homelab Traefik configuration before onboarding the first house.
+- Onboarding a house: create the Authentik user in the house group (ideally a group bound to this application
+  only), add the username to `HOUSE_CONTRIBUTORS`, and redeploy.
+- Offboarding: disable the Authentik user or unbind it from the application, which is the real revocation. Leave
+  it in the house group, then remove the mapping. Submitted records stay on file.
 - Houses reach the app through the same Traefik/Authentik boundary (ADR-008). No public route or token link is
   added.
+- Concurrency: draft edits, deletes, and submits lock the row before checking that it is still a draft. A
+  submitted correction supersedes its original only while that original is still pending, and manager reviews
+  use a conditional claim. A stale read in one request therefore cannot overwrite what another request
+  committed.
 
 ## Follow-ups (not built here)
 

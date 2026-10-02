@@ -13,13 +13,33 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, cast
 
-from fragrance_rater.core.auth import AUTHENTIK_USERNAME_HEADER
+from fragrance_rater.core.auth import AUTHENTIK_GROUPS_HEADER, AUTHENTIK_USERNAME_HEADER
 from fragrance_rater.core.config import settings
 
 if TYPE_CHECKING:
     from starlette.types import ASGIApp, Receive, Scope, Send
 
 _USERNAME_HEADER = AUTHENTIK_USERNAME_HEADER.lower().encode("latin-1")
+_GROUPS_HEADER = AUTHENTIK_GROUPS_HEADER.lower().encode("latin-1")
+
+
+def is_house_account(username: str | None, groups_header: str | None) -> bool:
+    """Whether an identity is an external house account, mapped or not.
+
+    Args:
+        username (str | None): Forwarded Authentik username.
+        groups_header (str | None): Forwarded pipe-separated group names.
+
+    Returns:
+        bool: True when the username is mapped to a house, or the identity is
+            in ``settings.house_contributor_group``.
+    """
+    if username is not None and username in settings.house_contributors:
+        return True
+    group = settings.house_contributor_group.strip()
+    if not group or not groups_header:
+        return False
+    return group in {name.strip() for name in groups_header.split("|")}
 
 
 def _allowed_prefixes() -> tuple[str, ...]:
@@ -63,20 +83,23 @@ class HouseContributorFenceMiddleware:
             receive (Receive): ASGI receive callable.
             send (Send): ASGI send callable.
         """
-        if scope["type"] != "http" or not settings.house_contributors:
+        if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         headers = cast("list[tuple[bytes, bytes]]", scope.get("headers", []))
-        username = next(
-            (
-                value.decode("latin-1")
-                for key, value in headers
-                if key == _USERNAME_HEADER
-            ),
-            None,
-        )
+        values = {
+            key: value.decode("latin-1")
+            for key, value in headers
+            if key in (_USERNAME_HEADER, _GROUPS_HEADER)
+        }
         path = cast("str", scope.get("path", ""))
-        if username in settings.house_contributors and not _is_allowed(path):
+        # #ASSUME: security: a client-supplied groups header can only add the
+        # fence, never lift it, so trusting it is safe in that direction. For
+        # it to fence a real house account, Traefik's forward-auth must copy
+        # X-authentik-groups (authResponseHeaders) like the username header.
+        if is_house_account(
+            values.get(_USERNAME_HEADER), values.get(_GROUPS_HEADER)
+        ) and not _is_allowed(path):
             body = json.dumps(
                 {
                     "detail": {

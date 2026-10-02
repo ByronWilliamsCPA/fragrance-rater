@@ -101,9 +101,12 @@ const reviewContext: ReviewContext = {
   proposed: {
     name: 'Cèdre Nocturne',
     brand: 'Maison A',
+    line: null,
     concentration: 'EDP',
     launch_year: 2019,
+    market_status: null,
     gender_target: 'Unisex',
+    gtins: [],
   },
   candidates: [
     {
@@ -116,13 +119,20 @@ const reviewContext: ReviewContext = {
       gender_target: 'Unisex',
       primary_family: 'Woody',
       subfamily: 'Dry Woods',
+      line: null,
+      market_status: null,
       comparison: {
         name: 'same',
         brand: 'same',
+        line: 'house_silent',
         concentration: 'same',
         launch_year: 'differs',
+        market_status: 'house_silent',
         gender_target: 'same',
       },
+      gtins: [],
+      gtin_matches: [],
+      in_calibration: false,
     },
   ],
 }

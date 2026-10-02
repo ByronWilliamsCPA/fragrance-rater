@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api/client'
 import {
+  availabilityOptions,
+  calibrationLockedFields,
   confirmableFields,
   identityFields,
+  labelFor,
   permissionOptions,
+  updatableFields,
   type AdoptInput,
   type CatalogCandidate,
   type ConfirmableField,
@@ -23,18 +27,39 @@ const NEW = 'new'
 const UNCLASSIFIED = 'Unclassified'
 const edwardsFamilies = ['Fresh', 'Floral', 'Amber', 'Woody', UNCLASSIFIED]
 const genderTargets: GenderTarget[] = ['Feminine', 'Masculine', 'Unisex']
-const updatable = (field: ConfirmableField): field is UpdatableField =>
-  field === 'launch_year' || field === 'gender_target'
+const updatable = (field: ConfirmableField): field is UpdatableField => updatableFields.has(field)
 
 function agreementHint(item: CatalogCandidate): string {
   const agreeing = [...identityFields].filter((field) => item.comparison[field] === 'same').length
-  return agreeing === identityFields.size
-    ? 'Name, brand, and concentration all agree.'
-    : `${agreeing} of ${identityFields.size} identity facts (name, brand, concentration) agree.`
+  const identity =
+    agreeing === identityFields.size
+      ? 'Name, brand, and concentration all agree.'
+      : `${agreeing} of ${identityFields.size} identity facts (name, brand, concentration) agree.`
+  const barcode = item.gtin_matches.length
+    ? ` Barcode ${item.gtin_matches.join(', ')} already identifies this version.`
+    : ''
+  const locked = item.in_calibration
+    ? ' Used in calibration, so its launch year and gender target cannot change.'
+    : ''
+  return `${identity}${barcode}${locked}`
 }
 
-function display(value: string | number | null | undefined): string {
-  return value === null || value === undefined || value === '' ? 'Not given' : String(value)
+function display(field: ConfirmableField, value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return 'Not given'
+  if (field === 'market_status')
+    return labelFor(availabilityOptions, value as (typeof availabilityOptions)[number]['value'])
+  return String(value)
+}
+
+/** A version key from the house's own edition label, e.g. "2023 reformulation". */
+function versionKeyFrom(label: string | null): string {
+  const slug = (label ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  return slug || 'original'
 }
 
 /** The facts a manager would accept by default: everything that already agrees. */
@@ -66,11 +91,14 @@ export function HouseReviewPanel({ submission, onReviewed }: Props) {
   const [query, setQuery] = useState('')
   const [targetId, setTargetId] = useState('')
   const [accepted, setAccepted] = useState<Set<ConfirmableField>>(new Set())
-  const [versionKey, setVersionKey] = useState('original')
+  const [versionKey, setVersionKey] = useState(() =>
+    versionKeyFrom(submission.payload.version_label)
+  )
   const [primaryFamily, setPrimaryFamily] = useState('')
   const [subfamily, setSubfamily] = useState('')
   const [chosenGender, setChosenGender] = useState<GenderTarget | ''>('')
   const [recordPerfumers, setRecordPerfumers] = useState(submission.payload.perfumers.length > 0)
+  const [recordBarcodes, setRecordBarcodes] = useState(submission.payload.gtins.length > 0)
   const [note, setNote] = useState('')
   const [reason, setReason] = useState('')
   const task = useTask()
@@ -159,6 +187,7 @@ export function HouseReviewPanel({ submission, onReviewed }: Props) {
               updatable(field) && candidate?.comparison[field] === 'differs'
           ),
       record_perfumers: recordPerfumers,
+      record_barcodes: recordBarcodes && proposed.gtins.length > 0,
       review_note: note.trim() || null,
     }
   }
@@ -222,7 +251,9 @@ export function HouseReviewPanel({ submission, onReviewed }: Props) {
               onChange={() => chooseTarget(item.id)}
             />
             <label htmlFor={`review-target-${item.id}`}>
-              {item.brand} · {item.name} · {item.concentration} · version {item.version_key}
+              {item.brand}
+              {item.line ? ` · ${item.line}` : ''} · {item.name} · {item.concentration} · version{' '}
+              {item.version_key}
               {item.launch_year ? ` · ${item.launch_year}` : ''}
             </label>
             <p className="field-hint choice__hint">{agreementHint(item)}</p>
@@ -238,8 +269,8 @@ export function HouseReviewPanel({ submission, onReviewed }: Props) {
           />
           <label htmlFor="review-target-new">Add it as a new catalog version</label>
           <p className="field-hint choice__hint">
-            Built from the house’s own name, concentration, and launch year. You supply only what a
-            house cannot.
+            Built from the house’s own name, line, concentration, launch year, and sale status. You
+            supply only what a house cannot.
           </p>
         </div>
       </fieldset>
@@ -313,6 +344,23 @@ export function HouseReviewPanel({ submission, onReviewed }: Props) {
             accepted={accepted}
             onToggle={toggle}
           />
+          {proposed.gtins.length > 0 && (
+            <div className="choice">
+              <input
+                type="checkbox"
+                id="review-barcodes"
+                checked={recordBarcodes}
+                onChange={(event) => setRecordBarcodes(event.target.checked)}
+              />
+              <label htmlFor="review-barcodes">
+                Link the house’s barcodes to this version: {submission.payload.gtins.join(', ')}
+              </label>
+              <p className="field-hint choice__hint">
+                A barcode names one bottle. If one already belongs to another version, adoption
+                stops so you can check the match.
+              </p>
+            </div>
+          )}
           {submission.payload.perfumers.length > 0 && (
             <div className="choice">
               <input
@@ -410,7 +458,7 @@ function FactsTable({
         </thead>
         <tbody>
           {confirmableFields.map(({ field, label }) => {
-            const house = proposed[field]
+            const house = proposed[field] as string | number | null
             const outcome = candidate
               ? candidate.comparison[field]
               : house === null
@@ -420,8 +468,8 @@ function FactsTable({
             return (
               <tr key={field} data-outcome={outcome}>
                 <th scope="row">{label}</th>
-                {candidate && <td>{display(candidate[field])}</td>}
-                <td>{display(house)}</td>
+                {candidate && <td>{display(field, candidate[field])}</td>}
+                <td>{display(field, house)}</td>
                 <td>
                   {outcome === 'house_silent' ? (
                     <span className="field-hint">The house did not say</span>
@@ -429,6 +477,10 @@ function FactsTable({
                     <span>Recorded from the house</span>
                   ) : outcome === 'differs' && identityFields.has(field) ? (
                     <span className="field-error">Differs: likely another version</span>
+                  ) : outcome === 'differs' &&
+                    candidate.in_calibration &&
+                    calibrationLockedFields.has(field) ? (
+                    <span className="field-error">Differs: locked by calibration</span>
                   ) : (
                     <span className="choice">
                       <input
