@@ -584,3 +584,43 @@ class TestFragranceAuthentikRequired:
             headers={"X-Authentik-Username": "byron"},
         )
         assert response.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_line_and_market_status_round_trip(test_app):
+    """House-aligned catalog facts are stored and returned like any other field."""
+    headers = {"X-Authentik-Username": "byron"}
+    created = await test_app.post(
+        "/api/v1/fragrances",
+        json={
+            "name": "Eau de Cologne Originale",
+            "brand": "Farina",
+            "line": "Heritage",
+            "concentration": "EDC",
+            "launch_year": 1709,
+            "market_status": "in_production",
+            "gender_target": "Unisex",
+            "primary_family": "Fresh",
+            "subfamily": "Citrus",
+        },
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    body = created.json()
+    assert (body["line"], body["market_status"], body["launch_year"]) == (
+        "Heritage",
+        "in_production",
+        1709,
+    )
+    patched = await test_app.patch(
+        f"/api/v1/fragrances/{body['id']}",
+        json={"market_status": "discontinued"},
+        headers=headers,
+    )
+    assert patched.json()["market_status"] == "discontinued"
+    rejected = await test_app.patch(
+        f"/api/v1/fragrances/{body['id']}",
+        json={"market_status": "sold_out"},
+        headers=headers,
+    )
+    assert rejected.status_code == 422

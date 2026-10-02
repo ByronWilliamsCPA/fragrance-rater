@@ -17,9 +17,9 @@ Pydantic-settings handles the parsing and validation.
 """
 
 import json
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _DEFAULT_CORS_ALLOWED_ORIGINS: list[str] = [
@@ -84,6 +84,12 @@ class Settings(BaseSettings):
         calibration_admin_usernames (list[str]): Verified Authentik usernames
             permitted to administer controlled calibration programs. Empty by
             default, which denies calibration administration.
+        house_contributor_group (str): Authentik group whose members are
+            confined to the house-intake routes even when unmapped, so
+            removing a mapping never widens an external account's access.
+        house_contributors (dict[str, str]): Verified Authentik username to
+            the fragrance house it submits for. Those accounts are confined to
+            the house-intake routes. Empty by default.
         authentik_required (bool): Require a verified Authentik forward-auth
             identity header on mutating requests. Defaults to True outside
             tests; tests and local dev disable it via AUTHENTIK_REQUIRED=false.
@@ -252,6 +258,38 @@ class Settings(BaseSettings):
         description="Verified Authentik usernames allowed to manage calibration",
     )
 
+    # House intake (docs/superpowers/specs/2026-10-02-house-intake-design.md)
+    # #CRITICAL: security: a fragrance house representative is an external
+    # party, unlike every other account on this deployment. Membership in
+    # this mapping is what HouseContributorFenceMiddleware uses to confine an
+    # identity to the house-intake routes, so it must never also grant
+    # family or manager access.
+    # #VERIFY: `_reject_house_manager_overlap` below fails Settings()
+    # construction when a username is both a manager and a house contributor,
+    # and test_house_fence.py asserts a house identity is refused on every
+    # non-intake route.
+    # #CRITICAL: security: offboarding must fail closed. Removing a username
+    # from `house_contributors` alone would lift its fence and turn a still-
+    # active external account into an ordinary household account. Any
+    # identity in this Authentik group stays fenced whether or not it is
+    # mapped to a house.
+    # #VERIFY: test_a_group_member_stays_fenced_after_its_mapping_is_removed.
+    house_contributor_group: str = Field(
+        default="fragrance-houses",
+        description=(
+            "Authentik group whose members are always confined to the house "
+            "submission routes, mapped or not. Empty disables the group rule."
+        ),
+    )
+    house_contributors: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "JSON object mapping a verified Authentik username to the "
+            "fragrance house it submits for, e.g. "
+            '{"maison-x-rep": "Maison X"}. Empty grants no house access.'
+        ),
+    )
+
     # Authentik forward-auth (Critical finding 2)
     # #CRITICAL: security: this app is deployed behind Authentik/Traefik
     # forward-auth; when True, mutating requests that lack a verified
@@ -336,6 +374,35 @@ class Settings(BaseSettings):
         if stripped.startswith("["):
             return json.loads(stripped)
         return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def _reject_house_manager_overlap(self) -> Self:
+        """Refuse a house contributor that is also a manager, or has no house.
+
+        Returns:
+            Self: This instance, unchanged.
+
+        Raises:
+            ValueError: If a username appears in both
+                ``calibration_admin_usernames`` and ``house_contributors``, or a
+                house contributor is mapped to a blank house name.
+        """
+        overlap = set(self.calibration_admin_usernames) & set(self.house_contributors)
+        if overlap:
+            msg = (
+                "A username cannot be both a calibration manager and a house "
+                f"contributor: {sorted(overlap)}"
+            )
+            raise ValueError(msg)
+        blank = sorted(
+            username
+            for username, house in self.house_contributors.items()
+            if not house.strip()
+        )
+        if blank:
+            msg = f"House contributors must name a house: {blank}"
+            raise ValueError(msg)
+        return self
 
 
 # A single, global instance of the settings

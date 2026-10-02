@@ -6,6 +6,7 @@ import { AboutPage } from './pages/AboutPage'
 import { CalibrationPage } from './pages/CalibrationPage'
 import { CalibrationProtocolPage } from './pages/CalibrationProtocolPage'
 import { EvidencePage } from './pages/EvidencePage'
+import { HouseIntakePage } from './pages/HouseIntakePage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
@@ -49,19 +50,41 @@ function App() {
     [programs, query]
   )
 
+  const { canManagePrograms, isHouseContributor } = appData.capabilities
+
   useEffect(() => {
-    if (
-      !appData.loading &&
-      !appData.error &&
-      route === 'programs' &&
-      !appData.capabilities.canManagePrograms
+    if (appData.loading || appData.error) return
+    // A house account has exactly one page; any other URL lands there.
+    if (isHouseContributor && route !== 'house') navigate('house', true)
+    else if (
+      !isHouseContributor &&
+      (route === 'programs' || route === 'house') &&
+      !canManagePrograms
     )
       navigate('calibration', true)
-  }, [appData.capabilities.canManagePrograms, appData.error, appData.loading, navigate, route])
+  }, [canManagePrograms, isHouseContributor, appData.error, appData.loading, navigate, route])
 
   if (appData.loading) return <LoadingState />
   if (appData.error)
     return <ErrorState message={appData.error} retry={() => void appData.reload()} />
+
+  if (isHouseContributor)
+    return (
+      <AppShell
+        access={appData.access}
+        capabilities={appData.capabilities}
+        route="house"
+        navigate={navigate}
+      >
+        <HouseIntakePage
+          access={{
+            username: appData.access.username,
+            house: appData.access.house ?? null,
+            manager: false,
+          }}
+        />
+      </AppShell>
+    )
 
   return (
     <AppShell
@@ -105,6 +128,11 @@ function App() {
           reviewers={appData.reviewers}
           reload={appData.reload}
           initialProgramId={programId}
+        />
+      )}
+      {route === 'house' && canManagePrograms && (
+        <HouseIntakePage
+          access={{ username: appData.access.username, house: null, manager: true }}
         />
       )}
       {route === 'about' && <AboutPage navigate={navigate} />}

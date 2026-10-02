@@ -131,6 +131,7 @@ class FragranceService:
             id=str(uuid4()),
             name=data.name,
             brand=data.brand,
+            line=data.line,
             concentration=data.concentration,
             version_key=data.version_key,
             launch_year=data.launch_year,
@@ -138,6 +139,7 @@ class FragranceService:
             primary_family=data.primary_family,
             subfamily=data.subfamily,
             intensity=data.intensity,
+            market_status=data.market_status,
             training_eligibility_code=data.training_eligibility_code,
             data_source="manual",
         )

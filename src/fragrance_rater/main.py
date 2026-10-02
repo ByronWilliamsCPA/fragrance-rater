@@ -43,6 +43,7 @@ from fragrance_rater.api import (
     reviewers_router,
 )
 from fragrance_rater.api.calibration import router as calibration_router
+from fragrance_rater.api.house_intake import router as house_intake_router
 from fragrance_rater.api.predictions import router as predictions_router
 from fragrance_rater.core.config import settings
 from fragrance_rater.middleware import (
@@ -52,6 +53,7 @@ from fragrance_rater.middleware import (
     limiter,
     rate_limit_exceeded_handler,
 )
+from fragrance_rater.middleware.house_fence import HouseContributorFenceMiddleware
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -136,6 +138,11 @@ if settings.rate_limit_enabled:
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
     app.add_middleware(DefaultRateLimitMiddleware)
 
+# House contributors are external parties; confine them to the house-intake
+# routes before any router sees the request. Registered inside the
+# correlation and security layers so its 403 still carries their headers.
+app.add_middleware(HouseContributorFenceMiddleware)
+
 # Add correlation ID middleware (should be added first)
 app.add_middleware(CorrelationMiddleware)
 
@@ -189,3 +196,4 @@ async def root() -> dict[str, str]:
 
 app.include_router(calibration_router, prefix=settings.api_v1_prefix)
 app.include_router(predictions_router, prefix=settings.api_v1_prefix)
+app.include_router(house_intake_router, prefix=settings.api_v1_prefix)

@@ -13,7 +13,16 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Float, ForeignKey, Index, String, UniqueConstraint, func, text
+from sqlalchemy import (
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -61,6 +70,8 @@ class Fragrance(Base):
         id (Mapped[str]): Unique identifier (UUID).
         name (Mapped[str]): Fragrance name.
         brand (Mapped[str]): Brand/house name.
+        line (Mapped[str | None]): Collection or line within the brand, as the
+            house names it. Not part of version identity.
         concentration (Mapped[str]): EDT, EDP, Parfum, etc.
         version_key (Mapped[str]): Stable formulation/version identifier.
         launch_year (Mapped[int | None]): Year of release.
@@ -69,6 +80,10 @@ class Fragrance(Base):
             Amber, Woody).
         subfamily (Mapped[str]): More specific classification.
         intensity (Mapped[str | None]): Fresh, Crisp, Classical, or Rich.
+        market_status (Mapped[str | None]): Whether the house still sells it
+            (``core.vocabulary.MARKET_STATUSES``); NULL means unknown. This is
+            the house's commercial status, not whether the household can get
+            a sample (D4's candidate availability).
         data_source (Mapped[str]): Origin of data (manual, kaggle, parfumo).
         external_id (Mapped[str | None]): ID from external data source.
         parfumo_url (Mapped[str | None]): Source page on Parfumo, when scraped.
@@ -87,6 +102,8 @@ class Fragrance(Base):
             intensity.
         evaluations (Mapped[list[Evaluation]]): Reviewer evaluations of this
             fragrance.
+        perfumers (Mapped[list[VersionPerfumer]]): Perfumer attributions, each
+            with the source that supports it (read-only).
     """
 
     __tablename__ = "fragrances"
@@ -104,6 +121,13 @@ class Fragrance(Base):
             sqlite_where=text("deleted_at IS NULL"),
         ),
         Index("ix_fragrance_search", "name", "brand"),
+        CheckConstraint(
+            (
+                "market_status IS NULL OR market_status IN ('in_production', "
+                "'limited_edition', 'upcoming', 'discontinued')"
+            ),
+            name="ck_fragrances_market_status",
+        ),
     )
 
     id: Mapped[str] = mapped_column(
@@ -111,6 +135,7 @@ class Fragrance(Base):
     )
     name: Mapped[str] = mapped_column(String(255), index=True)
     brand: Mapped[str] = mapped_column(String(255), index=True)
+    line: Mapped[str | None] = mapped_column(String(255), nullable=True)
     concentration: Mapped[str] = mapped_column(String(50))
     version_key: Mapped[str] = mapped_column(
         String(200), default="legacy", server_default="legacy"
@@ -122,6 +147,7 @@ class Fragrance(Base):
     primary_family: Mapped[str] = mapped_column(String(50))
     subfamily: Mapped[str] = mapped_column(String(50))
     intensity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    market_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     # Data provenance
     data_source: Mapped[str] = mapped_column(String(20))
@@ -290,3 +316,39 @@ class FragranceAccord(Base):
     intensity: Mapped[float] = mapped_column(Float)
 
     fragrance: Mapped[Fragrance] = relationship(back_populates="accords")
+
+
+class FragranceGtin(Base):
+    """A barcode (GTIN) identifying one retail SKU of a fragrance version.
+
+    A GTIN is assigned per exact SKU by the manufacturer, so it is the
+    strongest identity link this project has (see ``utils/gtin.py``). One
+    version can have several (one per bottle size); one GTIN names exactly
+    one version, hence the primary key. Every row cites the evidence that
+    established it (ADR-006): a barcode with no source is not recorded.
+
+    Attributes:
+        gtin (Mapped[str]): GS1 check-digit-valid GTIN, normalized to 14
+            digits (``utils.gtin.normalize_gtin``).
+        fragrance_id (Mapped[str]): The version the SKU belongs to.
+        source_snapshot_id (Mapped[str]): Evidence row asserting the link.
+        created_at (Mapped[datetime]): When the link was recorded.
+    """
+
+    __tablename__ = "fragrance_gtins"
+    __table_args__ = (
+        CheckConstraint("length(gtin) = 14", name="ck_fragrance_gtins_length"),
+    )
+
+    gtin: Mapped[str] = mapped_column(String(14), primary_key=True)
+    fragrance_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
+    )
+    source_snapshot_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("calibration_source_snapshots.id", ondelete="RESTRICT"),
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        default=func.now(), server_default=func.now()
+    )
