@@ -77,10 +77,13 @@ class Reviewer(Base):
         nullable=True, default=None, index=True
     )
 
+    # D-09: same as Fragrance.evaluations. A reviewer's own encounter
+    # history is never deleted through the reviewer; the RESTRICT FK rejects
+    # a hard delete and soft delete is the only API path.
     evaluations: Mapped[list[Evaluation]] = relationship(
         back_populates="reviewer",
         foreign_keys="[Evaluation.reviewer_id]",
-        cascade="all, delete-orphan",
+        passive_deletes="all",
     )
     # ADR-011: the reverse side of Evaluation.worn_by_reviewer. No cascade:
     # this reviewer is only the *subject* of these rows, not their owner,

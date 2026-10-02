@@ -137,10 +137,12 @@ class PredictionSnapshot(Base):
 
     # Append-only outcome link; see class docstring.
     outcome_evaluation_id: Mapped[str | None] = mapped_column(
-        ForeignKey("evaluations.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("evaluations.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     outcome_observation_id: Mapped[str | None] = mapped_column(
-        ForeignKey("calibration_observations.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("calibration_observations.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
     )
     outcome_linked_at: Mapped[datetime | None] = mapped_column(
         nullable=True, default=None
