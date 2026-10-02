@@ -69,6 +69,18 @@ class Evaluation(Base):
             "worn_by_reviewer_id IS NULL OR worn_by_reviewer_id != reviewer_id",
             name="worn_by_reviewer_not_self",
         ),
+        # D-02: the 1-5 scales were enforced only by Pydantic; this is the
+        # highest-volume evidence table and its raw scale must survive any
+        # write path, matching calibration_observations' range CHECKs.
+        CheckConstraint("rating >= 1 AND rating <= 5", name="rating_range"),
+        CheckConstraint(
+            "longevity_rating IS NULL OR (longevity_rating >= 1 AND longevity_rating <= 5)",
+            name="longevity_rating_range",
+        ),
+        CheckConstraint(
+            "sillage_rating IS NULL OR (sillage_rating >= 1 AND sillage_rating <= 5)",
+            name="sillage_rating_range",
+        ),
         # Serves the per-reviewer, per-fragrance encounter lookups in
         # EvaluationService. Created by 001_initial_schema as
         # `idx_evaluations_reviewer_fragrance` but never declared here, so
@@ -81,10 +93,10 @@ class Evaluation(Base):
         String(36), primary_key=True, default=lambda: str(uuid4())
     )
     fragrance_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("fragrances.id", ondelete="CASCADE"), index=True
+        String(36), ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
     )
     reviewer_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("reviewers.id", ondelete="CASCADE"), index=True
+        String(36), ForeignKey("reviewers.id", ondelete="RESTRICT"), index=True
     )
     rating: Mapped[int] = mapped_column(Integer)  # 1-5
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)

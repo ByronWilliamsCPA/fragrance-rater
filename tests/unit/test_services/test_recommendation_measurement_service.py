@@ -304,7 +304,7 @@ async def test_validate_outcome_accepts_revealed_matching_observation(
     observation = Observation(
         presentation_id=presentation.id,
         stage="BLOTTER",
-        phase="FIRST",
+        phase="POST_REVEAL",
         detected=True,
         intensity=3,
         liking=7,

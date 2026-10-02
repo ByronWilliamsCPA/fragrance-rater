@@ -26,6 +26,7 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import pytest
 from alembic.autogenerate import compare_metadata
@@ -40,9 +41,12 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from fragrance_rater.models import Base
+from fragrance_rater.models.evaluation import Evaluation
+from fragrance_rater.models.fragrance import Fragrance
+from fragrance_rater.models.reviewer import Reviewer
 
 DATABASE_URL = os.getenv("P1_DATABASE_URL")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -166,3 +170,72 @@ async def test_head_migration_round_trips() -> None:
     _alembic("upgrade", "head")
     assert await _run_on_db(_structural_diff) == []
     assert await _run_on_db(_db_names) == _metadata_names()
+
+
+R2_CHECKS_REVISION_PARENT = "2c8c3971bfd8"
+
+
+@pytest.mark.asyncio
+async def test_check_migration_names_violating_rows_and_changes_nothing() -> None:
+    """df2f9646a280 refuses to add CHECKs over bad rows and names them.
+
+    Production upgrades on container start, so this message is what an
+    operator sees. The failed upgrade must leave the schema at its parent
+    revision (PostgreSQL rolls back the whole transaction).
+    """
+    assert DATABASE_URL is not None
+    engine = create_async_engine(DATABASE_URL)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    suffix = uuid4().hex
+    _alembic("downgrade", R2_CHECKS_REVISION_PARENT)
+    try:
+        async with session_factory() as session:
+            fragrance = Fragrance(
+                name=f"R2 preflight {suffix}",
+                brand="R2",
+                concentration="EDP",
+                version_key=f"r2-preflight-{suffix}",
+                gender_target="unisex",
+                primary_family="woody",
+                subfamily="aromatic",
+                data_source="r2-preflight",
+            )
+            reviewer = Reviewer(name=f"R2 preflight {suffix}")
+            session.add_all([fragrance, reviewer])
+            await session.flush()
+            evaluation = Evaluation(
+                fragrance_id=fragrance.id, reviewer_id=reviewer.id, rating=9
+            )
+            session.add(evaluation)
+            await session.commit()
+            ids = (evaluation.id, fragrance.id, reviewer.id)
+
+        with pytest.raises(subprocess.CalledProcessError) as failure:
+            _alembic("upgrade", "head")
+        stderr = failure.value.stderr.decode()
+        assert "ck_evaluations_rating_range" in stderr
+        assert ids[0] in stderr
+
+        async with engine.connect() as connection:
+            current = (
+                await connection.execute(
+                    text("SELECT version_num FROM alembic_version")
+                )
+            ).scalar_one()
+        assert current == R2_CHECKS_REVISION_PARENT
+    finally:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "DELETE FROM evaluations WHERE fragrance_id IN "
+                    "(SELECT id FROM fragrances WHERE data_source = 'r2-preflight')"
+                )
+            )
+            await connection.execute(
+                text("DELETE FROM fragrances WHERE data_source = 'r2-preflight'")
+            )
+            await connection.execute(
+                text("DELETE FROM reviewers WHERE name LIKE 'R2 preflight %'")
+            )
+        await engine.dispose()
+        _alembic("upgrade", "head")

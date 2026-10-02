@@ -86,7 +86,10 @@ class Fragrance(Base):
         accords (Mapped[list[FragranceAccord]]): Accord associations with
             intensity.
         evaluations (Mapped[list[Evaluation]]): Reviewer evaluations of this
-            fragrance.
+            fragrance. Never deleted through the fragrance: hard-deleting a
+            rated fragrance fails on the RESTRICT foreign key.
+        perfumers (Mapped[list[VersionPerfumer]]): Sourced perfumer
+            attributions for this exact version.
     """
 
     __tablename__ = "fragrances"
@@ -185,8 +188,14 @@ class Fragrance(Base):
     accords: Mapped[list[FragranceAccord]] = relationship(
         back_populates="fragrance", cascade="all, delete-orphan"
     )
+    # D-09: encounter history is never deleted through a fragrance. No
+    # delete cascade, and passive_deletes="all" so the ORM does not load and
+    # orphan these rows before issuing the DELETE; the database's RESTRICT
+    # FK then rejects hard-deleting a fragrance that has evaluations (same
+    # mechanism as Reviewer.worn_by_evaluations, ADR-011). Soft delete is
+    # the only API path.
     evaluations: Mapped[list[Evaluation]] = relationship(
-        back_populates="fragrance", cascade="all, delete-orphan"
+        back_populates="fragrance", passive_deletes="all"
     )
     # Perfumer attribution lives in calibration_version_perfumers, which carries
     # its own source_url per ADR-006's requirement that every claim keep its
