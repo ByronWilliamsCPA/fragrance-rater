@@ -6,6 +6,7 @@ This module provides async database connectivity using SQLAlchemy 2.0.
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import MetaData
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -15,8 +16,34 @@ from fragrance_rater.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+# Deterministic constraint and index names (architecture review D-03).
+#
+# Without a convention, PostgreSQL invents names for unnamed constraints
+# (`<table>_<col>_check`, `<table>_pkey`, ...) while SQLite and
+# `Base.metadata.create_all()` leave them anonymous, so a migration cannot
+# drop or alter a constraint by a name it can know in advance, and SQLite
+# batch-mode migrations cannot address it at all.
+#
+# `ck` requires every CheckConstraint to carry a short `name=` (the rule,
+# e.g. `liking_range`); the table prefix is added here, so do not repeat it
+# in the model. `fk` deliberately omits the referred table so every
+# generated name stays within PostgreSQL's 63-character identifier limit
+# without SQLAlchemy's hash-suffixed truncation, which would make the
+# PostgreSQL name differ from the SQLite one;
+# tests/integration/test_schema_parity_postgres.py asserts both properties.
+NAMING_CONVENTION: dict[str, str] = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
+
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 # Create async engine
