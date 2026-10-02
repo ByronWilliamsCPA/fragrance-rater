@@ -92,10 +92,19 @@ async def test_family_member_cannot_read_or_write(test_app):
 
 @pytest.mark.asyncio
 async def test_manager_reads_every_house_but_cannot_write(test_app):
-    await create(test_app)
-    await create(test_app, headers=HOUSE_B, fragrance_name="Atelier scent")
+    first = await create(test_app)
+    second = await create(test_app, headers=HOUSE_B, fragrance_name="Atelier scent")
+    await create(test_app, fragrance_name="Still a draft")
+    for record, headers in ((first, HOUSE_A), (second, HOUSE_B)):
+        await test_app.post(
+            f"{PREFIX}/submissions/{record['id']}/submit", headers=headers
+        )
     listed = await test_app.get(f"{PREFIX}/submissions", headers=MANAGER)
     assert {item["house"] for item in listed.json()} == {"Maison A", "Atelier B"}
+    assert "Still a draft" not in {
+        item["payload"]["fragrance_name"] for item in listed.json()
+    }
+    assert all(item["review_status"] == "pending" for item in listed.json())
     response = await test_app.post(
         f"{PREFIX}/submissions", json=complete_payload(), headers=MANAGER
     )

@@ -8,10 +8,12 @@ import {
   type HouseAccess,
   type HouseSubmission,
   type HouseSubmissionPayload,
+  type ReviewStatus,
 } from '../api/houseIntake'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { EmptyState, LoadingState } from '../components/PageState'
 import { useTask } from '../hooks/useTask'
+import { HouseReviewPanel } from './HouseReviewPanel'
 import { HouseSubmissionForm } from './HouseSubmissionForm'
 import { HouseSubmissionSummary } from './HouseSubmissionSummary'
 
@@ -28,26 +30,53 @@ function formatUtc(value: string): string {
 }
 
 function statusLine(submission: HouseSubmission): string {
-  if (submission.superseded_by_id) return 'Replaced by a correction'
-  if (submission.status === 'submitted' && submission.submitted_at)
-    return `Submitted ${formatUtc(submission.submitted_at)}`
-  return submission.supersedes_id ? 'Correction in progress' : 'Draft'
+  const reviewed = submission.reviewed_at ? ` ${formatUtc(submission.reviewed_at)}` : ''
+  switch (submission.review_status) {
+    case 'adopted':
+      return `Accepted${reviewed}`
+    case 'declined':
+      return `Not accepted${reviewed}`
+    case 'superseded':
+      return 'Replaced by a correction'
+    case 'pending':
+      return submission.superseded_by_id
+        ? 'Awaiting review · a correction is in progress'
+        : `Submitted ${submission.submitted_at ? formatUtc(submission.submitted_at) : ''} · awaiting review`
+    default:
+      return submission.supersedes_id ? 'Correction in progress' : 'Draft'
+  }
 }
 
+const reviewFilters: ReadonlyArray<{ value: ReviewStatus | 'all'; label: string }> = [
+  { value: 'pending', label: 'Awaiting review' },
+  { value: 'adopted', label: 'Accepted' },
+  { value: 'declined', label: 'Not accepted' },
+  { value: 'superseded', label: 'Replaced' },
+  { value: 'all', label: 'All' },
+]
+
 type Props = { access: HouseAccess }
+
+function visible(submissions: HouseSubmission[], filter: ReviewStatus | 'all'): HouseSubmission[] {
+  return filter === 'all'
+    ? submissions
+    : submissions.filter((submission) => submission.review_status === filter)
+}
 
 /**
  * Where a fragrance house describes its fragrances, and where a manager
  * reads what houses have sent.
  *
  * A house sees only its own records (the server scopes every read to the
- * house on the account). A manager sees every house's records, read-only:
+ * house on the account) and the outcome of each review. A manager sees every
+ * house's submitted records and reviews them, but never edits their content:
  * a manager writing on a house's behalf would no longer be the house's own
  * statement (ADR-012).
  */
 export function HouseIntakePage({ access }: Props) {
   const [submissions, setSubmissions] = useState<HouseSubmission[] | null>(null)
   const [view, setView] = useState<View>({ kind: 'list' })
+  const [filter, setFilter] = useState<ReviewStatus | 'all'>('pending')
   const task = useTask()
   const house = access.house
   const canWrite = house !== null
@@ -138,8 +167,36 @@ export function HouseIntakePage({ access }: Props) {
             </>
           )}
         </dl>
+        {record.review_status && record.review_status !== 'pending' && (
+          <dl className="standing">
+            <dt>Review</dt>
+            <dd>{statusLine(record)}</dd>
+            {record.reviewed_by && (
+              <>
+                <dt>Reviewed by</dt>
+                <dd>{record.reviewed_by}</dd>
+              </>
+            )}
+            {record.review_note && (
+              <>
+                <dt>{record.review_status === 'declined' ? 'Reason' : 'Note'}</dt>
+                <dd className="house-summary__description">{record.review_note}</dd>
+              </>
+            )}
+          </dl>
+        )}
         <HouseSubmissionSummary house={record.house} payload={record.payload} />
-        <FeedbackBanner error={task.error} />
+        {access.manager && record.review_status === 'pending' && (
+          <HouseReviewPanel
+            submission={record}
+            onReviewed={(reviewed, notice) => {
+              setView({ kind: 'record', submission: reviewed })
+              task.setNotice(notice)
+              void load()
+            }}
+          />
+        )}
+        <FeedbackBanner error={task.error} notice={task.notice} />
         {correctionId ? (
           <button
             type="button"
@@ -179,7 +236,7 @@ export function HouseIntakePage({ access }: Props) {
           <p>
             {canWrite
               ? 'Describe each of your fragrances in your own words. Save a draft at any time and submit when it is complete.'
-              : 'What fragrance houses have sent, read-only. Nothing here changes the catalog until it is reviewed.'}
+              : 'What fragrance houses have submitted. Nothing here changes the catalog until you review it: adopt it as evidence, or decline it with a reason the house will see.'}
           </p>
         </div>
         {canWrite && (
@@ -196,53 +253,72 @@ export function HouseIntakePage({ access }: Props) {
         task.error ? null : (
           <LoadingState label="Loading submissions…" />
         )
-      ) : submissions.length === 0 ? (
+      ) : (canWrite ? submissions : visible(submissions, filter)).length === 0 &&
+        (canWrite || filter === 'all') ? (
         <EmptyState title="Nothing here yet">
           {canWrite
             ? 'Start with one fragrance. Most people finish in ten to fifteen minutes with the product page open beside them.'
             : 'No house has sent a submission yet.'}
         </EmptyState>
       ) : (
-        <ul className="data-list house-submissions">
-          {submissions.map((submission) => (
-            <li key={submission.id}>
-              <strong>{submission.payload.fragrance_name}</strong>
-              <span>
-                {!canWrite && `${submission.house} · `}
-                {submission.payload.concentration === 'OTHER'
-                  ? (submission.payload.concentration_other ?? 'Concentration not given')
-                  : submission.payload.concentration
-                    ? labelFor(concentrationOptions, submission.payload.concentration)
-                    : 'Concentration not given'}
-                {submission.payload.launch_year ? ` · ${submission.payload.launch_year}` : ''}
-              </span>
-              <small>{statusLine(submission)}</small>
-              <div className="button-row">
-                {submission.status === 'draft' && canWrite ? (
-                  <button
-                    type="button"
-                    className="secondary"
-                    aria-label={`Continue editing ${submission.payload.fragrance_name}`}
-                    onClick={() =>
-                      setView({ kind: 'edit', submission, initial: submission.payload })
-                    }
-                  >
-                    Continue editing
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="secondary"
-                    aria-label={`View ${submission.payload.fragrance_name}`}
-                    onClick={() => setView({ kind: 'record', submission })}
-                  >
-                    View
-                  </button>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
+        <>
+          {!canWrite && (
+            <div className="button-row review-filter" role="group" aria-label="Show">
+              {reviewFilters.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="secondary"
+                  aria-pressed={filter === option.value}
+                  onClick={() => setFilter(option.value)}
+                >
+                  {option.label} ({visible(submissions, option.value).length})
+                </button>
+              ))}
+            </div>
+          )}
+          {!canWrite && visible(submissions, filter).length === 0 && <p>Nothing in this list.</p>}
+          <ul className="data-list house-submissions">
+            {(canWrite ? submissions : visible(submissions, filter)).map((submission) => (
+              <li key={submission.id}>
+                <strong>{submission.payload.fragrance_name}</strong>
+                <span>
+                  {!canWrite && `${submission.house} · `}
+                  {submission.payload.concentration === 'OTHER'
+                    ? (submission.payload.concentration_other ?? 'Concentration not given')
+                    : submission.payload.concentration
+                      ? labelFor(concentrationOptions, submission.payload.concentration)
+                      : 'Concentration not given'}
+                  {submission.payload.launch_year ? ` · ${submission.payload.launch_year}` : ''}
+                </span>
+                <small>{statusLine(submission)}</small>
+                <div className="button-row">
+                  {submission.status === 'draft' && canWrite ? (
+                    <button
+                      type="button"
+                      className="secondary"
+                      aria-label={`Continue editing ${submission.payload.fragrance_name}`}
+                      onClick={() =>
+                        setView({ kind: 'edit', submission, initial: submission.payload })
+                      }
+                    >
+                      Continue editing
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="secondary"
+                      aria-label={`${!canWrite && submission.review_status === 'pending' ? 'Review' : 'View'} ${submission.payload.fragrance_name}`}
+                      onClick={() => setView({ kind: 'record', submission })}
+                    >
+                      {!canWrite && submission.review_status === 'pending' ? 'Review' : 'View'}
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   )

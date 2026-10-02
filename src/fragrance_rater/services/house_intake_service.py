@@ -64,9 +64,16 @@ class HouseIntakeService:
         )
         if house is not None:
             query = query.where(HouseSubmission.house == house)
+        else:
+            # A draft is not yet a statement by the house; managers review
+            # only what a house chose to submit.
+            query = query.where(HouseSubmission.status == "submitted")
         rows = list(await self.db.scalars(query))
-        successors = {row.supersedes_id: row.id for row in rows if row.supersedes_id}
-        return [self._response(row, successors.get(row.id)) for row in rows]
+        successors = await self._successors({row.id for row in rows})
+        return [
+            self.to_response(row, successors.get(row.id), manager=house is None)
+            for row in rows
+        ]
 
     async def get(
         self, submission_id: str, house: str | None
@@ -81,7 +88,9 @@ class HouseIntakeService:
             HouseSubmissionResponse: The submission.
         """
         row = await self._visible(submission_id, house)
-        return self._response(row, await self._successor_id(row.id))
+        return self.to_response(
+            row, await self._successor_id(row.id), manager=house is None
+        )
 
     async def create(
         self, house: str, username: str, payload: HouseSubmissionPayload
@@ -104,7 +113,7 @@ class HouseIntakeService:
         )
         self.db.add(row)
         await self.db.flush()
-        return self._response(row, None)
+        return self.to_response(row, None)
 
     async def update(
         self, submission_id: str, house: str, payload: HouseSubmissionPayload
@@ -123,7 +132,7 @@ class HouseIntakeService:
         row.payload = payload.model_dump(mode="json")
         row.updated_at = now_naive_utc()
         await self.db.flush()
-        return self._response(row, None)
+        return self.to_response(row, None)
 
     async def delete(self, submission_id: str, house: str) -> None:
         """Discard a draft. Submitted records are evidence and are kept.
@@ -174,11 +183,21 @@ class HouseIntakeService:
         now = now_naive_utc()
         row.permission_state = payload.permission_scope
         row.status = "submitted"
+        row.review_status = "pending"
         row.submitted_at = now
         row.submitted_by = username
         row.updated_at = now
+        # #ASSUME: data-integrity: once a correction is submitted, the record
+        # it corrects is no longer the house's current statement, so it must
+        # not be adopted. A record already adopted or declined keeps its
+        # outcome: that decision was made on what the house said at the time.
+        # #VERIFY: test_submitted_correction_supersedes_pending_original.
+        if row.supersedes_id is not None:
+            original = await self.db.get(HouseSubmission, row.supersedes_id)
+            if original is not None and original.review_status == "pending":
+                original.review_status = "superseded"
         await self.db.flush()
-        return self._response(row, None)
+        return self.to_response(row, None)
 
     async def revise(
         self, submission_id: str, house: str, username: str
@@ -227,13 +246,17 @@ class HouseIntakeService:
         except IntegrityError as error:
             msg = "A correction for this record already exists."
             raise _conflict(ALREADY_REVISED, msg) from error
-        return self._response(draft, None)
+        return self.to_response(draft, None)
 
     async def _visible(self, submission_id: str, house: str | None) -> HouseSubmission:
         row = await self.db.get(HouseSubmission, submission_id)
         # A record of another house is reported exactly like a missing one,
-        # so ids cannot be probed across houses.
-        if row is None or (house is not None and row.house != house):
+        # so ids cannot be probed across houses; a manager cannot see drafts.
+        hidden = row is not None and (
+            (house is not None and row.house != house)
+            or (house is None and row.status == "draft")
+        )
+        if row is None or hidden:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={"error": "NOT_FOUND", "message": "Submission not found."},
@@ -250,6 +273,18 @@ class HouseIntakeService:
             raise _conflict(ALREADY_SUBMITTED, msg)
         return row
 
+    async def _successors(self, submission_ids: set[str]) -> dict[str, str]:
+        if not submission_ids:
+            return {}
+        rows = await self.db.execute(
+            select(HouseSubmission.supersedes_id, HouseSubmission.id).where(
+                HouseSubmission.supersedes_id.in_(submission_ids)
+            )
+        )
+        return {
+            original: successor for original, successor in rows.tuples() if original
+        }
+
     async def _successor_id(self, submission_id: str) -> str | None:
         return await self.db.scalar(
             select(HouseSubmission.id).where(
@@ -258,9 +293,20 @@ class HouseIntakeService:
         )
 
     @staticmethod
-    def _response(
-        row: HouseSubmission, superseded_by_id: str | None
+    def to_response(
+        row: HouseSubmission, superseded_by_id: str | None, *, manager: bool = False
     ) -> HouseSubmissionResponse:
+        """Build the API view of a row.
+
+        Args:
+            row (HouseSubmission): The stored submission.
+            superseded_by_id (str | None): The correction replacing it, if any.
+            manager (bool): Include manager-only fields (reviewer, catalog and
+                evidence ids); a house sees them blanked.
+
+        Returns:
+            HouseSubmissionResponse: The response model.
+        """
         return HouseSubmissionResponse.model_validate(
             {
                 "id": row.id,
@@ -275,5 +321,11 @@ class HouseIntakeService:
                 "supersedes_id": row.supersedes_id,
                 "superseded_by_id": superseded_by_id,
                 "payload": row.payload,
+                "review_status": row.review_status,
+                "reviewed_at": row.reviewed_at,
+                "review_note": row.review_note,
+                "reviewed_by": row.reviewed_by if manager else None,
+                "fragrance_id": row.fragrance_id if manager else None,
+                "source_snapshot_id": row.source_snapshot_id if manager else None,
             }
         )

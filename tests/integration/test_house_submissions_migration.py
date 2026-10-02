@@ -5,7 +5,7 @@ from pathlib import Path
 
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import CheckConstraint, create_engine, inspect
 
 from fragrance_rater.models import Base
 
@@ -36,13 +36,27 @@ def test_upgrade_matches_model_and_downgrade_removes_table():
         migrated = {column["name"] for column in inspector.get_columns(_TABLE)}
         modeled = {column.name for column in Base.metadata.tables[_TABLE].columns}
         assert migrated == modeled
-        checks = {check["name"] for check in inspector.get_check_constraints(_TABLE)}
+        checks = {
+            check["name"]: " ".join(check["sqltext"].split())
+            for check in inspector.get_check_constraints(_TABLE)
+        }
         modeled_checks = {
-            constraint.name
+            constraint.name: " ".join(str(constraint.sqltext).split())
             for constraint in Base.metadata.tables[_TABLE].constraints
-            if constraint.__class__.__name__ == "CheckConstraint"
+            if isinstance(constraint, CheckConstraint)
         }
         assert checks == modeled_checks
+        foreign_keys = {
+            fk["referred_table"] for fk in inspector.get_foreign_keys(_TABLE)
+        }
+        indexes = {index["name"] for index in inspector.get_indexes(_TABLE)}
+        modeled_indexes = {index.name for index in Base.metadata.tables[_TABLE].indexes}
+        assert modeled_indexes <= indexes
+        assert foreign_keys == {
+            _TABLE,
+            "fragrances",
+            "calibration_source_snapshots",
+        }
 
         _run(connection, migration.downgrade)
         assert _TABLE not in inspect(connection).get_table_names()

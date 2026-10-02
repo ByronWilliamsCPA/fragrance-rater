@@ -1,15 +1,16 @@
 """Fragrance house intake endpoints.
 
 A house contributor drafts, submits, and corrects descriptions of its own
-fragrances. A calibration manager may read every house's submissions but
-cannot write them: a manager speaking for a house would defeat the point of
+fragrances. A calibration manager may read every house's submitted records
+and review them (adopt as evidence, or decline), but cannot write their
+content: a manager speaking for a house would defeat the point of
 manufacturer-provided evidence (ADR-012). Everyone else is refused.
 """
 
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
@@ -20,7 +21,13 @@ from fragrance_rater.schemas.house_intake import (
     HouseSubmissionPayload,
     HouseSubmissionResponse,
 )
+from fragrance_rater.schemas.house_review import (
+    AdoptInput,
+    DeclineInput,
+    ReviewContext,
+)
 from fragrance_rater.services.house_intake_service import HouseIntakeService
+from fragrance_rater.services.house_review_service import HouseReviewService
 
 router = APIRouter(prefix="/house-intake", tags=["house-intake"])
 Identity = Annotated[AuthenticatedIdentity, Depends(get_current_identity)]
@@ -39,6 +46,23 @@ def get_service(db: Annotated[AsyncSession, Depends(get_db)]) -> HouseIntakeServ
 
 
 Service = Annotated[HouseIntakeService, Depends(get_service)]
+
+
+def get_review_service(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> HouseReviewService:
+    """Build the request-scoped review service.
+
+    Args:
+        db (Annotated[AsyncSession, Depends(get_db)]): Request-scoped session.
+
+    Returns:
+        HouseReviewService: The service.
+    """
+    return HouseReviewService(db)
+
+
+ReviewService = Annotated[HouseReviewService, Depends(get_review_service)]
 
 
 @dataclass(frozen=True)
@@ -111,7 +135,27 @@ def writer(identity: Identity) -> tuple[IntakeActor, str]:
     return actor, actor.house
 
 
+def reviewer(identity: Identity) -> IntakeActor:
+    """Require a calibration manager.
+
+    Args:
+        identity (Identity): Forward-auth identity.
+
+    Returns:
+        IntakeActor: The caller.
+
+    Raises:
+        _forbidden: 403 when the caller is not a manager.
+    """
+    actor = _actor(identity)
+    if not actor.manager:
+        msg = "Only a calibration manager can review house submissions."
+        raise _forbidden(msg)
+    return actor
+
+
 Reader = Annotated[IntakeActor, Depends(reader)]
+Reviewer = Annotated[IntakeActor, Depends(reviewer)]
 Writer = Annotated[tuple[IntakeActor, str], Depends(writer)]
 
 
@@ -201,3 +245,34 @@ async def revise_submission(
     """Start a correction that will supersede a submitted record."""
     actor, house = caller
     return await service.revise(submission_id, house, actor.username)
+
+
+@router.get("/submissions/{submission_id}/review", response_model=ReviewContext)
+async def review_context(
+    submission_id: str,
+    _actor: Reviewer,
+    service: ReviewService,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+) -> ReviewContext:
+    """Show a submission beside the catalog versions it might describe."""
+    return await service.context(submission_id, q)
+
+
+@router.post(
+    "/submissions/{submission_id}/adopt", response_model=HouseSubmissionResponse
+)
+async def adopt_submission(
+    submission_id: str, decision: AdoptInput, actor: Reviewer, service: ReviewService
+) -> HouseSubmissionResponse:
+    """Adopt a submission as manufacturer-provided evidence."""
+    return await service.adopt(submission_id, actor.username, decision)
+
+
+@router.post(
+    "/submissions/{submission_id}/decline", response_model=HouseSubmissionResponse
+)
+async def decline_submission(
+    submission_id: str, decision: DeclineInput, actor: Reviewer, service: ReviewService
+) -> HouseSubmissionResponse:
+    """Decline a submission with a reason the house will see."""
+    return await service.decline(submission_id, actor.username, decision)

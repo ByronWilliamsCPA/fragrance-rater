@@ -34,6 +34,7 @@ NoteStructure = Literal["pyramid", "linear"]
 NotePosition = Literal["top", "heart", "base", "unspecified"]
 PermissionScope = Literal["retain_and_train", "retain_for_qc_only"]
 SubmissionStatus = Literal["draft", "submitted"]
+ReviewStatus = Literal["pending", "adopted", "declined", "superseded"]
 
 #: Earliest launch year accepted. Houses such as Farina (1709) and Floris
 #: (1730) still sell fragrances from the eighteenth century.
@@ -311,3 +312,11 @@ class HouseSubmissionResponse(BaseModel):
     supersedes_id: str | None
     superseded_by_id: str | None
     payload: HouseSubmissionPayload
+    review_status: ReviewStatus | None = None
+    reviewed_at: datetime | None = None
+    review_note: str | None = None
+    # Manager-only: blanked in responses to a house, which has no use for the
+    # reviewing manager's account name or internal catalog ids.
+    reviewed_by: str | None = None
+    fragrance_id: str | None = None
+    source_snapshot_id: str | None = None

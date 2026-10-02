@@ -52,6 +52,79 @@ export type HouseSubmission = {
   supersedes_id: string | null
   superseded_by_id: string | null
   payload: HouseSubmissionPayload
+  review_status: ReviewStatus | null
+  reviewed_at: string | null
+  /** Shown to the house; required when a manager declines. */
+  review_note: string | null
+  /** Manager view only; always null in a response to a house. */
+  reviewed_by: string | null
+  fragrance_id: string | null
+  source_snapshot_id: string | null
+}
+
+export type ReviewStatus = 'pending' | 'adopted' | 'declined' | 'superseded'
+
+export type ConfirmableField = 'name' | 'brand' | 'concentration' | 'launch_year' | 'gender_target'
+export type UpdatableField = 'launch_year' | 'gender_target'
+export type Comparison = 'same' | 'differs' | 'house_silent'
+export type GenderTarget = 'Masculine' | 'Feminine' | 'Unisex'
+
+export const confirmableFields: ReadonlyArray<{ field: ConfirmableField; label: string }> = [
+  { field: 'name', label: 'Name' },
+  { field: 'brand', label: 'Brand' },
+  { field: 'concentration', label: 'Concentration' },
+  { field: 'launch_year', label: 'Launch year' },
+  { field: 'gender_target', label: 'Gender target' },
+]
+
+/** A different name, brand, or concentration means another version, not a fix. */
+export const identityFields: ReadonlySet<ConfirmableField> = new Set([
+  'name',
+  'brand',
+  'concentration',
+])
+
+export type ProposedFacts = {
+  name: string
+  brand: string
+  concentration: string | null
+  launch_year: number | null
+  gender_target: GenderTarget | null
+}
+
+export type CatalogCandidate = {
+  id: string
+  name: string
+  brand: string
+  concentration: string
+  version_key: string
+  launch_year: number | null
+  gender_target: string
+  primary_family: string
+  subfamily: string
+  comparison: Record<ConfirmableField, Comparison>
+}
+
+export type ReviewContext = {
+  submission: HouseSubmission
+  proposed: ProposedFacts
+  candidates: CatalogCandidate[]
+}
+
+export type AdoptInput = {
+  target:
+    | { kind: 'existing'; fragrance_id: string }
+    | {
+        kind: 'new'
+        version_key: string
+        primary_family: string
+        subfamily: string
+        gender_target: GenderTarget | null
+      }
+  confirmed_fields: ConfirmableField[]
+  apply_updates: UpdatableField[]
+  record_perfumers: boolean
+  review_note: string | null
 }
 
 export type HouseAccess = { username: string; house: string | null; manager: boolean }
