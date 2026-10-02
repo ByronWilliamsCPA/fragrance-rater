@@ -32,6 +32,8 @@ function mockBootstrap(manager: boolean) {
       '/calibration/access': { username: 'family-member', manager },
       '/calibration/enrollments': [],
       '/evaluations': [],
+      '/house-intake/access': { username: 'family-member', house: null, manager },
+      '/house-intake/submissions': [],
     }
     return Promise.resolve({ data: responses[path] })
   })

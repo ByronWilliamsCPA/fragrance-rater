@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, requestErrorMessage } from '../api/client'
+import type { HouseAccess } from '../api/houseIntake'
 import type { Access, EnrollmentSummary, Person, Program } from '../api/types'
 import { capabilitiesFor } from '../api/types'
 
@@ -9,6 +10,7 @@ const emptyAccess: Access = { username: '', manager: false }
 
 export function useAppData() {
   const [access, setAccess] = useState<Access>(emptyAccess)
+  const [houseAccess, setHouseAccess] = useState<HouseAccess | null>(null)
   const [assignments, setAssignments] = useState<EnrollmentSummary[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
   const [reviewers, setReviewers] = useState<Person[]>([])
@@ -20,6 +22,20 @@ export function useAppData() {
     if (!loaded.current) setLoading(true)
     setError('')
     try {
+      // A fragrance house account is fenced away from every household
+      // endpoint on the server, so ask first which experience to load. A
+      // failed probe falls back to the household experience: the server, not
+      // this branch, is what keeps a house account out of household data.
+      const house = await api
+        .get<HouseAccess>('/house-intake/access')
+        .then((response) => response.data)
+        .catch(() => null)
+      setHouseAccess(house)
+      if (house?.house) {
+        setAccess({ username: house.username, manager: false, house: house.house })
+        loaded.current = true
+        return
+      }
       const [assignmentResponse, programResponse, reviewerResponse, accessResponse] =
         await Promise.all([
           api.get<EnrollmentSummary[]>('/calibration/enrollments'),
@@ -52,6 +68,7 @@ export function useAppData() {
 
   return {
     access,
+    houseAccess,
     assignments,
     programs,
     reviewers,

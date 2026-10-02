@@ -46,6 +46,14 @@ const routeDefinitions = [
     managerOnly: true,
   },
   {
+    route: 'house',
+    label: 'House submissions',
+    path: '/house',
+    documentTitle: 'House submissions',
+    managerOnly: true,
+    forHouses: true,
+  },
+  {
     route: 'about',
     label: 'About',
     path: '/about',
@@ -78,6 +86,12 @@ export type NavigationItem = {
    */
   documentTitle: string
   managerOnly?: boolean
+  /**
+   * Shown to fragrance house contributors. A house account sees only these
+   * routes; the server fences it away from every other API route as well
+   * (`middleware/house_fence.py`), so this is presentation, not protection.
+   */
+  forHouses?: boolean
   hiddenFromNav?: boolean
 }
 
