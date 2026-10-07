@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, NoReturn
 
 from fastapi import HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.models.calibration import (
@@ -275,8 +275,17 @@ class CalibrationService:
         # test_controlled_lifecycle_authorization_and_reveal asserts the
         # mapping's first row is the baseline fragrance, not the holdout.
         session_created_at = now_naive_utc()
+        # #ASSUME: Concurrency: the enrollment ordinal below is a row count, so
+        # two simultaneous standard-scheme enrollments could compute the same
+        # prefix. #VERIFY: Presentation.blind_code is globally UNIQUE, so a
+        # collision fails the transaction loudly instead of duplicating labels.
+        enrollment_ordinal = (
+            await self.db.scalar(select(func.count()).select_from(Enrollment)) or 1
+        )
+        session_number = 0
         for block in blocks:
             for offset in range(0, len(block), data.session_size):
+                session_number += 1
                 session = CalibrationSession(
                     enrollment_id=enrollment.id,
                     context={},
@@ -292,7 +301,11 @@ class CalibrationService:
                         Presentation(
                             session_id=session.id,
                             membership_id=member.id,
-                            blind_code=secrets.token_hex(4).upper(),
+                            blind_code=(
+                                f"E{enrollment_ordinal:02d}-S{session_number}-{position}"
+                                if data.label_scheme == "standard"
+                                else secrets.token_hex(4).upper()
+                            ),
                             position=position,
                         )
                     )

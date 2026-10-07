@@ -169,6 +169,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
         .map((username) => username.trim())
         .filter(Boolean),
       session_size: Number(values.session_size),
+      label_scheme: values.label_scheme === 'random' ? 'random' : 'standard',
     })
     await reload()
     form.reset()
@@ -487,6 +488,13 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
             <label>
               Samples per session
               <input name="session_size" type="number" min="1" max="20" defaultValue="3" />
+            </label>
+            <label>
+              Blind label scheme
+              <select name="label_scheme" defaultValue="standard">
+                <option value="standard">Standard (E01-S1-1, session and position)</option>
+                <option value="random">Random code (8 hex characters)</option>
+              </select>
             </label>
             <button disabled={task.busy || selectedProgram?.status !== 'active'}>
               Enroll evaluator

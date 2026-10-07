@@ -2901,6 +2901,15 @@
             "minimum": 1.0,
             "title": "Session Size",
             "default": 3
+          },
+          "label_scheme": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "random"
+            ],
+            "title": "Label Scheme",
+            "default": "standard"
           }
         },
         "additionalProperties": false,
