@@ -184,6 +184,21 @@
       ]
     },
     {
+      "description": "Python is pinned to 3.12 only (R1 decision, requires-python ==3.12.*). The rule above matches depType python, but the pep621 manager reports requires-python bumps with depType requires-python, so it never caught them (PR #123 proposed ==3.15.*). Hold these updates; change the Python target deliberately, not through Renovate.",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "enabled": false,
+      "labels": [
+        "dependencies",
+        "python-version",
+        "breaking-change"
+      ]
+    },
+    {
       "description": "Advance org reusable-workflow SHA pins to the latest semver release tag. No followTag: the org tag-protection ruleset makes every vX.Y.Z tag immutable and no floating major tag exists, so a followed tag would freeze pins permanently.",
       "matchManagers": [
         "github-actions"
