@@ -12,6 +12,7 @@ PREFIX = "/api/v1/calibration"
 MANAGER = {"X-Authentik-Username": "manager"}
 RECORDER = {"X-Authentik-Username": "recorder"}
 OUTSIDER = {"X-Authentik-Username": "outsider"}
+ANONYMOUS = {"X-Authentik-Username": ""}
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +23,7 @@ def calibration_manager(monkeypatch):
 @pytest.mark.asyncio
 async def test_anonymous_and_non_manager_cannot_manage_programs(test_app):
     data = {"name": "Test protocol", "version": "1"}
-    response = await test_app.post(f"{PREFIX}/programs", json=data)
+    response = await test_app.post(f"{PREFIX}/programs", json=data, headers=ANONYMOUS)
     assert response.status_code == 401
     response = await test_app.post(f"{PREFIX}/programs", json=data, headers=RECORDER)
     assert response.status_code == 403

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.auth import VerifiedIdentity, require_identity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.core.exceptions import ValidationError
 from fragrance_rater.schemas.fragrance import (
@@ -33,7 +33,11 @@ async def get_fragrance_service(
     return FragranceService(session)
 
 
-@router.get("", response_model=list[FragranceResponse])
+@router.get(
+    "",
+    response_model=list[FragranceResponse],
+    dependencies=[Depends(require_identity)],
+)
 async def list_fragrances(
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
     *,
@@ -106,7 +110,11 @@ async def list_fragrances(
     ]
 
 
-@router.get("/{fragrance_id}", response_model=FragranceResponse)
+@router.get(
+    "/{fragrance_id}",
+    response_model=FragranceResponse,
+    dependencies=[Depends(require_identity)],
+)
 async def get_fragrance(
     fragrance_id: str,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
@@ -174,7 +182,7 @@ async def get_fragrance(
 async def create_fragrance(
     data: FragranceCreate,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> FragranceResponse:
     """Create a new fragrance with notes and accords.
 
@@ -228,7 +236,7 @@ async def update_fragrance(
     fragrance_id: str,
     data: FragranceUpdate,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> FragranceResponse:
     """Update an existing fragrance.
 
@@ -282,7 +290,7 @@ async def update_fragrance(
 async def delete_fragrance(
     fragrance_id: str,
     service: Annotated[FragranceService, Depends(get_fragrance_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> None:
     """Soft-delete a fragrance by ID."""
     deleted = await service.delete(fragrance_id)

@@ -298,6 +298,10 @@
        {
         "key": "X-API-Key",
         "value": "{{apiKey}}"
+       },
+       {
+        "key": "X-Authentik-Username",
+        "value": "postman-contract"
        }
       ],
       "body": {
@@ -367,6 +371,10 @@
        {
         "key": "X-API-Key",
         "value": "{{apiKey}}"
+       },
+       {
+        "key": "X-Authentik-Username",
+        "value": "postman-contract"
        }
       ],
       "body": {

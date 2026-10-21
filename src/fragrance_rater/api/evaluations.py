@@ -5,7 +5,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.auth import (
+    VerifiedIdentity,
+    actor,
+    assigned_reviewer_ids,
+    authorize_reviewer,
+)
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.evaluation import (
     EvaluationCreate,
@@ -46,6 +51,8 @@ async def get_reviewer_service(
 @router.get("", response_model=list[EvaluationResponse])
 async def list_evaluations(
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    identity: VerifiedIdentity,
     reviewer_id: Annotated[
         str | None, Query(description="Filter by reviewer ID")
     ] = None,
@@ -53,11 +60,22 @@ async def list_evaluations(
         str | None, Query(description="Filter by fragrance ID")
     ] = None,
 ) -> list[EvaluationResponse]:
-    """List evaluations with optional filters."""
+    """List evaluations with optional filters.
+
+    Only managers, and recorders assigned to the reviewer, see a reviewer's
+    evaluations (architecture review Q5, decided 2026-10-21). Filtering by
+    fragrance spans reviewers, so the result keeps only reviewers the caller
+    may read.
+    """
+    username, admin = actor(identity)
     if reviewer_id:
+        await authorize_reviewer(db, reviewer_id, username, admin)
         evaluations = await service.get_by_reviewer(reviewer_id)
     elif fragrance_id:
         evaluations = await service.get_by_fragrance(fragrance_id)
+        if not admin:
+            readable = await assigned_reviewer_ids(db, username)
+            evaluations = [e for e in evaluations if e.reviewer_id in readable]
     else:
         # Return empty list if no filter specified (for safety)
         return []
@@ -84,14 +102,18 @@ async def list_evaluations(
 async def get_evaluation(
     evaluation_id: str,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    identity: VerifiedIdentity,
 ) -> EvaluationResponse:
-    """Get an evaluation by ID."""
+    """Get an evaluation by ID, if the caller may read its reviewer."""
     evaluation = await service.get_by_id(evaluation_id)
     if not evaluation:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": "EVALUATION_NOT_FOUND", "message": "Evaluation not found"},
         )
+    username, admin = actor(identity)
+    await authorize_reviewer(db, evaluation.reviewer_id, username, admin)
     return EvaluationResponse(
         id=evaluation.id,
         fragrance_id=evaluation.fragrance_id,
@@ -113,7 +135,7 @@ async def create_evaluation(
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
     fragrance_service: Annotated[FragranceService, Depends(get_fragrance_service)],
     reviewer_service: Annotated[ReviewerService, Depends(get_reviewer_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> EvaluationResponse:
     """Create a new evaluation.
 
@@ -201,7 +223,7 @@ async def update_evaluation(
     data: EvaluationUpdate,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
     reviewer_service: Annotated[ReviewerService, Depends(get_reviewer_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> EvaluationResponse:
     """Update an existing evaluation."""
     # ADR-011: `EvaluationUpdate` has no `reviewer_id` field (immutable via
@@ -275,7 +297,7 @@ async def update_evaluation(
 async def delete_evaluation(
     evaluation_id: str,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> None:
     """Soft-delete an evaluation by ID."""
     deleted = await service.delete(evaluation_id)
