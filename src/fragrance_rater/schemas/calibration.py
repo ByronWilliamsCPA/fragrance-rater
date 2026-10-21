@@ -68,6 +68,9 @@ class EnrollmentInput(StrictInput):
     reviewer_id: str
     recorder_usernames: list[str] = Field(min_length=1, max_length=20)
     session_size: int = Field(default=3, ge=1, le=20)
+    # "standard" yields readable labels (E01-S1-2) that are easy to write on
+    # vials; "random" keeps the independent 8-hex-character codes.
+    label_scheme: Literal["standard", "random"] = "standard"
 
 
 class SkinPlanInput(StrictInput):

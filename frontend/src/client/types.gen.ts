@@ -114,6 +114,10 @@ export type EnrollmentInput = {
      * Session Size
      */
     session_size?: number;
+    /**
+     * Label Scheme
+     */
+    label_scheme?: 'standard' | 'random';
 };
 
 /**
