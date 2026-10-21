@@ -19,6 +19,12 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
   const aboutNavItem = navigationItems.find((item) => item.route === 'about')
   const evidenceNavItem = navigationItems.find((item) => item.route === 'evidence')
   const role = roleLabelFor(capabilities)
+  const house = capabilities.isHouseContributor
+  const visibleItems = navigationItems.filter((item) => {
+    if (item.hiddenFromNav) return false
+    if (house) return item.forHouses === true
+    return !item.managerOnly || capabilities.canManagePrograms
+  })
 
   useDocumentTitle(route)
 
@@ -41,12 +47,20 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
       <header className="masthead">
         <div className="masthead__name">
           <h1>Fragrance Rater</h1>
-          <span className="masthead__qualifier">Sensory evaluation record</span>
+          <span className="masthead__qualifier">
+            {house ? 'Fragrance house submissions' : 'Sensory evaluation record'}
+          </span>
         </div>
         <div className="masthead__aside">
           <dl className="masthead__particulars">
             <dt>Account</dt>
             <dd>{access.username || 'Verified family account'}</dd>
+            {house && access.house && (
+              <>
+                <dt>House</dt>
+                <dd>{access.house}</dd>
+              </>
+            )}
             <dt>Role</dt>
             <dd>{role}</dd>
           </dl>
@@ -54,27 +68,30 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
         </div>
       </header>
       <nav className="app-nav" aria-label="Main navigation">
-        {navigationItems
-          .filter(
-            (item) => !item.hiddenFromNav && (!item.managerOnly || capabilities.canManagePrograms)
-          )
-          .map((item) => (
-            <a
-              key={item.route}
-              href={item.path}
-              aria-current={route === item.route ? 'page' : undefined}
-              onClick={(event) => followRouteLink(event, item.route, navigate)}
-            >
-              {item.label}
-            </a>
-          ))}
+        {visibleItems.map((item) => (
+          <a
+            key={item.route}
+            href={item.path}
+            aria-current={route === item.route ? 'page' : undefined}
+            onClick={(event) => followRouteLink(event, item.route, navigate)}
+          >
+            {item.label}
+          </a>
+        ))}
       </nav>
       <main ref={mainContent} id="main-content" tabIndex={-1}>
         {children}
       </main>
       <footer className="colophon">
-        <p>Ordinary encounters and controlled observations share one preference history.</p>
-        {aboutNavItem && (
+        {house ? (
+          <p>
+            What you submit is reviewed before it is used, and only in the way you permit. Your
+            account can see your own house&rsquo;s submissions and nothing else.
+          </p>
+        ) : (
+          <p>Ordinary encounters and controlled observations share one preference history.</p>
+        )}
+        {!house && aboutNavItem && (
           <p>
             <a
               href={aboutNavItem.path}
@@ -84,7 +101,7 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
             </a>
           </p>
         )}
-        {evidenceNavItem && (
+        {!house && evidenceNavItem && (
           <p>
             <a
               href={evidenceNavItem.path}

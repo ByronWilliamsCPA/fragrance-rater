@@ -38,6 +38,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     PrimaryKeyConstraint,
     UniqueConstraint,
+    insert,
     text,
 )
 from sqlalchemy.dialects import postgresql
@@ -190,25 +191,33 @@ async def test_check_migration_names_violating_rows_and_changes_nothing() -> Non
     _alembic("downgrade", R2_CHECKS_REVISION_PARENT)
     try:
         async with session_factory() as session:
-            fragrance = Fragrance(
-                name=f"R2 preflight {suffix}",
-                brand="R2",
-                concentration="EDP",
-                version_key=f"r2-preflight-{suffix}",
-                gender_target="unisex",
-                primary_family="woody",
-                subfamily="aromatic",
-                data_source="r2-preflight",
+            # A Core insert names only the columns that exist at the parent
+            # revision. An ORM ``Fragrance(...)`` would also insert columns
+            # added by later migrations (``line``, ``market_status``), which
+            # the downgraded schema above does not have.
+            fragrance_id = str(uuid4())
+            await session.execute(
+                insert(Fragrance).values(
+                    id=fragrance_id,
+                    name=f"R2 preflight {suffix}",
+                    brand="R2",
+                    concentration="EDP",
+                    version_key=f"r2-preflight-{suffix}",
+                    gender_target="unisex",
+                    primary_family="woody",
+                    subfamily="aromatic",
+                    data_source="r2-preflight",
+                )
             )
             reviewer = Reviewer(name=f"R2 preflight {suffix}")
-            session.add_all([fragrance, reviewer])
+            session.add(reviewer)
             await session.flush()
             evaluation = Evaluation(
-                fragrance_id=fragrance.id, reviewer_id=reviewer.id, rating=9
+                fragrance_id=fragrance_id, reviewer_id=reviewer.id, rating=9
             )
             session.add(evaluation)
             await session.commit()
-            ids = (evaluation.id, fragrance.id, reviewer.id)
+            ids = (evaluation.id, fragrance_id, reviewer.id)
 
         with pytest.raises(subprocess.CalledProcessError) as failure:
             _alembic("upgrade", "head")

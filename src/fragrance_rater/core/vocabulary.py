@@ -51,3 +51,61 @@ UNCLASSIFIED_FAMILY: Final[str] = "Unclassified"
 TRAINING_INELIGIBLE_CODES: Final[frozenset[str]] = frozenset(
     {"excluded_pending_classification", "excluded_manual"}
 )
+
+# House intake alignment (docs/superpowers/specs/2026-10-02-house-intake-design.md).
+# #ASSUME: data-integrity: the house form, the catalog schemas, and the
+# manager review compare these values directly, so each is defined once here
+# rather than once per layer, the drift this module exists to prevent.
+# #VERIFY: tests/unit/test_core/test_vocabulary.py asserts the house payload
+# and catalog schemas accept exactly these values.
+
+#: Earliest launch year either layer accepts. Houses such as Farina (1709) and
+#: Floris (1730) still sell eighteenth-century fragrances.
+EARLIEST_LAUNCH_YEAR: Final[int] = 1700
+
+MarketStatus = Literal["in_production", "limited_edition", "upcoming", "discontinued"]
+
+MARKET_STATUSES: Final[tuple[MarketStatus, ...]] = (
+    "in_production",
+    "limited_edition",
+    "upcoming",
+    "discontinued",
+)
+
+#: House concentration codes in the short form the catalog already stores.
+CATALOG_CONCENTRATIONS: Final[dict[str, str]] = {
+    "EDC": "EDC",
+    "EDT": "EDT",
+    "EDP": "EDP",
+    "PARFUM": "Parfum",
+    "EXTRAIT": "Extrait",
+    "OIL": "Oil",
+    "SOLID": "Solid",
+}
+
+# Spellings that name the same concentration, so a catalog row written as
+# "Eau de Parfum" compares equal to a house's EDP instead of reading as a
+# different version.
+_CONCENTRATION_SYNONYMS: Final[dict[str, str]] = {
+    "eau de cologne": "edc",
+    "cologne": "edc",
+    "eau de toilette": "edt",
+    "eau de parfum": "edp",
+    "extrait de parfum": "extrait",
+    "perfume oil": "oil",
+    "attar": "oil",
+    "solid perfume": "solid",
+}
+
+
+def concentration_key(value: str) -> str:
+    """Comparison key for a concentration, treating known spellings as equal.
+
+    Args:
+        value (str): A concentration as stored or declared.
+
+    Returns:
+        str: A case- and spacing-insensitive key; synonyms share one key.
+    """
+    key = " ".join(value.casefold().split())
+    return _CONCENTRATION_SYNONYMS.get(key, key)
