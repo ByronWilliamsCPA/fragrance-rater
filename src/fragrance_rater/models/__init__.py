@@ -11,10 +11,12 @@ from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
+    FragranceGtin,
     FragranceNote,
     Note,
     TrainingEligibility,
 )
+from fragrance_rater.models.house_intake import HouseSubmission
 from fragrance_rater.models.prediction import PredictionSnapshot
 from fragrance_rater.models.recommendation_measurement import (
     LLMInvocation,
@@ -30,7 +32,9 @@ __all__ = [
     "Evaluation",
     "Fragrance",
     "FragranceAccord",
+    "FragranceGtin",
     "FragranceNote",
+    "HouseSubmission",
     "LLMInvocation",
     "Note",
     "PilotOperationalEvent",

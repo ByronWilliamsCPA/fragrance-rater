@@ -9,6 +9,8 @@ export type FragranceSummary = Person & {
 export type Access = {
   username: string
   manager: boolean
+  /** The fragrance house this account submits for; absent for household accounts. */
+  house?: string | null
 }
 
 export type Assignment = {
@@ -307,18 +309,21 @@ export type HistoryItem = {
 export type Capabilities = {
   canRecordCalibration: boolean
   canManagePrograms: boolean
+  isHouseContributor: boolean
 }
 
 export function capabilitiesFor(access: Access, assignments: Assignment[]): Capabilities {
   return {
     canRecordCalibration: access.manager || assignments.length > 0,
     canManagePrograms: access.manager,
+    isHouseContributor: Boolean(access.house),
   }
 }
 
-export type RoleLabel = 'Manager' | 'Recorder' | 'Participant'
+export type RoleLabel = 'Manager' | 'Recorder' | 'Participant' | 'Fragrance house'
 
 export function roleLabelFor(capabilities: Capabilities): RoleLabel {
+  if (capabilities.isHouseContributor) return 'Fragrance house'
   return capabilities.canManagePrograms
     ? 'Manager'
     : capabilities.canRecordCalibration

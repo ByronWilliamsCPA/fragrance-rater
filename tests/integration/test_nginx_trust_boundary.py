@@ -40,6 +40,7 @@ FORGED = {
     "X-Authentik-Username": "forged-manager",
     "X-Authentik-Uid": "forged-uid",
     "X-Authentik-Email": "forged@example.invalid",
+    "X-Authentik-Groups": "forged-group",
     "X-Forwarded-For": "203.0.113.66",
     "X-Forwarded-Proto": "https",
 }
@@ -160,6 +161,7 @@ def test_traefik_peer_identity_and_client_are_forwarded(
     assert headers["x-authentik-username"] == "forged-manager"
     assert headers["x-authentik-uid"] == "forged-uid"
     assert headers["x-authentik-email"] == "forged@example.invalid"
+    assert headers["x-authentik-groups"] == "forged-group"
     assert headers["x-forwarded-for"] == "203.0.113.66, 127.0.0.1"
     assert headers["x-forwarded-proto"] == "https"
 

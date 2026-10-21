@@ -612,6 +612,10 @@ markers = [
 # Note: Coverage source is specified via pytest's --cov argument in addopts above
 [tool.coverage.run]
 branch = true
+# SQLAlchemy's asyncio engine resumes ORM code inside greenlets; without
+# greenlet tracing, every line after an `await session...` reads as
+# uncovered even when tests execute it (docs/template_feedback.md).
+concurrency = ["greenlet", "thread"]
 relative_files = true  # Required for SonarCloud in GitHub Actions
 omit = [
     # Test files

@@ -28,6 +28,9 @@ from fragrance_rater.core.config import settings
 AUTHENTIK_USERNAME_HEADER = "X-Authentik-Username"
 AUTHENTIK_UID_HEADER = "X-Authentik-Uid"
 AUTHENTIK_EMAIL_HEADER = "X-Authentik-Email"
+#: Pipe-separated group names (``group-a|group-b``), as Authentik's proxy
+#: outpost sends them.
+AUTHENTIK_GROUPS_HEADER = "X-Authentik-Groups"
 
 
 @dataclass(frozen=True)
