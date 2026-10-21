@@ -45,6 +45,7 @@ Integration with Logging:
 
 from __future__ import annotations
 
+import re
 import uuid
 from contextvars import ContextVar
 from typing import TYPE_CHECKING, Any
@@ -69,6 +70,29 @@ CORRELATION_ID_HEADER = "X-Correlation-ID"
 REQUEST_ID_HEADER = "X-Request-ID"
 TRACE_ID_HEADER = "X-Trace-ID"
 SPAN_ID_HEADER = "X-Span-ID"
+
+# Accepts UUIDs, hex trace and span IDs, ULIDs, and short readable tokens.
+# Anything else (control characters, log-format metacharacters, oversized
+# values) is replaced, never echoed into logs or responses (S-25).
+_SAFE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}")
+
+
+def _safe_id(value: str | None) -> str | None:
+    """Return ``value`` if it is a well-formed identifier, else ``None``.
+
+    #ASSUME: security: incoming correlation and tracing headers are
+    client-controlled and are copied into every log line and response.
+    #VERIFY: tests/unit/test_correlation.py::TestIncomingIdValidation.
+
+    Args:
+        value (str | None): Raw header value.
+
+    Returns:
+        str | None: The value when it matches the safe pattern, otherwise None.
+    """
+    if value is not None and _SAFE_ID_PATTERN.fullmatch(value):
+        return value
+    return None
 
 
 def get_correlation_id() -> str | None:
@@ -214,18 +238,19 @@ class CorrelationMiddleware(BaseHTTPMiddleware):
             Response: The HTTP response with correlation headers added.
         """
         # Extract or generate correlation ID
+        incoming_request_id = _safe_id(request.headers.get(REQUEST_ID_HEADER))
         correlation_id = (
-            request.headers.get(CORRELATION_ID_HEADER)
-            or request.headers.get(REQUEST_ID_HEADER)
+            _safe_id(request.headers.get(CORRELATION_ID_HEADER))
+            or incoming_request_id
             or generate_correlation_id()
         )
 
         # Generate unique request ID for this specific request
-        request_id = request.headers.get(REQUEST_ID_HEADER) or generate_correlation_id()
+        request_id = incoming_request_id or generate_correlation_id()
 
-        # Extract distributed tracing headers
-        trace_id = request.headers.get(TRACE_ID_HEADER)
-        span_id = request.headers.get(SPAN_ID_HEADER)
+        # Extract distributed tracing headers; malformed ones are dropped
+        trace_id = _safe_id(request.headers.get(TRACE_ID_HEADER))
+        span_id = _safe_id(request.headers.get(SPAN_ID_HEADER))
 
         # Set context variables
         correlation_token = _correlation_id_ctx.set(correlation_id)

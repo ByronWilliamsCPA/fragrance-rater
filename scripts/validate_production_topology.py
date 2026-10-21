@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import sys
 from pathlib import Path
@@ -34,13 +35,27 @@ def validate_topology(config: object) -> list[str]:
     app_environment = app.get("environment", {})
     if app_environment.get("AUTHENTIK_REQUIRED") != "true":
         errors.append("app must set AUTHENTIK_REQUIRED=true")
+    if app_environment.get("ENVIRONMENT") != "production":
+        errors.append("app must set ENVIRONMENT=production")
+    trusted_hosts = [
+        host.strip()
+        for host in str(app_environment.get("TRUSTED_HOSTS", "")).split(",")
+        if host.strip()
+    ]
+    if not trusted_hosts or "*" in trusted_hosts:
+        errors.append("app must set TRUSTED_HOSTS to explicit host names")
+    forwarded_allow_ips = str(app_environment.get("FORWARDED_ALLOW_IPS", ""))
+    if not forwarded_allow_ips.strip() or "*" in forwarded_allow_ips:
+        errors.append("app must set FORWARDED_ALLOW_IPS to the proxy subnets")
     if not str(app_environment.get("DATABASE_URL", "")).startswith(
         "postgresql+asyncpg://"
     ):
         errors.append("app DATABASE_URL must use the postgresql+asyncpg scheme")
     frontend = services.get("frontend", {})
-    if frontend.get("environment", {}).get("VITE_API_URL") != "/api":
+    frontend_environment = frontend.get("environment", {})
+    if frontend_environment.get("VITE_API_URL") != "/api":
         errors.append("frontend must use the authenticated same-origin /api path")
+    errors.extend(_edge_cidr_errors(frontend_environment.get("FRAGRANCE_TRAEFIK_CIDR")))
     networks = frontend.get("networks", {})
     if not {"fragrance_rater-network", "authenticated-edge"}.issubset(networks):
         errors.append("frontend must join application and authenticated-edge networks")
@@ -66,6 +81,29 @@ def validate_topology(config: object) -> list[str]:
     if not isinstance(edge, dict) or not edge.get("external"):
         errors.append("authenticated-edge must be a dedicated external network")
     return errors
+
+
+def _edge_cidr_errors(value: object) -> list[str]:
+    """Check the subnet nginx trusts for identity headers (S-01).
+
+    A missing value, a single host, or a range wide enough to cover other
+    networks (anything broader than a /16, or 0.0.0.0/0) would let peers
+    other than Traefik forward forged ``X-Authentik-*`` headers.
+    """
+    if not value:
+        return ["frontend must set FRAGRANCE_TRAEFIK_CIDR to the edge network subnet"]
+    try:
+        network = ipaddress.ip_network(str(value), strict=False)
+    except ValueError:
+        return [f"FRAGRANCE_TRAEFIK_CIDR {value!r} is not a valid CIDR"]
+    minimum_prefix = 16 if network.version == 4 else 48
+    if network.prefixlen < minimum_prefix:
+        message = (
+            f"FRAGRANCE_TRAEFIK_CIDR {value!r} is broader than "
+            f"/{minimum_prefix}; trust only the dedicated edge network"
+        )
+        return [message]
+    return []
 
 
 def main() -> int:
