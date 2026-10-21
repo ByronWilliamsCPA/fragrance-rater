@@ -21,6 +21,14 @@ services:
       JSON_LOGS: "true"
       LOG_LEVEL: ${LOG_LEVEL:-WARNING}
       AUTHENTIK_REQUIRED: "true"
+      # Host header values the API accepts (B-27): the public host nginx
+      # forwards, plus localhost for the container healthcheck.
+      TRUSTED_HOSTS: ${FRAGRANCE_HOST:?Set the production hostname},localhost,127.0.0.1
+      # uvicorn takes the client address and scheme from X-Forwarded-For/-Proto
+      # only from these peers (S-02): nginx on the private app network
+      # (docker-compose.yml's fragrance_rater-network subnet) and Traefik on
+      # the edge network. nginx resets both headers for any other peer.
+      FORWARDED_ALLOW_IPS: 172.25.0.0/16,${FRAGRANCE_TRAEFIK_CIDR:?Set the authenticated-edge network subnet (CIDR)}
       CALIBRATION_ADMIN_USERNAMES: ${CALIBRATION_ADMIN_USERNAMES:?Set a JSON array of verified Authentik manager usernames}
 
     # Production replicas (for load balancing).
@@ -62,6 +70,12 @@ services:
     image: fragrance_rater-frontend:${VERSION:-latest}
     environment:
       VITE_API_URL: /api
+      # nginx forwards X-Authentik-* identity only from peers in this subnet,
+      # the authenticated-edge network that holds just Traefik and this
+      # frontend (architecture review S-01). Find it with:
+      #   docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" \
+      #     --format '{{(index .IPAM.Config 0).Subnet}}'
+      FRAGRANCE_TRAEFIK_CIDR: ${FRAGRANCE_TRAEFIK_CIDR:?Set the authenticated-edge network subnet (CIDR)}
     volumes: !reset []
     # Do not retain the development host-port mapping. Traefik is the only
     # supported production entry point.

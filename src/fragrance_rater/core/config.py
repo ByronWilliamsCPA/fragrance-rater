@@ -19,7 +19,7 @@ Pydantic-settings handles the parsing and validation.
 import json
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _DEFAULT_CORS_ALLOWED_ORIGINS: list[str] = [
@@ -81,9 +81,17 @@ class Settings(BaseSettings):
             is a rate-limited (20 req/month free tier), operator-invoked
             reference lookup, never a primary or auto-imported source.
         fragella_base_url (str): Fragella API base URL.
-        calibration_admin_usernames (list[str]): Verified Authentik usernames
-            permitted to administer controlled calibration programs. Empty by
-            default, which denies calibration administration.
+        calibration_admin_usernames (Annotated[list[str], NoDecode]): Verified
+            Authentik usernames permitted to administer controlled calibration
+            programs. Empty by default, which denies calibration
+            administration. Accepts a JSON array or a comma-separated string.
+        environment (Literal["development", "test", "production"]):
+            Deployment environment. ``production`` turns off the interactive
+            API docs, drops the local-development CORS defaults, and requires
+            ``trusted_hosts``.
+        trusted_hosts (Annotated[list[str], NoDecode]): Host header values the
+            API accepts (``TrustedHostMiddleware``). Empty disables the check,
+            which is allowed only outside production.
         authentik_required (bool): Require a verified Authentik forward-auth
             identity header on mutating requests. Defaults to True outside
             tests; tests and local dev disable it via AUTHENTIK_REQUIRED=false.
@@ -94,7 +102,9 @@ class Settings(BaseSettings):
             ``fragrance_rater.middleware.security.add_security_middleware``).
             Defaults to the local/docker-compose frontend origins; override
             with ``CORS_ALLOWED_ORIGINS`` as a comma-separated list or a
-            JSON array for any other deployment.
+            JSON array for any other deployment. In production the
+            default is empty: nginx serves the UI and API from one origin, so
+            no cross-origin access is needed unless configured.
     """
 
     model_config = SettingsConfigDict(
@@ -247,9 +257,28 @@ class Settings(BaseSettings):
         description="Fragella API base URL",
     )
 
-    calibration_admin_usernames: list[str] = Field(
+    # #CRITICAL: security: this is the manager allowlist. Without NoDecode,
+    # pydantic-settings JSON-decodes list fields before any validator runs,
+    # so a comma-separated value crash-looped the container at import
+    # (architecture review S-19).
+    # #VERIFY: tests/unit/test_core/test_config.py covers the comma-separated,
+    # JSON-array, and empty forms through a real Settings() construction.
+    calibration_admin_usernames: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         description="Verified Authentik usernames allowed to manage calibration",
+    )
+
+    environment: Literal["development", "test", "production"] = Field(
+        default="development",
+        description="Deployment environment (ENVIRONMENT)",
+    )
+
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "Accepted Host header values (TRUSTED_HOSTS, comma-separated or "
+            "JSON). Empty disables the check outside production."
+        ),
     )
 
     # Authentik forward-auth (Critical finding 2)
@@ -308,10 +337,18 @@ class Settings(BaseSettings):
         ),
     )
 
-    @field_validator("cors_allowed_origins", mode="before")
+    @field_validator(
+        "cors_allowed_origins",
+        "calibration_admin_usernames",
+        "trusted_hosts",
+        mode="before",
+    )
     @classmethod
     def _split_comma_separated_origins(cls, value: object) -> object:
-        """Parse ``CORS_ALLOWED_ORIGINS`` as a comma-separated string or JSON array.
+        """Parse a list setting given as a comma-separated string or JSON array.
+
+        Shared by ``CORS_ALLOWED_ORIGINS``, ``CALIBRATION_ADMIN_USERNAMES``,
+        and ``TRUSTED_HOSTS``.
 
         Marked ``NoDecode`` above, so pydantic-settings hands this validator
         the raw string value (or the in-code default list) directly, rather
@@ -336,6 +373,30 @@ class Settings(BaseSettings):
         if stripped.startswith("["):
             return json.loads(stripped)
         return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def _apply_production_defaults(self) -> "Settings":
+        """Enforce production-only defaults (S-17, S-18, B-27).
+
+        #CRITICAL: security: production must never serve the development
+        CORS allow-list (credentialed, wildcard headers) or skip Host-header
+        validation because an operator left a setting unset.
+        #VERIFY: tests/unit/test_core/test_config.py::TestProductionDefaults.
+
+        Returns:
+            Settings: This instance, with production CORS defaults applied.
+
+        Raises:
+            ValueError: If production runs without trusted hosts.
+        """
+        if self.environment != "production":
+            return self
+        if "cors_allowed_origins" not in self.model_fields_set:
+            self.cors_allowed_origins = []
+        if not self.trusted_hosts:
+            msg = "TRUSTED_HOSTS must be set when ENVIRONMENT=production"
+            raise ValueError(msg)
+        return self
 
 
 # A single, global instance of the settings

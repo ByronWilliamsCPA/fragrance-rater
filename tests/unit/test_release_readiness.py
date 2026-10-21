@@ -482,11 +482,17 @@ def valid_topology() -> dict[str, Any]:
                 "networks": {"fragrance_rater-network": None},
                 "environment": {
                     "AUTHENTIK_REQUIRED": "true",
+                    "ENVIRONMENT": "production",
+                    "TRUSTED_HOSTS": "fragrance.example.com,localhost,127.0.0.1",
+                    "FORWARDED_ALLOW_IPS": "172.25.0.0/16,172.30.0.0/24",
                     "DATABASE_URL": "postgresql+asyncpg://app:secret@db/app",
                 },
             },
             "frontend": {
-                "environment": {"VITE_API_URL": "/api"},
+                "environment": {
+                    "VITE_API_URL": "/api",
+                    "FRAGRANCE_TRAEFIK_CIDR": "172.30.0.0/24",
+                },
                 "networks": {
                     "fragrance_rater-network": None,
                     "authenticated-edge": None,
@@ -554,4 +560,98 @@ def test_production_topology_keeps_private_services_off_edge_network() -> None:
     config["services"]["db"]["networks"]["authenticated-edge"] = None
     assert validator.validate_topology(config) == [
         "service db must not join the authenticated-edge network"
+    ]
+
+
+def _too_broad(cidr: str, prefix: int) -> str:
+    return (
+        f"FRAGRANCE_TRAEFIK_CIDR {cidr!r} is broader than /{prefix}; "
+        "trust only the dedicated edge network"
+    )
+
+
+@pytest.mark.parametrize(
+    ("cidr", "message"),
+    [
+        (None, "frontend must set FRAGRANCE_TRAEFIK_CIDR to the edge network subnet"),
+        ("", "frontend must set FRAGRANCE_TRAEFIK_CIDR to the edge network subnet"),
+        ("edge-net", "FRAGRANCE_TRAEFIK_CIDR 'edge-net' is not a valid CIDR"),
+        (
+            "0.0.0.0/0",
+            _too_broad("0.0.0.0/0", 16),
+        ),
+        (
+            "172.16.0.0/12",
+            _too_broad("172.16.0.0/12", 16),
+        ),
+        (
+            "fd00::/8",
+            _too_broad("fd00::/8", 48),
+        ),
+    ],
+)
+def test_production_topology_requires_a_narrow_edge_cidr(
+    cidr: str | None, message: str
+) -> None:
+    """nginx trusts identity headers only from this subnet (R3, S-01)."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    environment = config["services"]["frontend"]["environment"]
+    if cidr is None:
+        del environment["FRAGRANCE_TRAEFIK_CIDR"]
+    else:
+        environment["FRAGRANCE_TRAEFIK_CIDR"] = cidr
+    assert validator.validate_topology(config) == [message]
+
+
+@pytest.mark.parametrize("cidr", ["172.30.0.0/24", "10.20.0.0/16", "fd12:3456::/64"])
+def test_production_topology_accepts_a_dedicated_edge_cidr(cidr: str) -> None:
+    """Typical Docker bridge subnets pass."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["frontend"]["environment"]["FRAGRANCE_TRAEFIK_CIDR"] = cidr
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize("hosts", [None, "", "*", "fragrance.example.com,*"])
+def test_production_topology_requires_explicit_trusted_hosts(
+    hosts: str | None,
+) -> None:
+    """The API must validate the Host header in production (R3, B-27)."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    environment = config["services"]["app"]["environment"]
+    if hosts is None:
+        del environment["TRUSTED_HOSTS"]
+    else:
+        environment["TRUSTED_HOSTS"] = hosts
+    assert validator.validate_topology(config) == [
+        "app must set TRUSTED_HOSTS to explicit host names"
+    ]
+
+
+def test_production_topology_requires_production_environment() -> None:
+    """ENVIRONMENT=production is what turns off docs and dev CORS (R3, S-18)."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["app"]["environment"]["ENVIRONMENT"] = "development"
+    assert validator.validate_topology(config) == [
+        "app must set ENVIRONMENT=production"
+    ]
+
+
+@pytest.mark.parametrize("allowed", [None, "", "*", "172.25.0.0/16,*"])
+def test_production_topology_requires_explicit_forwarded_allow_ips(
+    allowed: str | None,
+) -> None:
+    """uvicorn must not trust X-Forwarded-For from arbitrary peers (R3, S-02)."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    environment = config["services"]["app"]["environment"]
+    if allowed is None:
+        del environment["FORWARDED_ALLOW_IPS"]
+    else:
+        environment["FORWARDED_ALLOW_IPS"] = allowed
+    assert validator.validate_topology(config) == [
+        "app must set FORWARDED_ALLOW_IPS to the proxy subnets"
     ]

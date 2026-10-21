@@ -77,8 +77,11 @@ LABEL org.opencontainers.image.authors="Byron Williams <byron@williamshome.famil
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx configuration, rendered at start by the image's envsubst step into
+# /etc/nginx/conf.d/default.conf. It needs FRAGRANCE_TRAEFIK_CIDR (see the
+# trust-boundary comment at the top of nginx.conf); without it the rendered
+# geo block is invalid and nginx refuses to start rather than trust any peer.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 
 # Create non-root user for nginx
 RUN addgroup -g 1001 -S appgroup && \
@@ -86,6 +89,7 @@ RUN addgroup -g 1001 -S appgroup && \
     chown -R appuser:appgroup /var/cache/nginx && \
     chown -R appuser:appgroup /var/log/nginx && \
     chown -R appuser:appgroup /etc/nginx/conf.d && \
+    chown -R appuser:appgroup /etc/nginx/templates && \
     touch /var/run/nginx.pid && \
     chown -R appuser:appgroup /var/run/nginx.pid
 

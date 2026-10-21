@@ -70,7 +70,9 @@ async def get_current_identity(request: Request) -> AuthenticatedIdentity:
             the request carries no Authentik username header, meaning it
             did not transit the Traefik forward-auth middleware.
     """
-    username = request.headers.get(AUTHENTIK_USERNAME_HEADER)
+    # A present but blank header is not an identity; treat it as missing so
+    # the fail-closed check below still applies.
+    username = (request.headers.get(AUTHENTIK_USERNAME_HEADER) or "").strip() or None
     uid = request.headers.get(AUTHENTIK_UID_HEADER)
     email = request.headers.get(AUTHENTIK_EMAIL_HEADER)
 
