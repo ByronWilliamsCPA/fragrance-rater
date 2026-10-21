@@ -229,3 +229,37 @@ class TestProductionDefaults:
 
         assert settings.environment == "development"
         assert settings.trusted_hosts == []
+
+
+class TestHouseContributors:
+    """House contributors are external parties; the mapping must never also
+    grant manager access, and every contributor must name a house."""
+
+    def test_json_object_env_var_is_parsed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("HOUSE_CONTRIBUTORS", '{"maison-rep": "Maison X"}')
+
+        assert Settings().house_contributors == {"maison-rep": "Maison X"}
+
+    def test_default_grants_no_house_access(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("HOUSE_CONTRIBUTORS", raising=False)
+
+        assert Settings().house_contributors == {}
+
+    def test_manager_cannot_also_be_a_house_contributor(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("CALIBRATION_ADMIN_USERNAMES", '["manager"]')
+        monkeypatch.setenv("HOUSE_CONTRIBUTORS", '{"manager": "Maison X"}')
+
+        with pytest.raises(ValueError, match="both a calibration manager"):
+            Settings()
+
+    def test_blank_house_name_rejected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HOUSE_CONTRIBUTORS", '{"maison-rep": "  "}')
+
+        with pytest.raises(ValueError, match="must name a house"):
+            Settings()
