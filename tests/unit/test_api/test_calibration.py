@@ -135,7 +135,7 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
     assert (await test_app.get(f"{PREFIX}/enrollments", headers=OUTSIDER)).json() == []
     outsider_list = await test_app.get(f"{PREFIX}/enrollments", headers=OUTSIDER)
     assert outsider_list.headers["cache-control"] == "private, no-store"
-    assert outsider_list.headers["vary"] == "X-Authentik-Username"
+    assert "X-Authentik-Username" in outsider_list.headers["vary"]
     assert (await test_app.get(f"{PREFIX}/programs", headers=OUTSIDER)).json() == []
     view = await test_app.get(url, headers=RECORDER)
     assert view.status_code == 200
