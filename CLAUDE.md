@@ -358,8 +358,9 @@ END BASELINE DEVELOPMENT STANDARDS
 ## Project Planning Documents
 
 > **Status**: P0-P5 are complete; P1 external evidence, Milestone R's R1-R4 and R7a-R7b sprints
-> (R7b via the P6.3 synthetic rehearsal), and the P6 pilot-readiness gate precede F1 family perfume
-> testing (R2 and R5-R8 also gate F1 directly). The project plan owns milestone status.
+> (R7b via the P6.3 synthetic rehearsal), R13 and R14's operations items (per their sprint-table rows),
+> and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
+> As of 2026-10-21, R1, R2, and R5 are done and R3 is in review (#143, #144). The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
@@ -385,6 +386,12 @@ END BASELINE DEVELOPMENT STANDARDS
 - **ADR-011**: Worn-by ("on others") evidence dimension, captured but excluded from scoring
 - **ADR-012**: Parfumo deprecation and manufacturer-provenance as preferred replacement source
 - **ADR-013**: External ontology and standards crosswalk (Cinquieme Sens, IFRA, Michael Edwards, evaluation methodology)
+- **ADR-014** (frontend e2e and accessibility strategy): Accepted; Playwright two-tier e2e plus WCAG 2.2 AA checks
+- **ADR-014** (training eligibility and unclassified family sentinel): Proposed; duplicate number, ADR-015 is
+  free for a renumbering
+- **ADR-016**: Per-dimension preference capture and perfumer as an evaluable dimension (Proposed)
+- **ADR-017**: Project-owned faceted olfactory vocabulary, `fr-core` v0 merged in PR #127 (Proposed; amends ADR-004,
+  ADR-010, ADR-013)
 
 ### Current Delivery Sequence
 
@@ -396,7 +403,7 @@ END BASELINE DEVELOPMENT STANDARDS
 | P3 | Role-aware routed product foundation |
 | P4 | Complete participant experience |
 | P5 | Complete manager, reporting, and operations experience |
-| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), R2 and R5-R8 gate F1 |
+| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1; R1, R2, and R5 are done, R3 is in review |
 | P6 | Deployed synthetic rehearsal and pilot-readiness decision |
 | F1 | Initial family pilot using actual perfumes |
 | D1 | Source and vocabulary foundation |
@@ -673,14 +680,14 @@ settings = Settings()
 **Project-Specific Paths**:
 
 ```bash
-# Worktree directory for this project
-../fragrance_rater-worktrees/
+# Worktree directory for this project: inside the repository, one directory per branch slug
+.worktrees/<branch-slug>
 
 # Quick reference commands
-git worktree add ../fragrance_rater-worktrees/feature-name -b feature/feature-name
-git worktree add ../fragrance_rater-worktrees/pr-42 origin/feature/pr-branch
+git worktree add .worktrees/feature-name -b feat/feature-name
+git worktree add .worktrees/pr-42 origin/feat/pr-branch
 git worktree list
-git worktree remove ../fragrance_rater-worktrees/feature-name
+git worktree remove .worktrees/feature-name
 ```
 
 **Remember**: Each worktree needs `uv sync --all-extras` after creation (worktrees share git but not virtualenvs).
@@ -880,5 +887,5 @@ See `.standards/README.md` for detailed merge instructions.
 
 ---
 
-**Last Updated**: 2025-12-29
+**Last Updated**: 2026-10-21
 **Template Version**: 0.1.0

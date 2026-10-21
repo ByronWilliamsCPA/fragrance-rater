@@ -578,7 +578,14 @@ Acceptance: `.markdownlintignore` shrinks to template baselines only.
 
 This section is a live pointer, not a restatement: [PROJECT-PLAN.md's Milestone R sprint
 table](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation) is authoritative for
-what has actually shipped. As of 2026-09-21:
+what has actually shipped. **Status note, 2026-10-21 (a dated addition; the body below is unchanged and still
+describes 2026-09-21):** R5 (protocol research reconciliation) is done; PR #125 delivered Q15's default early, so the
+ADR-012 `SourceSnapshot` provenance columns and a nullable `source_url` landed (D-01 partly; `source_revision`,
+`content_hash`, `parser_version`, and the rest remain R8 scope); and R2 is done (PR #135, merge commit `329c648`, and PR #136,
+merge commit `00f14d6`, both 2026-10-21). Nothing in the "all other workstreams remain open" line below has otherwise changed.
+See [PROJECT-PLAN.md section 11b](PROJECT-PLAN.md#11b-integration-status-as-of-2026-10-21).
+
+As of 2026-09-21:
 
 - **WS-1 / R1 (CI truthfulness) is done for the gates it added, but not yet verified against its own
   acceptance criterion.** Findings S-11/F-01, S-09, S-10, G-02, G-06, G-11, S-22, S-29, S-26, S-30,
@@ -601,8 +608,8 @@ what has actually shipped. As of 2026-09-21:
   execute, while the same code called directly against the `async_session` fixture does. Recorded
   in `docs/ci-gates.md`'s residual-gaps section rather than root-caused here; treat this repository's
   reported coverage percentage as a floor, not an exact count.
-- **WS-9 / R2 PR 1 (migration tooling and naming) is in review as of 2026-10-02.** It closes D-03, D-04, D-05,
-  D-07, D-11, D-17, D-19, and D-20 (merge commit to be recorded here on merge). **R2 PR 2**, stacked on it, closes
+- **WS-9 / R2 PR 1 (migration tooling and naming) is done: PR #135, merge commit `329c648`, 2026-10-21.** It closes D-03, D-04, D-05,
+  D-07, D-11, D-17, D-19, and D-20. **R2 PR 2** (PR #136, merge commit `00f14d6`) closes
   D-02, D-09 (Q17's default, "yes", applied), D-10, D-15 for role, status, stage, and phase (the other enum-shaped columns
   it lists remain unconstrained), and ML review X-25. D-09 needed one change this review did not name: the ORM
   relationships `Fragrance.evaluations` and `Reviewer.evaluations` carried `cascade="all, delete-orphan"`, which would

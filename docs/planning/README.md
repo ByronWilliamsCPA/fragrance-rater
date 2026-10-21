@@ -20,6 +20,10 @@ This directory contains the governing documents for Fragrance Rater.
 | [Preference-Prediction Data Capture Assessment](preference-prediction-data-capture-assessment.md) | Future-data-scientist audit of perfume, evaluator, context, behavior, Fragella, and milestone data requirements for liking, wear, and purchase prediction |
 | [Perfume-Purchasing Research Validation](../research/perfume-purchasing-research-validation.md) | Claim-level validation of the two LLM-generated purchasing research reports and the bounded changes they support in the data-capture assessment |
 | [ML Decisions 2026-09](ml-decisions-2026-09.md) | Options and recommendations for the eight decisions the ML review requires, with the owner's recorded answers |
+| [Blind Evaluation Web Workflow](blind-evaluation-web-workflow.md) | Draft translation of the proposed 0.5 blind instrument into participant tasks, organizer controls, and an implementation sequence |
+| [Blind Evaluation Instrument 0.5](../measurement/blind-evaluation-instrument-v0.5.md) | Draft project-authored blind and later-value questionnaire preserved as an implementation handoff |
+| [Fragella Integration and Source-Use Boundary](../fragella-api.md) | Draft description of the bounded Fragella lookup integration and the limits on publishing or reusing vendor material |
+| [ADR-017 Project-Owned Faceted Olfactory Vocabulary](adr/adr-017-project-owned-faceted-olfactory-vocabulary.md) | Proposed record for the project-owned `fr-core` vocabulary (v0 merged in PR #127); amends ADR-004, ADR-010, and ADR-013 |
 | [Product Research Remediation Implementation Plan](product-research-remediation-implementation-plan.md) | Reconciles the roles/workflows, frontend, and ML/data gap-analysis documents with the authoritative plan and Milestone R; specifies concrete schema, API, frontend, and evidence-governance changes with traceable IDs; not yet approved |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
@@ -28,15 +32,24 @@ behavior but does not silently supersede an accepted ADR.
 ## Current sequence
 
 ```text
-P0 ┬→ P1 Calibration release readiness --------------------------┐
-   └→ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager
-                                                                    └→ R1 ┬→ R2
-                                                                            └→ R3 ┴→ R4
-                                                                                    └→ P6 Pilot readiness
-                                                                                        └→ F1 Family pilot
-                                                                                            └→ D1 → D2 ┬→ D3
-                                                                                                        └→ D4 → D5
+P0 ┬→ P1 Calibration release readiness ------------------------------------------┐
+   └→ P2 Measurement foundation → P3 UX → P4 Participant → P5 Manager             │
+                                                                └→ R1 ┬→ R3 -------┤
+                                                                      ├→ R4 -------┤
+                                                                      ├→ R13 ------┤  (P6 gates, see below)
+                                                                      ├→ R14 ops --┤
+                                                                      └→ R2 ┬→ R7a → R7b (before P6.3) ┤
+                                                                            └→ R6 → R8   (F1 gates)    │
+                                                                                          P6 Pilot readiness ←┘
+                                                                                          └→ F1 Family pilot
+                                                                                              └→ D1 → D2 ┬→ D3
+                                                                                                          └→ D4 → D5
 ```
+
+R1-R4, R7a-R7b (R7b before the P6.3 synthetic rehearsal), R13, and R14's secrets, validator, and backup items gate the
+P6 decision. R2 and R5-R8 gate F1. R9-R12 and R14's documentation items gate nothing. R1, R2, and R5 are done and R3 is in
+review; [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation) and
+section 11b own the detail.
 
 P1 evidence can proceed alongside P3-P5, but P6 must close P1 against the final deployed UI.
 No actual pilot perfume testing begins before P6. D3 and D4 may overlap after D2; D1 cannot
