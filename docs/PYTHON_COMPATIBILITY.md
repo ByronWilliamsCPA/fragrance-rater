@@ -25,6 +25,8 @@ The version-support matrix, backport patterns, and migration guidance below desc
 language features across Python 3.10 through 3.14 for general reference; they are template-inherited
 and do not describe what this repository builds, tests, or ships (see the R1 correction above).
 
+Renovate is configured not to propose `requires-python` bumps (see the hold rule in `renovate.json`), so the Python target only changes through a deliberate decision.
+
 ## Version Support Matrix (template reference, not this repository's actual support range)
 
 | Python Version | Support Status (upstream) | Support in this repo | CI Testing (this repo) | Notes |
