@@ -97,10 +97,12 @@ class RecommendationResponseRevision(Base):
     sampling_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
     unavailable_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     outcome_evaluation_id: Mapped[str | None] = mapped_column(
-        ForeignKey("evaluations.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("evaluations.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     outcome_observation_id: Mapped[str | None] = mapped_column(
-        ForeignKey("calibration_observations.id", ondelete="RESTRICT"), nullable=True
+        ForeignKey("calibration_observations.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
     )
     would_wear: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     would_buy: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
