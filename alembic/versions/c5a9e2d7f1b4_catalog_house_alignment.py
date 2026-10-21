@@ -15,7 +15,9 @@ payloads:
 
 No existing row is modified: both columns are nullable with no default, so
 NULL means "not known", exactly as before. The CHECK and the table's
-constraints must stay textually identical to ``models/fragrance.py``.
+constraints must stay textually identical to ``models/fragrance.py``, and every
+constraint carries the literal name the metadata naming convention gives the
+model (R2, D-03).
 """
 
 from collections.abc import Sequence
@@ -59,14 +61,18 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("length(gtin) = 14", name="ck_fragrance_gtins_length"),
         sa.ForeignKeyConstraint(
-            ["fragrance_id"], ["fragrances.id"], ondelete="RESTRICT"
+            ["fragrance_id"],
+            ["fragrances.id"],
+            ondelete="RESTRICT",
+            name="fk_fragrance_gtins_fragrance_id",
         ),
         sa.ForeignKeyConstraint(
             ["source_snapshot_id"],
             ["calibration_source_snapshots.id"],
             ondelete="RESTRICT",
+            name="fk_fragrance_gtins_source_snapshot_id",
         ),
-        sa.PrimaryKeyConstraint("gtin"),
+        sa.PrimaryKeyConstraint("gtin", name="pk_fragrance_gtins"),
     )
     op.create_index(
         "ix_fragrance_gtins_fragrance_id", "fragrance_gtins", ["fragrance_id"]

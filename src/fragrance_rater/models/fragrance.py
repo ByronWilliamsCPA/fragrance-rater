@@ -127,7 +127,7 @@ class Fragrance(Base):
                 "market_status IS NULL OR market_status IN ('in_production', "
                 "'limited_edition', 'upcoming', 'discontinued')"
             ),
-            name="ck_fragrances_market_status",
+            name="market_status",
         ),
     )
 
@@ -343,9 +343,7 @@ class FragranceGtin(Base):
     """
 
     __tablename__ = "fragrance_gtins"
-    __table_args__ = (
-        CheckConstraint("length(gtin) = 14", name="ck_fragrance_gtins_length"),
-    )
+    __table_args__ = (CheckConstraint("length(gtin) = 14", name="length"),)
 
     gtin: Mapped[str] = mapped_column(String(14), primary_key=True)
     fragrance_id: Mapped[str] = mapped_column(

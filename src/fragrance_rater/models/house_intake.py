@@ -62,31 +62,31 @@ class HouseSubmission(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('draft', 'submitted')",
-            name="ck_house_submissions_status",
+            name="status",
         ),
         CheckConstraint(
             "permission_state IS NULL OR permission_state IN ('retain_and_train', 'retain_for_qc_only')",
-            name="ck_house_submissions_permission_state",
+            name="permission_state",
         ),
         CheckConstraint(
             "status = 'draft' OR (submitted_at IS NOT NULL AND submitted_by IS NOT NULL AND permission_state IS NOT NULL)",
-            name="ck_house_submissions_submitted_complete",
+            name="submitted_complete",
         ),
         CheckConstraint(
             "review_status IS NULL OR review_status IN ('pending', 'adopted', 'declined', 'superseded')",
-            name="ck_house_submissions_review_status",
+            name="review_status",
         ),
         CheckConstraint(
             "(status = 'draft' AND review_status IS NULL) OR (status = 'submitted' AND review_status IS NOT NULL)",
-            name="ck_house_submissions_review_matches_status",
+            name="review_matches_status",
         ),
         CheckConstraint(
             "review_status IS NULL OR review_status <> 'adopted' OR (fragrance_id IS NOT NULL AND source_snapshot_id IS NOT NULL AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)",
-            name="ck_house_submissions_adopted_complete",
+            name="adopted_complete",
         ),
         CheckConstraint(
             "review_status IS NULL OR review_status <> 'declined' OR (COALESCE(TRIM(review_note), '') <> '' AND reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)",
-            name="ck_house_submissions_declined_complete",
+            name="declined_complete",
         ),
         Index("ix_house_submissions_house_status", "house", "status"),
         Index("ix_house_submissions_review_status", "review_status"),

@@ -1,7 +1,7 @@
 """house_submissions: staged fragrance house intake.
 
 Revision ID: b7e3d91a4c2f
-Revises: a3f8c1d9e2b7
+Revises: df2f9646a280
 Create Date: 2026-10-02
 
 A new table. It does not alter the catalog or ``calibration_source_snapshots``;
@@ -9,7 +9,9 @@ it only references them: a submission is what a house said, held apart from
 adopted evidence until a manager reviews it, and an adopted row points at the
 catalog version and the evidence row its review produced (ADR-012, ADR-017).
 The CHECK expressions must stay textually identical to ``HouseSubmission``
-in ``src/fragrance_rater/models/house_intake.py``.
+in ``src/fragrance_rater/models/house_intake.py``. Every constraint carries the
+literal name the metadata naming convention gives the model (R2, D-03), so the
+migrated schema matches ``Base.metadata`` exactly.
 """
 
 from collections.abc import Sequence
@@ -20,7 +22,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "b7e3d91a4c2f"
-down_revision: str | Sequence[str] | None = "a3f8c1d9e2b7"
+down_revision: str | Sequence[str] | None = "df2f9646a280"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
@@ -77,19 +79,28 @@ def upgrade() -> None:
             name="ck_house_submissions_declined_complete",
         ),
         sa.ForeignKeyConstraint(
-            ["supersedes_id"], [f"{_TABLE}.id"], ondelete="RESTRICT"
+            ["supersedes_id"],
+            [f"{_TABLE}.id"],
+            ondelete="RESTRICT",
+            name="fk_house_submissions_supersedes_id",
         ),
         sa.ForeignKeyConstraint(
-            ["fragrance_id"], ["fragrances.id"], ondelete="RESTRICT"
+            ["fragrance_id"],
+            ["fragrances.id"],
+            ondelete="RESTRICT",
+            name="fk_house_submissions_fragrance_id",
         ),
         sa.ForeignKeyConstraint(
             ["source_snapshot_id"],
             ["calibration_source_snapshots.id"],
             ondelete="RESTRICT",
+            name="fk_house_submissions_source_snapshot_id",
         ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("supersedes_id"),
-        sa.UniqueConstraint("source_snapshot_id"),
+        sa.PrimaryKeyConstraint("id", name="pk_house_submissions"),
+        sa.UniqueConstraint("supersedes_id", name="uq_house_submissions_supersedes_id"),
+        sa.UniqueConstraint(
+            "source_snapshot_id", name="uq_house_submissions_source_snapshot_id"
+        ),
     )
     op.create_index("ix_house_submissions_house_status", _TABLE, ["house", "status"])
     op.create_index("ix_house_submissions_review_status", _TABLE, ["review_status"])
