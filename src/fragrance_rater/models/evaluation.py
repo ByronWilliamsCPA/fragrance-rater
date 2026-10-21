@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
@@ -67,8 +67,13 @@ class Evaluation(Base):
         # running migrations against an existing database.
         CheckConstraint(
             "worn_by_reviewer_id IS NULL OR worn_by_reviewer_id != reviewer_id",
-            name="ck_evaluations_worn_by_reviewer_not_self",
+            name="worn_by_reviewer_not_self",
         ),
+        # Serves the per-reviewer, per-fragrance encounter lookups in
+        # EvaluationService. Created by 001_initial_schema as
+        # `idx_evaluations_reviewer_fragrance` but never declared here, so
+        # create_all() databases lacked it (architecture review D-11).
+        Index("ix_evaluations_reviewer_id_fragrance_id", "reviewer_id", "fragrance_id"),
     )
     # Every ordinary encounter is retained, including repeated fragrance ratings.
 

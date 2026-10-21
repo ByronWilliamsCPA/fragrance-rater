@@ -54,12 +54,16 @@ class PredictionSnapshot(Base):
 
     __tablename__ = "prediction_snapshots"
     __table_args__ = (
-        CheckConstraint("uncertainty IS NULL OR uncertainty >= 0"),
         CheckConstraint(
-            "percentile_rank IS NULL OR (percentile_rank >= 0 AND percentile_rank <= 100)"
+            "uncertainty IS NULL OR uncertainty >= 0", name="uncertainty_nonnegative"
         ),
         CheckConstraint(
-            "NOT (outcome_evaluation_id IS NOT NULL AND outcome_observation_id IS NOT NULL)"
+            "percentile_rank IS NULL OR (percentile_rank >= 0 AND percentile_rank <= 100)",
+            name="percentile_rank_range",
+        ),
+        CheckConstraint(
+            "NOT (outcome_evaluation_id IS NOT NULL AND outcome_observation_id IS NOT NULL)",
+            name="single_outcome_target",
         ),
         # Excludes NaN (`predicted_rating = predicted_rating` is false for
         # NaN under IEEE754) and +/-Infinity (neither satisfies both
@@ -72,14 +76,14 @@ class PredictionSnapshot(Base):
             "predicted_rating IS NULL OR "
             "(predicted_rating = predicted_rating "
             "AND predicted_rating > -1e308 AND predicted_rating < 1e308)",
-            name="ck_prediction_snapshot_predicted_rating_finite",
+            name="predicted_rating_finite",
         ),
         # Ties `outcome_linked_at`'s nullity to both outcome-id columns':
         # keep in sync with the migration's matching constraint.
         CheckConstraint(
             "(outcome_linked_at IS NULL) = "
             "(outcome_evaluation_id IS NULL AND outcome_observation_id IS NULL)",
-            name="ck_prediction_snapshot_outcome_linked_consistency",
+            name="outcome_linked_consistency",
         ),
     )
 

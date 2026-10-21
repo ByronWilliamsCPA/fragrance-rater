@@ -360,6 +360,46 @@ README rather than listing it as if it already runs.
 
 ---
 
+### Database scaffold has no naming convention, autogenerate flags, or schema-parity test
+
+- **Priority**: High
+- **Category**: Tooling
+- **Discovered**: 2026-10-02
+
+**Issue**: The generated `core/database.py` declares `class Base(DeclarativeBase)` with no
+`MetaData(naming_convention=...)`, the generated `alembic/env.py` passes neither
+`compare_type`, `compare_server_default`, nor `render_as_batch`, and nothing tests that
+`alembic upgrade head` produces the schema the models declare. PostgreSQL then invents names
+for every unnamed constraint, so later migrations cannot address them by a known name and SQLite
+batch migrations silently omit unnamed CHECKs. Alembic's `compare_metadata` also ignores CHECK
+constraints and primary/foreign-key names, so even a structural parity test misses a dropped
+CHECK. The generated `alembic/script.py.mako` emits `typing.Union`/`Sequence` imports that the
+template's own Ruff configuration rejects, so every `alembic revision` output fails lint until
+hand-edited. The shared SQLite test fixtures also never set `PRAGMA foreign_keys=ON`, so no
+`ondelete="RESTRICT"` guard is exercised by unit tests.
+
+**Context**: Found in fragrance-rater sprint R2 (architecture review D-03, D-04, D-05, D-07). It
+took a migration renaming 84 constraints to retrofit a convention after 20 migrations had
+shipped.
+
+**Suggested Fix**: Ship `Base` with a naming convention whose generated names fit PostgreSQL's
+63-character limit; set the three flags in both `context.configure()` calls; ship a
+PostgreSQL-gated test asserting `compare_metadata(...) == []` plus reflected-name equality
+with the models; ship a ruff-clean `script.py.mako`; and add a `connect` listener enabling SQLite
+foreign keys to the test engine fixtures. A project adopting a convention late must also keep it
+away from historical migrations: Alembic applies `target_metadata`'s convention to every unnamed
+constraint an `op.*` call creates, so `env.py` should pass the model metadata only for
+`revision --autogenerate` and `check`, not for upgrade or downgrade.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/src/{{cookiecutter.project_slug}}/core/database.py`
+- `{{cookiecutter.project_slug}}/alembic/env.py`
+- `{{cookiecutter.project_slug}}/alembic/script.py.mako`
+- `{{cookiecutter.project_slug}}/tests/conftest.py`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

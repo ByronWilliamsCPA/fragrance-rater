@@ -7,7 +7,7 @@ and database connection.
 import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy import pool
+from sqlalchemy import MetaData, pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
@@ -26,6 +26,45 @@ if config.config_file_name is not None:
 
 # Importing fragrance_rater.models registers every ORM table on Base.metadata
 target_metadata = Base.metadata
+
+# Shared by offline and online mode (architecture review D-04).
+# compare_type and compare_server_default make autogenerate see column type
+# and server-default changes, not just added or dropped columns.
+# render_as_batch makes autogenerate emit `op.batch_alter_table` blocks,
+# which pass straight through to ALTER TABLE on PostgreSQL and are the only
+# form SQLite can execute for constraint or nullability changes.
+CONFIGURE_OPTS: dict[str, bool] = {
+    "compare_type": True,
+    "compare_server_default": True,
+    "render_as_batch": True,
+}
+
+
+def _comparison_metadata() -> MetaData | None:
+    """Return the model metadata when comparing, ``None`` when executing scripts.
+
+    #CRITICAL: data-integrity: Alembic applies ``target_metadata``'s naming
+    convention to every constraint an ``op.*`` call creates without a name
+    (``alembic/operations/schemaobj.py``). The migrations before 2c8c3971bfd8
+    were written without a convention and rely on PostgreSQL's own names
+    (5d2e7c9f9c92 drops ``fragrance_notes_pkey`` by name, and 2c8c3971bfd8
+    renames the PostgreSQL names). Passing the model metadata while they run
+    would make a fresh database diverge from production and break the chain.
+    #VERIFY: upgrade, downgrade, and stamp always carry a destination revision;
+    ``revision --autogenerate`` and ``check``, the only commands that compare
+    against the models, never do. CI's postgres-integration job upgrades an
+    empty database to head and then runs the parity tests, which fail if this
+    split is wrong in either direction.
+
+    Returns:
+        MetaData | None: ``Base.metadata`` for autogenerate and ``check``;
+            ``None`` for upgrade, downgrade, and stamp, which never need it.
+    """
+    try:
+        context.get_revision_argument()
+    except KeyError:
+        return target_metadata
+    return None
 
 
 def get_url() -> str:
@@ -66,9 +105,10 @@ def run_migrations_offline() -> None:
     url = get_url()
     context.configure(
         url=url,
-        target_metadata=target_metadata,
+        target_metadata=_comparison_metadata(),
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        **CONFIGURE_OPTS,
     )
 
     with context.begin_transaction():
@@ -81,7 +121,11 @@ def do_run_migrations(connection: Connection) -> None:
     Args:
         connection (Connection): Database connection to use for migrations.
     """
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=_comparison_metadata(),
+        **CONFIGURE_OPTS,
+    )
 
     with context.begin_transaction():
         context.run_migrations()

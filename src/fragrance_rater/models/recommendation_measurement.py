@@ -51,8 +51,10 @@ class RecommendationImpression(Base):
     __table_args__ = (
         UniqueConstraint("run_id", "fragrance_id"),
         UniqueConstraint("run_id", "rank"),
-        CheckConstraint("rank > 0"),
-        CheckConstraint("score_value >= 0 AND score_value <= 1"),
+        CheckConstraint("rank > 0", name="rank_positive"),
+        CheckConstraint(
+            "score_value >= 0 AND score_value <= 1", name="score_value_range"
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     run_id: Mapped[str] = mapped_column(
@@ -74,14 +76,16 @@ class RecommendationResponseRevision(Base):
     __tablename__ = "recommendation_response_revisions"
     __table_args__ = (
         UniqueConstraint("impression_id", "revision"),
-        CheckConstraint("revision > 0"),
+        CheckConstraint("revision > 0", name="revision_positive"),
         CheckConstraint(
             "sampling_state IS NULL OR sampling_state IN "
-            "('PLANNED', 'ACQUIRED', 'SAMPLED', 'UNAVAILABLE')"
+            "('PLANNED', 'ACQUIRED', 'SAMPLED', 'UNAVAILABLE')",
+            name="sampling_state_valid",
         ),
         CheckConstraint(
             "NOT (outcome_evaluation_id IS NOT NULL "
-            "AND outcome_observation_id IS NOT NULL)"
+            "AND outcome_observation_id IS NOT NULL)",
+            name="single_outcome_target",
         ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -109,12 +113,27 @@ class LLMInvocation(Base):
 
     __tablename__ = "llm_invocations"
     __table_args__ = (
-        CheckConstraint("latency_ms >= 0"),
-        CheckConstraint("estimated_cost_usd IS NULL OR estimated_cost_usd >= 0"),
-        CheckConstraint("prompt_tokens IS NULL OR prompt_tokens >= 0"),
-        CheckConstraint("completion_tokens IS NULL OR completion_tokens >= 0"),
-        CheckConstraint("total_tokens IS NULL OR total_tokens >= 0"),
-        CheckConstraint("provider_cost_usd IS NULL OR provider_cost_usd >= 0"),
+        CheckConstraint("latency_ms >= 0", name="latency_ms_nonnegative"),
+        CheckConstraint(
+            "estimated_cost_usd IS NULL OR estimated_cost_usd >= 0",
+            name="estimated_cost_nonnegative",
+        ),
+        CheckConstraint(
+            "prompt_tokens IS NULL OR prompt_tokens >= 0",
+            name="prompt_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "completion_tokens IS NULL OR completion_tokens >= 0",
+            name="completion_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "total_tokens IS NULL OR total_tokens >= 0",
+            name="total_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "provider_cost_usd IS NULL OR provider_cost_usd >= 0",
+            name="provider_cost_nonnegative",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     reviewer_id: Mapped[str] = mapped_column(
@@ -144,7 +163,10 @@ class PilotOperationalEvent(Base):
 
     __tablename__ = "pilot_operational_events"
     __table_args__ = (
-        CheckConstraint("event_type IN ('CONNECTIVITY_FAILURE', 'MANUAL_RECOVERY')"),
+        CheckConstraint(
+            "event_type IN ('CONNECTIVITY_FAILURE', 'MANUAL_RECOVERY')",
+            name="event_type_valid",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     reviewer_id: Mapped[str] = mapped_column(
