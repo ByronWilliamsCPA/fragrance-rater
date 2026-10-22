@@ -13,8 +13,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.api.calibration import manager
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.auth import VerifiedIdentity, manager
 from fragrance_rater.core.database import get_db
 from fragrance_rater.core.exceptions import BusinessLogicError, ResourceNotFoundError
 from fragrance_rater.schemas.prediction import (
@@ -26,7 +25,7 @@ from fragrance_rater.services.prediction_service import PredictionService
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
 DB = Annotated[AsyncSession, Depends(get_db)]
-Identity = Annotated[AuthenticatedIdentity, Depends(get_current_identity)]
+Identity = VerifiedIdentity
 
 
 @router.post(

@@ -10,6 +10,7 @@ HOUSE_A_COLLEAGUE = {"X-Authentik-Username": "maison-a-intern"}
 HOUSE_B = {"X-Authentik-Username": "atelier-b-rep"}
 MANAGER = {"X-Authentik-Username": "manager"}
 FAMILY = {"X-Authentik-Username": "family-member"}
+ANONYMOUS = {"X-Authentik-Username": ""}
 
 
 @pytest.fixture(autouse=True)
@@ -82,7 +83,9 @@ async def test_access_reports_house_manager_and_family(test_app):
     }
     response = await test_app.get(f"{PREFIX}/access", headers=FAMILY)
     assert response.json()["house"] is None
-    assert (await test_app.get(f"{PREFIX}/access")).status_code == 401
+    assert (
+        await test_app.get(f"{PREFIX}/access", headers=ANONYMOUS)
+    ).status_code == 401
 
 
 @pytest.mark.asyncio

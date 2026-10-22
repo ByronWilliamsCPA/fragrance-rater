@@ -14,6 +14,10 @@ import pytest
 
 from fragrance_rater.core.config import settings
 
+ANONYMOUS = {"X-Authentik-Username": ""}
+"""A blank identity header counts as missing (R3): opts out of the test_app
+client's default identity."""
+
 API_PREFIX = "/api/v1"
 
 # A minimal, syntactically valid CSV; the auth dependency is checked before
@@ -40,6 +44,7 @@ class TestImportKaggleCsvAuthentikRequired:
             f"{API_PREFIX}/import/kaggle",
             files={"file": ("fragrances.csv", io.BytesIO(_MINIMAL_CSV), "text/csv")},
             params={"dry_run": True},
+            headers=ANONYMOUS,
         )
 
         assert response.status_code == 401

@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.auth import VerifiedIdentity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.services.kaggle_importer import KaggleImporter
 from fragrance_rater.utils.logging import get_logger, log_audit_event
@@ -40,7 +40,7 @@ async def import_kaggle_csv(
     # reviewers, see fragrance_rater.core.auth.get_current_identity); fails
     # closed with 401 whenever settings.authentik_required is true and the
     # request did not transit the Traefik forward-auth middleware.
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
     dry_run: bool = False,
 ) -> ImportResponse:
     """Import fragrances from a Kaggle CSV file.

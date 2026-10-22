@@ -49,12 +49,39 @@ could act as any user, including a manager.
   CORS origins) and an explicit `TRUSTED_HOSTS` list.
 
 Read authorization (which identities may read whose evidence, architecture review Q5) is decided
-in R3's second pull request, which amends this ADR again.
+in the second 2026-10-21 amendment below.
 
 Validation for this amendment: `tests/integration/test_nginx_trust_boundary.py` runs the real
 nginx configuration and shows forged headers are dropped from an untrusted peer and kept from
 Traefik; the P1.6 forged-header check in `docs/deployment/p1-release-readiness.md` repeats it on
 the deployed topology.
+
+## 2026-10-21 amendment: one identity rule and reviewer-scoped reads (R3)
+
+The original decision required a verified identity only on "mutating routes". Reads of personal
+data (ordinary evaluation history and notes, recommendations, preference profiles) required none,
+some writes accepted a missing username when `AUTHENTIK_REQUIRED` was false, and three separate
+authorization helpers lived in router modules (architecture review S-05/B-10, S-06, B-11).
+
+- Every route except health checks, the API root, and the root-mounted sample catalog (removed in
+  R9) depends on `core.auth.require_identity`. It returns 401 without a non-empty username whatever
+  `AUTHENTIK_REQUIRED` says, so a misconfigured serving environment cannot accept anonymous writes
+  or reads, and every write records who made it.
+- Read policy, decided by the owner on 2026-10-21 (Q5): household members do not read each other's
+  evidence. A manager (`CALIBRATION_ADMIN_USERNAMES`) reads every reviewer; any other user reads
+  only reviewers whose calibration enrollment lists them in `recorder_usernames`; everyone else
+  gets 403. This covers ordinary evaluations (by reviewer, by id, and by fragrance, which is
+  filtered to readable reviewers), recommendations, the preference profile, and explanations. A
+  user with no recorder assignment therefore cannot read any history, their own included, until a
+  manager enrolls them; the owner accepted this over linking Authentik users to reviewers.
+- Reviewer names and the fragrance catalog are household-wide and need only a named caller.
+- Billed LLM routes (`POST /ratings`, profile, explain) need a named caller as well as the
+  household API key, so spend is attributable (S-03); retiring the key itself is R9's (Q2).
+- `actor`, `manager`, and `authorize_reviewer` live in `core/auth.py`; routers import them.
+
+Validation: `tests/unit/test_api/test_authorization_matrix.py` walks the live route table and
+expects 401 from every protected route without an identity, then checks the manager, assigned
+recorder, and unassigned user matrix on every reviewer-keyed read.
 
 ## Consequences
 

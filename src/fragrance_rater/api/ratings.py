@@ -21,6 +21,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from fragrance_rater.core.auth import require_identity
 from fragrance_rater.llm import LLMRatingClient, get_llm_client
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_key
 from fragrance_rater.utils.logging import get_logger
@@ -111,7 +112,8 @@ class RatingResponse(BaseModel):
     response_model=RatingResponse,
     status_code=status.HTTP_200_OK,
     summary="Rate a fragrance with an LLM",
-    dependencies=[Depends(require_api_key)],
+    # The household key alone made billed LLM spend unattributable (S-03).
+    dependencies=[Depends(require_api_key), Depends(require_identity)],
     responses={
         200: {"description": "Rating produced successfully."},
         401: {
