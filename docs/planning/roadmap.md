@@ -1,6 +1,6 @@
 # Fragrance Rater Execution Roadmap
 
-> **Status**: Active mirror | **Updated**: 2026-10-02
+> **Status**: Active mirror | **Updated**: 2026-10-21
 
 The [Authoritative Project Plan](PROJECT-PLAN.md) owns scope, status, acceptance criteria,
 risks, and evidence. This page is a compact execution view and must be updated from that plan in
@@ -17,7 +17,7 @@ the same pull request.
 | P4 | Participant experience | Complete | P3 complete | Participant workflows require no IDs or API tools |
 | P5 | Manager and operations experience | Complete | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
 | P6 | Integrated pilot readiness | In progress; external execution pending | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
-| R | Review remediation and ML foundation | In progress; ML skeleton, affinity-v2, R1, and R5 done; R2 PRs 1 and 2 in review | P5 complete | R1-R4 and R7a-R7b merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 |
+| R | Review remediation and ML foundation | In progress; ML skeleton, affinity-v2, R1 (2026-09-21), R2 (2026-10-21), and R5 done; R3 PRs 1 and 2 in review | P5 complete | R1-R4 and R7a-R7b merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 |
 | F1 | Initial family perfume pilot | Planned | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
 | D1 | Source and vocabulary foundation | Planned | F1 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
@@ -28,17 +28,24 @@ the same pull request.
 ## Dependency path
 
 ```text
-P0 ┬→ P1 ---------------------------------------------------------------------┐
-   └→ P2 → P3 → P4 → P5 → R1 ┬→ R2 ┐                                          │
-                             └→ R3 ┴→ R4 ------------------------------------┤
-                                                                              └→ P6 → F1 → D1 → D2 ┬→ D3
-                                                                                                   └→ D4 → D5
+P0 ┬→ P1 -------------------------------------------------------------------------┐
+   └→ P2 → P3 → P4 → P5 → R1 ┬→ R3 ------------------------------------------------┤
+                             ├→ R4 ------------------------------------------------┤
+                             ├→ R13 -----------------------------------------------┤
+                             ├→ R14 (secrets, topology validator, backups) ---------┤
+                             └→ R2 ┬→ R7a → R7b (merges before P6.3) ---------------┴→ P6 → F1 → D1 → D2 ┬→ D3
+                                   └→ R6 → R8 (F1 blockers only; R5 is done)                             └→ D4 → D5
 ```
+
+F1 also requires R2, R5, R6, R7a, R7b, and R8 merged. R9-R12 are maintainability sprints and gate nothing, and
+R14's documentation items gate nothing. R8 may land after the P6 go decision but must land before F1.
 
 ## Immediate queue
 
-1. Milestone R sprints in order: R1 (done), R2 (Opus; both PRs in review), R3 (Opus) and R4 (Sonnet) in
-   parallel, then R6-R8 before F1 (R5 done); see [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation)
+1. Milestone R sprints: R1, R2, and R5 are done; R3 (Opus) has both pull requests in review (#143, #144) and
+   R4 (Sonnet) can proceed in parallel; then R6-R8 before F1, with R13 and R14's operations items before the P6
+   decision; see
+   [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation)
    for scope, lead model, and gate.
 2. Use the P6 runbook and retained-evidence templates against the final release candidate.
 3. Complete P1 evidence: physical manifest, authorized fixtures, backup clone, migration,
