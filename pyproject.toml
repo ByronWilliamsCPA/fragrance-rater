@@ -28,6 +28,7 @@ dependencies = [
     "rich>=13.5.0",
     "click>=8.1.0",
     "ruamel-yaml>=0.18.0",  # curated note-alias files (fragrance-rater vocab aliases)
+    "tzdata>=2024.1",  # IANA zone names for evaluator timezones (no OS tz database assumed)
     # Cross-Version Compatibility Dependencies
     # =========================================
     # This template targets Python 3.10-3.14. Add version-specific dependencies

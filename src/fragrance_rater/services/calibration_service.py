@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import secrets
-from datetime import timedelta
-from typing import TYPE_CHECKING, NoReturn
+from datetime import UTC, timedelta
+from typing import TYPE_CHECKING, NoReturn, cast
+from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
@@ -19,10 +20,12 @@ from fragrance_rater.models.calibration import (
     Observation,
     Presentation,
     Program,
+    SessionContext,
     SourceSnapshot,
 )
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
+from fragrance_rater.services.consent import ConsentService
 from fragrance_rater.services.llm_service import get_llm_service
 from fragrance_rater.utils.gtin import normalize_gtin
 from fragrance_rater.utils.timestamps import now_naive_utc
@@ -32,9 +35,13 @@ if TYPE_CHECKING:
 
     from fragrance_rater.schemas.calibration import (
         EnrollmentInput,
+        ExposureInput,
         MembershipInput,
         ResponseInput,
+        SessionEndInput,
+        SessionStartInput,
     )
+    from fragrance_rater.schemas.consent import SessionContextInput
 
 
 def reject(message: str, status: int = 409) -> NoReturn:
@@ -43,6 +50,18 @@ def reject(message: str, status: int = 409) -> NoReturn:
 
 
 UNPINNED_INSTRUMENT_PREFIX = "unpinned-app-"
+
+# Facts about the physical sample, recorded when the sample is first exposed.
+_SAMPLE_FACTS = (
+    "sample_source_type",
+    "sample_container",
+    "sample_volume_ml",
+    "sample_acquired_on",
+    "sample_decanted_on",
+    "sample_opened_on",
+    "sample_batch_code",
+    "physical_sample_confirmed",
+)
 
 
 def activation_instrument_version(configured: str | None) -> str:
@@ -510,6 +529,180 @@ class CalibrationService:
                 )
         await self.db.flush()
         return observation
+
+    async def session_target(
+        self, session_id: str, username: str, admin: bool
+    ) -> tuple[CalibrationSession, Enrollment]:
+        """Resolve a session through enrollment authorization.
+
+        Args:
+            session_id (str): The calibration session.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            tuple[CalibrationSession, Enrollment]: The session and its enrollment.
+        """
+        session = await self.db.get(CalibrationSession, session_id)
+        if session is None:
+            reject("Session not found", 404)
+        assert session is not None
+        enrollment = await self.enrollment(session.enrollment_id, username, admin)
+        return session, enrollment
+
+    async def start_session(
+        self, session_id: str, data: SessionStartInput, username: str, admin: bool
+    ) -> CalibrationSession:
+        """Record when and where a session actually began.
+
+        Args:
+            session_id (str): The calibration session.
+            data (SessionStartInput): Zone and optional client start time.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            CalibrationSession: The session with its timing set.
+        """
+        session, _ = await self.session_target(session_id, username, admin)
+        if session.started_at is not None:
+            reject("Session already started")
+        started = data.started_at or now_naive_utc()
+        session.started_at = started
+        session.evaluator_timezone = data.evaluator_timezone
+        # The local calendar date, so a session that crosses midnight UTC still
+        # has the day the evaluator experienced it on.
+        session.occurred_on = (
+            started.replace(tzinfo=UTC)
+            .astimezone(ZoneInfo(data.evaluator_timezone))
+            .date()
+        )
+        await self.db.flush()
+        return session
+
+    async def end_session(
+        self, session_id: str, data: SessionEndInput, username: str, admin: bool
+    ) -> CalibrationSession:
+        """Record when a started session actually ended.
+
+        Args:
+            session_id (str): The calibration session.
+            data (SessionEndInput): Optional client end time.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            CalibrationSession: The session with its end time set.
+        """
+        session, _ = await self.session_target(session_id, username, admin)
+        if session.started_at is None:
+            reject("Start the session before ending it")
+        if session.ended_at is not None:
+            reject("Session already ended")
+        # #ASSUME: timing-dependency: an end before the start can only come from a
+        # wrong client clock. Capture assessment 13.3 keeps mistimed evidence and
+        # flags it rather than refusing it, so it is stored as given.
+        # #VERIFY: a quality flag (timestamp_inconsistent) is how a reviewer marks it.
+        session.ended_at = data.ended_at or now_naive_utc()
+        await self.db.flush()
+        return session
+
+    async def record_session_context(
+        self,
+        session_id: str,
+        data: SessionContextInput,
+        username: str,
+        admin: bool,
+    ) -> SessionContext:
+        """Record self-reported conditions, only while consent for them stands.
+
+        Args:
+            session_id (str): The calibration session.
+            data (SessionContextInput): The refusable answers.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            SessionContext: The stored answers.
+        """
+        session, enrollment = await self.session_target(session_id, username, admin)
+        await ConsentService(self.db).require_granted(
+            enrollment.reviewer_id, "session_context"
+        )
+        if await self.db.scalar(
+            select(SessionContext.id).where(SessionContext.session_id == session.id)
+        ):
+            reject("Session context is already recorded")
+        context = SessionContext(
+            session_id=session.id, recorded_by=username, **data.model_dump()
+        )
+        self.db.add(context)
+        await self.db.flush()
+        return context
+
+    async def session_context(
+        self, session_id: str, username: str, admin: bool
+    ) -> SessionContext | None:
+        """Read a session's recorded conditions, or ``None`` if none were recorded.
+
+        Args:
+            session_id (str): The calibration session.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            SessionContext | None: The answers, if any.
+        """
+        session, _ = await self.session_target(session_id, username, admin)
+        return await self.db.scalar(
+            select(SessionContext).where(SessionContext.session_id == session.id)
+        )
+
+    async def record_exposure(
+        self, presentation_id: str, data: ExposureInput, username: str, admin: bool
+    ) -> Presentation:
+        """Stamp the first blotter smell or skin application of a sample.
+
+        Args:
+            presentation_id (str): The presentation.
+            data (ExposureInput): The stage, instant, and sample facts.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            Presentation: The presentation with its exposure facts set.
+        """
+        obj, enrollment = await self.target(presentation_id, username, admin)
+        member = await self.db.get(Membership, obj.membership_id)
+        assert member is not None
+        if post_reveal_entry(enrollment, member, obj):
+            reject("Blind collection ended at reveal")
+        session = await self.db.get(CalibrationSession, obj.session_id)
+        assert session is not None
+        at = data.at or now_naive_utc()
+        if data.stage == "BLOTTER":
+            if obj.presented_at is not None:
+                reject("Blotter exposure already recorded")
+            obj.presented_at = at
+        else:
+            if obj.skin_reason is None:
+                reject("Skin test must be planned")
+            if obj.applied_at is not None:
+                reject("Skin application already recorded")
+            obj.applied_at = at
+            obj.application_timezone = data.timezone or session.evaluator_timezone
+            obj.application_method = data.application_method
+            obj.application_dose_sprays = data.application_dose_sprays
+        for name in _SAMPLE_FACTS:
+            value = cast("object", getattr(data, name))
+            if value is None:
+                continue
+            current = cast("object", getattr(obj, name))
+            if current is not None and current != value:
+                reject(f"{name} is already recorded for this sample")
+            setattr(obj, name, value)
+        await self.db.flush()
+        return obj
 
     async def lock_stage(
         self, presentation_id: str, stage: str, username: str, admin: bool

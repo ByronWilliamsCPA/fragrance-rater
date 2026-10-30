@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fragrance_rater.core.auth import (
     VerifiedIdentity,
     actor,
+    authorize_reviewer,
     manager,
 )
 from fragrance_rater.core.config import settings
@@ -28,17 +29,22 @@ from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.calibration import (
     CheckpointInput,
     EnrollmentInput,
+    ExposureInput,
     MembershipInput,
     ProgramInput,
     ResponseInput,
+    SessionEndInput,
+    SessionStartInput,
     SkinPlanInput,
     Stage,
 )
+from fragrance_rater.schemas.consent import ConsentEventInput, SessionContextInput
 from fragrance_rater.services.calibration_service import (
     CalibrationService,
     activation_instrument_version,
     reject,
 )
+from fragrance_rater.services.consent import ConsentService, load_consent_text
 from fragrance_rater.services.evaluation_service import EvaluationService
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
@@ -413,6 +419,168 @@ async def post_reveal(
         presentation_id, data, *actor(identity), post_reveal=True
     )
     return {"id": obj.id}
+
+
+@router.post("/presentations/{presentation_id}/exposure")
+async def exposure(
+    presentation_id: str, data: ExposureInput, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Stamp the first blotter smell or skin application of a sample."""
+    obj = await CalibrationService(db).record_exposure(
+        presentation_id, data, *actor(identity)
+    )
+    return {
+        "id": obj.id,
+        "presented_at": obj.presented_at,
+        "applied_at": obj.applied_at,
+        "application_timezone": obj.application_timezone,
+    }
+
+
+@router.post("/sessions/{session_id}/start")
+async def start_session(
+    session_id: str, data: SessionStartInput, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Record when and where a session actually began."""
+    obj = await CalibrationService(db).start_session(session_id, data, *actor(identity))
+    return {
+        "id": obj.id,
+        "started_at": obj.started_at,
+        "occurred_on": obj.occurred_on,
+        "evaluator_timezone": obj.evaluator_timezone,
+    }
+
+
+@router.post("/sessions/{session_id}/end")
+async def end_session(
+    session_id: str, data: SessionEndInput, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Record when a started session actually ended."""
+    obj = await CalibrationService(db).end_session(session_id, data, *actor(identity))
+    return {"id": obj.id, "ended_at": obj.ended_at}
+
+
+_CONTEXT_FIELDS = (
+    "illness",
+    "nasal_congestion",
+    "allergy_symptoms",
+    "hunger",
+    "hours_since_food",
+    "hours_since_caffeine",
+    "personal_fragrance_worn",
+    "ambient_odor",
+    "ambient_odor_detail",
+    "room_temperature_c",
+    "room_humidity_pct",
+    "hormonal_context",
+    "note",
+)
+
+
+@router.post("/sessions/{session_id}/context", status_code=201)
+async def record_session_context(
+    session_id: str, data: SessionContextInput, db: DB, identity: Identity
+) -> dict[str, str]:
+    """Record refusable self-reported conditions, only while consent stands."""
+    username, admin = actor(identity)
+    obj = await CalibrationService(db).record_session_context(
+        session_id, data, username, admin
+    )
+    # The answers themselves are sensitive and are never logged, only that they
+    # were recorded and which of them were answered.
+    log_audit_event(
+        logger,
+        action="session_context_record",
+        actor=username,
+        target_type="session_context",
+        target_id=obj.id,
+        session_id=session_id,
+        answered=sorted(
+            name for name in _CONTEXT_FIELDS if getattr(obj, name) is not None
+        ),
+    )
+    return {"id": obj.id}
+
+
+@router.get("/sessions/{session_id}/context")
+async def read_session_context(
+    session_id: str, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Read a session's recorded conditions; manager or assigned recorder only."""
+    obj = await CalibrationService(db).session_context(session_id, *actor(identity))
+    if obj is None:
+        return {"recorded": False}
+    return {
+        "recorded": True,
+        "id": obj.id,
+        "recorded_by": obj.recorded_by,
+        **{name: getattr(obj, name) for name in _CONTEXT_FIELDS},
+    }
+
+
+@router.get("/consent/text")
+async def consent_text(identity: Identity) -> dict[str, object]:
+    """Return the consent wording, its version, digest, and approval state."""
+    actor(identity)
+    text = load_consent_text()
+    return {
+        "version": text.version,
+        "sha256": text.sha256,
+        "approved": text.approved,
+        "text": text.body,
+    }
+
+
+@router.get("/reviewers/{reviewer_id}/consent")
+async def reviewer_consent(
+    reviewer_id: str, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Return each consent scope's current state and the full event log."""
+    username, admin = actor(identity)
+    await authorize_reviewer(db, reviewer_id, username, admin)
+    service = ConsentService(db)
+    return {
+        "state": await service.state(reviewer_id),
+        "events": [
+            {
+                "id": event.id,
+                "event_type": event.event_type,
+                "scope": event.scope,
+                "consent_text_version": event.consent_text_version,
+                "occurred_at": event.occurred_at,
+                "recorded_by": event.recorded_by,
+            }
+            for event in await service.events(reviewer_id)
+        ],
+    }
+
+
+@router.post("/reviewers/{reviewer_id}/consent", status_code=201)
+async def record_consent(
+    reviewer_id: str, data: ConsentEventInput, db: DB, identity: Identity
+) -> dict[str, str]:
+    """Append a consent grant or withdrawal, stamped with the shown text."""
+    username, admin = actor(identity)
+    await authorize_reviewer(db, reviewer_id, username, admin)
+    event = await ConsentService(db).record(
+        reviewer_id,
+        data.scope,
+        data.event_type,
+        username,
+        enrollment_id=data.enrollment_id,
+        note=data.note,
+    )
+    log_audit_event(
+        logger,
+        action=f"consent_{event.event_type}",
+        actor=username,
+        target_type="consent_event",
+        target_id=event.id,
+        reviewer_id=reviewer_id,
+        scope=event.scope,
+        consent_text_version=event.consent_text_version,
+    )
+    return {"id": event.id}
 
 
 @router.post("/presentations/{presentation_id}/lock/{stage}")

@@ -1,7 +1,8 @@
 """Validated protocol inputs and independent unipolar response scales."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -221,6 +222,125 @@ class ResponseInput(StrictInput):
             if {"none", "cannot_judge"} & set(choices) and len(choices) > 1:
                 message = f"{name}: none and cannot_judge stand alone"
                 raise ValueError(message)
+        return self
+
+
+def validate_timezone(name: str) -> str:
+    """Return ``name`` if it is a real IANA zone, else raise ``ValueError``.
+
+    Args:
+        name (str): A zone name such as ``America/Denver``.
+
+    Returns:
+        str: The same name.
+
+    Raises:
+        ValueError: If the name is not in the IANA database.
+    """
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError, OSError) as error:
+        message = f"{name!r} is not an IANA timezone name"
+        raise ValueError(message) from error
+    return name
+
+
+class SessionStartInput(StrictInput):
+    """When and where a session actually began.
+
+    ``started_at`` is the client clock at submit (naive UTC after validation);
+    the server's receipt time stands in when it is omitted. The zone is the
+    evaluator's local one, so time of day and the local calendar date can be
+    derived without guessing.
+    """
+
+    evaluator_timezone: str = Field(min_length=1, max_length=64)
+    started_at: datetime | None = None
+
+    @field_validator("evaluator_timezone")
+    @classmethod
+    def timezone_is_iana(cls, value: str) -> str:
+        """Refuse a name the IANA database does not know."""
+        return validate_timezone(value)
+
+    @field_validator("started_at")
+    @classmethod
+    def started_at_is_naive_utc(cls, value: datetime | None) -> datetime | None:
+        """Store the start as naive UTC, never in the future."""
+        return None if value is None else to_naive_utc(value)
+
+
+class SessionEndInput(StrictInput):
+    """When a session actually ended; the server's receipt time if omitted."""
+
+    ended_at: datetime | None = None
+
+    @field_validator("ended_at")
+    @classmethod
+    def ended_at_is_naive_utc(cls, value: datetime | None) -> datetime | None:
+        """Store the end as naive UTC, never in the future."""
+        return None if value is None else to_naive_utc(value)
+
+
+ApplicationMethod = Literal["spray", "dab", "roll"]
+SampleSourceType = Literal[
+    "manufacturer_sample",
+    "official_discovery_set",
+    "retailer_sample",
+    "decant",
+    "owned_bottle",
+    "unknown",
+]
+SampleContainer = Literal["spray_atomizer", "dab_vial", "rollerball", "retail_bottle"]
+
+
+class ExposureInput(StrictInput):
+    """The moment a sample was first smelled (blotter) or applied (skin).
+
+    ``at`` is the client clock at submit. The first exposure of a stage is
+    recorded once; the sample facts a recorder knows about the physical sample
+    ride along because that is when they are known.
+    """
+
+    stage: Stage
+    at: datetime | None = None
+    timezone: str | None = Field(default=None, min_length=1, max_length=64)
+    application_method: ApplicationMethod | None = None
+    application_dose_sprays: int | None = Field(default=None, gt=0, le=100)
+    sample_source_type: SampleSourceType | None = None
+    sample_container: SampleContainer | None = None
+    sample_volume_ml: float | None = Field(default=None, gt=0, le=10000)
+    sample_acquired_on: date | None = None
+    sample_decanted_on: date | None = None
+    sample_opened_on: date | None = None
+    sample_batch_code: str | None = Field(default=None, max_length=100)
+    physical_sample_confirmed: bool | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def timezone_is_iana(cls, value: str | None) -> str | None:
+        """Refuse a name the IANA database does not know."""
+        return None if value is None else validate_timezone(value)
+
+    @field_validator("at")
+    @classmethod
+    def at_is_naive_utc(cls, value: datetime | None) -> datetime | None:
+        """Store the instant as naive UTC, never in the future."""
+        return None if value is None else to_naive_utc(value)
+
+    @model_validator(mode="after")
+    def application_details_are_skin_only(self) -> "ExposureInput":
+        """Method, dose, and a separate zone describe a skin application only.
+
+        A blotter's local time reads through the session's own zone.
+        """
+        if self.stage == "BLOTTER" and (
+            self.application_method is not None
+            or self.application_dose_sprays is not None
+            or self.timezone is not None
+        ):
+            message = "application_method, dose, and timezone are skin-only"
+            raise ValueError(message)
         return self
 
 
