@@ -1001,6 +1001,61 @@ class TestVocabAliasesCommands:
         assert result.exit_code == 1
         assert "nothing was written" in result.output
 
+    def test_a_whitespace_only_actor_is_refused(self, tmp_path: Path) -> None:
+        path = tmp_path / "aliases.yaml"
+        path.write_text(_ALIAS_FILE, encoding="utf-8")
+
+        result = CliRunner().invoke(
+            cli,
+            ["vocab", "aliases", "load", str(path), "--execute", "--actor", "   "],
+        )
+
+        assert result.exit_code == 2
+        assert "--actor is required" in result.output
+
+    @patch("fragrance_rater.cli.audit_alias_load")
+    @patch("fragrance_rater.cli.get_session")
+    @patch("fragrance_rater.cli.load_aliases")
+    def test_an_applied_load_is_audited_after_the_session_closes(
+        self,
+        mock_load: MagicMock,
+        mock_get_session: MagicMock,
+        mock_audit: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        from fragrance_rater.services.note_aliases import (
+            AliasDecision,
+            AliasLoadItem,
+            AliasLoadReport,
+        )
+
+        order: list[str] = []
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=AsyncMock())
+        mock_get_session.return_value.__aexit__ = AsyncMock(
+            side_effect=lambda *_: order.append("commit")
+        )
+        mock_audit.side_effect = lambda *_: order.append("audit")
+        decision = AliasDecision("vanille", "Vanilla", "checked", "owner")
+        report = AliasLoadReport(
+            mapping_version="nm-v1",
+            content_hash="abc",
+            active=True,
+            items=(AliasLoadItem(decision, "create", "ok"),),
+            applied=True,
+        )
+        mock_load.return_value = report
+        path = tmp_path / "aliases.yaml"
+        path.write_text(_ALIAS_FILE, encoding="utf-8")
+
+        result = CliRunner().invoke(
+            cli,
+            ["vocab", "aliases", "load", str(path), "--execute", "--actor", " me "],
+        )
+
+        assert result.exit_code == 0
+        assert order == ["commit", "audit"]
+        mock_audit.assert_called_once_with(report, "me")
+
     @patch("fragrance_rater.cli.get_session")
     @patch("fragrance_rater.cli.find_ambiguities")
     def test_ambiguities_exit_nonzero_when_any_exist(

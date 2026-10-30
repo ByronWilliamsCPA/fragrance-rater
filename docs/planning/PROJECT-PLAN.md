@@ -628,7 +628,6 @@ items not re-verified are marked.
 
 | PR | Branch | Purpose and plan home | Status |
 | :--- | :--- | :--- | :--- |
-| Follow-up to #151 | `fix/r6-review-findings` | Three defects CodeRabbit found in #151, fixed after #151 had already merged: non-Latin note names get a usable key (and accents are stripped from Latin letters only), a merged accord keeps provenance derived from its own weight, and two spellings of one note in one position are one link. The first two are in migration `000091664cdd` and are fixed in place, which is safe only while no database has run `45e09fd`'s version of it | In review |
 | R6 PR 2 | `feat/r6-alias-curation` | Alias-curation mechanism: a versioned alias file (empty until the verified manifest exists), `vocab aliases` commands (validate, load, ambiguities), a pre-commit hook, an audited all-or-nothing loader. | In review |
 
 Issue #5 is the Renovate dashboard.
