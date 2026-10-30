@@ -35,11 +35,10 @@ async def import_kaggle_csv(
     # (a mutating, non-dry-run call can bulk-insert arbitrary caller-supplied
     # data) and previously carried no authentication dependency at all,
     # letting any caller who could reach the service trigger an import.
-    # #VERIFY: reuses the same Authentik forward-auth identity dependency
-    # already enforced on the other mutating routes (fragrances/evaluations/
-    # reviewers, see fragrance_rater.core.auth.get_current_identity); fails
-    # closed with 401 whenever settings.authentik_required is true and the
-    # request did not transit the Traefik forward-auth middleware.
+    # #VERIFY: VerifiedIdentity, from fragrance_rater.core.auth.require_identity,
+    # requires a non-empty Authentik forward-auth username and fails closed
+    # with 401 for an unnamed caller, whatever settings.authentik_required
+    # says (R3, S-06).
     identity: VerifiedIdentity,
     dry_run: bool = False,
 ) -> ImportResponse:
@@ -51,9 +50,8 @@ async def import_kaggle_csv(
 
     Set dry_run=true to validate without writing to database.
 
-    Requires a verified Authentik forward-auth identity (see
-    ``fragrance_rater.core.auth.get_current_identity``) when
-    ``settings.authentik_required`` is true.
+    Requires a named caller: a non-empty Authentik forward-auth username
+    (see ``fragrance_rater.core.auth.require_identity``); otherwise 401.
     """
     filename = file.filename
     if not filename or not filename.endswith(".csv"):

@@ -82,9 +82,16 @@ PROTECTED = _protected_routes()
 
 
 @pytest.fixture
-def authentik_required(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Serve as production does: identity required, a manager configured."""
-    monkeypatch.setattr(settings, "authentik_required", True)
+def authentik_required(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
+    """Serve as production does: identity required, a manager configured.
+
+    Indirectly parametrized tests can pass ``False``: the identity rule must
+    hold either way, so a route that slips back to the setting-dependent
+    ``get_current_identity`` fails here too.
+    """
+    monkeypatch.setattr(settings, "authentik_required", getattr(request, "param", True))
     monkeypatch.setattr(settings, "calibration_admin_usernames", ["manager"])
     monkeypatch.setattr(settings, "api_key", API_KEY)
 
@@ -97,12 +104,14 @@ def test_route_inventory_is_not_empty() -> None:
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("authentik_required")
+@pytest.mark.parametrize("authentik_required", [True, False], indirect=True)
 @pytest.mark.parametrize(("method", "path"), PROTECTED)
+@pytest.mark.usefixtures("authentik_required")
 async def test_every_protected_route_rejects_an_anonymous_caller(
     test_app: AsyncClient, method: str, path: str
 ) -> None:
-    """No identity means 401 on every non-public route (S-05, S-06, S-23)."""
+    """No identity means 401 on every non-public route (S-05, S-06, S-23),
+    whether or not ``AUTHENTIK_REQUIRED`` is set."""
     url = re.sub(r"\{[^}]+\}", "unknown-id", path)
     headers = {**ANONYMOUS, "X-API-Key": API_KEY}
     kwargs: dict[str, Any] = {"headers": headers}

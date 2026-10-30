@@ -118,8 +118,10 @@ class RatingResponse(BaseModel):
         200: {"description": "Rating produced successfully."},
         401: {
             "description": (
-                "Missing or invalid X-API-Key header. Required on this "
-                "endpoint (see fragrance_rater.middleware.auth)."
+                "Missing or invalid X-API-Key header, or no named caller in "
+                "X-Authentik-Username. Both are required on this endpoint "
+                "(see fragrance_rater.middleware.auth and "
+                "fragrance_rater.core.auth.require_identity)."
             )
         },
         422: {"description": "Request body failed validation."},
@@ -141,8 +143,10 @@ def create_rating(
     """Produce an LLM-powered rating for a fragrance.
 
     Requires the shared household ``X-API-Key`` header (see
-    ``fragrance_rater.middleware.auth.require_api_key``) and is rate
-    limited (see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``).
+    ``fragrance_rater.middleware.auth.require_api_key``) and a named caller in
+    ``X-Authentik-Username`` (see ``fragrance_rater.core.auth.require_identity``),
+    and is rate limited (see
+    ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``).
 
     Accepted fields: ``name`` (required), ``brand``, ``description``
     (required), and an optional list of accord ``notes``.
