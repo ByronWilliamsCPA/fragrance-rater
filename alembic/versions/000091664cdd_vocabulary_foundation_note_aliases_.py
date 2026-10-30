@@ -65,27 +65,39 @@ _INTENSITY_SOURCE_CHECK = "intensity_source IN ('measured', 'positional', 'absen
 _RANK_CHECK = "rank IS NULL OR rank >= 0"
 
 
-def _note_key(raw: str) -> str:
-    """Frozen copy of ``utils.labels.normalize_note_key`` at the time of writing."""
-    import re  # noqa: PLC0415
+def _fold(raw: str) -> str:
+    """Frozen copy of ``utils.labels._fold`` at the time of writing.
+
+    NFKD, drop combining marks that follow a Latin letter only (so ``Néroli`` folds
+    to ``neroli`` but the voiced mark on ``が`` stays), recompose, casefold.
+    """
     import unicodedata  # noqa: PLC0415
 
-    decomposed = unicodedata.normalize("NFKD", raw)
-    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-    key = re.sub(r"[^0-9a-z]+", "", stripped.casefold())[:100]
-    # A label with no letters or digits would collide with every other such
-    # label; keep it distinct by falling back to the label itself.
+    kept: list[str] = []
+    after_latin = False
+    for ch in unicodedata.normalize("NFKD", raw):
+        if unicodedata.combining(ch) and after_latin:
+            continue
+        kept.append(ch)
+        after_latin = unicodedata.name(ch, "").startswith("LATIN")
+    return unicodedata.normalize("NFC", "".join(kept)).casefold()
+
+
+def _note_key(raw: str) -> str:
+    """Frozen copy of ``utils.labels.normalize_note_key``."""
+    import re  # noqa: PLC0415
+
+    key = re.sub(r"[\W_]+", "", _fold(raw))[:100]
+    # A label with no letters or digits in any script would collide with every
+    # other such label; keep it distinct by falling back to the label itself.
     return key or raw[:100]
 
 
 def _accord_code(raw: str) -> str:
     """Frozen copy of ``utils.labels.normalize_accord_code``."""
     import re  # noqa: PLC0415
-    import unicodedata  # noqa: PLC0415
 
-    decomposed = unicodedata.normalize("NFKD", raw)
-    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-    return re.sub(r"\s+", " ", stripped.casefold()).strip()
+    return re.sub(r"\s+", " ", _fold(raw)).strip()
 
 
 def _merge_colliding_notes(bind: sa.engine.Connection) -> dict[str, str]:
@@ -160,53 +172,44 @@ def _normalize_accords(bind: sa.engine.Connection) -> None:
     ).all()
 
     labels: dict[str, str] = {}
-    taken: set[tuple[str, str]] = {(r[0], r[1]) for r in rows}
+    groups: dict[tuple[str, str], list[tuple[str, float, str]]] = {}
     for fragrance_id, accord_type, intensity, data_source in rows:
         code = _accord_code(accord_type)
         labels.setdefault(code, accord_type[:50])
-        ladder_rank = (
-            _POSITIONAL_LADDER.get(round(float(intensity), 2))
-            if data_source == "kaggle"
-            else None
+        groups.setdefault((fragrance_id, code), []).append(
+            (accord_type, float(intensity), data_source)
         )
-        positional = data_source == "kaggle" and round(float(intensity), 2) in (
-            _POSITIONAL_LADDER
+
+    for (fragrance_id, code), members in groups.items():
+        # One row per (fragrance, code). Keep the spelling with the larger weight
+        # and derive its provenance from that row's own value; delete the others
+        # first so the rename cannot collide with a spelling that still exists.
+        kept_type, intensity, data_source = max(members, key=lambda m: m[1])
+        for other_type, _, _ in members:
+            if other_type != kept_type:
+                bind.execute(
+                    sa.text(
+                        "DELETE FROM fragrance_accords "
+                        "WHERE fragrance_id = :fragrance_id AND accord_type = :old"
+                    ),
+                    {"fragrance_id": fragrance_id, "old": other_type},
+                )
+        on_ladder = (
+            data_source == "kaggle" and round(intensity, 2) in _POSITIONAL_LADDER
         )
-        params = {
-            "fragrance_id": fragrance_id,
-            "old": accord_type,
-            "code": code,
-            "source": "positional" if positional else "measured",
-            "rank": ladder_rank,
-        }
-        if code != accord_type and (fragrance_id, code) in taken:
-            # Two spellings on one fragrance: keep one row, the larger weight.
-            bind.execute(
-                sa.text(
-                    "UPDATE fragrance_accords SET intensity = :intensity "
-                    "WHERE fragrance_id = :fragrance_id AND accord_type = :code "
-                    "AND intensity < :intensity"
-                ),
-                {**params, "intensity": intensity},
-            )
-            bind.execute(
-                sa.text(
-                    "DELETE FROM fragrance_accords "
-                    "WHERE fragrance_id = :fragrance_id AND accord_type = :old"
-                ),
-                params,
-            )
-            continue
-        if code != accord_type:
-            taken.discard((fragrance_id, accord_type))
-            taken.add((fragrance_id, code))
         bind.execute(
             sa.text(
                 "UPDATE fragrance_accords SET accord_type = :code, "
                 "intensity_source = :source, rank = :rank "
                 "WHERE fragrance_id = :fragrance_id AND accord_type = :old"
             ),
-            params,
+            {
+                "fragrance_id": fragrance_id,
+                "old": kept_type,
+                "code": code,
+                "source": "positional" if on_ladder else "measured",
+                "rank": _POSITIONAL_LADDER[round(intensity, 2)] if on_ladder else None,
+            },
         )
 
     for code, label in sorted(labels.items()):

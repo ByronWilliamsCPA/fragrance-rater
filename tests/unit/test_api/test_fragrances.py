@@ -678,6 +678,28 @@ class TestFragranceVocabulary:
         assert second_notes[0]["note"]["id"] == first_notes[0]["note"]["id"]
         assert second_notes[0]["note"]["name"] == "Oak Moss"
 
+    async def test_two_spellings_of_one_note_in_one_position_are_one_link(
+        self, test_app
+    ):
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                **_BASE,
+                "name": "Duplicate Spelling",
+                "notes": [
+                    {"note_name": "Oak Moss", "position": "base"},
+                    {"note_name": "oakmoss", "position": "base"},
+                    {"note_name": "Amber", "position": "base"},
+                ],
+            },
+        )
+
+        assert response.status_code == 201
+        assert [(n["note"]["name"], n["rank"]) for n in response.json()["notes"]] == [
+            ("Oak Moss", 0),
+            ("Amber", 1),
+        ]
+
     async def test_a_note_category_may_be_omitted(self, test_app):
         response = await test_app.post(
             f"{API_PREFIX}/fragrances",

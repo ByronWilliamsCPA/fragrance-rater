@@ -381,7 +381,8 @@ class KaggleImporter:
             ("heart", parsed.heart_notes),
             ("base", parsed.base_notes),
         ):
-            for rank, note_name in enumerate(note_names):
+            linked: set[str] = set()
+            for note_name in note_names:
                 # The position is the junction row's, never the note's category.
                 resolution = await self._resolver.resolve_note(note_name)
                 if resolution.note is None:
@@ -392,8 +393,15 @@ class KaggleImporter:
                         resolution.status,
                     )
                     continue
+                if resolution.note.id in linked:
+                    continue  # another spelling of a note already listed here
+                linked.add(resolution.note.id)
                 await self._add_fragrance_note(
-                    fragrance.id, resolution.note.id, position, note_name, rank
+                    fragrance.id,
+                    resolution.note.id,
+                    position,
+                    note_name,
+                    len(linked) - 1,
                 )
 
         # Add accords. Insertion order is the source's list order.

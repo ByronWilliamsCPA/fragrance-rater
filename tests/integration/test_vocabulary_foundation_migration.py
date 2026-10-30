@@ -223,6 +223,15 @@ def test_accords_are_normalized_and_flagged_by_source(engine):
         # Two spellings on one fragrance collapse to one row, keeping the larger.
         _accord(connection, "dup", "Amber", 0.4)
         _accord(connection, "dup", "amber", 0.9)
+        # The survivor's provenance follows its own weight, in either order: here
+        # the spelling that is already the code has the smaller, on-ladder weight.
+        _fragrance(connection, "rev", "kaggle")
+        _accord(connection, "rev", "Amber", 0.9)
+        _accord(connection, "rev", "amber", 0.4)
+        # ...and an on-ladder survivor is positional, with its own rank.
+        _fragrance(connection, "lad", "kaggle")
+        _accord(connection, "lad", "Woody", 1.0)
+        _accord(connection, "lad", "woody", 0.4)
         _run(connection, _migration().upgrade)
 
     with engine.connect() as connection:
@@ -241,7 +250,9 @@ def test_accords_are_normalized_and_flagged_by_source(engine):
         ("kag", "fresh spicy", 0.85, "positional", 1),
         ("kag", "musk", 0.9, "measured", None),
         ("kag", "woody", 1.0, "positional", 0),
+        ("lad", "woody", 1.0, "positional", 0),
         ("par", "woody", 0.85, "measured", None),
+        ("rev", "amber", 0.9, "measured", None),
     ]
     assert [code for code, _ in codes] == [
         "amber",
@@ -251,6 +262,18 @@ def test_accords_are_normalized_and_flagged_by_source(engine):
         "woody",
     ]
     assert dict(codes)["fresh spicy"] == "Fresh Spicy"
+
+
+def test_non_latin_note_names_keep_a_usable_key_and_stay_distinct(engine):
+    with engine.begin() as connection:
+        _note(connection, "zh", "中文")
+        _note(connection, "ga", "が")
+        _note(connection, "ka", "か")
+        _note(connection, "ne", "Néroli")
+        _run(connection, _migration().upgrade)
+    with engine.connect() as connection:
+        keys = dict(connection.execute(text("SELECT id, name_key FROM notes")).all())
+    assert keys == {"zh": "中文", "ga": "が", "ka": "か", "ne": "neroli"}
 
 
 def test_a_stray_position_blocks_the_upgrade(engine):
