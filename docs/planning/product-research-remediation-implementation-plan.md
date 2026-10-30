@@ -1,7 +1,7 @@
 # Product, UX, Research, and ML Remediation: Implementation Plan
 
 > **Status**: Draft, not yet approved | **Owner**: Core maintainer / product owner
-> **Depends on**: PROJECT-PLAN.md v2.3 (authoritative), architecture-review-2026-09.md,
+> **Depends on**: PROJECT-PLAN.md v2.7 (authoritative; last checked 2026-10-21), architecture-review-2026-09.md,
 > ml-structure-review-2026-09.md, ml-decisions-2026-09.md, ADR-004/005/007/009/010/012/013/016
 > **Produced by**: Independent verification of three new gap-analysis documents, three new
 > research documents, and one uncommitted frontend feature, all authored in a single prior
