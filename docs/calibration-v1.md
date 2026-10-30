@@ -97,7 +97,8 @@ older liking score at the same presentation/stage.
 
 The first recommendation adapter prefers skin to blotter, takes the latest eligible selected
 observation, converts 0–10 liking to -2..2 affinity using `(liking - 5) / 2.5`, and averages that
-with the latest ordinary affinity when both exist. This explicit `affinity-v1` heuristic preserves
+with the latest ordinary affinity when both exist. This explicit conversion, defined by `affinity-v1`
+and inherited unchanged by the default `affinity-v2` (ADR-004 2026-09-19 amendment), preserves
 raw scales and limits each version to one contribution. It is not a statistically calibrated
 liking predictor or confidence estimate.
 
