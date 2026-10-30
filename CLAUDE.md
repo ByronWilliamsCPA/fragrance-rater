@@ -236,7 +236,8 @@ BasedPyright replaces MyPy as the standard type checker (3-5x faster, stricter a
 
 ### PyStrict-Aligned Ruff Rules
 
-Ruff configuration includes PyStrict-aligned rules for ultra-strict code quality:
+Ruff configuration's `[tool.ruff.lint]` "PyStrict additions" group holds these rules for ultra-strict
+code quality:
 
 - **BLE**: Blind except detection (no bare `except:` or `except Exception:`)
 - **EM**: Error message best practices
@@ -247,9 +248,13 @@ Ruff configuration includes PyStrict-aligned rules for ultra-strict code quality
 - **RSE**: Raise statement best practices
 - **TID**: Banned imports, relative import rules
 - **YTT**: Python version checks
-- **FA**: Future annotations
-- **T10**: Debugger statements (no `breakpoint()`, `pdb`)
-- **G**: Logging format strings
+
+Other quality rules sit in earlier groups of the same `select` list in `pyproject.toml`, not in
+the PyStrict additions, but are equally enforced:
+
+- **FA**: Future annotations (type annotations group)
+- **T10**: Debugger statements, no `breakpoint()` or `pdb` (best practices group)
+- **G**: Logging format strings (additional quality group)
 
 ### File-Type Standards
 
@@ -357,7 +362,8 @@ END BASELINE DEVELOPMENT STANDARDS
 
 ## Project Planning Documents
 
-> **Status**: P0-P5 are complete; P1 external evidence, Milestone R's R1-R4 and R7a-R7b sprints
+> **Status**: P0 and P2-P5 are complete; P1's repository controls are implemented but its external
+> evidence is pending through P6. That P1 evidence, Milestone R's R1-R4 and R7a-R7b sprints
 > (R7b via the P6.3 synthetic rehearsal), R13 and R14's operations items (per their sprint-table rows),
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
 > As of 2026-10-30, R1-R5 are done (R4 merged as #149) and R6 PR 1 is merged (#151), PR 2 in review. The project plan owns milestone status.
@@ -383,6 +389,8 @@ END BASELINE DEVELOPMENT STANDARDS
 - **ADR-006**: Canonical version identity, source provenance, aliases, and taxonomy
 - **ADR-008**: Authentik/Traefik production trust boundary
 - **ADR-009**: Prospective evaluation with frozen checkpoints
+- **ADR-010**: Preference-learning and scenario data model (partially implemented; scenario, pairwise, and
+  behavioral-event portions remain Proposed)
 - **ADR-011**: Worn-by ("on others") evidence dimension, captured but excluded from scoring
 - **ADR-012**: Parfumo deprecation and manufacturer-provenance as preferred replacement source
 - **ADR-013**: External ontology and standards crosswalk (Cinquieme Sens, IFRA, Michael Edwards, evaluation methodology)
