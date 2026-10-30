@@ -22,8 +22,10 @@ from fragrance_rater.schemas.prediction import (
     PredictionView,
 )
 from fragrance_rater.services.prediction_service import PredictionService
+from fragrance_rater.utils.logging import get_logger, log_audit_event
 
 router = APIRouter(prefix="/predictions", tags=["predictions"])
+logger = get_logger(__name__)
 DB = Annotated[AsyncSession, Depends(get_db)]
 Identity = VerifiedIdentity
 
@@ -48,6 +50,16 @@ async def create_prediction(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except BusinessLogicError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # B-03. The fragrance is left out: a prediction may target a holdout.
+    log_audit_event(
+        logger,
+        action="prediction_create",
+        actor=username,
+        target_type="prediction",
+        target_id=snapshot.id,
+        reviewer_id=snapshot.reviewer_id,
+        checkpoint_id=snapshot.checkpoint_id,
+    )
     return PredictionView.model_validate(snapshot, from_attributes=True)
 
 
@@ -82,6 +94,16 @@ async def link_outcome(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except BusinessLogicError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    log_audit_event(
+        logger,
+        action="prediction_link_outcome",
+        actor=username,
+        target_type="prediction",
+        target_id=snapshot.id,
+        reviewer_id=snapshot.reviewer_id,
+        outcome_evaluation_id=snapshot.outcome_evaluation_id,
+        outcome_observation_id=snapshot.outcome_observation_id,
+    )
     return PredictionView.model_validate(snapshot, from_attributes=True)
 
 

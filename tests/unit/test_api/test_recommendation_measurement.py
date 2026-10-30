@@ -487,3 +487,53 @@ async def test_concurrent_sqlite_feedback_never_leaks_database_error(
     ]
     assert revisions
     assert len(revisions) == len(set(revisions))
+
+
+@pytest.mark.asyncio
+async def test_linkable_outcomes_are_narrow_and_authorized(
+    test_app, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """F-15: the follow-up form gets ids and times, not the reviewer's history."""
+    reviewer_id, candidate_id = await seed_recommendable_catalog(test_app)
+    monkeypatch.setattr(settings, "calibration_admin_usernames", ["recorder"])
+    created = await test_app.post(
+        f"{API}/recommendation-measurement/runs",
+        headers=IDENTITY,
+        json={"reviewer_id": reviewer_id, "limit": 1},
+    )
+    impression_id = created.json()["impressions"][0]["id"]
+    encounter = await test_app.post(
+        f"{API}/evaluations",
+        headers=IDENTITY,
+        json={
+            "fragrance_id": candidate_id,
+            "reviewer_id": reviewer_id,
+            "rating": 4,
+            "notes": "private tasting note",
+        },
+    )
+    url = f"{API}/recommendation-measurement/impressions/{impression_id}/linkable-outcomes"
+
+    listed = await test_app.get(url, headers=IDENTITY)
+
+    assert listed.status_code == 200
+    assert listed.headers["cache-control"] == "private, no-store"
+    (item,) = listed.json()
+    assert set(item) == {"id", "workflow", "observed_at"}
+    assert item["id"] == encounter.json()["id"]
+    assert item["workflow"] == "ORDINARY"
+    assert "private tasting note" not in listed.text
+    linked = await test_app.post(
+        f"{API}/recommendation-measurement/impressions/{impression_id}/responses",
+        headers=IDENTITY,
+        json={"sampling_state": "SAMPLED", "outcome_evaluation_id": item["id"]},
+    )
+    assert linked.status_code == 201
+
+    outsider = await test_app.get(url, headers={"X-Authentik-Username": "outsider"})
+    assert outsider.status_code == 403
+    missing = await test_app.get(
+        f"{API}/recommendation-measurement/impressions/missing/linkable-outcomes",
+        headers=IDENTITY,
+    )
+    assert missing.status_code == 404

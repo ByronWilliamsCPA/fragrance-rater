@@ -151,6 +151,28 @@ identity through price and size, so it is necessarily post-reveal), but the loss
 here rather than left implicit. ADR-009's matching 2026-09-21 amendment redefines `would_buy` as a
 separately linked post-reveal outcome.
 
+## 2026-10-30 amendment: role-neutral answers and server-owned disclosure state (R4)
+
+The blind policy covers every answer a participant surface can give, not only its payloads.
+Architecture review B-01, B-02, and F-15 found three ways a holdout could still show through. R4
+closes them:
+
+- **Error bodies.** Feedback on a since-assigned holdout is refused with a role-neutral 409
+  ("feedback cannot be recorded for this recommendation"), and the reason goes only to the server
+  log. The reveal blocker no longer says "baseline and repeat", which announced hidden repeats.
+- **Not-found answers.** Explanations are served only for a persisted impression. The catalog-ID
+  route answered 404 for exactly the caller's holdouts among listable catalog fragrances, so it was
+  removed. An impression whose fragrance became a holdout, or was deleted, explains exactly like a
+  missing impression.
+- **Client inference.** The server sends `post_reveal_entry` per sample, and the client chooses the
+  blind or post-reveal form from that flag instead of from whether an identity is present. The
+  recommendation follow-up lists linkable outcomes from a narrow endpoint that applies the server's
+  linking rules, instead of pulling the reviewer's full history with its ratings, notes, and revealed
+  identities.
+
+Every participant-reachable error path is listed with the reason it is safe in the
+[P4 participant disclosure matrix](../evidence/p4-participant-disclosure.md#participant-reachable-error-paths-r4).
+
 ## Related
 
 - [ADR-006](adr-006-version-identity-and-source-provenance.md)

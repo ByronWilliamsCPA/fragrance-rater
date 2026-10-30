@@ -19,7 +19,7 @@ during R1 (docs/ci-gates.md) to run for real (verified with a temporary
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -39,6 +39,7 @@ from fragrance_rater.schemas.recommendation_measurement import (
     RunCreate,
 )
 from fragrance_rater.services.recommendation_measurement_service import (
+    FEEDBACK_UNAVAILABLE,
     MeasurementConflictError,
     RecommendationMeasurementService,
 )
@@ -178,10 +179,14 @@ async def test_append_response_rejects_holdout_version(async_session) -> None:
     )
     await async_session.commit()
 
-    with pytest.raises(MeasurementConflictError, match="holdout version"):
+    with pytest.raises(MeasurementConflictError) as excinfo:
         await service.append_response(
             impression.id, ResponseCreate(interested=True), recorded_by="unit"
         )
+
+    # B-01: the refusal must not name the membership role (ADR-005).
+    assert str(excinfo.value) == FEEDBACK_UNAVAILABLE
+    assert "holdout" not in str(excinfo.value).lower()
 
 
 @pytest.mark.asyncio
@@ -392,3 +397,138 @@ async def test_record_operational_event_avoids_timestamp_collision(
     )
     assert first.occurred_at == fixed_time
     assert second.occurred_at > first.occurred_at
+
+
+async def _observation(
+    session, *, reviewer_id: str, fragrance_id: str, revealed: bool, at: datetime
+) -> Observation:
+    program = Program(name=f"Linkable {revealed}", version="v1", status="active")
+    session.add(program)
+    await session.flush()
+    membership = Membership(
+        program_id=program.id,
+        fragrance_id=fragrance_id,
+        role="UNIVERSAL_BASELINE",
+        group_name="Baseline",
+    )
+    enrollment = Enrollment(
+        program_id=program.id,
+        reviewer_id=reviewer_id,
+        recorder_usernames=["unit"],
+        revealed_at=now_naive_utc() if revealed else None,
+        revealed_by="unit" if revealed else None,
+    )
+    session.add_all([membership, enrollment])
+    await session.flush()
+    calibration_session = CalibrationSession(enrollment_id=enrollment.id, context={})
+    session.add(calibration_session)
+    await session.flush()
+    presentation = Presentation(
+        session_id=calibration_session.id,
+        membership_id=membership.id,
+        blind_code=f"LINK{int(revealed)}",
+        position=1,
+    )
+    session.add(presentation)
+    await session.flush()
+    observation = Observation(
+        presentation_id=presentation.id,
+        stage="BLOTTER",
+        phase="POST_REVEAL" if revealed else "PRE_REVEAL",
+        detected=True,
+        intensity=3,
+        liking=7,
+        recorded_by="unit",
+        created_at=at,
+    )
+    session.add(observation)
+    await session.flush()
+    return observation
+
+
+@pytest.mark.asyncio
+async def test_linkable_outcomes_match_what_feedback_accepts(async_session) -> None:
+    """F-15: the narrow list holds exactly the outcomes _validate_outcome accepts."""
+    reviewer, _fragrances = await _seed_reviewer_and_candidates(async_session)
+    other = Reviewer(name="Someone else")
+    async_session.add(other)
+    service = RecommendationMeasurementService(async_session)
+    run = await service.create_run(
+        RunCreate(reviewer_id=reviewer.id, limit=1), recorded_by="unit"
+    )
+    _, rows = await service.run_rows(run.id)
+    impression = rows[0][0]
+    fragrance_id = impression.fragrance_id
+    after = impression.shown_at + timedelta(minutes=5)
+
+    def evaluation(**fields: object) -> Evaluation:
+        values: dict[str, object] = {
+            "reviewer_id": reviewer.id,
+            "fragrance_id": fragrance_id,
+            "rating": 4,
+            "evaluated_at": after,
+            **fields,
+        }
+        return Evaluation(**values)
+
+    await async_session.flush()
+    live = evaluation()
+    before = evaluation(evaluated_at=impression.shown_at - timedelta(days=1))
+    on_others = evaluation(worn_by_reviewer_id=other.id)
+    deleted = evaluation(deleted_at=after)
+    async_session.add_all([live, before, on_others, deleted])
+    revealed = await _observation(
+        async_session,
+        reviewer_id=reviewer.id,
+        fragrance_id=fragrance_id,
+        revealed=True,
+        at=after + timedelta(minutes=1),
+    )
+    blind = await _observation(
+        async_session,
+        reviewer_id=reviewer.id,
+        fragrance_id=fragrance_id,
+        revealed=False,
+        at=after + timedelta(minutes=2),
+    )
+    await async_session.commit()
+
+    listed = await service.linkable_outcomes(impression.id)
+
+    assert [(item.workflow, item.id) for item in listed] == [
+        ("ORDINARY", live.id),
+        ("CONTROLLED", revealed.id),
+    ]
+    for item in listed:
+        field = (
+            "outcome_evaluation_id"
+            if item.workflow == "ORDINARY"
+            else "outcome_observation_id"
+        )
+        await service._validate_outcome(
+            ResponseCreate(sampling_state="SAMPLED", **{field: item.id}),
+            run,
+            impression,
+        )
+    for rejected in (before.id, on_others.id, deleted.id):
+        with pytest.raises(MeasurementConflictError):
+            await service._validate_outcome(
+                ResponseCreate(
+                    sampling_state="SAMPLED", outcome_evaluation_id=rejected
+                ),
+                run,
+                impression,
+            )
+    with pytest.raises(MeasurementConflictError):
+        await service._validate_outcome(
+            ResponseCreate(sampling_state="SAMPLED", outcome_observation_id=blind.id),
+            run,
+            impression,
+        )
+
+
+@pytest.mark.asyncio
+async def test_linkable_outcomes_rejects_unknown_impression(async_session) -> None:
+    service = RecommendationMeasurementService(async_session)
+    with pytest.raises(LookupError, match="recommendation impression not found"):
+        await service.linkable_outcomes("missing")

@@ -78,6 +78,49 @@ class TestSecurityHeadersMiddleware:
         assert "Server" not in response.headers
 
 
+class TestNoStoreDefault:
+    """B-26: every API response is uncacheable unless it is the public catalog."""
+
+    @staticmethod
+    def _client() -> TestClient:
+        app = FastAPI()
+        app.add_middleware(SecurityHeadersMiddleware)
+
+        @app.api_route("/{path:path}", methods=["GET", "POST"])
+        async def anything(path: str) -> dict[str, str]:
+            return {"path": path}
+
+        return TestClient(app)
+
+    @pytest.mark.parametrize(
+        ("method", "path"),
+        [
+            ("GET", "/api/v1/reviewers"),
+            ("GET", "/api/v1/evaluations?reviewer_id=r1"),
+            ("GET", "/api/v1/recommendations/r1"),
+            ("GET", "/api/v1/predictions"),
+            ("GET", "/api/v1/calibration/enrollments"),
+            ("POST", "/api/v1/evaluations"),
+            ("GET", "/api/v1"),
+            ("GET", "/api/v1/fragrances-history"),
+        ],
+    )
+    def test_api_responses_are_private_no_store(self, method: str, path: str) -> None:
+        response = self._client().request(method, path)
+
+        assert response.headers["Cache-Control"] == "private, no-store"
+        assert "X-Authentik-Username" in response.headers["Vary"]
+
+    @pytest.mark.parametrize(
+        "path",
+        ["/api/v1/fragrances", "/api/v1/fragrances/abc", "/", "/health/live"],
+    )
+    def test_catalog_and_non_api_paths_opt_out(self, path: str) -> None:
+        response = self._client().get(path)
+
+        assert "Cache-Control" not in response.headers
+
+
 class TestSSRFPreventionMiddleware:
     """Tests for SSRFPreventionMiddleware."""
 

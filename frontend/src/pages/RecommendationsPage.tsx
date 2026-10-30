@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, requestErrorMessage } from '../api/client'
 import type {
-  HistoryItem,
+  LinkableOutcome,
   Person,
   RecommendationImpression,
   RecommendationResponse,
@@ -33,8 +33,10 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
   const [recommendationRun, setRecommendationRun] = useState<RecommendationRun | null>(null)
   const [followUpId, setFollowUpId] = useState('')
   const [samplingState, setSamplingState] = useState('')
-  const [outcomes, setOutcomes] = useState<HistoryItem[]>([])
-  const [outcomesReviewerId, setOutcomesReviewerId] = useState('')
+  // Keyed by impression id: only the encounters the server would accept as
+  // that impression's outcome (architecture review F-15), never the
+  // reviewer's full history.
+  const [outcomes, setOutcomes] = useState<Record<string, LinkableOutcome[]>>({})
   const [explanations, setExplanations] = useState<Record<string, string>>({})
   const hydrationGeneration = useRef(0)
   const outcomeGeneration = useRef(0)
@@ -134,13 +136,12 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
   async function openFollowUp(item: RecommendationImpression) {
     setFollowUpId(item.id)
     setSamplingState(latestResponse(item)?.sampling_state ?? '')
-    if (outcomesReviewerId === reviewerId) return
-    const requestedReviewer = reviewerId
     const generation = ++outcomeGeneration.current
-    const response = await api.get<HistoryItem[]>(`/calibration/history/${requestedReviewer}`)
+    const response = await api.get<LinkableOutcome[]>(
+      `/recommendation-measurement/impressions/${item.id}/linkable-outcomes`
+    )
     if (generation !== outcomeGeneration.current) return
-    setOutcomes(response.data)
-    setOutcomesReviewerId(requestedReviewer)
+    setOutcomes((current) => ({ ...current, [item.id]: response.data }))
   }
 
   async function explain(item: RecommendationImpression) {
@@ -209,8 +210,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
             setReviewerId(event.target.value)
             setRecommendationRun(null)
             setFollowUpId('')
-            setOutcomes([])
-            setOutcomesReviewerId('')
+            setOutcomes({})
             setExplanations({})
             persistRunId(null)
           }}
@@ -243,22 +243,10 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
             <article className="recommendation-card" key={item.id}>
               {(() => {
                 const latest = latestResponse(item)
-                const eligibleOutcomes = outcomes.filter((outcome) => {
-                  const observedAt = outcome.observed_at || outcome.created_at
-                  return (
-                    (outcome.fragrance_id || outcome.identity?.fragrance_id) ===
-                      item.fragrance_id &&
-                    Boolean(
-                      observedAt &&
-                      item.shown_at &&
-                      utcDate(observedAt).getTime() >= utcDate(item.shown_at).getTime()
-                    ) &&
-                    // ADR-011: an "on others" evaluation is never a valid
-                    // outcome for this reviewer's own recommendation; the
-                    // API rejects it, so it must not be offered here either.
-                    !outcome.worn_by_reviewer_id
-                  )
-                })
+                // The server already applied the linking rules (same
+                // reviewer and version, after the impression, on-me per
+                // ADR-011, revealed for controlled work); nothing to re-filter.
+                const eligibleOutcomes = outcomes[item.id] ?? []
                 return (
                   <>
                     <p className="eyebrow">Choice {item.rank}</p>
@@ -360,10 +348,7 @@ export function RecommendationsPage({ reviewers }: { reviewers: Person[] }) {
                                 {outcome.workflow === 'ORDINARY'
                                   ? 'Journal encounter'
                                   : 'Calibration observation'}{' '}
-                                ·{' '}
-                                {utcDate(
-                                  outcome.observed_at || outcome.created_at || ''
-                                ).toLocaleDateString()}
+                                · {utcDate(outcome.observed_at).toLocaleDateString()}
                               </option>
                             ))}
                           </select>

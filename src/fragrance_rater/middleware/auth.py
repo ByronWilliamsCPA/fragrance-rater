@@ -23,7 +23,7 @@ from typing import Annotated
 
 from fastapi import Header, HTTPException, status
 
-from fragrance_rater.core.config import settings
+from fragrance_rater.core.config import secret_value, settings
 
 API_KEY_HEADER = "X-API-Key"
 """Header name callers must use to send the shared household API key."""
@@ -88,7 +88,7 @@ def require_api_key(
             or 401 when the header is missing or does not match the
             configured key.
     """
-    configured_key = settings.api_key
+    configured_key = secret_value(settings.api_key)
     if not configured_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
