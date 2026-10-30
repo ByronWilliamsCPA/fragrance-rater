@@ -12,14 +12,28 @@ from fragrance_rater.core.vocabulary import (
     GenderTarget,
     MarketStatus,
 )
+from fragrance_rater.models.fragrance import POSITION_VALUED_CATEGORIES
+
+
+def _reject_pyramid_position(value: str | None) -> str | None:
+    """Refuse a note category that is really a pyramid position (X-02)."""
+    if value is not None and value.strip().casefold() in POSITION_VALUED_CATEGORIES:
+        msg = (
+            "category is the note's olfactory family, not its pyramid position; "
+            "send the position as `position`"
+        )
+        raise ValueError(msg)
+    return value
 
 
 class NoteCreate(BaseModel):
     """Schema for creating a new note."""
 
     name: str = Field(..., min_length=1, max_length=100)
-    category: str = Field(..., min_length=1, max_length=50)
+    category: str | None = Field(None, min_length=1, max_length=50)
     subcategory: str | None = Field(None, max_length=50)
+
+    _category_is_not_a_position = field_validator("category")(_reject_pyramid_position)
 
 
 class NoteResponse(BaseModel):
@@ -27,7 +41,7 @@ class NoteResponse(BaseModel):
 
     id: str
     name: str
-    category: str
+    category: str | None
     subcategory: str | None
 
     model_config = {"from_attributes": True}
@@ -37,8 +51,12 @@ class FragranceNoteCreate(BaseModel):
     """Schema for creating a fragrance-note association."""
 
     note_name: str = Field(..., min_length=1, max_length=100)
-    note_category: str = Field(..., min_length=1, max_length=50)
+    note_category: str | None = Field(None, min_length=1, max_length=50)
     position: Literal["top", "heart", "flat", "base"]
+
+    _category_is_not_a_position = field_validator("note_category")(
+        _reject_pyramid_position
+    )
 
 
 class FragranceNoteResponse(BaseModel):
@@ -46,6 +64,7 @@ class FragranceNoteResponse(BaseModel):
 
     note: NoteResponse
     position: str
+    rank: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -55,6 +74,7 @@ class FragranceAccordCreate(BaseModel):
 
     accord_type: str = Field(..., min_length=1, max_length=50)
     intensity: float = Field(..., ge=0.0, le=1.0)
+    intensity_source: Literal["measured", "positional", "absent"] = "measured"
 
 
 class FragranceAccordResponse(BaseModel):
@@ -62,6 +82,8 @@ class FragranceAccordResponse(BaseModel):
 
     accord_type: str
     intensity: float
+    intensity_source: str = "measured"
+    rank: int | None = None
 
     model_config = {"from_attributes": True}
 

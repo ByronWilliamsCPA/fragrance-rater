@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import pytest
 
@@ -40,8 +41,16 @@ from fragrance_rater.services.recommendation_service import RecommendationServic
 # Pinned digest of affinity-v1's parameters. If this assertion fails, a
 # tunable changed: either revert it, or bump ModelSpec.version to "v2" (and
 # update this pin) so the change is a recorded version, per ADR-009.
-AFFINITY_V1_DIGEST = "a7ac4c6b12484c662e2521603c00cc62d7d97c1edbb77b1c6c05cabb7300834e"
-AFFINITY_V2_DIGEST = "b658f750649712642b19c7b73615b7c99b85cd60682217d149d1eac2d2b2e63c"
+#
+# Re-pinned in R6 when the feature space moved from fs-v1 to fs-v2: the digest covers
+# the feature-space string, and the parameters did not change. With
+# feature_space_version="fs-v1" the specs reproduce the previous pins exactly
+# (v1 a7ac4c6b..., v2 b658f750...), which test_digest_differs_only_by_feature_space
+# checks.
+AFFINITY_V1_DIGEST = "900b8ff63ab6606a0f9e320a224b5496ae14d26800fe277790ec165acf8518a8"
+AFFINITY_V2_DIGEST = "3a9bd7ad7febacf61a439ed2773f290181c9e0e453f093f315b53fc448baa940"
+PRE_R6_V1_DIGEST = "a7ac4c6b12484c662e2521603c00cc62d7d97c1edbb77b1c6c05cabb7300834e"
+PRE_R6_V2_DIGEST = "b658f750649712642b19c7b73615b7c99b85cd60682217d149d1eac2d2b2e63c"
 
 
 def _vector(
@@ -70,6 +79,16 @@ class TestModelSpec:
         assert record["algorithm_version"] == "demo-v3"
         assert record["param_digest"] == spec.digest
         assert record["feature_space_version"] == FEATURE_SPACE_VERSION
+
+    def test_digest_differs_only_by_feature_space(self) -> None:
+        # R6 moved the feature space to fs-v2. The parameters are untouched, so
+        # the previous digests are recovered by naming the previous feature space.
+        assert replace(AffinityV1.spec, feature_space_version="fs-v1").digest == (
+            PRE_R6_V1_DIGEST
+        )
+        assert replace(AffinityV2.spec, feature_space_version="fs-v1").digest == (
+            PRE_R6_V2_DIGEST
+        )
 
     def test_digest_changes_when_a_parameter_changes(self) -> None:
         a = ModelSpec(model_id="demo", version="v1", params={"weight": 0.4})
@@ -320,10 +339,29 @@ class TestFeatureSpace:
         payload = vector.to_source_features()
         assert payload["feature_space_version"] == FEATURE_SPACE_VERSION
         assert payload["notes"] == [
-            {"note_id": "n-berg", "name": "Bergamot", "position": "top"}
+            {"note_id": "n-berg", "name": "Bergamot", "position": "top", "rank": None}
         ]
         rebuilt = from_source_features("frag-1", payload)
         assert rebuilt == vector
+
+    def test_provenance_fields_round_trip(self) -> None:
+        vector = FeatureVector(
+            fragrance_id="f1",
+            version_key="k",
+            concentration="EDP",
+            primary_family="woody",
+            subfamily="",
+            notes=(NoteFeature("n1", "Oud", "base", 2),),
+            accords=(AccordFeature("woody", 0.85, "positional", 1),),
+        )
+        assert from_source_features("f1", vector.to_source_features()) == vector
+
+    def test_accord_from_a_manifest_without_a_source_is_unknown(self) -> None:
+        rebuilt = from_source_features(
+            "f1", {"accords": [{"name": "woody", "intensity": 0.9}]}
+        )
+        assert rebuilt.accords[0].intensity_source == "unknown"
+        assert rebuilt.accords[0].rank is None
 
     def test_legacy_manifest_without_note_ids_is_tolerated(self) -> None:
         rebuilt = from_source_features(

@@ -312,7 +312,8 @@ likely alongside or after D2), the experiment must:
 
 ## 14. ML dataset and feature contracts
 
-`FEATURE_SPACE_VERSION = "fs-v1"` (`ml/feature_space.py:25`) is the current versioning anchor.
+`FEATURE_SPACE_VERSION` (`ml/feature_space.py`) is the versioning anchor: `fs-v1` until R6, `fs-v2`
+since R6 PR 1 (canonical note and accord vocabulary; see ADR-017's 2026-10-30 amendment).
 Every schema change in Section 7 that adds a new evidence field must bump this version and update
 `ml/dataset.py`'s builder in the same PR: do not let feature space drift silently ahead of the
 version string (this is the same discipline R2's PostgreSQL parity test is meant to enforce for

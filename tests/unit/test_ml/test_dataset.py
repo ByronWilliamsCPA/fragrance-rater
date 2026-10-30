@@ -50,7 +50,10 @@ def _row(
             primary_family=family,
             subfamily=subfamily,
             notes=tuple(NoteFeature(i, n, p) for i, n, p in notes),
-            accords=tuple(AccordFeature(n, w) for n, w in accords),
+            accords=tuple(
+                a if isinstance(a, AccordFeature) else AccordFeature(*a)
+                for a in accords
+            ),
         ),
         observation_features=observation_features,
         notes_text=None,
@@ -304,6 +307,36 @@ class TestToArrays:
         matrix, _, _, vocabulary = to_arrays(rows, feature_space="accords")
         assert vocabulary == ["citrus", "woody"]
         assert matrix == [[0.8, 0.5], [0.0, 0.25]]
+
+    def test_only_measured_accord_weights_are_features(self):
+        rows = [
+            _row(
+                accords=(
+                    AccordFeature("citrus", 0.8, "measured", 0),
+                    AccordFeature("woody", 1.0, "positional", 1),
+                    AccordFeature("musk", 0.9, "unknown", None),
+                    AccordFeature("amber", 0.4, "absent", None),
+                )
+            )
+        ]
+        matrix, _, _, vocabulary = to_arrays(rows, feature_space="accords")
+        assert vocabulary == ["citrus"]
+        assert matrix == [[0.8]]
+
+    def test_accord_ranks_keep_list_order_without_claiming_strength(self):
+        rows = [
+            _row(
+                accords=(
+                    AccordFeature("woody", 1.0, "positional", 0),
+                    AccordFeature("fresh", 0.85, "positional", 1),
+                    AccordFeature("musk", 0.7, "positional", 3),
+                    AccordFeature("amber", 0.4, "unknown", None),
+                )
+            )
+        ]
+        matrix, _, _, vocabulary = to_arrays(rows, feature_space="accord_ranks")
+        assert vocabulary == ["fresh", "musk", "woody"]
+        assert matrix == [[0.5, 0.25, 1.0]]
 
     def test_families_are_namespaced_one_hot(self):
         rows = [

@@ -65,6 +65,22 @@ established it. The house intake form maps every field onto these or onto layer-
 preserving source-specific evidence separately. Parent product/house modeling and inventory
 management are outside current scope.
 
+Writers never look a note up by exact name. Every path that turns a source label into a `Note` or
+an `AccordType` goes through `VocabularyResolver` (`services/vocabulary.py`):
+
+- A `Note` is identified by `name_key`, the label with case, accents, and separators removed, so
+  `Oak Moss` and `oakmoss` are one note. `Note.name` keeps the first spelling verbatim.
+- `NoteAlias` rows resolve spellings under a mapping version (`nm-v1`). A `curated` row is a
+  decision a person made (`vanille` means `vanilla`); an `observed` row only keeps a spelling that
+  already normalized to the note. If a curated alias and the key lookup name different notes, the
+  label is ambiguous: the writer skips it and a person settles it. Nothing is merged by guesswork.
+- `Note.category` is an olfactory family or NULL, never a pyramid position. Position is
+  `FragranceNote.position` (`top`, `heart`, `base`, `flat`), and `FragranceNote.rank` is the
+  source's order within it.
+- `FragranceAccord.accord_type` is a foreign key to the `accord_types` lookup. Each accord has an
+  `intensity_source` (`measured`, `positional`, or `absent`) and a `rank` in its source's list. A
+  positional intensity is order, not strength, and is excluded from measured features by default.
+
 ### Ordinary evidence
 
 Each `Evaluation` POST creates a dated encounter on the original 1–5 scale. PATCH corrects one
