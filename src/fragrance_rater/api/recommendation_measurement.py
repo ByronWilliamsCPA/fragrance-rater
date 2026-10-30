@@ -9,15 +9,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.api.calibration import actor, manager
 from fragrance_rater.api.recommendations import (
     ExplanationResponse,
     build_recommendation_explanation,
 )
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.auth import (
+    VerifiedIdentity,
+    actor,
+    authorize_reviewer,
+    manager,
+)
 from fragrance_rater.core.database import get_db
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter
-from fragrance_rater.models.calibration import Enrollment
 from fragrance_rater.models.recommendation_measurement import (
     PilotOperationalEvent,
     RecommendationImpression,
@@ -44,7 +47,7 @@ from fragrance_rater.services.recommendation_service import (
 
 router = APIRouter(prefix="/recommendation-measurement", tags=["recommendations"])
 DB = Annotated[AsyncSession, Depends(get_db)]
-Identity = Annotated[AuthenticatedIdentity, Depends(get_current_identity)]
+Identity = VerifiedIdentity
 
 if TYPE_CHECKING:
     from fragrance_rater.models.recommendation_measurement import (
@@ -101,21 +104,6 @@ async def run_view(service: RecommendationMeasurementService, run_id: str) -> Ru
             for impression, fragrance in rows
         ],
     )
-
-
-async def authorize_reviewer(
-    db: AsyncSession, reviewer_id: str, username: str, admin: bool
-) -> None:
-    """Allow managers or recorders explicitly assigned to the reviewer."""
-    if admin:
-        return
-    enrollments = await db.scalars(
-        select(Enrollment).where(Enrollment.reviewer_id == reviewer_id)
-    )
-    if not any(username in enrollment.recorder_usernames for enrollment in enrollments):
-        raise HTTPException(
-            status_code=403, detail="Recorder is not assigned to reviewer"
-        )
 
 
 async def run_reviewer_id(db: AsyncSession, run_id: str) -> str:

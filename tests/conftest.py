@@ -426,11 +426,20 @@ def mock_openrouter_response() -> dict[str, Any]:
 # ============================================================================
 
 
+TEST_MANAGER_USERNAME = "test-manager"
+"""Identity the ``test_app`` client sends by default (R3: every non-public
+route requires a named caller). It is added to the manager allowlist for the
+test, so reviewer-scoped reads see every reviewer. Tests of the anonymous or
+non-manager cases override the header per request (an empty value counts as
+missing)."""
+
+
 @pytest_asyncio.fixture
-async def test_app(tmp_path):
+async def test_app(tmp_path, monkeypatch: pytest.MonkeyPatch):
     """Create a FastAPI test app with database override using a temp file."""
     from httpx import ASGITransport, AsyncClient
 
+    from fragrance_rater.core.config import settings
     from fragrance_rater.core.database import get_db
     from fragrance_rater.main import app
 
@@ -464,8 +473,17 @@ async def test_app(tmp_path):
 
     app.dependency_overrides[get_db] = override_get_db
 
+    monkeypatch.setattr(
+        settings,
+        "calibration_admin_usernames",
+        [*settings.calibration_admin_usernames, TEST_MANAGER_USERNAME],
+    )
     transport = ASGITransport(app=app)  # type: ignore[arg-type]
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-Authentik-Username": TEST_MANAGER_USERNAME},
+    ) as client:
         yield client
 
     app.dependency_overrides.clear()

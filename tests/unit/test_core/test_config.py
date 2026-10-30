@@ -157,6 +157,80 @@ class TestCorsAllowedOrigins:
         assert settings.cors_allowed_origins == []
 
 
+class TestCalibrationAdminUsernames:
+    """S-19: the manager allowlist parses both shapes instead of crashing."""
+
+    @pytest.mark.parametrize(
+        ("raw", "expected"),
+        [
+            ("alice,bob", ["alice", "bob"]),
+            (" alice , bob ", ["alice", "bob"]),
+            ('["alice", "bob"]', ["alice", "bob"]),
+            ("alice", ["alice"]),
+            ("", []),
+        ],
+    )
+    def test_env_var_shapes(
+        self, monkeypatch: pytest.MonkeyPatch, raw: str, expected: list[str]
+    ) -> None:
+        monkeypatch.setenv("CALIBRATION_ADMIN_USERNAMES", raw)
+
+        assert Settings().calibration_admin_usernames == expected
+
+
+class TestProductionDefaults:
+    """S-17, S-18, B-27: production drops development conveniences."""
+
+    def test_unknown_environment_is_rejected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "prod")
+
+        with pytest.raises(ValueError, match="environment"):
+            Settings()
+
+    def test_production_requires_trusted_hosts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.delenv("TRUSTED_HOSTS", raising=False)
+
+        with pytest.raises(ValueError, match="TRUSTED_HOSTS"):
+            Settings()
+
+    def test_production_drops_development_cors_origins(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("TRUSTED_HOSTS", "fragrance.example.com,localhost")
+        monkeypatch.delenv("CORS_ALLOWED_ORIGINS", raising=False)
+
+        settings = Settings()
+
+        assert settings.cors_allowed_origins == []
+        assert settings.trusted_hosts == ["fragrance.example.com", "localhost"]
+
+    def test_production_keeps_explicit_cors_origins(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("TRUSTED_HOSTS", "fragrance.example.com")
+        monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://fragrance.example.com")
+
+        assert Settings().cors_allowed_origins == ["https://fragrance.example.com"]
+
+    def test_development_needs_no_trusted_hosts(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.delenv("TRUSTED_HOSTS", raising=False)
+
+        settings = Settings()
+
+        assert settings.environment == "development"
+        assert settings.trusted_hosts == []
+
+
 class TestHouseContributors:
     """House contributors are external parties; the mapping must never also
     grant manager access, and every contributor must name a house."""

@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from fragrance_rater.core.auth import (
     AUTHENTIK_GROUPS_HEADER,
     AuthenticatedIdentity,
-    get_current_identity,
+    VerifiedIdentity,
 )
 from fragrance_rater.core.config import settings
 from fragrance_rater.core.database import get_db
@@ -35,7 +35,7 @@ from fragrance_rater.services.house_intake_service import HouseIntakeService
 from fragrance_rater.services.house_review_service import HouseReviewService
 
 router = APIRouter(prefix="/house-intake", tags=["house-intake"])
-Identity = Annotated[AuthenticatedIdentity, Depends(get_current_identity)]
+Identity = VerifiedIdentity
 
 
 def get_service(db: Annotated[AsyncSession, Depends(get_db)]) -> HouseIntakeService:

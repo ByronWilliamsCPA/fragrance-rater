@@ -235,13 +235,12 @@ plan had not recorded at all:
   been evaluated for multi-replica startup races (this deployment currently runs a single
   instance, so the gap is not release-blocking today, but it should be checked before any
   horizontal scale-out).
-- **The nginx trust boundary still forwards forged identity headers.** `frontend/nginx.conf`
-  (`proxy_set_header X-Authentik-Username $http_x_authentik_username;` and the matching `Uid`/
-  `Email` lines) passes through whatever `X-Authentik-*` headers a client sends, rather than
-  resetting them unless the peer is verified as Traefik. This is exactly the forgery R3 is scoped
-  to fix (architecture review S-01/S-02). P1.6's repository deliverable is therefore not fully
-  closed by the topology validator alone; the header-reset code still needs to be written, not
-  only deployment-tested.
+- **The nginx trust boundary forwarded forged identity headers.** `frontend/nginx.conf` passed
+  through whatever `X-Authentik-*` headers a client sent (architecture review S-01/S-02). R3 PR 1
+  (2026-10-21, in review) forwards them only from peers in `FRAGRANCE_TRAEFIK_CIDR` and proves it
+  against a real nginx in `tests/integration/test_nginx_trust_boundary.py`. P1.6 still needs the
+  deployed forged-header check that `docs/deployment/p1-release-readiness.md` now spells out; the
+  repository code is no longer the gap.
 - **A manager successfully logged in through Authentik at the live deployed URL on 2026-09-21.**
   This is real, positive evidence that the Authentik challenge is enforced end-to-end on the
   production host, the first confirmation of that outside a planned rehearsal. It is informal
@@ -500,8 +499,9 @@ the resulting participant-instrument work (split 2026-09-21 after a one-shot-bli
 sprint table below). Completed on 2026-09-21: R1 (CI truthfulness - see [`docs/ci-gates.md`](../ci-gates.md) for
 the authoritative per-workflow record and its "Known residual gaps" section for what R1 deliberately left open,
 including that `docker-publish.yml`'s CVE gate stays report-only and that Q9's default resolved only PyPI publishing
-and the Python version matrix, not FIPS/SLSA/mutation-testing/semantic-release). In review on 2026-10-02: R2 PR 1
-(migration tooling and naming) and R2 PR 2 (evidence constraints, stacked on PR 1); see the sprint table.
+and the Python version matrix, not FIPS/SLSA/mutation-testing/semantic-release). Completed on 2026-10-21: R2
+(PRs #135 and #136). In review on 2026-10-21: R3 PR 1 (the edge) and
+PR 2 (route authorization); see the sprint table.
 
 **Depends on:** P5. **Blocks:** P6 closure (R1-R4, R7a-R7b via P6.3, R13, and R14's secrets, validator, and backup
 items) and F1 (R2, R5-R8).

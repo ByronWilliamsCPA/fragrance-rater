@@ -19,6 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.core.auth import VerifiedIdentity, actor, authorize_reviewer
 from fragrance_rater.core.database import get_db
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_key
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
@@ -106,8 +107,11 @@ async def get_recommendation_service(
 
 @router.get("/{reviewer_id}", response_model=RecommendationListResponse)
 async def get_recommendations(
+    *,
     reviewer_id: str,
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
+    session: Annotated[AsyncSession, Depends(get_db)],
+    identity: VerifiedIdentity,
     limit: Annotated[
         int, Query(ge=1, le=50, description="Maximum recommendations")
     ] = 10,
@@ -118,8 +122,11 @@ async def get_recommendations(
     """Get personalized fragrance recommendations for a reviewer.
 
     Requires at least 3 evaluations to generate meaningful recommendations.
-    Returns fragrances sorted by match score, with vetoed items last.
+    Returns fragrances sorted by match score, with vetoed items last. Only a
+    manager, or a recorder assigned to the reviewer, may read them.
     """
+    username, admin = actor(identity)
+    await authorize_reviewer(session, reviewer_id, username, admin)
     try:
         recommendations = await service.get_recommendations(
             reviewer_id=reviewer_id,
@@ -191,6 +198,7 @@ async def get_profile_summary(
     session: Annotated[AsyncSession, Depends(get_db)],
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
     llm_service: Annotated[LLMService, Depends(get_llm_service)],
+    identity: VerifiedIdentity,
     include_llm: Annotated[
         bool, Query(description="Include LLM-generated summary")
     ] = True,
@@ -214,12 +222,16 @@ async def get_profile_summary(
         service (Annotated[RecommendationService, Depends(get_recommendation_service)]):
             Recommendation service, injected.
         llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.
+        identity (VerifiedIdentity): The named caller, who must be a manager or a
+            recorder assigned to the reviewer.
         include_llm (Annotated[bool, Query(description='Include LLM-generated summary')]):
             Whether to include an LLM-generated summary.
 
     Returns:
         ProfileSummaryResponse: The reviewer's preference profile summary.
     """
+    username, admin = actor(identity)
+    await authorize_reviewer(session, reviewer_id, username, admin)
     summary = await service.get_reviewer_profile_summary(reviewer_id)
 
     llm_summary: str | None = None
@@ -461,8 +473,15 @@ async def get_recommendation_explanation(
     session: Annotated[AsyncSession, Depends(get_db)],
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
     llm_service: Annotated[LLMService, Depends(get_llm_service)],
+    identity: VerifiedIdentity,
 ) -> ExplanationResponse:
-    """Return a rate-limited explanation to a caller with the household key."""
+    """Return a rate-limited explanation to an authorized, keyed caller.
+
+    The billed LLM call is attributable to a named caller (S-03), who must
+    be a manager or a recorder assigned to the reviewer.
+    """
+    username, admin = actor(identity)
+    await authorize_reviewer(session, reviewer_id, username, admin)
     return await build_recommendation_explanation(
         reviewer_id=reviewer_id,
         fragrance_id=fragrance_id,
