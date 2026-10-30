@@ -432,11 +432,11 @@ already a transitive dependency there).
 
 **Issue**: `ci.yml`, `security-analysis.yml`, and `postman-api-tests.yml` trigger on `pull_request`
 with `branches: [main, ...]`, and `ci.yml` lists only the `opened`, `synchronize`, and `reopened`
-types. A pull request whose base is another feature branch (a stacked pair) therefore runs only the
-lightweight checks (`pr-validation.yml`, docs, REUSE), never the test, security, or contract
-suites. Retargeting it to `main` afterwards does not help: changing the base fires `edited`, which
-only `pr-validation.yml` listens for, so the heavy workflows stay unrun until the next push.
-CodeRabbit also skips non-default bases. The reviewer sees a mostly green PR that never ran its
+types. A pull request whose base is another feature branch (a stacked pair) therefore runs only
+the workflows that have no base filter (docs, REUSE, license), and never the test, security, or
+contract suites, nor `pr-validation.yml`, which filters the same way. Retargeting it to `main`
+afterwards starts `pr-validation.yml` (it also listens for `edited`) but not the heavy workflows,
+which stay unrun until the next push. CodeRabbit also skips non-default bases. The reviewer sees a mostly green PR that never ran its
 tests.
 
 **Context**: Discovered opening fragrance-rater's R6 PR 1 stacked on a docs PR. After retargeting to

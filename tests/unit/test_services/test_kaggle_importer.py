@@ -702,6 +702,30 @@ class TestKaggleImporterVocabulary:
         ]
 
     @pytest.mark.asyncio
+    async def test_spelling_variants_in_one_list_keep_ranks_contiguous(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "base"],
+                ["Variants", "Test Brand", "Oak Moss, oakmoss, Amber"],
+            ],
+        )
+
+        result = await KaggleImporter(async_session).import_csv(csv_path)
+
+        assert result.errors == []
+        rows = (
+            await async_session.execute(
+                select(Note.name, FragranceNote.rank)
+                .join(FragranceNote, FragranceNote.note_id == Note.id)
+                .order_by(FragranceNote.rank)
+            )
+        ).all()
+        assert rows == [("Oak Moss", 0), ("Amber", 1)]
+
+    @pytest.mark.asyncio
     async def test_an_ambiguous_note_is_skipped_and_the_rest_imported(
         self, async_session: AsyncSession, tmp_path: Path
     ) -> None:
