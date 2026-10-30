@@ -895,5 +895,5 @@ See `.standards/README.md` for detailed merge instructions.
 
 ---
 
-**Last Updated**: 2026-10-21
+**Last Updated**: 2026-10-30
 **Template Version**: 0.1.0
