@@ -49,7 +49,17 @@ than stored alongside the disagreement - see `fragrance_rater.utils.gtin` and
 `CalibrationService._check_gtin_against_source_evidence`. A barcode match is stronger identity
 evidence than any text-based source comparison; its absence is not itself a problem, since many
 sources never publish one. One recorder can record for several evaluators.
-Program activation freezes membership; enrollment independently randomizes codes and order.
+Program activation freezes membership; enrollment independently randomizes presentation order
+and assigns blind labels under one of two schemes chosen at enrollment (`label_scheme`):
+
+- `standard` (default): `E{enrollment}-S{session}-{position}`, for example `E01-S1-2`. Labels are
+  readable and quick to write on vials. Order is still randomized per evaluator, so a label
+  carries no identity signal. It does reveal session grouping, which the participant already sees.
+  Session numbers also run baseline first and holdout last, so the `S` number discloses whether a
+  session is baseline or holdout. Only identities are blinded, never that partition. This is an
+  accepted trade-off for the default (decision recorded 2026-10-30); use `random` for any trial
+  where that partition must stay hidden.
+- `random`: an independent 8-character hex code per presentation, with no structure at all.
 Repeats are interleaved with baseline stimuli with separation where the number of stimuli
 permits it. Small diagnostic/test definitions may have insufficient stimuli for the usual
 separation; this is not a general experimental-design optimizer.

@@ -969,6 +969,7 @@ describe('Calibration participant workflow', () => {
         reviewer_id: 'r',
         recorder_usernames: ['alice', 'bob'],
         session_size: 5,
+        label_scheme: 'standard',
       })
     )
     expect(
