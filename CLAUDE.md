@@ -360,7 +360,7 @@ END BASELINE DEVELOPMENT STANDARDS
 > **Status**: P0-P5 are complete; P1 external evidence, Milestone R's R1-R4 and R7a-R7b sprints
 > (R7b via the P6.3 synthetic rehearsal), R13 and R14's operations items (per their sprint-table rows),
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
-> As of 2026-10-30, R1, R2, R3, and R5 are done and R4 is in review (#149). The project plan owns milestone status.
+> As of 2026-10-30, R1-R5 are done (R4 merged as #149). The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
@@ -403,7 +403,7 @@ END BASELINE DEVELOPMENT STANDARDS
 | P3 | Role-aware routed product foundation |
 | P4 | Complete participant experience |
 | P5 | Complete manager, reporting, and operations experience |
-| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1; R1, R2, R3, and R5 are done, R4 is in review |
+| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1; R1-R5 are done |
 | P6 | Deployed synthetic rehearsal and pilot-readiness decision |
 | F1 | Initial family pilot using actual perfumes |
 | D1 | Source and vocabulary foundation |

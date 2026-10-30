@@ -626,14 +626,17 @@ As of 2026-09-21:
   the owner on 2026-10-21 as this review's default: managers read every reviewer, recorders only reviewers whose
   enrollment lists them. F-02 is cited in the Section 2 verdict but has no row in Section 4; it is treated as part of
   S-05/B-10.
-- **WS-3 / R4 is in review as of 2026-10-30.** It closes B-01, B-02, B-03, B-26, F-15, S-07, and S-15 (merge commit to
-  be recorded here on merge). WS-3's acceptance asked for a disclosure-matrix row per participant-reachable error path.
-  The rows are in the [P4 participant disclosure
-  matrix](evidence/p4-participant-disclosure.md#participant-reachable-error-paths-r4), and
+- **WS-3 / R4 is done (2026-10-30): PR #149, merge commit `f247d3a`.** It closes B-01, B-02, B-03, B-26, F-15, S-07, and
+  S-15. WS-3's acceptance asked for a disclosure-matrix row per participant-reachable error path. The rows are in the
+  [P4 participant disclosure matrix](evidence/p4-participant-disclosure.md#participant-reachable-error-paths-r4), and
   `tests/unit/test_api/test_calibration_audit.py` is the audit log test. Auditing the participant error strings for B-01
   found one more leak: the reveal blocker said "baseline and repeat", which announced hidden repeats. It now says
   "blind". B-02 was fixed by removing the catalog-ID explain route, not by making the two 404s match. They were already
-  byte-identical; the oracle was 404 against 200 for a fragrance the catalog lists anyway.
+  byte-identical; the oracle was 404 against 200 for a fragrance the catalog lists anyway. Review of the PR found two
+  more gaps, both fixed before merge: the impression explanation checked the holdout before the reviewer's evaluation
+  count, so with fewer than three evaluations a holdout answered 404 where any other impression answered 400; and audit
+  events logged at INFO would have been dropped under `LOG_LEVEL=WARNING`, so they now go through a
+  `fragrance_rater.audit` logger kept at INFO.
 - All other workstreams (the rest of WS-2, WS-4 through WS-8, WS-10, WS-11, and the rest of WS-9: D-01 (ADR-012 fields
   landed in PR #125; the rest is R8), D-08, D-12, D-16, D-21, D-22) remain open; see PROJECT-PLAN.md for current status.
 
