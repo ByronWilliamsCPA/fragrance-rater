@@ -479,6 +479,33 @@ adopted deliberately, matching the pre-commit hook's pinned scope.
 
 ---
 
+### Workflow `cancel-in-progress: true` cancels post-merge push runs on main
+
+**Priority**: Low
+
+**Issue**: The scaffolded workflows set `cancel-in-progress: true` with a group keyed on the PR number or
+`github.ref`. For `push` to `main` the group is the same for every push, so when two merges land seconds
+apart the second run cancels the first and leaves a red "cancelled" mark on a commit that already passed
+the merge queue. Merge-queue runs are unaffected, because their ref is unique per queue entry.
+
+**Context**: In fragrance-rater, 7 of the last 9 cancelled Security Analysis runs were `push` to `main`;
+on 2026-10-30 two merges 17 seconds apart cancelled the first one's scan. An earlier diagnosis blamed this
+setting for a merge-queue ejection, which was wrong: that ejection was the separate gate job stalling at
+runner start (no steps recorded).
+
+**Suggested Fix**: Cancel only superseded pull request runs:
+`cancel-in-progress: ${{ github.event_name == 'pull_request' }}`. The same pattern appears in `ci.yml`,
+`fips-compatibility.yml`, `container-security.yml`, and `docker-publish.yml`; apply it wherever a post-merge
+run on `main` is worth keeping.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.github/workflows/security-analysis.yml`
+- `{{cookiecutter.project_slug}}/.github/workflows/ci.yml`
+- `{{cookiecutter.project_slug}}/.github/workflows/fips-compatibility.yml`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:
