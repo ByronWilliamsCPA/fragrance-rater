@@ -10,6 +10,7 @@ from sqlalchemy import select
 from fragrance_rater.models.fragrance import Note, NoteAlias
 from fragrance_rater.services.note_aliases import (
     AliasFileError,
+    audit_alias_load,
     find_ambiguities,
     load_aliases,
     parse_alias_file,
@@ -81,6 +82,21 @@ class TestParse:
     def test_structural_problems(self, text: str, fragment: str) -> None:
         with pytest.raises(AliasFileError, match=fragment):
             parse_alias_file(text)
+
+    @pytest.mark.parametrize(
+        ("raw", "canonical", "fragment"),
+        [
+            ("true", "Vanilla", "raw_label is required and must be text"),
+            ("1", "Vanilla", "raw_label is required and must be text"),
+            ('"---"', "Vanilla", "raw_label has no letters or digits"),
+            ("vanille", '"---"', "canonical has no letters or digits"),
+        ],
+    )
+    def test_unusable_labels_are_reported(
+        self, raw: str, canonical: str, fragment: str
+    ) -> None:
+        with pytest.raises(AliasFileError, match=fragment):
+            parse_alias_file(_file(_decision(raw, canonical)))
 
     def test_every_violation_is_reported_not_just_the_first(self) -> None:
         text = _file(
@@ -164,6 +180,21 @@ class TestLoad:
             "nm-v1",
         )
 
+    async def test_load_itself_emits_no_audit_event(
+        self, async_session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            "fragrance_rater.services.note_aliases.log_audit_event",
+            lambda _logger, **kw: calls.append(kw),
+        )
+        await _notes(async_session, "Vanilla")
+        parsed = parse_alias_file(_file(_decision("vanille", "Vanilla")))
+
+        await load_aliases(async_session, parsed, execute=True, actor="owner")
+
+        assert calls == []
+
     async def test_a_second_load_is_unchanged(self, async_session) -> None:
         await _notes(async_session, "Vanilla")
         parsed = parse_alias_file(_file(_decision("vanille", "Vanilla")))
@@ -244,6 +275,26 @@ class TestLoad:
         assert item.outcome == "conflict"
         assert "new version" in item.detail
 
+    async def test_a_second_spelling_of_a_decided_key_conflicts(
+        self, async_session
+    ) -> None:
+        await _notes(async_session, "Vanilla")
+        await load_aliases(
+            async_session,
+            parse_alias_file(_file(_decision("vanille", "Vanilla"))),
+            execute=True,
+            actor="owner",
+        )
+
+        report = await load_aliases(
+            async_session,
+            parse_alias_file(_file(_decision("Vanille!", "Vanilla"))),
+        )
+
+        (item,) = report.items
+        assert item.outcome == "conflict"
+        assert "one decision per version" in item.detail
+
     async def test_a_version_other_than_the_active_one_is_flagged(
         self, async_session
     ) -> None:
@@ -255,6 +306,55 @@ class TestLoad:
         report = await load_aliases(async_session, parsed)
 
         assert report.active is False
+
+
+class TestAudit:
+    async def test_an_applied_load_is_audited_with_the_content_hash(
+        self, async_session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            "fragrance_rater.services.note_aliases.log_audit_event",
+            lambda _logger, **kw: calls.append(kw),
+        )
+        await _notes(async_session, "Vanilla")
+        parsed = parse_alias_file(_file(_decision("vanille", "Vanilla")))
+        report = await load_aliases(async_session, parsed, execute=True, actor="owner")
+
+        audit_alias_load(report, "owner")
+
+        (event,) = calls
+        assert event["action"] == "note_alias_load"
+        assert event["actor"] == "owner"
+        assert event["created"] == 1
+        assert event["content_hash"] == parsed.content_hash
+        assert event["target_id"] == f"nm-v1:{parsed.content_hash[:12]}"
+
+    async def test_dry_run_blocked_and_unchanged_loads_are_not_audited(
+        self, async_session, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        calls: list[dict[str, object]] = []
+        monkeypatch.setattr(
+            "fragrance_rater.services.note_aliases.log_audit_event",
+            lambda _logger, **kw: calls.append(kw),
+        )
+        await _notes(async_session, "Vanilla")
+        parsed = parse_alias_file(_file(_decision("vanille", "Vanilla")))
+        dry = await load_aliases(async_session, parsed)
+        applied = await load_aliases(async_session, parsed, execute=True, actor="o")
+        unchanged = await load_aliases(async_session, parsed, execute=True, actor="o")
+        blocked = await load_aliases(
+            async_session,
+            parse_alias_file(_file(_decision("tonka", "Missing Note"))),
+            execute=True,
+            actor="o",
+        )
+
+        for report in (dry, unchanged, blocked):
+            audit_alias_load(report, "o")
+
+        assert applied.applied is True
+        assert calls == []
 
 
 class TestAmbiguities:
