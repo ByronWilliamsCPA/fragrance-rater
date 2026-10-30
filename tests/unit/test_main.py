@@ -23,6 +23,9 @@ security headers, SSRF prevention, the slowapi limiter):
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -132,7 +135,7 @@ class TestRateLimitEnabledTogglesDecoratorToo:
         monkeypatch.setattr(settings, "api_key", "household-secret")
         limiter.enabled = False
         limiter.reset()
-        headers = {"X-API-Key": "household-secret"}
+        headers = {"X-API-Key": "household-secret", "X-Authentik-Username": "member"}
 
         responses = [
             client.post("/ratings", json=RATING_PAYLOAD, headers=headers)
@@ -149,7 +152,7 @@ class TestRateLimitEnabledTogglesDecoratorToo:
         monkeypatch.setattr(settings, "api_key", "household-secret")
         limiter.enabled = True
         limiter.reset()
-        headers = {"X-API-Key": "household-secret"}
+        headers = {"X-API-Key": "household-secret", "X-Authentik-Username": "member"}
 
         responses = [
             client.post("/ratings", json=RATING_PAYLOAD, headers=headers)
@@ -172,3 +175,40 @@ class TestRateLimitEnabledTogglesDecoratorToo:
         """
         assert settings.rate_limit_enabled is True
         assert limiter.enabled is True
+
+
+_PRODUCTION_PROBE = """
+from fastapi.testclient import TestClient
+from fragrance_rater.main import app
+
+client = TestClient(app, base_url="http://fragrance.example.com")
+print(client.get("/docs").status_code)
+print(client.get("/openapi.json").status_code)
+print(client.get("/health/live").status_code)
+print(TestClient(app, base_url="http://evil.example.net").get("/health/live").status_code)
+"""
+
+
+def test_production_app_hides_docs_and_validates_host() -> None:
+    """S-18 and B-27, checked on the assembled app rather than Settings.
+
+    ``app`` is built at import time from the module-level ``settings``, so a
+    fresh interpreter imports it under production environment variables.
+    """
+    env = {
+        **os.environ,
+        "ENVIRONMENT": "production",
+        "TRUSTED_HOSTS": "fragrance.example.com,localhost",
+        "AUTHENTIK_REQUIRED": "true",
+    }
+    result = subprocess.run(  # noqa: S603 - fixed argv, test-only
+        [sys.executable, "-c", _PRODUCTION_PROBE],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    docs, schema, live, wrong_host = result.stdout.split()
+    assert (docs, schema, live, wrong_host) == ("404", "404", "200", "400")

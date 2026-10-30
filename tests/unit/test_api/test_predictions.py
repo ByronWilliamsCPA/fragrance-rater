@@ -7,6 +7,7 @@ from fragrance_rater.core.config import settings
 PREFIX = "/api/v1/predictions"
 MANAGER = {"X-Authentik-Username": "manager"}
 RECORDER = {"X-Authentik-Username": "recorder"}
+ANONYMOUS = {"X-Authentik-Username": ""}
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +44,7 @@ async def test_anonymous_and_non_manager_cannot_use_predictions(test_app):
         "model_id": "m",
         "model_version": "v1",
     }
-    anonymous = await test_app.post(PREFIX, json=payload)
+    anonymous = await test_app.post(PREFIX, json=payload, headers=ANONYMOUS)
     assert anonymous.status_code == 401
     non_manager = await test_app.post(PREFIX, json=payload, headers=RECORDER)
     assert non_manager.status_code == 403
@@ -73,7 +74,9 @@ async def test_anonymous_and_non_manager_cannot_link_an_outcome(test_app):
         headers=MANAGER,
     )
     payload = {"outcome_evaluation_id": evaluation.json()["id"]}
-    anonymous = await test_app.post(f"{PREFIX}/{prediction_id}/outcome", json=payload)
+    anonymous = await test_app.post(
+        f"{PREFIX}/{prediction_id}/outcome", json=payload, headers=ANONYMOUS
+    )
     assert anonymous.status_code == 401
     non_manager = await test_app.post(
         f"{PREFIX}/{prediction_id}/outcome", json=payload, headers=RECORDER

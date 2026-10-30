@@ -4,6 +4,10 @@ import pytest
 
 from fragrance_rater.core.config import settings
 
+ANONYMOUS = {"X-Authentik-Username": ""}
+"""A blank identity header counts as missing (R3): opts out of the test_app
+client's default identity."""
+
 API_PREFIX = "/api/v1"
 
 
@@ -502,6 +506,7 @@ class TestFragranceAuthentikRequired:
                 "primary_family": "woody",
                 "subfamily": "aromatic",
             },
+            headers=ANONYMOUS,
         )
         assert response.status_code == 401
         assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
@@ -538,6 +543,7 @@ class TestFragranceAuthentikRequired:
         response = await test_app.patch(
             f"{API_PREFIX}/fragrances/{fragrance_id}",
             json={"name": "Renamed"},
+            headers=ANONYMOUS,
         )
         assert response.status_code == 401
         assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
@@ -566,7 +572,9 @@ class TestFragranceAuthentikRequired:
         fragrance_id = await self._create_fragrance(test_app, "Auth Delete Fragrance")
         monkeypatch.setattr(settings, "authentik_required", True)
 
-        response = await test_app.delete(f"{API_PREFIX}/fragrances/{fragrance_id}")
+        response = await test_app.delete(
+            f"{API_PREFIX}/fragrances/{fragrance_id}", headers=ANONYMOUS
+        )
         assert response.status_code == 401
         assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
 

@@ -6,9 +6,11 @@ for a single-instance, single-household deployment (see
 ``project-vision.md``), but the counters are process-local: they are not
 shared across replicas.
 
-The limiter keys on client IP by default (``get_remote_address``), which is
-adequate behind a home router / reverse proxy where all household callers
-share a small, stable set of source addresses.
+The limiter keys on the verified Authentik username when one is present and
+on the client address otherwise (``rate_limit_key``). Behind the production
+proxy every household member shares one or two source addresses, so an
+address-only key put the whole household in one bucket (architecture review
+S-02).
 
 This is now the SOLE rate limiter for the entire API: the OWASP-aligned
 in-memory ``RateLimitMiddleware`` that used to run alongside it (in
@@ -49,6 +51,7 @@ from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
+from fragrance_rater.core.auth import AUTHENTIK_USERNAME_HEADER
 from fragrance_rater.core.config import settings
 
 if TYPE_CHECKING:
@@ -76,7 +79,32 @@ tune the general-purpose limit without a code change. Unlike
 RATINGS_RATE_LIMIT = "10/minute"
 """Tighter limit for the LLM-backed rating endpoint (cost/abuse vector)."""
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[DEFAULT_RATE_LIMIT])
+
+def rate_limit_key(request: Request) -> str:
+    """Return the rate-limit bucket for a request.
+
+    #ASSUME: security: the username header is trustworthy only because the
+    production nginx forwards it solely from Traefik, which sets it from
+    Authentik (frontend/nginx.conf, ADR-008). Where AUTHENTIK_REQUIRED is
+    false (local development, tests) a caller can choose the header and so
+    choose its bucket; that is acceptable there and nowhere else.
+    #VERIFY: tests/integration/test_nginx_trust_boundary.py shows forged
+    headers from any other peer are dropped before they reach the API.
+
+    Args:
+        request (Request): The incoming request.
+
+    Returns:
+        str: ``user:<username>`` for an identified caller, otherwise
+            ``ip:<address>`` from the (proxy-resolved) client address.
+    """
+    username = request.headers.get(AUTHENTIK_USERNAME_HEADER, "").strip()
+    if username:
+        return f"user:{username}"
+    return f"ip:{get_remote_address(request)}"
+
+
+limiter = Limiter(key_func=rate_limit_key, default_limits=[DEFAULT_RATE_LIMIT])
 """Shared ``slowapi`` limiter instance, registered on the app in ``main.py``."""
 
 _RATINGS_PATH_PREFIX = "/ratings"

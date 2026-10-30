@@ -19,7 +19,7 @@ Pydantic-settings handles the parsing and validation.
 import json
 from typing import Annotated, Literal, Self
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _DEFAULT_CORS_ALLOWED_ORIGINS: list[str] = [
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
             logging level for the application. Case-insensitive.
         json_logs (bool): Flag to enable or disable JSON formatted logs.
         include_timestamp (bool): Flag to include timestamps in logs.
-        api_key (str | None): Shared household API key required on the billed,
+        api_key (SecretStr | None): Shared household API key required on the billed,
             LLM-backed ``POST /ratings`` endpoint (sent by callers as the
             ``X-API-Key`` header). Set via ``FRAGRANCE_RATER_API_KEY``; the
             explicit alias keeps that documented name even though this class
@@ -72,18 +72,26 @@ class Settings(BaseSettings):
             build the limiter's ``DEFAULT_RATE_LIMIT``. Does not affect the
             deliberately tighter, hardcoded ``RATINGS_RATE_LIMIT`` on the
             billed ``POST /ratings`` endpoint.
-        openrouter_api_key (str): OpenRouter API key for LLM integration.
+        openrouter_api_key (SecretStr): OpenRouter API key for LLM integration.
         openrouter_model (str): Default model to use for LLM calls.
         openrouter_base_url (str): OpenRouter API base URL.
         llm_enabled (bool): Enable/disable LLM features.
-        fragella_api_key (str): Fragella API key. Empty disables the
+        fragella_api_key (SecretStr): Fragella API key. Empty disables the
             fragella-* CLI commands (see ``fragella_client.py``); Fragella
             is a rate-limited (20 req/month free tier), operator-invoked
             reference lookup, never a primary or auto-imported source.
         fragella_base_url (str): Fragella API base URL.
-        calibration_admin_usernames (list[str]): Verified Authentik usernames
-            permitted to administer controlled calibration programs. Empty by
-            default, which denies calibration administration.
+        calibration_admin_usernames (Annotated[list[str], NoDecode]): Verified
+            Authentik usernames permitted to administer controlled calibration
+            programs. Empty by default, which denies calibration
+            administration. Accepts a JSON array or a comma-separated string.
+        environment (Literal["development", "test", "production"]):
+            Deployment environment. ``production`` turns off the interactive
+            API docs, drops the local-development CORS defaults, and requires
+            ``trusted_hosts``.
+        trusted_hosts (Annotated[list[str], NoDecode]): Host header values the
+            API accepts (``TrustedHostMiddleware``). Empty disables the check,
+            which is allowed only outside production.
         house_contributor_group (str): Authentik group whose members are
             confined to the house-intake routes even when unmapped, so
             removing a mapping never widens an external account's access.
@@ -100,7 +108,9 @@ class Settings(BaseSettings):
             ``fragrance_rater.middleware.security.add_security_middleware``).
             Defaults to the local/docker-compose frontend origins; override
             with ``CORS_ALLOWED_ORIGINS`` as a comma-separated list or a
-            JSON array for any other deployment.
+            JSON array for any other deployment. In production the
+            default is empty: nginx serves the UI and API from one origin, so
+            no cross-origin access is needed unless configured.
     """
 
     model_config = SettingsConfigDict(
@@ -137,7 +147,7 @@ class Settings(BaseSettings):
     # failing closed with 503 in every deployment.
     # #VERIFY: alias below matches the name used in .env.example and
     # .github/workflows/postman-api-tests.yml; tests/unit/test_core covers it.
-    api_key: str | None = Field(
+    api_key: SecretStr | None = Field(
         default=None,
         validation_alias="FRAGRANCE_RATER_API_KEY",
         description=(
@@ -222,8 +232,8 @@ class Settings(BaseSettings):
     )
 
     # LLM / OpenRouter
-    openrouter_api_key: str = Field(
-        default="",
+    openrouter_api_key: SecretStr = Field(
+        default=SecretStr(""),
         description="OpenRouter API key for LLM integration",
     )
     openrouter_model: str = Field(
@@ -244,8 +254,8 @@ class Settings(BaseSettings):
     # ambiguity Parfumo alone leaves open (see docs/planning/adr/
     # adr-002-data-source-strategy.md's 2026 amendment) - never a primary
     # source, and never auto-imported into the catalog.
-    fragella_api_key: str = Field(
-        default="",
+    fragella_api_key: SecretStr = Field(
+        default=SecretStr(""),
         description="Fragella API key (x-api-key header); empty disables fragella-* CLI commands",
     )
     fragella_base_url: str = Field(
@@ -253,9 +263,28 @@ class Settings(BaseSettings):
         description="Fragella API base URL",
     )
 
-    calibration_admin_usernames: list[str] = Field(
+    # #CRITICAL: security: this is the manager allowlist. Without NoDecode,
+    # pydantic-settings JSON-decodes list fields before any validator runs,
+    # so a comma-separated value crash-looped the container at import
+    # (architecture review S-19).
+    # #VERIFY: tests/unit/test_core/test_config.py covers the comma-separated,
+    # JSON-array, and empty forms through a real Settings() construction.
+    calibration_admin_usernames: Annotated[list[str], NoDecode] = Field(
         default_factory=list,
         description="Verified Authentik usernames allowed to manage calibration",
+    )
+
+    environment: Literal["development", "test", "production"] = Field(
+        default="development",
+        description="Deployment environment (ENVIRONMENT)",
+    )
+
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        description=(
+            "Accepted Host header values (TRUSTED_HOSTS, comma-separated or "
+            "JSON). Empty disables the check outside production."
+        ),
     )
 
     # House intake (docs/superpowers/specs/2026-10-02-house-intake-design.md)
@@ -346,10 +375,18 @@ class Settings(BaseSettings):
         ),
     )
 
-    @field_validator("cors_allowed_origins", mode="before")
+    @field_validator(
+        "cors_allowed_origins",
+        "calibration_admin_usernames",
+        "trusted_hosts",
+        mode="before",
+    )
     @classmethod
     def _split_comma_separated_origins(cls, value: object) -> object:
-        """Parse ``CORS_ALLOWED_ORIGINS`` as a comma-separated string or JSON array.
+        """Parse a list setting given as a comma-separated string or JSON array.
+
+        Shared by ``CORS_ALLOWED_ORIGINS``, ``CALIBRATION_ADMIN_USERNAMES``,
+        and ``TRUSTED_HOSTS``.
 
         Marked ``NoDecode`` above, so pydantic-settings hands this validator
         the raw string value (or the in-code default list) directly, rather
@@ -374,6 +411,30 @@ class Settings(BaseSettings):
         if stripped.startswith("["):
             return json.loads(stripped)
         return [origin.strip() for origin in value.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def _apply_production_defaults(self) -> Self:
+        """Enforce production-only defaults (S-17, S-18, B-27).
+
+        #CRITICAL: security: production must never serve the development
+        CORS allow-list (credentialed, wildcard headers) or skip Host-header
+        validation because an operator left a setting unset.
+        #VERIFY: tests/unit/test_core/test_config.py::TestProductionDefaults.
+
+        Returns:
+            Self: This instance, with production CORS defaults applied.
+
+        Raises:
+            ValueError: If production runs without trusted hosts.
+        """
+        if self.environment != "production":
+            return self
+        if "cors_allowed_origins" not in self.model_fields_set:
+            self.cors_allowed_origins = []
+        if not self.trusted_hosts:
+            msg = "TRUSTED_HOSTS must be set when ENVIRONMENT=production"
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def _reject_house_manager_overlap(self) -> Self:
@@ -403,6 +464,21 @@ class Settings(BaseSettings):
             msg = f"House contributors must name a house: {blank}"
             raise ValueError(msg)
         return self
+
+
+def secret_value(secret: SecretStr | str | None) -> str:
+    """Return a secret's plain value, or ``""`` when unset.
+
+    Keys are ``SecretStr`` so a settings dump, repr, or log line shows
+    ``**********`` instead of the key (architecture review S-15); read the
+    value only at the point of use. A plain ``str`` is accepted because tests
+    patch settings attributes directly, bypassing validation.
+    """
+    if secret is None:
+        return ""
+    if isinstance(secret, SecretStr):
+        return secret.get_secret_value()
+    return secret
 
 
 # A single, global instance of the settings

@@ -6,6 +6,10 @@ import pytest
 
 from fragrance_rater.core.config import settings
 
+ANONYMOUS = {"X-Authentik-Username": ""}
+"""A blank identity header counts as missing (R3): opts out of the test_app
+client's default identity."""
+
 API_PREFIX = "/api/v1"
 
 
@@ -220,7 +224,25 @@ class TestReviewerAuthentikRequired:
         monkeypatch.setattr(settings, "authentik_required", True)
 
         response = await test_app.post(
-            f"{API_PREFIX}/reviewers", json={"name": "Should Fail"}
+            f"{API_PREFIX}/reviewers",
+            json={"name": "Should Fail"},
+            headers=ANONYMOUS,
+        )
+
+        assert response.status_code == 401
+        assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
+
+    @pytest.mark.parametrize("blank", ["", "   "])
+    async def test_create_reviewer_rejected_with_blank_identity_header(
+        self, test_app, monkeypatch: pytest.MonkeyPatch, blank: str
+    ):
+        """A present but blank X-Authentik-Username is not an identity (R3)."""
+        monkeypatch.setattr(settings, "authentik_required", True)
+
+        response = await test_app.post(
+            f"{API_PREFIX}/reviewers",
+            json={"name": "Should Fail"},
+            headers={"X-Authentik-Username": blank},
         )
 
         assert response.status_code == 401
@@ -248,7 +270,9 @@ class TestReviewerAuthentikRequired:
         """
         monkeypatch.setattr(settings, "authentik_required", True)
 
-        response = await test_app.post(f"{API_PREFIX}/reviewers/seed")
+        response = await test_app.post(
+            f"{API_PREFIX}/reviewers/seed", headers=ANONYMOUS
+        )
 
         assert response.status_code == 401
         assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"
@@ -279,7 +303,9 @@ class TestReviewerAuthentikRequired:
 
         monkeypatch.setattr(settings, "authentik_required", True)
 
-        response = await test_app.delete(f"{API_PREFIX}/reviewers/{reviewer_id}")
+        response = await test_app.delete(
+            f"{API_PREFIX}/reviewers/{reviewer_id}", headers=ANONYMOUS
+        )
 
         assert response.status_code == 401
         assert response.json()["detail"]["error"] == "AUTHENTIK_IDENTITY_REQUIRED"

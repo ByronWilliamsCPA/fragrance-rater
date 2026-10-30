@@ -15,19 +15,98 @@ configuration.
 """
 
 import logging
+import re
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import structlog
+from pydantic import SecretStr
 from rich.console import Console
 from rich.logging import RichHandler
 from structlog.stdlib import BoundLogger
 
 if TYPE_CHECKING:
+    from collections.abc import MutableMapping
+
     from structlog.types import EventDict, Processor, WrappedLogger
 
 # Global console for rich output (stderr for proper output separation)
 console = Console(stderr=True)
+
+REDACTED = "[REDACTED]"
+
+# Audit events go through this logger, whose level setup_logging pins at INFO
+# or lower so LOG_LEVEL=WARNING cannot silence the audit trail.
+AUDIT_LOGGER = "fragrance_rater.audit"
+
+# Whole underscore-separated words, so ``prompt_tokens`` and ``total_tokens``
+# (LLM usage counts) survive while ``api_key``, ``x_api_key``,
+# ``authorization``, ``csrf_token``, and ``db_password`` are masked.
+_SENSITIVE_WORDS = (
+    "api[_-]?key|authorization|cookie|credentials?|passw(?:or)?d|secret|token"
+)
+_SENSITIVE_KEY = re.compile(
+    rf"(?:^|[_-])(?:{_SENSITIVE_WORDS})(?:$|[_-])", re.IGNORECASE
+)
+_URL_PASSWORD = re.compile(r"(?P<scheme>[a-z][a-z0-9+.-]*://[^/:@\s]+):[^@/\s]+@")
+
+
+def _configured_secrets() -> list[str]:
+    """Return the non-empty secret values from settings, longest first."""
+    from fragrance_rater.core.config import secret_value, settings  # noqa: PLC0415
+
+    values = {
+        secret_value(settings.api_key),
+        secret_value(settings.openrouter_api_key),
+        secret_value(settings.fragella_api_key),
+    }
+    # Any configured value is masked, however short; a short key that also
+    # masks an ordinary word is the lesser harm.
+    return sorted((v for v in values if v), key=len, reverse=True)
+
+
+def _redact_value(value: object, secrets: list[str]) -> object:
+    if isinstance(value, SecretStr):
+        return REDACTED
+    if isinstance(value, str):
+        text = _URL_PASSWORD.sub(rf"\g<scheme>:{REDACTED}@", value)
+        for secret in secrets:
+            text = text.replace(secret, REDACTED)
+        return text
+    if isinstance(value, dict):
+        mapping = cast("dict[object, object]", value)
+        return {
+            key: (
+                REDACTED
+                if isinstance(key, str) and _SENSITIVE_KEY.search(key)
+                else _redact_value(item, secrets)
+            )
+            for key, item in mapping.items()
+        }
+    if isinstance(value, list | tuple):
+        items = cast("list[object] | tuple[object, ...]", value)
+        return type(items)(_redact_value(item, secrets) for item in items)
+    return value
+
+
+def redact_secrets(
+    _logger: object,
+    _method_name: str,
+    event_dict: "MutableMapping[str, object]",
+) -> "MutableMapping[str, object]":
+    """Mask secrets before any renderer sees the event (architecture review S-15).
+
+    Fields whose names mark them as secrets are replaced outright; in every
+    other string, the configured key values and URL passwords (for example a
+    ``DATABASE_URL``) are masked. Nested dicts and lists are walked.
+    """
+    secrets = _configured_secrets()
+    for key in list(event_dict):
+        if _SENSITIVE_KEY.search(key) and event_dict[key] is not None:
+            event_dict[key] = REDACTED
+        else:
+            event_dict[key] = _redact_value(event_dict[key], secrets)
+    return event_dict
 
 
 def setup_logging(
@@ -59,6 +138,11 @@ def setup_logging(
         >>> setup_logging(level="INFO", json_logs=True, include_correlation=True)
     """
     log_level = getattr(logging, level.upper(), logging.INFO)
+    # #CRITICAL: security: audit events must survive any LOG_LEVEL. Records
+    # from the audit logger still reach the root handlers, which have no level
+    # of their own.
+    # #VERIFY: tests/unit/test_logging.py renders an audit event at WARNING.
+    logging.getLogger(AUDIT_LOGGER).setLevel(min(log_level, logging.INFO))
 
     # Configure standard Python logging
     logging.basicConfig(
@@ -102,6 +186,8 @@ def setup_logging(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
+        # Last before the renderer, so exception text is scrubbed too.
+        redact_secrets,
     ]
 
     # Add correlation ID processor for request tracing
@@ -157,7 +243,7 @@ def get_logger(name: str) -> BoundLogger:
 
 
 def log_audit_event(
-    logger: BoundLogger,
+    _logger: BoundLogger,
     *,
     action: str,
     actor: str | None,
@@ -174,8 +260,12 @@ def log_audit_event(
     soft-delete (or any other mutation) can be traced back to both the
     acting identity and the specific request that caused it.
 
+    The event is written through the ``fragrance_rater.audit`` logger, so it
+    is kept whatever LOG_LEVEL says (B-03).
+
     Args:
-        logger (BoundLogger): Structured logger instance from get_logger().
+        _logger (BoundLogger): The calling module's logger. Unused since audit
+            events moved to the audit logger; kept so call sites are unchanged.
         action (str): The action performed, e.g. "create", "update",
             "soft_delete".
         actor (str | None): The acting identity's username (from the
@@ -208,7 +298,7 @@ def log_audit_event(
         get_correlation_id,
     )
 
-    logger.info(
+    get_logger(AUDIT_LOGGER).info(
         "audit_event",
         action=action,
         actor=actor,

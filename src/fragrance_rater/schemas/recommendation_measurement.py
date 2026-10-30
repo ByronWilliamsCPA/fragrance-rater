@@ -74,6 +74,19 @@ class ImpressionView(BaseModel):
     responses: list[ResponseView] = Field(default_factory=list)
 
 
+class LinkableOutcome(BaseModel):
+    """One encounter the feedback route would accept as an impression's outcome.
+
+    Deliberately minimal (architecture review F-15): enough to label a choice
+    in the follow-up form, never the rating, notes, or revealed identity the
+    reviewer's full history carries.
+    """
+
+    id: str
+    workflow: Literal["ORDINARY", "CONTROLLED"]
+    observed_at: datetime
+
+
 class RunView(BaseModel):
     """A recommendation run and its already-persisted impressions."""
 

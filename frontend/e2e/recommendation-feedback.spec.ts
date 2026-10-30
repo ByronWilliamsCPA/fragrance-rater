@@ -20,10 +20,10 @@ import { mockApi, bootstrapRoutes, recommendationRunFixture } from './support/mo
 // - The follow-up flow is "Update sampling and outcome" -> "Sampling status" select
 //   (name="sampling_state", options include `value="PLANNED"` / label "Plan to
 //   sample", matching the brief exactly) -> "Save follow-up" submit button. Opening
-//   the follow-up also calls GET /calibration/history/r1 (openFollowUp() in
-//   RecommendationsPage.tsx fetches it whenever the cached reviewer differs from the
-//   selected one, which is always true on first open), so that mock route is real
-//   coverage, not dead weight.
+//   the follow-up calls GET /recommendation-measurement/impressions/imp1/linkable-outcomes
+//   (openFollowUp() in RecommendationsPage.tsx; architecture review F-15 replaced the
+//   reviewer's full /calibration/history with this narrow list), so that mock route
+//   is real coverage, not dead weight.
 // - Both "Interested" and "Save follow-up" POST to the same endpoint,
 //   /recommendation-measurement/impressions/imp1/responses. Rather than hardcode a
 //   single canned response body (which would leave the interest response stale by
@@ -61,7 +61,7 @@ test.describe('Recommendation feedback and sampling', () => {
           }),
         })
       },
-      '/calibration/history/r1': [],
+      '/recommendation-measurement/impressions/imp1/linkable-outcomes': [],
     })
 
     await page.goto('/recommendations')
