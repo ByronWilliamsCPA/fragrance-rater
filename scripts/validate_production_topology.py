@@ -10,8 +10,13 @@ from pathlib import Path
 from typing import Any
 
 
-def validate_topology(config: object) -> list[str]:
-    """Return security violations from a rendered Compose document."""
+def validate_topology(config: object, edge_subnet: str | None = None) -> list[str]:
+    """Return security violations from a rendered Compose document.
+
+    ``edge_subnet`` is the live subnet of ``FRAGRANCE_TRAEFIK_NETWORK`` as
+    ``docker network inspect`` reports it; when given, the configured
+    ``FRAGRANCE_TRAEFIK_CIDR`` must equal it.
+    """
     if not isinstance(config, dict) or not isinstance(config.get("services"), dict):
         return ["rendered Compose config must contain services"]
     services: dict[str, Any] = config["services"]
@@ -55,7 +60,11 @@ def validate_topology(config: object) -> list[str]:
     frontend_environment = frontend.get("environment", {})
     if frontend_environment.get("VITE_API_URL") != "/api":
         errors.append("frontend must use the authenticated same-origin /api path")
-    errors.extend(_edge_cidr_errors(frontend_environment.get("FRAGRANCE_TRAEFIK_CIDR")))
+    edge_cidr = frontend_environment.get("FRAGRANCE_TRAEFIK_CIDR")
+    cidr_errors = _edge_cidr_errors(edge_cidr)
+    errors.extend(cidr_errors)
+    if edge_subnet is not None and not cidr_errors:
+        errors.extend(_edge_subnet_mismatch(str(edge_cidr), edge_subnet))
     networks = frontend.get("networks", {})
     if not {"fragrance_rater-network", "authenticated-edge"}.issubset(networks):
         errors.append("frontend must join application and authenticated-edge networks")
@@ -106,17 +115,42 @@ def _edge_cidr_errors(value: object) -> list[str]:
     return []
 
 
+def _edge_subnet_mismatch(cidr: str, edge_subnet: str) -> list[str]:
+    """Compare the trusted CIDR with the edge network as Docker reports it.
+
+    A wider value trusts peers off the edge network; a narrower or different
+    one can exclude Traefik, which clears every legitimate identity header.
+    """
+    try:
+        live = ipaddress.ip_network(edge_subnet.strip(), strict=False)
+    except ValueError:
+        return [f"edge network subnet {edge_subnet!r} is not a valid CIDR"]
+    if ipaddress.ip_network(cidr, strict=False) != live:
+        message = (
+            f"FRAGRANCE_TRAEFIK_CIDR {cidr!r} does not match the edge network "
+            f"subnet {str(live)!r}"
+        )
+        return [message]
+    return []
+
+
 def main() -> int:
-    """Validate the JSON output of ``docker compose config --format json``."""
-    if len(sys.argv) != 2:
-        print(f"usage: {Path(sys.argv[0]).name} RENDERED_CONFIG.json", file=sys.stderr)
+    """Validate a ``docker compose config --format json`` render.
+
+    The second argument is the live subnet of ``FRAGRANCE_TRAEFIK_NETWORK``,
+    so a stale or mistyped ``FRAGRANCE_TRAEFIK_CIDR`` fails here rather than
+    in production.
+    """
+    if len(sys.argv) != 3:
+        name = Path(sys.argv[0]).name
+        print(f"usage: {name} RENDERED_CONFIG.json EDGE_SUBNET", file=sys.stderr)
         return 2
     try:
         config = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"config could not be read: {exc}", file=sys.stderr)
         return 2
-    errors = validate_topology(config)
+    errors = validate_topology(config, edge_subnet=sys.argv[2])
     if errors:
         for error in errors:
             print(error, file=sys.stderr)

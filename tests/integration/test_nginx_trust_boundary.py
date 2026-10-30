@@ -5,8 +5,9 @@ over the template, substituting only variables that are set), runs a real
 nginx in front of a header-echoing stub, and sends forged ``X-Authentik-*``
 and forwarding headers from a peer inside and outside ``FRAGRANCE_TRAEFIK_CIDR``.
 
-Skipped when ``nginx`` or ``envsubst`` is not installed (GitHub's Ubuntu
-runners have both).
+Skipped locally when ``nginx`` or ``envsubst`` is not installed. Under CI
+(``CI`` set) the tests run regardless and fail if either is missing, so the
+boundary cannot pass unexercised; GitHub's Ubuntu runners have both.
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ ENVSUBST = shutil.which("envsubst")
 TEMPLATE = Path(__file__).resolve().parents[2] / "frontend" / "nginx.conf"
 
 pytestmark = pytest.mark.skipif(
-    NGINX is None or ENVSUBST is None, reason="nginx and envsubst are required"
+    (NGINX is None or ENVSUBST is None) and not os.environ.get("CI"),
+    reason="nginx and envsubst are required",
 )
 
 FORGED = {
@@ -87,6 +89,7 @@ def _render(cidr: str | None, tmp_path: Path, echo_port: int, port: int) -> Path
         text=True,
         env=env,
         check=True,
+        timeout=30,
     ).stdout
     rendered = rendered.replace("listen 80;", f"listen 127.0.0.1:{port};")
     rendered = rendered.replace("http://app:8000/", f"http://127.0.0.1:{echo_port}/")
@@ -120,6 +123,7 @@ def _nginx(main: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
 

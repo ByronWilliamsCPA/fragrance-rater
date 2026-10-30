@@ -141,11 +141,13 @@ development CORS origins), `TRUSTED_HOSTS` (the public host plus `localhost` for
 and `FORWARDED_ALLOW_IPS` (the private app network and the edge subnet, so rate limits and logs see
 the real client). The validator below rejects a render missing any of them or using `*`.
 
-Render the exact deployment configuration and save it to the private evidence directory:
+Render the exact deployment configuration and save it to the private evidence directory, then
+validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json
-uv run python scripts/validate_production_topology.py /secure/path/compose.json
+uv run python scripts/validate_production_topology.py /secure/path/compose.json \
+  "$(docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" --format '{{(index .IPAM.Config 0).Subnet}}')"
 ```
 
 From every reachable network, verify that only Traefik's TLS entry point is open. Requests
