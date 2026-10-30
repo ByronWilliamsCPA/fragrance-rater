@@ -158,12 +158,15 @@ manager and participant role matrix with separate Authentik accounts.
 
 Forged-header check (architecture review S-01): from a throwaway container on the private app
 network, which is outside `FRAGRANCE_TRAEFIK_CIDR`, send a mutation through nginx with a forged
-manager identity. It must return 401, not succeed. Compose prefixes the network with the project
-name; `docker network ls | grep fragrance_rater-network` shows it:
+manager identity. It must return 401, not succeed. Send the public host name as `Host`: nginx
+passes it through, and a host outside `TRUSTED_HOSTS` (such as `frontend`) gets 400 before identity
+is checked, which proves nothing. Compose prefixes the network with the project name;
+`docker network ls | grep fragrance_rater-network` shows it:
 
 ```bash
 docker run --rm --network <project>_fragrance_rater-network curlimages/curl -s -o /dev/null -w '%{http_code}\n' \
-  -X POST -H 'Content-Type: application/json' -H 'X-Authentik-Username: <a manager username>' \
+  -X POST -H "Host: $FRAGRANCE_HOST" -H 'Content-Type: application/json' \
+  -H 'X-Authentik-Username: <a manager username>' \
   -d '{"name":"forged-header probe"}' http://frontend/api/v1/reviewers
 ```
 
