@@ -735,7 +735,7 @@ async def test_reveal_waits_for_repeat_and_finalized_locked_skin_plan(protocol):
     await service.db.flush()
     pending_blotter = await service.participant_view(enrollment)
     assert pending_blotter["reveal_blocker"] == "BLOTTER"
-    with pytest.raises(HTTPException, match="baseline and repeat"):
+    with pytest.raises(HTTPException, match="All blind blotter responses"):
         await service.reveal(enrollment.id, "family-recorder", admin=False)
     await answer_and_lock(service, presentations[repeat.id])
     presentations[base.id].skin_reason = "Ambiguous opening"

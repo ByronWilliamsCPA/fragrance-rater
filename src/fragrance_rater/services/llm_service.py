@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 import httpx
 
-from fragrance_rater.core.config import settings
+from fragrance_rater.core.config import secret_value, settings
 
 if TYPE_CHECKING:
     from fragrance_rater.services.recommendation_service import (
@@ -157,7 +157,7 @@ class LLMService:
     MAX_CACHE_ENTRIES: ClassVar[int] = 500
 
     def __init__(self) -> None:
-        self.api_key = settings.openrouter_api_key
+        self.api_key = secret_value(settings.openrouter_api_key)
         self.base_url = settings.openrouter_base_url
         self.model = settings.openrouter_model
         self.enabled = settings.llm_enabled and bool(self.api_key)

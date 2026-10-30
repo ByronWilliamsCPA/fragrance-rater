@@ -40,6 +40,19 @@ def reject(message: str, status: int = 409) -> NoReturn:
     raise HTTPException(status_code=status, detail=message)
 
 
+def post_reveal_entry(
+    enrollment: Enrollment, member: Membership, presentation: Presentation
+) -> bool:
+    """Whether new responses to this sample are post-reveal, not blind.
+
+    True once the enrollment is revealed, except for a holdout whose own
+    blind response is not yet locked: it stays concealed until then.
+    """
+    return enrollment.revealed_at is not None and (
+        member.role != "HOLDOUT" or presentation.blotter_locked_at is not None
+    )
+
+
 def observation_payload(o: Observation) -> dict[str, object]:
     """Serialize one submitted observation's typed fields for a participant view.
 
@@ -372,9 +385,7 @@ class CalibrationService:
         obj, enrollment = await self.target(presentation_id, username, admin)
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
-        identity_visible = enrollment.revealed_at is not None and (
-            member.role != "HOLDOUT" or obj.blotter_locked_at is not None
-        )
+        identity_visible = post_reveal_entry(enrollment, member, obj)
         if post_reveal:
             if not identity_visible:
                 reject("Identity has not been revealed")
@@ -476,7 +487,7 @@ class CalibrationService:
         if blocker == "SKIN_PLAN":
             reject("Finalize the planned skin tests before reveal")
         if blocker == "BLOTTER":
-            reject("All baseline and repeat blotter responses must be locked")
+            reject("All blind blotter responses must be locked")
         if blocker == "SKIN":
             reject("All planned blind skin tests must be locked")
         enrollment.revealed_at = now_naive_utc()
@@ -555,10 +566,12 @@ class CalibrationService:
             observations = observations_by_presentation[obj.id]
             row["observations"] = [observation_payload(o) for o in observations]
             member = members[obj.membership_id]
+            # The server, not the client, says which entry form applies
+            # (architecture review F-15); it is true exactly when the identity
+            # below is disclosed, so it carries no information beyond it.
+            row["post_reveal_entry"] = post_reveal_entry(enrollment, member, obj)
             # Holdout identities stay concealed until their own blind response is locked.
-            if enrollment.revealed_at and (
-                member.role != "HOLDOUT" or obj.blotter_locked_at
-            ):
+            if row["post_reveal_entry"]:
                 fragrance = fragrances[member.fragrance_id]
                 # #CRITICAL: security: perfumer belongs inside this block and
                 # nowhere else in the participant payload. An attribution

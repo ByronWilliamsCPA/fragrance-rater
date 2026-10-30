@@ -38,9 +38,11 @@ from fragrance_rater.services.evaluation_service import EvaluationService
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
 from fragrance_rater.services.preference_history import PreferenceHistoryService
+from fragrance_rater.utils.logging import get_logger, log_audit_event
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 router = APIRouter(prefix="/calibration", tags=["calibration"])
+logger = get_logger(__name__)
 DB = Annotated[AsyncSession, Depends(get_db)]
 Identity = VerifiedIdentity
 
@@ -235,7 +237,7 @@ async def fragella_usage(identity: Identity) -> dict[str, object]:
 @router.post("/programs/{program_id}/activate")
 async def activate(program_id: str, db: DB, identity: Identity) -> dict[str, bool]:
     """Freeze a nonempty definition before assigning evaluators."""
-    manager(identity)
+    username = manager(identity)
     obj = await CalibrationService(db).program(program_id)
     if obj.status != "draft":
         reject("Program is already locked")
@@ -245,6 +247,13 @@ async def activate(program_id: str, db: DB, identity: Identity) -> dict[str, boo
         reject("Add stimuli before activation")
     obj.status, obj.locked_at = "active", now_naive_utc()
     await db.flush()
+    log_audit_event(
+        logger,
+        action="program_activate",
+        actor=username,
+        target_type="calibration_program",
+        target_id=program_id,
+    )
     return {"locked": True}
 
 
@@ -253,8 +262,18 @@ async def enroll(
     program_id: str, data: EnrollmentInput, db: DB, identity: Identity
 ) -> dict[str, str]:
     """Assign and randomize the program for one shared reviewer."""
-    manager(identity)
+    username = manager(identity)
     obj = await CalibrationService(db).enroll(program_id, data)
+    log_audit_event(
+        logger,
+        action="enroll",
+        actor=username,
+        target_type="enrollment",
+        target_id=obj.id,
+        program_id=program_id,
+        reviewer_id=obj.reviewer_id,
+        recorder_usernames=list(obj.recorder_usernames or []),
+    )
     return {"id": obj.id}
 
 
@@ -393,7 +412,16 @@ async def lock_stage(
     presentation_id: str, stage: Stage, db: DB, identity: Identity
 ) -> dict[str, bool]:
     """Lock the submitted stage."""
-    await CalibrationService(db).lock_stage(presentation_id, stage, *actor(identity))
+    username, admin = actor(identity)
+    await CalibrationService(db).lock_stage(presentation_id, stage, username, admin)
+    log_audit_event(
+        logger,
+        action="lock_stage",
+        actor=username,
+        target_type="presentation",
+        target_id=presentation_id,
+        stage=stage,
+    )
     return {"locked": True}
 
 
@@ -417,16 +445,32 @@ async def lock_skin_plan(
     enrollment_id: str, db: DB, identity: Identity
 ) -> dict[str, bool]:
     """Explicitly finalize the skin plan, including an intentionally empty plan."""
-    obj = await CalibrationService(db).enrollment(enrollment_id, *actor(identity))
+    username, admin = actor(identity)
+    obj = await CalibrationService(db).enrollment(enrollment_id, username, admin)
     obj.skin_plan_locked_at = obj.skin_plan_locked_at or now_naive_utc()
     await db.flush()
+    log_audit_event(
+        logger,
+        action="lock_skin_plan",
+        actor=username,
+        target_type="enrollment",
+        target_id=enrollment_id,
+    )
     return {"locked": True}
 
 
 @router.post("/enrollments/{enrollment_id}/reveal")
 async def reveal(enrollment_id: str, db: DB, identity: Identity) -> dict[str, bool]:
     """Apply the delayed-reveal policy on the server."""
-    await CalibrationService(db).reveal(enrollment_id, *actor(identity))
+    username, admin = actor(identity)
+    await CalibrationService(db).reveal(enrollment_id, username, admin)
+    log_audit_event(
+        logger,
+        action="reveal",
+        actor=username,
+        target_type="enrollment",
+        target_id=enrollment_id,
+    )
     return {"revealed": True}
 
 
@@ -435,7 +479,7 @@ async def checkpoint(
     enrollment_id: str, data: CheckpointInput, db: DB, identity: Identity
 ) -> dict[str, str]:
     """Snapshot model inputs and predictions before holdout outcomes exist."""
-    manager(identity)
+    username = manager(identity)
     service = CalibrationService(db)
     obj = await service.enrollment(enrollment_id, *actor(identity))
     # A checkpoint after any holdout response is no longer prospective.
@@ -457,6 +501,15 @@ async def checkpoint(
     )
     db.add(run)
     await db.flush()
+    log_audit_event(
+        logger,
+        action="checkpoint_create",
+        actor=username,
+        target_type="model_checkpoint",
+        target_id=run.id,
+        enrollment_id=obj.id,
+        algorithm_version=data.algorithm_version,
+    )
     return {"id": run.id}
 
 
@@ -465,9 +518,18 @@ async def mapping(
     enrollment_id: str, db: DB, identity: Identity
 ) -> list[dict[str, object]]:
     """Manager-only decant labeling sheet; never part of participant payloads."""
-    manager(identity)
+    username = manager(identity)
     service = CalibrationService(db)
     await service.enrollment(enrollment_id, *actor(identity))
+    # B-03: every retrieval of the blind mapping is recorded: who and which
+    # enrollment, never the blind codes, fragrances, or roles it returns.
+    log_audit_event(
+        logger,
+        action="mapping_retrieve",
+        actor=username,
+        target_type="enrollment",
+        target_id=enrollment_id,
+    )
     result: list[dict[str, object]] = []
     for obj in await service.presentations(enrollment_id):
         member = await db.get(Membership, obj.membership_id)

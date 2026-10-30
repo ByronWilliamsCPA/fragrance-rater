@@ -109,6 +109,12 @@ export type Sample = {
   blotter_locked: boolean
   skin_locked: boolean
   /**
+   * The server's decision that new responses to this sample are post-reveal
+   * notes rather than blind responses (architecture review F-15). The client
+   * routes entry by this flag, never by inferring it from `identity`.
+   */
+  post_reveal_entry: boolean
+  /**
    * Present only after reveal. The backend omits the whole key while an
    * enrollment is blind, so its absence is the disclosure state (ADR-005) and
    * nothing here may be rendered without checking for it.
@@ -290,6 +296,13 @@ export type RecommendationResponse = {
   outcome_observation_id: string | null
   would_wear: boolean | null
   would_buy: boolean | null
+}
+
+/** One encounter the server would accept as an impression's outcome (F-15). */
+export type LinkableOutcome = {
+  id: string
+  workflow: 'ORDINARY' | 'CONTROLLED'
+  observed_at: string
 }
 
 export type HistoryItem = {

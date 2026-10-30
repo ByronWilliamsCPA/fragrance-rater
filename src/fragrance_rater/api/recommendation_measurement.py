@@ -28,6 +28,7 @@ from fragrance_rater.models.recommendation_measurement import (
 )
 from fragrance_rater.schemas.recommendation_measurement import (
     ImpressionView,
+    LinkableOutcome,
     MetricsView,
     OperationalEventCreate,
     ResponseCreate,
@@ -188,13 +189,46 @@ async def get_impression_explanation(
         )
     reviewer_id = await impression_reviewer_id(db, impression_id)
     await authorize_reviewer(db, reviewer_id, username, admin)
-    return await build_recommendation_explanation(
-        reviewer_id=reviewer_id,
-        fragrance_id=impression.fragrance_id,
-        session=db,
-        service=RecommendationService(db),
-        llm_service=llm_service,
-    )
+    try:
+        return await build_recommendation_explanation(
+            reviewer_id=reviewer_id,
+            fragrance_id=impression.fragrance_id,
+            session=db,
+            service=RecommendationService(db),
+            llm_service=llm_service,
+        )
+    except HTTPException as exc:
+        # A since-assigned holdout or a deleted fragrance must look exactly
+        # like a missing impression, so the answer reveals no role (B-02).
+        if exc.status_code != status.HTTP_404_NOT_FOUND:
+            raise
+        raise HTTPException(
+            status_code=404, detail="recommendation impression not found"
+        ) from None
+
+
+@router.get(
+    "/impressions/{impression_id}/linkable-outcomes",
+    response_model=list[LinkableOutcome],
+    responses={404: {"description": "Impression not found"}},
+)
+async def linkable_outcomes(
+    impression_id: str, db: DB, identity: Identity
+) -> list[LinkableOutcome]:
+    """List only the encounters this impression's feedback may link (F-15).
+
+    Replaces fetching the reviewer's whole controlled and ordinary history,
+    revealed identities included, just to fill one form's dropdown.
+    """
+    username, admin = actor(identity)
+    reviewer_id = await impression_reviewer_id(db, impression_id)
+    await authorize_reviewer(db, reviewer_id, username, admin)
+    try:
+        return await RecommendationMeasurementService(db).linkable_outcomes(
+            impression_id
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.post(

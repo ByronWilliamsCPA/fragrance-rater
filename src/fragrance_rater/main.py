@@ -55,6 +55,7 @@ from fragrance_rater.middleware import (
     rate_limit_exceeded_handler,
 )
 from fragrance_rater.middleware.house_fence import HouseContributorFenceMiddleware
+from fragrance_rater.utils.logging import setup_logging
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -73,8 +74,15 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     Yields:
         None: Control to the application.
     """
-    # Startup: nothing to initialise yet. The ORM models are already registered
-    # on Base.metadata because the API routers imported above import them.
+    # Startup. Without this call LOG_LEVEL, JSON_LOGS, the correlation
+    # processor, and secret redaction were all inert: the API logged
+    # unconfigured console output (architecture review S-07). The ORM models
+    # are already registered on Base.metadata by the router imports above.
+    setup_logging(
+        level=settings.log_level,
+        json_logs=settings.json_logs,
+        include_correlation=True,
+    )
     yield
     # Shutdown: nothing to clean up yet (e.g., close connections)
 

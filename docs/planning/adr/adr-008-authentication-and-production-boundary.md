@@ -84,6 +84,30 @@ Validation: `tests/unit/test_api/test_authorization_matrix.py` walks the live ro
 expects 401 from every protected route without an identity, then checks the manager, assigned
 recorder, and unassigned user matrix on every reviewer-keyed read.
 
+## 2026-10-30 amendment: audit trail, caching, and log hygiene (R4)
+
+R4 makes the Validation bullet below on logs true in code. It covers architecture review B-03,
+B-26, S-07, and S-15:
+
+- **Audit trail.** One `audit_event` records actor, target, and correlation ID for each of these:
+  program activation, enrollment, stage and skin-plan locks, reveal, checkpoint creation, every
+  retrieval of the blind mapping, and prediction create and outcome link. The mapping record names
+  who retrieved which enrollment and nothing it returned. Prediction records leave out the
+  fragrance, because a prediction may target a holdout. Audit events go through the
+  `fragrance_rater.audit` logger, which stays at INFO whatever `LOG_LEVEL` says.
+- **Caching.** Everything under `/api/v1` is `Cache-Control: private, no-store` with
+  `Vary: X-Authentik-Username` by default; only the public catalog opts out. The previous allowlist
+  named two prefixes and left evaluations, recommendations, predictions, and reviewers cacheable.
+- **Logging configured.** The app lifespan calls `setup_logging`, so `LOG_LEVEL`, `JSON_LOGS`, and
+  the correlation processor take effect. Before this they were inert.
+- **Secrets.** The household API key and the OpenRouter and Fragella keys are `SecretStr`, read
+  only at the point of use. A structlog processor masks secret-named fields, the configured key
+  values, and URL passwords before any renderer runs.
+
+Validation: `tests/unit/test_api/test_calibration_audit.py`, `tests/unit/test_security.py`
+(`TestNoStoreDefault`), and `tests/unit/test_logging.py` (a JSON record carries `correlation_id`;
+secrets are redacted; keys are masked in dumps; the lifespan applies the settings).
+
 ## Consequences
 
 - Production Compose and Unraid networking must prevent direct backend exposure.

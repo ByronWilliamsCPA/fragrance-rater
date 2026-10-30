@@ -174,7 +174,8 @@ The current generated API includes:
 | Fragrances | List/get/create/update/delete under `/api/v1/fragrances` |
 | Reviewers | List/get/create/delete/seed under `/api/v1/reviewers` |
 | Evaluations | List/get/create/update/delete under `/api/v1/evaluations` |
-| Recommendations | List, profile, and explanation under `/api/v1/recommendations` |
+| Recommendations | List and profile under `/api/v1/recommendations` |
+| Recommendation measurement | Runs, impression explanation, linkable outcomes, append-only responses, metrics, and operational events under `/api/v1/recommendation-measurement`; explanations exist only for a persisted impression (architecture review B-02) |
 | Import | Kaggle import under `/api/v1/import/kaggle` |
 | Calibration programs | Create/list, add members, activate, and enroll |
 | Calibration enrollments | List/get, mapping, skin-plan lock, reveal, and checkpoints |

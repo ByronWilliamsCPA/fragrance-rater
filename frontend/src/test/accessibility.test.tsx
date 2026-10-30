@@ -40,6 +40,7 @@ const enrollment = {
       skin_planned: false,
       blotter_locked: false,
       skin_locked: false,
+      post_reveal_entry: false,
       observations: [],
     },
   ],

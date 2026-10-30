@@ -34,6 +34,7 @@ const enrollment = {
       skin_planned: false,
       blotter_locked: false,
       skin_locked: false,
+      post_reveal_entry: false,
       observations: [],
     },
   ],
@@ -325,23 +326,12 @@ describe('Calibration participant workflow', () => {
         '/calibration/programs': [],
         '/calibration/access': { username: 'family-member', manager: false },
         '/calibration/enrollments': [],
-        '/calibration/history/r': [
-          {
-            id: 'historical-encounter',
-            workflow: 'ORDINARY',
-            fragrance_id: 'f-1',
-            observed_at: '2026-09-10T12:00:00Z',
-          },
-          {
-            id: 'premature-encounter',
-            workflow: 'ORDINARY',
-            fragrance_id: 'f-1',
-            observed_at: '2026-09-11T12:00:03Z',
-          },
+        // The server applies the linking rules (F-15); the client lists
+        // exactly what it returns.
+        '/recommendation-measurement/impressions/impression-1/linkable-outcomes': [
           {
             id: 'encounter-1',
             workflow: 'ORDINARY',
-            fragrance_id: 'f-1',
             observed_at: '2026-09-12T12:00:00Z',
           },
         ],
@@ -375,16 +365,14 @@ describe('Calibration participant workflow', () => {
     fireEvent.change(screen.getByLabelText('Link a later matching encounter'), {
       target: { value: 'ORDINARY:encounter-1' },
     })
-    expect(
-      screen
-        .getByLabelText('Link a later matching encounter')
-        .querySelector('option[value="ORDINARY:historical-encounter"]')
-    ).toBeNull()
-    expect(
-      screen
-        .getByLabelText('Link a later matching encounter')
-        .querySelector('option[value="ORDINARY:premature-encounter"]')
-    ).toBeNull()
+    // The reviewer's full history (ratings, notes, revealed identities) is
+    // never fetched just to fill this dropdown (F-15).
+    expect(get).toHaveBeenCalledWith(
+      '/recommendation-measurement/impressions/impression-1/linkable-outcomes'
+    )
+    expect(get.mock.calls.some(([path]) => String(path).startsWith('/calibration/history'))).toBe(
+      false
+    )
     fireEvent.change(screen.getByLabelText('Would wear'), { target: { value: 'yes' } })
     fireEvent.change(screen.getByLabelText('Would buy'), { target: { value: 'no' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save follow-up' }))
@@ -422,14 +410,14 @@ describe('Calibration participant workflow', () => {
     )
   })
 
-  it('caches a successfully loaded empty outcome history', async () => {
+  it('refreshes linkable outcomes each time the follow-up opens', async () => {
     get.mockImplementation((path: string) => {
       const responses: Record<string, unknown> = {
         '/reviewers': [{ id: 'r', name: 'Evaluator' }],
         '/calibration/programs': [],
         '/calibration/access': { username: 'family-member', manager: false },
         '/calibration/enrollments': [],
-        '/calibration/history/r': [],
+        '/recommendation-measurement/impressions/impression-1/linkable-outcomes': [],
       }
       return Promise.resolve({ data: responses[path] })
     })
@@ -447,13 +435,21 @@ describe('Calibration participant workflow', () => {
     await screen.findByLabelText('Sampling status')
     fireEvent.click(followUp)
 
+    // An encounter recorded since the last open must be linkable, so each
+    // open asks the server again rather than reusing a stale list.
     await waitFor(() =>
-      expect(get.mock.calls.filter(([path]) => path === '/calibration/history/r')).toHaveLength(1)
+      expect(
+        get.mock.calls.filter(
+          ([path]) =>
+            path === '/recommendation-measurement/impressions/impression-1/linkable-outcomes'
+        )
+      ).toHaveLength(2)
     )
   })
 
-  it('ignores outcome history returned after the evaluator changes', async () => {
+  it('ignores linkable outcomes returned after the evaluator changes', async () => {
     const firstHistory = deferred<{ data: unknown[] }>()
+    let linkableCalls = 0
     get.mockImplementation((path: string) => {
       const responses: Record<string, unknown> = {
         '/reviewers': [
@@ -463,9 +459,11 @@ describe('Calibration participant workflow', () => {
         '/calibration/programs': [],
         '/calibration/access': { username: 'family-member', manager: false },
         '/calibration/enrollments': [],
-        '/calibration/history/r2': [],
       }
-      if (path === '/calibration/history/r') return firstHistory.promise
+      if (path === '/recommendation-measurement/impressions/impression-1/linkable-outcomes') {
+        linkableCalls += 1
+        return linkableCalls === 1 ? firstHistory.promise : Promise.resolve({ data: [] })
+      }
       return Promise.resolve({ data: responses[path] })
     })
     post.mockImplementation((_path: string, data: { reviewer_id: string }) =>
@@ -483,7 +481,6 @@ describe('Calibration participant workflow', () => {
         {
           id: 'stale-encounter',
           workflow: 'ORDINARY',
-          fragrance_id: 'f-1',
           observed_at: '2026-09-12T12:00:00Z',
         },
       ],
@@ -492,8 +489,9 @@ describe('Calibration participant workflow', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Get recommendations' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Update sampling and outcome' }))
 
-    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/history/r2'))
+    await waitFor(() => expect(linkableCalls).toBe(2))
     expect(screen.queryByDisplayValue('ORDINARY:stale-encounter')).toBeNull()
+    expect(document.querySelector('option[value="ORDINARY:stale-encounter"]')).toBeNull()
   })
   it('restores a saved recommendation run without creating another exposure', async () => {
     window.history.replaceState({}, '', '/recommendations?recommendation_run=run-1')

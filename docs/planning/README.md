@@ -47,7 +47,7 @@ P0 ┬→ P1 Calibration release readiness -------------------------------------
 ```
 
 R1-R4, R7a-R7b (R7b before the P6.3 synthetic rehearsal), R13, and R14's secrets, validator, and backup items gate the
-P6 decision. R2 and R5-R8 gate F1. R9-R12 and R14's documentation items gate nothing. R1, R2, and R5 are done and R3 is in
+P6 decision. R2 and R5-R8 gate F1. R9-R12 and R14's documentation items gate nothing. R1, R2, R3, and R5 are done and R4 is in
 review; [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation) and
 section 11b own the detail.
 

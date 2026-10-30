@@ -1,13 +1,18 @@
 """Recommendation API endpoints.
 
-``GET /{reviewer_id}/profile`` and ``GET /{reviewer_id}/{fragrance_id}/explain``
-can each trigger a billed OpenRouter call via
+``GET /{reviewer_id}/profile`` can trigger a billed OpenRouter call via
 ``fragrance_rater.services.llm_service`` (see ADR-003): the same cost/abuse
 vector documented for ``POST /ratings`` in ``fragrance_rater.api.ratings``.
-Both routes therefore require the shared household ``X-API-Key`` header (see
-``fragrance_rater.middleware.auth.require_api_key``) and are rate limited
+It therefore requires the shared household ``X-API-Key`` header (see
+``fragrance_rater.middleware.auth.require_api_key``) and is rate limited
 (see ``fragrance_rater.middleware.rate_limit.RATINGS_RATE_LIMIT``), mirroring
 ``POST /ratings`` exactly rather than inventing a separate scheme.
+
+Explanations are served only for a persisted impression, by
+``GET /recommendation-measurement/impressions/{impression_id}/explanation``.
+The former catalog-ID route answered 404 for exactly the caller's holdouts
+among listable catalog fragrances, a holdout oracle (architecture review
+B-02); ``build_recommendation_explanation`` stays here for that route.
 """
 
 from time import perf_counter
@@ -307,16 +312,6 @@ async def build_recommendation_explanation(
             404 if `fragrance_id` does not resolve to a live (non-soft-
             deleted) fragrance.
     """
-    # A reviewer-specific explanation is itself a recommendation surface.
-    # Reject assigned holdouts even when a caller already knows a catalog ID.
-    if fragrance_id in await PreferenceHistoryService(session).excluded_versions(
-        reviewer_id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "NOT_FOUND", "message": "Fragrance not found"},
-        )
-
     # Build user profile
     profile = await service.build_preference_profile(reviewer_id)
     if profile.evaluation_count < 3:
@@ -326,6 +321,20 @@ async def build_recommendation_explanation(
                 "error": "INSUFFICIENT_DATA",
                 "message": "Need at least 3 evaluations to generate explanations",
             },
+        )
+
+    # A reviewer-specific explanation is itself a recommendation surface.
+    # Reject assigned holdouts; callers reach this only through a persisted
+    # impression (B-02), whose route maps this 404 onto its own. The check
+    # runs after the fragrance-independent evaluation count, so a reviewer
+    # with too little data gets the same 400 for a holdout as for any other
+    # impression.
+    if fragrance_id in await PreferenceHistoryService(session).excluded_versions(
+        reviewer_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NOT_FOUND", "message": "Fragrance not found"},
         )
 
     # Get fragrance with notes
@@ -438,54 +447,4 @@ async def build_recommendation_explanation(
         explanation=llm_response.text,
         model=llm_response.model,
         cached=llm_response.cached,
-    )
-
-
-# Every successful request can trigger a billed LLM call. Keep the public
-# catalog-ID endpoint behind the shared key and a rate limit. The participant
-# measurement endpoint applies its own recorder authorization and rate limit.
-@router.get(
-    "/{reviewer_id}/{fragrance_id}/explain",
-    response_model=ExplanationResponse,
-    dependencies=[Depends(require_api_key)],
-    responses={
-        401: {
-            "description": (
-                "Missing or invalid X-API-Key header. Required on this "
-                "endpoint because it triggers a billed LLM call."
-            )
-        },
-        429: {"description": "Rate limit exceeded; retry after a short delay."},
-        503: {
-            "description": (
-                "No household API key is configured for this deployment "
-                "(FRAGRANCE_RATER_API_KEY unset)."
-            )
-        },
-    },
-)
-@limiter.limit(RATINGS_RATE_LIMIT)  # pyright: ignore[reportUntypedFunctionDecorator, reportUnknownMemberType]
-async def get_recommendation_explanation(
-    *,
-    request: Request,
-    reviewer_id: str,
-    fragrance_id: str,
-    session: Annotated[AsyncSession, Depends(get_db)],
-    service: Annotated[RecommendationService, Depends(get_recommendation_service)],
-    llm_service: Annotated[LLMService, Depends(get_llm_service)],
-    identity: VerifiedIdentity,
-) -> ExplanationResponse:
-    """Return a rate-limited explanation to an authorized, keyed caller.
-
-    The billed LLM call is attributable to a named caller (S-03), who must
-    be a manager or a recorder assigned to the reviewer.
-    """
-    username, admin = actor(identity)
-    await authorize_reviewer(session, reviewer_id, username, admin)
-    return await build_recommendation_explanation(
-        reviewer_id=reviewer_id,
-        fragrance_id=fragrance_id,
-        session=session,
-        service=service,
-        llm_service=llm_service,
     )

@@ -28,16 +28,23 @@ from fragrance_rater.models.recommendation_measurement import (
 )
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.recommendation_measurement import (
+    LinkableOutcome,
     MetricsView,
     ResponseCreate,
     RunCreate,
 )
 from fragrance_rater.services.preference_history import PreferenceHistoryService
 from fragrance_rater.services.recommendation_service import RecommendationService
+from fragrance_rater.utils.logging import get_logger
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = get_logger(__name__)
+
+FEEDBACK_UNAVAILABLE = "feedback cannot be recorded for this recommendation"
+"""Participant-visible refusal; deliberately silent about why (B-01)."""
 
 
 class MeasurementConflictError(ValueError):
@@ -195,7 +202,16 @@ class RecommendationMeasurementService:
         if impression.fragrance_id in await PreferenceHistoryService(
             self.db
         ).excluded_versions(run.reviewer_id):
-            message = "feedback is unavailable for a holdout version"
+            # ADR-005 forbids exposing membership role to a participant (B-01):
+            # the response says only that feedback is refused; the reason
+            # stays in the server log.
+            logger.info(
+                "feedback_refused",
+                reason="assigned_holdout",
+                impression_id=impression_id,
+                reviewer_id=run.reviewer_id,
+            )
+            message = FEEDBACK_UNAVAILABLE
             raise MeasurementConflictError(message)
         await self._validate_outcome(data, run, impression)
         current = await self.db.scalar(
@@ -221,6 +237,66 @@ class RecommendationMeasurementService:
             raise MeasurementConflictError(message) from exc
         await self.db.refresh(revision)
         return revision
+
+    async def linkable_outcomes(self, impression_id: str) -> list[LinkableOutcome]:
+        """List the encounters ``append_response`` would accept as the outcome.
+
+        Mirrors ``_validate_outcome``: live, on-me evaluations and observations
+        from a revealed enrollment, for this reviewer and version, recorded
+        no earlier than the impression was shown. Nothing is listed for a
+        version the reviewer may no longer give feedback on.
+        """
+        impression = await self.db.get(RecommendationImpression, impression_id)
+        if impression is None:
+            message = "recommendation impression not found"
+            raise LookupError(message)
+        run = await self.db.get(RecommendationRun, impression.run_id)
+        if run is None:
+            message = "recommendation run not found"
+            raise LookupError(message)
+        if impression.fragrance_id in await PreferenceHistoryService(
+            self.db
+        ).excluded_versions(run.reviewer_id):
+            return []
+        evaluations = await self.db.scalars(
+            select(Evaluation).where(
+                Evaluation.reviewer_id == run.reviewer_id,
+                Evaluation.fragrance_id == impression.fragrance_id,
+                Evaluation.deleted_at.is_(None),
+                Evaluation.worn_by_reviewer_id.is_(None),
+            )
+        )
+        outcomes = [
+            LinkableOutcome(
+                id=evaluation.id,
+                workflow="ORDINARY",
+                observed_at=self._naive_utc(evaluation.evaluated_at),
+            )
+            for evaluation in evaluations
+            if self._naive_utc(evaluation.evaluated_at) >= impression.shown_at
+        ]
+        observations = await self.db.scalars(
+            select(Observation)
+            .join(Presentation, Presentation.id == Observation.presentation_id)
+            .join(Membership, Membership.id == Presentation.membership_id)
+            .join(CalibrationSession, CalibrationSession.id == Presentation.session_id)
+            .join(Enrollment, Enrollment.id == CalibrationSession.enrollment_id)
+            .where(
+                Membership.fragrance_id == impression.fragrance_id,
+                Enrollment.reviewer_id == run.reviewer_id,
+                Enrollment.revealed_at.is_not(None),
+                Observation.created_at >= impression.shown_at,
+            )
+        )
+        outcomes.extend(
+            LinkableOutcome(
+                id=observation.id,
+                workflow="CONTROLLED",
+                observed_at=observation.created_at,
+            )
+            for observation in observations
+        )
+        return sorted(outcomes, key=lambda item: (item.observed_at, item.id))
 
     async def _validate_outcome(
         self,

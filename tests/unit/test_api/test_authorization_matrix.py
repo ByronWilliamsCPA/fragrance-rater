@@ -20,7 +20,12 @@ import pytest
 from fastapi.routing import APIRoute
 
 from fragrance_rater.core.config import settings
+from fragrance_rater.core.database import get_db
 from fragrance_rater.main import app
+from fragrance_rater.models.recommendation_measurement import (
+    RecommendationImpression,
+    RecommendationRun,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -123,6 +128,33 @@ async def test_every_protected_route_rejects_an_anonymous_caller(
     assert response.status_code == 401, (method, path, response.text)
 
 
+async def _impression(reviewer_id: str, fragrance_id: str) -> str:
+    """Persist a one-item run; explanations exist only per impression (B-02)."""
+    sessions = app.dependency_overrides[get_db]()
+    session = await anext(sessions)
+    try:
+        run = RecommendationRun(
+            reviewer_id=reviewer_id,
+            algorithm_version="test",
+            candidate_strategy="test",
+            input_manifest=[],
+        )
+        session.add(run)
+        await session.flush()
+        impression = RecommendationImpression(
+            run_id=run.id,
+            fragrance_id=fragrance_id,
+            rank=1,
+            score_type="affinity",
+            score_value=0.5,
+        )
+        session.add(impression)
+        await session.commit()
+        return impression.id
+    finally:
+        await sessions.aclose()
+
+
 async def _reviewer_with_recorder(client: AsyncClient) -> dict[str, str]:
     """Create two reviewers, one enrolled with ``recorder``, plus evidence."""
 
@@ -180,17 +212,22 @@ async def _reviewer_with_recorder(client: AsyncClient) -> dict[str, str]:
         "fragrance": baseline["id"],
         "assigned_eval": assigned_eval["id"],
         "other_eval": other_eval["id"],
+        "assigned_impression": await _impression(assigned["id"], baseline["id"]),
+        "other_impression": await _impression(other["id"], baseline["id"]),
+        "holdout_impression": await _impression(assigned["id"], holdout["id"]),
     }
 
 
 def _reads(ids: dict[str, str], reviewer: str) -> list[str]:
     reviewer_id = ids[reviewer]
+    impression_id = ids[f"{reviewer}_impression"]
     return [
         f"{API}/evaluations?reviewer_id={reviewer_id}",
         f"{API}/evaluations/{ids[f'{reviewer}_eval']}",
         f"{API}/recommendations/{reviewer_id}",
         f"{API}/recommendations/{reviewer_id}/profile?include_llm=false",
-        f"{API}/recommendations/{reviewer_id}/{ids['fragrance']}/explain",
+        f"{API}/recommendation-measurement/impressions/{impression_id}/explanation",
+        f"{API}/recommendation-measurement/impressions/{impression_id}/linkable-outcomes",
         f"{API}/calibration/history/{reviewer_id}",
     ]
 
@@ -258,3 +295,68 @@ async def test_outcome_metrics_stay_manager_only(test_app: AsyncClient) -> None:
 
     assert (await test_app.get(url, headers=MANAGER)).status_code == 200
     assert (await test_app.get(url, headers=RECORDER)).status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("authentik_required")
+async def test_holdout_answers_are_role_neutral(test_app: AsyncClient) -> None:
+    """A holdout is never named or distinguishable to the recorder (B-01, B-02).
+
+    An impression whose fragrance became the reviewer's holdout explains
+    exactly like an ordinary impression while the reviewer has too little
+    data, and like a missing impression once they have enough; feedback on it
+    is refused without naming the membership role (ADR-005).
+    """
+    ids = await _reviewer_with_recorder(test_app)
+    base = f"{API}/recommendation-measurement/impressions"
+
+    async def explain(impression_id: str) -> tuple[int, object]:
+        response = await test_app.get(
+            f"{base}/{impression_id}/explanation", headers=RECORDER
+        )
+        return response.status_code, response.json()
+
+    # Too little data: the holdout answers exactly like an ordinary impression,
+    # because the fragrance-independent check runs first.
+    assert await explain(ids["holdout_impression"]) == await explain(
+        ids["assigned_impression"]
+    )
+    assert (await explain(ids["holdout_impression"]))[0] == 400
+
+    # Enough data: the holdout answers exactly like a missing impression.
+    for name in ("Second", "Third"):
+        fragrance = await test_app.post(
+            f"{API}/fragrances",
+            json={
+                "brand": "Matrix house",
+                "name": name,
+                "concentration": "EDT",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+            },
+            headers=MANAGER,
+        )
+        assert fragrance.status_code == 201, fragrance.text
+        evaluation = await test_app.post(
+            f"{API}/evaluations",
+            json={
+                "reviewer_id": ids["assigned"],
+                "fragrance_id": fragrance.json()["id"],
+                "rating": 3,
+            },
+            headers=MANAGER,
+        )
+        assert evaluation.status_code == 201, evaluation.text
+    holdout = await explain(ids["holdout_impression"])
+    assert holdout == await explain("no-such-impression")
+    assert holdout[0] == 404
+
+    feedback = await test_app.post(
+        f"{base}/{ids['holdout_impression']}/responses",
+        json={"interested": True},
+        headers=RECORDER,
+    )
+    assert feedback.status_code == 409
+    assert "holdout" not in feedback.text.lower()
+    assert "role" not in feedback.text.lower()

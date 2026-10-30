@@ -19,7 +19,7 @@ Pydantic-settings handles the parsing and validation.
 import json
 from typing import Annotated, Literal, Self
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 _DEFAULT_CORS_ALLOWED_ORIGINS: list[str] = [
@@ -47,7 +47,7 @@ class Settings(BaseSettings):
             logging level for the application. Case-insensitive.
         json_logs (bool): Flag to enable or disable JSON formatted logs.
         include_timestamp (bool): Flag to include timestamps in logs.
-        api_key (str | None): Shared household API key required on the billed,
+        api_key (SecretStr | None): Shared household API key required on the billed,
             LLM-backed ``POST /ratings`` endpoint (sent by callers as the
             ``X-API-Key`` header). Set via ``FRAGRANCE_RATER_API_KEY``; the
             explicit alias keeps that documented name even though this class
@@ -72,11 +72,11 @@ class Settings(BaseSettings):
             build the limiter's ``DEFAULT_RATE_LIMIT``. Does not affect the
             deliberately tighter, hardcoded ``RATINGS_RATE_LIMIT`` on the
             billed ``POST /ratings`` endpoint.
-        openrouter_api_key (str): OpenRouter API key for LLM integration.
+        openrouter_api_key (SecretStr): OpenRouter API key for LLM integration.
         openrouter_model (str): Default model to use for LLM calls.
         openrouter_base_url (str): OpenRouter API base URL.
         llm_enabled (bool): Enable/disable LLM features.
-        fragella_api_key (str): Fragella API key. Empty disables the
+        fragella_api_key (SecretStr): Fragella API key. Empty disables the
             fragella-* CLI commands (see ``fragella_client.py``); Fragella
             is a rate-limited (20 req/month free tier), operator-invoked
             reference lookup, never a primary or auto-imported source.
@@ -147,7 +147,7 @@ class Settings(BaseSettings):
     # failing closed with 503 in every deployment.
     # #VERIFY: alias below matches the name used in .env.example and
     # .github/workflows/postman-api-tests.yml; tests/unit/test_core covers it.
-    api_key: str | None = Field(
+    api_key: SecretStr | None = Field(
         default=None,
         validation_alias="FRAGRANCE_RATER_API_KEY",
         description=(
@@ -232,8 +232,8 @@ class Settings(BaseSettings):
     )
 
     # LLM / OpenRouter
-    openrouter_api_key: str = Field(
-        default="",
+    openrouter_api_key: SecretStr = Field(
+        default=SecretStr(""),
         description="OpenRouter API key for LLM integration",
     )
     openrouter_model: str = Field(
@@ -254,8 +254,8 @@ class Settings(BaseSettings):
     # ambiguity Parfumo alone leaves open (see docs/planning/adr/
     # adr-002-data-source-strategy.md's 2026 amendment) - never a primary
     # source, and never auto-imported into the catalog.
-    fragella_api_key: str = Field(
-        default="",
+    fragella_api_key: SecretStr = Field(
+        default=SecretStr(""),
         description="Fragella API key (x-api-key header); empty disables fragella-* CLI commands",
     )
     fragella_base_url: str = Field(
@@ -464,6 +464,21 @@ class Settings(BaseSettings):
             msg = f"House contributors must name a house: {blank}"
             raise ValueError(msg)
         return self
+
+
+def secret_value(secret: SecretStr | str | None) -> str:
+    """Return a secret's plain value, or ``""`` when unset.
+
+    Keys are ``SecretStr`` so a settings dump, repr, or log line shows
+    ``**********`` instead of the key (architecture review S-15); read the
+    value only at the point of use. A plain ``str`` is accepted because tests
+    patch settings attributes directly, bypassing validation.
+    """
+    if secret is None:
+        return ""
+    if isinstance(secret, SecretStr):
+        return secret.get_secret_value()
+    return secret
 
 
 # A single, global instance of the settings
