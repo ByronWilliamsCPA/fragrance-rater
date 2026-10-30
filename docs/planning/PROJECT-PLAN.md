@@ -581,8 +581,10 @@ items not re-verified are marked.
 
 ### Main state
 
-- `origin/main` is at `f5baecc` (#132, merged 2026-10-21). The single Alembic head on `main` is `c5a9e2d7f1b4`; the
-  chain is listed in the Live PostgreSQL migration row of section 3.
+- This section is a 2026-10-21 snapshot; the pull request ledgers below are updated as work merges. The 2026-10-21
+  state was `origin/main` at `f5baecc` (#132) with the single Alembic head `c5a9e2d7f1b4`. As of 2026-10-30 `origin/main`
+  is at `6d46a58` (#161) and the single Alembic head is `cd1e2375a2e4`; the chain up to `c5a9e2d7f1b4` is listed in the
+  Live PostgreSQL migration row of section 3, and later revisions are named in the merged ledger.
 - **The 2026-10-19 dependency-advisory block is cleared.** #140 (`932c211`) bumped `mako` to 1.4.3, `certifi` to
   2026.10.19, and `virtualenv` to 21.14.12. The CI, Container Security, SBOM and Security Scan, and Postman API Tests
   runs on `main` for `5d26c34` all passed. The Security Analysis push run for `f5baecc` shows `cancelled`, and no
