@@ -529,6 +529,10 @@ class TestIncomingIdValidation:
             SPAN_ID_HEADER,
             TRACE_ID_HEADER,
             CorrelationMiddleware,
+            get_correlation_id,
+            get_request_id,
+            get_span_id,
+            get_trace_id,
         )
 
         middleware = CorrelationMiddleware(app=MagicMock())
@@ -541,8 +545,14 @@ class TestIncomingIdValidation:
         }
         mock_response = MagicMock()
         mock_response.headers = {}
+        seen: dict[str, str | None] = {}
 
         async def mock_call_next(request):
+            # What logging reads during the request, not just the echo.
+            seen["correlation"] = get_correlation_id()
+            seen["request"] = get_request_id()
+            seen["trace"] = get_trace_id()
+            seen["span"] = get_span_id()
             return mock_response
 
         response = await middleware.dispatch(mock_request, mock_call_next)
@@ -551,3 +561,9 @@ class TestIncomingIdValidation:
         uuid.UUID(response.headers[REQUEST_ID_HEADER])
         assert TRACE_ID_HEADER not in response.headers
         assert SPAN_ID_HEADER not in response.headers
+        assert seen == {
+            "correlation": response.headers[CORRELATION_ID_HEADER],
+            "request": response.headers[REQUEST_ID_HEADER],
+            "trace": None,
+            "span": None,
+        }
