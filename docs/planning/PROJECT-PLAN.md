@@ -617,13 +617,14 @@ items not re-verified are marked.
 | #143 | `4d31328` | R3 PR 1 (2026-10-30): edge trust boundary. **Deploy note:** production requires `FRAGRANCE_TRAEFIK_CIDR`, or Compose refuses to render and nginx refuses to start; the deployed forged-header check belongs to P1.6 |
 | #144 | `10bd5d8` | R3 PR 2 (2026-10-30): route authorization per the owner's Q5 decision. **Behavior change accepted by the owner:** a household member with no recorder assignment gets 403 on history and recommendations until a manager enrolls them as a recorder |
 | #145 | `0d74024` | Documentation refresh that created this section |
+| #146 | `0d9c77c` | GitHub Actions update |
+| #138 | `2f6d971` | Selectable standard or random blind label scheme at enrollment (pilot tooling for P6 and F1; no plan home). Merged 2026-10-30. When this ledger first listed it, it was held on an owner ruling about session-grouping leakage from standard labels, the `App.test.tsx` expectation, and a CodeRabbit thread on the label prefix; the pull request records how they were resolved |
 | #149 | `f247d3a` | R4 (2026-10-30): role-neutral holdout answers, impression-only explanations, calibration and prediction audit trail (kept at any `LOG_LEVEL`), no-store by default, server-owned disclosure state, logging configured, `SecretStr` keys with redaction. **API removal:** `GET /recommendations/{reviewer_id}/{fragrance_id}/explain` |
 
 ### Open pull request ledger
 
 | PR | Branch | Purpose and plan home | Status |
 | :--- | :--- | :--- | :--- |
-| #138 | `feat/standard-blind-label-scheme` | Selectable standard or random blind label scheme. No plan home; pilot tooling for P6 and F1 | Held. **Owner ruling needed:** the pull request body says standard labels expose session grouping (holdout sessions come last), which may conflict with the release-blocking invariant "no participant-visible blind mapping or holdout leakage" (P6.3 and F1 instrument rules). Also open: the `App.test.tsx` expectation (a call without `label_scheme: "standard"`) and triage of a CodeRabbit Major thread (an `E{enrollment}` prefix derived from a row count can race across programs). It is behind `main`; its recorded failing checks (OSV `mako`, Frontend CI) predate #140 and need a re-run |
 | #150 | `docs/r4-merge-status` | Records R4 as done (#149, `f247d3a`) in the plan and its mirrors. Documentation only | Merge first; #151 is stacked on it |
 | #151 | `feat/r6-vocabulary-schema` (base is the #150 branch, not `main`) | R6 PR 1 of 2: `notes.name_key`, `note_aliases` (`nm-v1`), `accord_types`, `intensity_source` and `rank`, one `VocabularyResolver` for both writers, `fs-v2`; closes X-01, X-02, X-03, X-04, X-12 in schema and writers. **Deploy note:** the migration merges colliding notes and runs at container start; take a backup first | In review |
 
@@ -633,8 +634,8 @@ Issue #5 is the Renovate dashboard.
 
 Each step needs a green re-run of the required checks.
 
-1. #138, after the owner decides the leakage question, the `App.test.tsx` expectation is fixed, and the label-prefix
-   race thread is triaged.
+1. #150 (R4 status docs) and #151 (R6 PR 1), in either order: #151's branch contains #150's commit, and the
+   two make identical edits to the shared files.
 
 ### Pending owner approval
 
