@@ -316,7 +316,7 @@ repos:
         name: Validate curated note alias files
         entry: uv run --no-sync fragrance-rater vocab aliases validate
         language: system
-        files: ^data/aliases/.*\.yaml$
+        files: ^data/aliases/.*\.ya?ml$
         stages: [pre-commit]
 
   # ============================================================================

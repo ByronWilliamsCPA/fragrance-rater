@@ -27,6 +27,7 @@ dependencies = [
     "structlog>=23.1.0",
     "rich>=13.5.0",
     "click>=8.1.0",
+    "ruamel-yaml>=0.18.0",  # curated note-alias files (fragrance-rater vocab aliases)
     # Cross-Version Compatibility Dependencies
     # =========================================
     # This template targets Python 3.10-3.14. Add version-specific dependencies
@@ -110,7 +111,6 @@ dev = [
     "mkdocs-autorefs>=1.2.0",
     "mkdocs-git-revision-date-localized-plugin>=1.3.0",
     "python-frontmatter>=1.1.0",
-    "ruamel-yaml>=0.18.0",
     # Development Tools
     "interrogate>=1.7.0",
     "jupyter>=1.0.0",

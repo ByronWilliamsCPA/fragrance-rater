@@ -24,6 +24,8 @@ from fragrance_rater.services.fragella_client import FragellaClient, FragellaErr
 from fragrance_rater.services.kaggle_importer import KaggleImporter
 from fragrance_rater.services.note_aliases import (
     AliasFileError,
+    AliasLoadReport,
+    audit_alias_load,
     find_ambiguities,
     load_aliases,
     parse_alias_file,
@@ -746,6 +748,28 @@ def vocab_aliases_validate(paths: tuple[str, ...]) -> None:
         sys.exit(1)
 
 
+def _echo_alias_report(report: AliasLoadReport, *, execute: bool) -> None:
+    """Print an alias load report.
+
+    Args:
+        report (AliasLoadReport): The report to print.
+        execute (bool): Whether the run was asked to write.
+    """
+    mode = "EXECUTE" if execute else "DRY RUN"
+    click.echo(f"[{mode}] {report.mapping_version} sha256 {report.content_hash}")
+    if not report.active:
+        click.echo("  note: this is not the version the resolver applies now")
+    click.echo(f"  database: {mask_database_url(settings.database_url)}")
+    for item in report.items:
+        click.echo(f"  {item.outcome:<18} {item.detail}")
+    created = report.count("create")
+    unchanged = report.count("unchanged")
+    blocked_count = len(report.items) - created - unchanged
+    click.echo(f"  create {created}, unchanged {unchanged}, blocked {blocked_count}")
+    if report.blocked and execute:
+        click.echo("  nothing was written: resolve the blocked decisions first")
+
+
 @vocab_aliases.command(name="load")
 @click.argument("path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--execute", is_flag=True, help="Write the rows (default: dry run)")
@@ -756,6 +780,7 @@ def vocab_aliases_load(path: str, execute: bool, actor: str | None) -> None:
     PATH: A validated alias file. Nothing is written if any decision is
     blocked, and a second --execute run reports every decision unchanged.
     """
+    actor = actor.strip() if actor else None
     if execute and not actor:
         click.echo("Error: --actor is required with --execute", err=True)
         sys.exit(2)
@@ -767,34 +792,22 @@ def vocab_aliases_load(path: str, execute: bool, actor: str | None) -> None:
             click.echo(f"  - {problem}", err=True)
         sys.exit(1)
 
-    async def do_load() -> bool:
+    async def do_load() -> AliasLoadReport:
         async with get_session() as session:
             report = await load_aliases(session, parsed, execute=execute, actor=actor)
-            mode = "EXECUTE" if execute else "DRY RUN"
-            click.echo(
-                f"[{mode}] {report.mapping_version} sha256 {report.content_hash}"
-            )
-            if not report.active:
-                click.echo("  note: this is not the version the resolver applies now")
-            click.echo(f"  database: {mask_database_url(settings.database_url)}")
-            for item in report.items:
-                click.echo(f"  {item.outcome:<18} {item.detail}")
-            created = report.count("create")
-            unchanged = report.count("unchanged")
-            blocked_count = len(report.items) - created - unchanged
-            click.echo(
-                f"  create {created}, unchanged {unchanged}, blocked {blocked_count}"
-            )
-            if report.blocked and execute:
-                click.echo("  nothing was written: resolve the blocked decisions first")
-            return report.blocked
+            _echo_alias_report(report, execute=execute)
+            return report
 
     try:
-        blocked = run_async(do_load())
+        report = run_async(do_load())
     except Exception as e:
         logger.exception("Alias load failed", error=str(e))
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
+    # The session has committed by now; audit only a load that persisted.
+    if actor:
+        audit_alias_load(report, actor)
+    blocked = report.blocked
     if blocked:
         sys.exit(1)
 

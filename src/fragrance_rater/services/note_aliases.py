@@ -444,10 +444,12 @@ async def load_aliases(
         session (AsyncSession): The session to read and write through.
         alias_file (AliasFile): A file validated by ``parse_alias_file``.
         execute (bool): Write the ``create`` rows. Default is a dry run.
-        actor (str | None): Who is loading, for the audit event.
+        actor (str | None): Who is loading. Required with ``execute``.
 
     Returns:
         AliasLoadReport: One item per decision, and whether rows were written.
+            The rows are flushed, not committed: the caller commits, then calls
+            ``audit_alias_load``.
 
     Raises:
         ValueError: If ``execute`` is set without an ``actor``.
@@ -456,7 +458,8 @@ async def load_aliases(
     # import of that label lands on, so a load must be reviewable first and
     # attributable after.
     # #VERIFY: the default is a dry run; --execute needs an actor; one blocked
-    # decision blocks the whole load; the audit event carries the content hash.
+    # decision blocks the whole load; the caller emits the audit event with
+    # ``audit_alias_load`` only after its transaction commits.
     if execute and not actor:
         msg = "an actor is required to execute a load"
         raise ValueError(msg)
@@ -489,21 +492,35 @@ async def load_aliases(
             )
         )
     await session.flush()
-    log_audit_event(
-        logger,
-        action="note_alias_load",
-        actor=actor,
-        target_type="note_alias_set",
-        target_id=f"{version}:{alias_file.content_hash[:12]}",
-        created=len(to_create),
-        content_hash=alias_file.content_hash,
-    )
     return AliasLoadReport(
         mapping_version=version,
         content_hash=alias_file.content_hash,
         active=report.active,
         items=items,
         applied=True,
+    )
+
+
+def audit_alias_load(report: AliasLoadReport, actor: str) -> None:
+    """Record a committed alias load in the audit log.
+
+    Call this only after the transaction that ``load_aliases`` wrote through has
+    committed, so a rolled-back load never leaves an audit event behind.
+
+    Args:
+        report (AliasLoadReport): The report ``load_aliases`` returned.
+        actor (str): Who loaded the file.
+    """
+    if not report.applied:
+        return
+    log_audit_event(
+        logger,
+        action="note_alias_load",
+        actor=actor,
+        target_type="note_alias_set",
+        target_id=f"{report.mapping_version}:{report.content_hash[:12]}",
+        created=report.count("create"),
+        content_hash=report.content_hash,
     )
 
 
