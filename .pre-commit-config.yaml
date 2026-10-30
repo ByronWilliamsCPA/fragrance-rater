@@ -306,6 +306,20 @@ repos:
         stages: [pre-commit]
 
   # ============================================================================
+  # Curated Note Alias Validation
+  # ============================================================================
+  # A curated alias changes which note every future import of a label lands on,
+  # so every changed alias file is validated before it can be committed.
+  - repo: local
+    hooks:
+      - id: validate-note-aliases
+        name: Validate curated note alias files
+        entry: uv run --no-sync fragrance-rater vocab aliases validate
+        language: system
+        files: ^data/aliases/.*\.yaml$
+        stages: [pre-commit]
+
+  # ============================================================================
   # Python Docstring Coverage
   # ============================================================================
   # Interrogate ensures all Python code has proper docstrings

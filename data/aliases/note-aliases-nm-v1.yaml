@@ -1,0 +1,20 @@
+# Curated note aliases for mapping version nm-v1 (R6; ADR-017, layer 2).
+#
+# Each decision says a spelling means a note already in the catalog:
+#
+#   - raw_label: vanille        # the spelling, verbatim
+#     canonical: Vanilla        # the name of the catalog note it resolves to
+#     evidence: "..."           # what a person checked before deciding
+#     decided_by: "..."         # who decided
+#
+# This file is empty on purpose. The decisions for the 43 baseline and holdout
+# versions are made against the verified baseline manifest (PROJECT-PLAN P1.1),
+# which does not exist yet, and nothing here may be guessed. Spellings that differ
+# only in case, accents, or word separators need no entry: the resolver already
+# treats them as one note.
+#
+# Validate:   uv run fragrance-rater vocab aliases validate data/aliases/note-aliases-nm-v1.yaml
+# Preview:    uv run fragrance-rater vocab aliases load data/aliases/note-aliases-nm-v1.yaml
+# Load:       ... load <file> --execute --actor <name>
+mapping_version: nm-v1
+aliases: []

@@ -22,6 +22,12 @@ from fragrance_rater.ml.predict import predict_and_freeze
 from fragrance_rater.ml.registry import DEFAULT_MODEL_KEY, available, resolve
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.kaggle_importer import KaggleImporter
+from fragrance_rater.services.note_aliases import (
+    AliasFileError,
+    find_ambiguities,
+    load_aliases,
+    parse_alias_file,
+)
 from fragrance_rater.services.parfumo_scraper import ParfumoScraper, SearchResult
 from fragrance_rater.services.reviewer_service import ReviewerService
 from fragrance_rater.utils.logging import get_logger
@@ -344,6 +350,13 @@ def import_parfumo_search(
         fragrance-rater import-data parfumo-search "Aventus Creed"
         fragrance-rater import-data parfumo-search "Sauvage" --import-first
         fragrance-rater import-data parfumo-search "Aimez-Moi Caron" --select 2
+
+    Args:
+        query (str): Search terms.
+        import_first (bool): Import the first result without prompting.
+        select_index (int | None): One-based result to import, when the search is
+            ambiguous.
+        limit (int): Maximum results to list.
     """
 
     async def do_search() -> None:
@@ -438,6 +451,13 @@ def import_fragella_lookup(query: str, limit: int) -> None:
 
     Examples:
         fragrance-rater import-data fragella-lookup "Aimez-Moi Caron"
+
+    Args:
+        query (str): Fragrance or brand name.
+        limit (int): Maximum results to list.
+
+    Raises:
+        SystemExit: Re-raised unchanged when a nested command exits.
     """
 
     async def do_lookup() -> None:
@@ -684,6 +704,128 @@ def ml_predict(  # noqa: PLR0917
     except Exception as e:
         logger.exception("Prediction run failed", error=str(e))
         click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+
+# =============================================================================
+# Vocabulary Commands
+# =============================================================================
+
+
+@cli.group()
+def vocab() -> None:
+    """Review and load curated vocabulary decisions."""
+
+
+@vocab.group(name="aliases")
+def vocab_aliases() -> None:
+    """Curated note aliases: validate a file, load it, report ambiguity."""
+
+
+@vocab_aliases.command(name="validate")
+@click.argument("paths", nargs=-1, required=True, type=click.Path(exists=True))
+def vocab_aliases_validate(paths: tuple[str, ...]) -> None:
+    """Validate one or more alias files without touching the database.
+
+    PATHS: Alias files (YAML). Every violation in every file is reported.
+    """
+    failed = False
+    for path in paths:
+        try:
+            parsed = parse_alias_file(Path(path).read_text(encoding="utf-8"))
+        except AliasFileError as exc:
+            failed = True
+            click.echo(f"{path}: invalid", err=True)
+            for problem in exc.problems:
+                click.echo(f"  - {problem}", err=True)
+        else:
+            count = len(parsed.decisions)
+            summary = f"{parsed.mapping_version}, {count} decision(s)"
+            click.echo(f"{path}: ok ({summary}, sha256 {parsed.content_hash})")
+    if failed:
+        sys.exit(1)
+
+
+@vocab_aliases.command(name="load")
+@click.argument("path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--execute", is_flag=True, help="Write the rows (default: dry run)")
+@click.option("--actor", default=None, help="Who is loading; required with --execute")
+def vocab_aliases_load(path: str, execute: bool, actor: str | None) -> None:
+    """Compare PATH with the database and, with --execute, load it.
+
+    PATH: A validated alias file. Nothing is written if any decision is
+    blocked, and a second --execute run reports every decision unchanged.
+    """
+    if execute and not actor:
+        click.echo("Error: --actor is required with --execute", err=True)
+        sys.exit(2)
+    try:
+        parsed = parse_alias_file(Path(path).read_text(encoding="utf-8"))
+    except AliasFileError as exc:
+        click.echo(f"{path}: invalid", err=True)
+        for problem in exc.problems:
+            click.echo(f"  - {problem}", err=True)
+        sys.exit(1)
+
+    async def do_load() -> bool:
+        async with get_session() as session:
+            report = await load_aliases(session, parsed, execute=execute, actor=actor)
+            mode = "EXECUTE" if execute else "DRY RUN"
+            click.echo(
+                f"[{mode}] {report.mapping_version} sha256 {report.content_hash}"
+            )
+            if not report.active:
+                click.echo("  note: this is not the version the resolver applies now")
+            click.echo(f"  database: {mask_database_url(settings.database_url)}")
+            for item in report.items:
+                click.echo(f"  {item.outcome:<18} {item.detail}")
+            created = report.count("create")
+            unchanged = report.count("unchanged")
+            blocked_count = len(report.items) - created - unchanged
+            click.echo(
+                f"  create {created}, unchanged {unchanged}, blocked {blocked_count}"
+            )
+            if report.blocked and execute:
+                click.echo("  nothing was written: resolve the blocked decisions first")
+            return report.blocked
+
+    try:
+        blocked = run_async(do_load())
+    except Exception as e:
+        logger.exception("Alias load failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    if blocked:
+        sys.exit(1)
+
+
+@vocab_aliases.command(name="ambiguities")
+@click.option("--version", "mapping_version", default=None, help="Mapping version")
+def vocab_aliases_ambiguities(mapping_version: str | None) -> None:
+    """List labels the resolver refuses to guess at."""
+
+    async def do_report() -> int:
+        async with get_session() as session:
+            found = (
+                await find_ambiguities(session, mapping_version)
+                if mapping_version
+                else await find_ambiguities(session)
+            )
+            for item in found:
+                alias = f"alias {item.raw_label!r} -> {item.alias_target!r}"
+                click.echo(
+                    f"{item.alias_key}: {alias}, but {item.key_note!r} has the same key"
+                )
+            click.echo(f"{len(found)} ambiguous key(s)")
+            return len(found)
+
+    try:
+        count = run_async(do_report())
+    except Exception as e:
+        logger.exception("Ambiguity report failed", error=str(e))
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+    if count:
         sys.exit(1)
 
 

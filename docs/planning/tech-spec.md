@@ -74,6 +74,15 @@ an `AccordType` goes through `VocabularyResolver` (`services/vocabulary.py`):
   decision a person made (`vanille` means `vanilla`); an `observed` row only keeps a spelling that
   already normalized to the note. If a curated alias and the key lookup name different notes, the
   label is ambiguous: the writer skips it and a person settles it. Nothing is merged by guesswork.
+- Curated aliases are decisions, not data entry. They live in a versioned, reviewed file
+  (`data/aliases/note-aliases-nm-v1.yaml`: `raw_label`, `canonical`, `evidence`, `decided_by`) that
+  `fragrance-rater vocab aliases validate` checks (one decision per key, no chains, evidence and
+  author required, every violation reported) and a pre-commit hook enforces. `vocab aliases load`
+  compares the file with the database and is a dry run unless `--execute --actor NAME` is given. A
+  load is all-or-nothing and idempotent: a decision whose canonical note is missing, that conflicts
+  with an existing decision, or whose label already names a different note is *blocked*, and one
+  blocked decision blocks the whole load. `vocab aliases ambiguities` lists the labels the resolver
+  refuses to guess at. The file is empty until the verified baseline manifest exists (P1.1).
 - `Note.category` is an olfactory family or NULL, never a pyramid position. Position is
   `FragranceNote.position` (`top`, `heart`, `base`, `flat`), and `FragranceNote.rank` is the
   source's order within it.
