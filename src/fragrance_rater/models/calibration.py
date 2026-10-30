@@ -29,6 +29,18 @@ def identifier() -> str:
     return str(uuid4())
 
 
+def quoted(values: tuple[str, ...]) -> str:
+    """Return ``values`` as a SQL list body: ``'a', 'b'``.
+
+    Args:
+        values (tuple[str, ...]): The codes, in their stored spelling.
+
+    Returns:
+        str: The comma-separated, single-quoted list without parentheses.
+    """
+    return ", ".join(f"'{value}'" for value in values)
+
+
 def in_check(column: str, values: tuple[str, ...], *, nullable: bool = True) -> str:
     """Return a CHECK expression limiting ``column`` to a closed vocabulary.
 
@@ -40,7 +52,7 @@ def in_check(column: str, values: tuple[str, ...], *, nullable: bool = True) -> 
     Returns:
         str: A SQL expression usable in ``CheckConstraint`` and in migrations.
     """
-    listed = ", ".join(f"'{value}'" for value in values)
+    listed = quoted(values)
     if nullable:
         return f"{column} IS NULL OR {column} IN ({listed})"
     return f"{column} IN ({listed})"
@@ -109,8 +121,8 @@ HUNGER_LEVELS: tuple[str, ...] = (
 # literally (same #ASSUME/#VERIFY as above).
 
 # ML Decisions Q9: a blind, coarse suitability judgment on skin-stage rows. The
-# option codes are the instrument v0.5 SK-SEASON/SK-SETTING codes, stored as one
-# best-fit answer per field (see the migration docstring for why single-select).
+# option codes are the instrument v0.5 SK-SEASON/SK-SETTING codes; the instrument
+# is multi-select, so each ticked option is one ``FitChoice`` row.
 SEASON_FIT_CODES: tuple[str, ...] = (
     "spring",
     "summer",
@@ -130,6 +142,8 @@ SETTING_FIT_CODES: tuple[str, ...] = (
     "none",
     "cannot_judge",
 )
+FIT_DIMENSIONS: tuple[str, ...] = ("season", "setting")
+FIT_CODE_CHECK = f"(dimension = 'season' AND code IN ({quoted(SEASON_FIT_CODES)})) OR (dimension = 'setting' AND code IN ({quoted(SETTING_FIT_CODES)}))"
 # Capture assessment 13.6 (deviations) and 13.3 (mistimed evidence). A flag
 # describes what happened; it never removes or rewrites the flagged evidence.
 QUALITY_FLAG_CODES: tuple[str, ...] = (
@@ -688,23 +702,6 @@ class Observation(Base):
             "last_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min > last_detected_elapsed_min",
             name="longevity_interval_ordered",
         ),
-        # ML Decisions Q9: season and setting fit are asked at the skin stage
-        # only. Requiredness on skin rows is the instrument's (R7b), not a
-        # CHECK: pre-R7b skin rows and skipped or interrupted ones read NULL.
-        CheckConstraint(
-            in_check("season_fit", SEASON_FIT_CODES), name="season_fit_valid"
-        ),
-        CheckConstraint(
-            in_check("setting_fit", SETTING_FIT_CODES), name="setting_fit_valid"
-        ),
-        CheckConstraint(
-            "season_fit IS NULL OR stage = 'SKIN'",
-            name="season_fit_requires_skin",
-        ),
-        CheckConstraint(
-            "setting_fit IS NULL OR stage = 'SKIN'",
-            name="setting_fit_requires_skin",
-        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     presentation_id: Mapped[str] = mapped_column(
@@ -786,10 +783,46 @@ class Observation(Base):
     first_not_detected_elapsed_min: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )
-    # Blind season/setting suitability (ML Decisions Q9), one best-fit code
-    # each, reported once per skin wear like the summary columns above.
-    season_fit: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    setting_fit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+
+class FitChoice(Base):
+    """One blind season or setting suitability answer on a skin observation.
+
+    ML Decisions Q9 asks, at skin stage only, which seasons and which settings
+    the fragrance suits. The instrument offers multi-select, and the owner
+    confirmed multi-select (2026-10-30), so each ticked option is one row here
+    instead of a code column on ``Observation``.
+
+    Columns:
+        id: Primary key.
+        observation_id: The skin observation the answer belongs to.
+        dimension: ``season`` or ``setting``.
+        code: The ticked option, from ``SEASON_FIT_CODES`` or
+            ``SETTING_FIT_CODES`` according to ``dimension``.
+        created_at: Row creation time.
+    """
+
+    __tablename__ = "calibration_fit_choices"
+    __table_args__: tuple[SchemaItem, ...] = (
+        UniqueConstraint("observation_id", "dimension", "code"),
+        CheckConstraint(
+            in_check("dimension", FIT_DIMENSIONS, nullable=False),
+            name="dimension_valid",
+        ),
+        CheckConstraint(FIT_CODE_CHECK, name="code_valid"),
+    )
+    # #ASSUME: data-integrity: a fit choice belongs to a SKIN-stage observation,
+    # and "none"/"cannot_judge" stand alone. Neither can be a portable CHECK
+    # (they read another table or other rows), so observe() enforces both.
+    # #VERIFY: tests/unit/test_services/test_fit_choices.py.
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    observation_id: Mapped[str] = mapped_column(
+        ForeignKey("calibration_observations.id", ondelete="RESTRICT"), index=True
+    )
+    dimension: Mapped[str] = mapped_column(String(10))
+    code: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
 
 
 class RankEvent(Base):
