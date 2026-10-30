@@ -8,6 +8,7 @@ their declarative ``Base``; importing it registers every table on
 from fragrance_rater.core.database import Base
 from fragrance_rater.models import calibration as calibration
 from fragrance_rater.models.behavioral_event import BehavioralEvent
+from fragrance_rater.models.consent import ConsentEvent
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
     AccordType,
@@ -34,6 +35,7 @@ __all__ = [
     "AccordType",
     "Base",
     "BehavioralEvent",
+    "ConsentEvent",
     "Evaluation",
     "Fragrance",
     "FragranceAccord",

@@ -11,6 +11,7 @@ from fragrance_rater.core.auth import (
     actor,
     manager,
 )
+from fragrance_rater.core.config import settings
 from fragrance_rater.core.database import get_db
 from fragrance_rater.models.calibration import (
     CalibrationSession,
@@ -33,7 +34,11 @@ from fragrance_rater.schemas.calibration import (
     SkinPlanInput,
     Stage,
 )
-from fragrance_rater.services.calibration_service import CalibrationService, reject
+from fragrance_rater.services.calibration_service import (
+    CalibrationService,
+    activation_instrument_version,
+    reject,
+)
 from fragrance_rater.services.evaluation_service import EvaluationService
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
@@ -246,6 +251,8 @@ async def activate(program_id: str, db: DB, identity: Identity) -> dict[str, boo
     ):
         reject("Add stimuli before activation")
     obj.status, obj.locked_at = "active", now_naive_utc()
+    # Capture assessment 13.2: freeze which instrument the program runs under.
+    obj.instrument_version = activation_instrument_version(settings.instrument_version)
     await db.flush()
     log_audit_event(
         logger,
@@ -253,6 +260,7 @@ async def activate(program_id: str, db: DB, identity: Identity) -> dict[str, boo
         actor=username,
         target_type="calibration_program",
         target_id=program_id,
+        instrument_version=obj.instrument_version,
     )
     return {"locked": True}
 

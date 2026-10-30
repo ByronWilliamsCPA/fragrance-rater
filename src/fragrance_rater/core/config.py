@@ -92,6 +92,12 @@ class Settings(BaseSettings):
         trusted_hosts (Annotated[list[str], NoDecode]): Host header values the
             API accepts (``TrustedHostMiddleware``). Empty disables the check,
             which is allowed only outside production.
+        instrument_version (str | None): Identifier of the participant
+            instrument build deployed with this API (the frontend build SHA
+            or an instrument release tag), read from ``INSTRUMENT_VERSION``.
+            Program activation records it on the program. Unset falls back
+            to an ``unpinned-app-<package version>`` value (see
+            ``services.calibration_service.activation_instrument_version``).
         house_contributor_group (str): Authentik group whose members are
             confined to the house-intake routes even when unmapped, so
             removing a mapping never widens an external account's access.
@@ -284,6 +290,16 @@ class Settings(BaseSettings):
         description=(
             "Accepted Host header values (TRUSTED_HOSTS, comma-separated or "
             "JSON). Empty disables the check outside production."
+        ),
+    )
+
+    # R7a, capture assessment 13.2: the instrument in force at activation.
+    instrument_version: str | None = Field(
+        default=None,
+        max_length=100,
+        description=(
+            "Participant instrument build (frontend build SHA or release tag) "
+            "recorded on a program at activation (INSTRUMENT_VERSION)."
         ),
     )
 
