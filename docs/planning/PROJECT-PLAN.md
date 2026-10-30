@@ -619,7 +619,7 @@ items not re-verified are marked.
 | #144 | `10bd5d8` | R3 PR 2 (2026-10-30): route authorization per the owner's Q5 decision. **Behavior change accepted by the owner:** a household member with no recorder assignment gets 403 on history and recommendations until a manager enrolls them as a recorder |
 | #145 | `0d74024` | Documentation refresh that created this section |
 | #146 | `0d9c77c` | GitHub Actions update |
-| #151 | `45e09fd` | R6 PR 1 (2026-10-30): `notes.name_key`, `note_aliases` (`nm-v1`), `accord_types`, `intensity_source` and `rank`, one `VocabularyResolver` for both writers, `fs-v2`; closes X-01, X-02, X-03, X-04, X-12 in schema and writers. It also carried the R4 status docs that #150 duplicated. **Deploy note:** the migration merges colliding notes and runs at container start; take a backup first. **The merged migration has three defects fixed in the follow-up below; do not deploy `45e09fd` alone** |
+| #151 | `45e09fd` | R6 PR 1 (2026-10-30): `notes.name_key`, `note_aliases` (`nm-v1`), `accord_types`, `intensity_source` and `rank`, one `VocabularyResolver` for both writers, `fs-v2`; closes X-01, X-02, X-03, X-04, X-12 in schema and writers. It also carried the R4 status docs first proposed in #150 (merged separately on 2026-10-30, `04c28d4` or earlier; its content is a subset of this ledger). **Deploy note:** the migration merges colliding notes and runs at container start; take a backup first. **The merged migration has three defects fixed in the follow-up below; do not deploy `45e09fd` alone** |
 | #138 | `2f6d971` | Selectable standard or random blind label scheme at enrollment (pilot tooling for P6 and F1; no plan home). Merged 2026-10-30. When this ledger first listed it, it was held on an owner ruling about session-grouping leakage from standard labels, the `App.test.tsx` expectation, and a CodeRabbit thread on the label prefix; the pull request records how they were resolved |
 | #149 | `f247d3a` | R4 (2026-10-30): role-neutral holdout answers, impression-only explanations, calibration and prediction audit trail (kept at any `LOG_LEVEL`), no-store by default, server-owned disclosure state, logging configured, `SecretStr` keys with redaction. **API removal:** `GET /recommendations/{reviewer_id}/{fragrance_id}/explain` |
 
@@ -629,7 +629,6 @@ items not re-verified are marked.
 | :--- | :--- | :--- | :--- |
 | Follow-up to #151 | `fix/r6-review-findings` | Three defects CodeRabbit found in #151, fixed after #151 had already merged: non-Latin note names get a usable key (and accents are stripped from Latin letters only), a merged accord keeps provenance derived from its own weight, and two spellings of one note in one position are one link. The first two are in migration `000091664cdd` and are fixed in place, which is safe only while no database has run `45e09fd`'s version of it | In review |
 | R6 PR 2 | `feat/r6-alias-curation` | Alias-curation mechanism: a versioned alias file (empty until the verified manifest exists), `vocab aliases` commands (validate, load, ambiguities), a pre-commit hook, an audited all-or-nothing loader. Contains the follow-up's commits; merge the follow-up first | In review |
-| #150 | `docs/r4-merge-status` | Superseded: its only commit landed inside #151. Close it rather than merge it | Redundant |
 
 Issue #5 is the Renovate dashboard.
 
