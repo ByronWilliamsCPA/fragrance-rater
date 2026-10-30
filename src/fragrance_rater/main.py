@@ -17,7 +17,8 @@ issuing a real OpenRouter call. See
 
 Auth and rate limiting: ``POST /ratings`` (the only mutating, LLM-backed
 endpoint) requires a shared household ``X-API-Key`` header (see
-``fragrance_rater.middleware.auth``) and is rate limited (see
+``fragrance_rater.middleware.auth``) and a named caller in
+``X-Authentik-Username``, and is rate limited (see
 ``fragrance_rater.middleware.rate_limit``) to bound OpenRouter spend. Set
 ``FRAGRANCE_RATER_API_KEY`` before deploying outside a fully trusted,
 single-household network.
@@ -89,8 +90,10 @@ app = FastAPI(
         "`anthropic/claude-3.5-sonnet`); set `TEST_MODE=true` to use the "
         "bundled fixture response instead, which is what the Newman "
         "contract tests rely on. `POST /ratings` requires a shared "
-        "household `X-API-Key` header and is rate limited; read-only "
-        "endpoints do not require it."
+        "household `X-API-Key` header and a named caller in "
+        "`X-Authentik-Username`, and is rate limited. Every other route "
+        "except health checks also requires the named caller; read-only "
+        "endpoints do not require the key."
     ),
     version=settings.version,
     contact={

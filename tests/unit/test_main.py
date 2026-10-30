@@ -135,7 +135,7 @@ class TestRateLimitEnabledTogglesDecoratorToo:
         monkeypatch.setattr(settings, "api_key", "household-secret")
         limiter.enabled = False
         limiter.reset()
-        headers = {"X-API-Key": "household-secret"}
+        headers = {"X-API-Key": "household-secret", "X-Authentik-Username": "member"}
 
         responses = [
             client.post("/ratings", json=RATING_PAYLOAD, headers=headers)
@@ -152,7 +152,7 @@ class TestRateLimitEnabledTogglesDecoratorToo:
         monkeypatch.setattr(settings, "api_key", "household-secret")
         limiter.enabled = True
         limiter.reset()
-        headers = {"X-API-Key": "household-secret"}
+        headers = {"X-API-Key": "household-secret", "X-Authentik-Username": "member"}
 
         responses = [
             client.post("/ratings", json=RATING_PAYLOAD, headers=headers)

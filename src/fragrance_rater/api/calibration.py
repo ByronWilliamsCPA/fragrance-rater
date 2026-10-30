@@ -2,12 +2,15 @@
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
-from fragrance_rater.core.config import settings
+from fragrance_rater.core.auth import (
+    VerifiedIdentity,
+    actor,
+    manager,
+)
 from fragrance_rater.core.database import get_db
 from fragrance_rater.models.calibration import (
     CalibrationSession,
@@ -39,22 +42,7 @@ from fragrance_rater.utils.timestamps import now_naive_utc
 
 router = APIRouter(prefix="/calibration", tags=["calibration"])
 DB = Annotated[AsyncSession, Depends(get_db)]
-Identity = Annotated[AuthenticatedIdentity, Depends(get_current_identity)]
-
-
-def actor(identity: AuthenticatedIdentity) -> tuple[str, bool]:
-    """Fail closed without a named recorder, including local development."""
-    if not identity.username:
-        raise HTTPException(status_code=401, detail="A named recorder is required")
-    return identity.username, identity.username in settings.calibration_admin_usernames
-
-
-def manager(identity: AuthenticatedIdentity) -> str:
-    """Require an explicit configured manager for experiment mappings."""
-    username, admin = actor(identity)
-    if not admin:
-        raise HTTPException(status_code=403, detail="Calibration manager required")
-    return username
+Identity = VerifiedIdentity
 
 
 @router.get("/access")
