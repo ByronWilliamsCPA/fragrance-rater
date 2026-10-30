@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -16,6 +18,7 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.sql.schema import SchemaItem
 
 from fragrance_rater.core.database import Base
 from fragrance_rater.utils.timestamps import now_naive_utc
@@ -24,6 +27,83 @@ from fragrance_rater.utils.timestamps import now_naive_utc
 def identifier() -> str:
     """Return an opaque identifier."""
     return str(uuid4())
+
+
+def in_check(column: str, values: tuple[str, ...], *, nullable: bool = True) -> str:
+    """Return a CHECK expression limiting ``column`` to a closed vocabulary.
+
+    Args:
+        column (str): Column name as written in SQL.
+        values (tuple[str, ...]): The legal codes, in their stored spelling.
+        nullable (bool): Whether NULL (not recorded) is also legal.
+
+    Returns:
+        str: A SQL expression usable in ``CheckConstraint`` and in migrations.
+    """
+    listed = ", ".join(f"'{value}'" for value in values)
+    if nullable:
+        return f"{column} IS NULL OR {column} IN ({listed})"
+    return f"{column} IN ({listed})"
+
+
+# R7a closed vocabularies. Each tuple is the single source of the stored codes;
+# migration 3f14014a49cb writes the same lists literally (R2 rule: migrations do
+# not import models).
+# #ASSUME: data-integrity: the parity test compares CHECK names, not their
+# expressions, so a code added here but not in a migration passes it silently.
+# #VERIFY: a unit test asserts each tuple matches the migration's literal list.
+
+# ADR-005 2026-09-19 amendment, "Familiarity" row: recognition is categorical and
+# separate from prior ownership/exposure. The existing 0-5 ``familiarity`` column
+# keeps its meaning as the optional "feels familiar" strength.
+RECOGNITION_CODES: tuple[str, ...] = ("new", "vaguely_familiar", "recognized_exact")
+# Same row: "has owned or regularly worn this fragrance: yes / no / unknown".
+OWNED_OR_WORN_CODES: tuple[str, ...] = ("yes", "no", "unknown")
+# PROJECT-PLAN R7a row; preference-prediction-data-capture-assessment 13.4.
+RESPONSE_STATUSES: tuple[str, ...] = (
+    "completed",
+    "not_detected",
+    "skipped",
+    "unable_to_assess",
+    "interrupted",
+    "invalidated",
+)
+# A rank event is never "not detected": an undetected sample is an ineligible
+# entry, and fewer than two eligible samples means no event at all.
+RANK_EVENT_STATUSES: tuple[str, ...] = tuple(
+    status for status in RESPONSE_STATUSES if status != "not_detected"
+)
+RANK_CRITERIA: tuple[str, ...] = ("liking",)
+STAGES: tuple[str, ...] = ("BLOTTER", "SKIN")
+PHASES: tuple[str, ...] = ("PRE_REVEAL", "PREVIOUSLY_REVEALED", "POST_REVEAL")
+# data-model-gap-analysis section 5 ("Sample/source types", "Container/delivery
+# format"), stored as CHECKed codes rather than lookup tables.
+SAMPLE_SOURCE_TYPES: tuple[str, ...] = (
+    "manufacturer_sample",
+    "official_discovery_set",
+    "retailer_sample",
+    "decant",
+    "owned_bottle",
+    "unknown",
+)
+SAMPLE_CONTAINERS: tuple[str, ...] = (
+    "spray_atomizer",
+    "dab_vial",
+    "rollerball",
+    "retail_bottle",
+)
+APPLICATION_METHODS: tuple[str, ...] = ("spray", "dab", "roll")
+# Session-context answers that must stay refusable (ADR-005 amendment,
+# "Session-context fields" row; capture assessment 13.11).
+CONTEXT_ANSWERS: tuple[str, ...] = ("yes", "no", "prefer_not_to_answer")
+HORMONAL_CONTEXT_ANSWERS: tuple[str, ...] = (*CONTEXT_ANSWERS, "not_applicable")
+HUNGER_LEVELS: tuple[str, ...] = (
+    "not_hungry",
+    "slightly_hungry",
+    "hungry",
+    "very_hungry",
+    "prefer_not_to_answer",
+)
 
 
 class Program(Base):
@@ -98,7 +178,25 @@ class Enrollment(Base):
 
 
 class CalibrationSession(Base):
-    """Ordered session; capacity is protocol data rather than a constant."""
+    """Ordered session; capacity is protocol data rather than a constant.
+
+    ``created_at`` is schedule-generation time: every session in an enrollment
+    shares it (ML structure review X-08). The R7a columns record when the
+    session actually ran. All are NULL on rows written before R7a and on any
+    session not yet run; nothing derives them from ``created_at``.
+
+    R7a columns:
+        occurred_on: Evaluator-local calendar date the session ran (protocol
+            day). Stored, not derived, so a session that crosses midnight or a
+            missing ``started_at`` still has a day.
+        started_at: Actual session start, naive UTC like every other
+            timestamp in this schema.
+        ended_at: Actual session end, naive UTC.
+        evaluator_timezone: IANA zone name (``America/Chicago``) used to read
+            ``started_at``/``ended_at`` and the session's blotter
+            ``presented_at``/``observed_at`` values as local time. Time of day
+            is derived from it, not stored.
+    """
 
     __tablename__ = "calibration_sessions"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
@@ -107,15 +205,159 @@ class CalibrationSession(Base):
     )
     context: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
+    # #ASSUME: data-integrity: an IANA name cannot be validated by a portable
+    # CHECK, and a timestamp ordering CHECK (ended_at >= started_at) would
+    # reject real but mistimed evidence that the capture assessment (13.3)
+    # says to keep and flag instead.
+    # #VERIFY: the R7a service validates the zone with zoneinfo before writing.
+    occurred_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    evaluator_timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+
+class SessionContext(Base):
+    """Self-reported conditions for one session (ADR-005 2026-09-19 amendment).
+
+    Kept in its own table rather than in ``CalibrationSession.context`` (an
+    untyped JSON object that no code writes) or as session columns, because
+    these answers are health-adjacent: a separate row can be access-controlled,
+    exported, and deleted on withdrawal without touching the session's
+    evidence. ``CalibrationSession.context`` is left as it is.
+
+    NULL in any answer column means "not asked or not recorded". A refusal is
+    the explicit ``prefer_not_to_answer`` code, never NULL, so the two stay
+    distinguishable (ADR-005: hormonal context is "optional and refusable").
+    Time of day is not stored; it derives from the session's ``started_at`` and
+    ``evaluator_timezone``.
+    """
+
+    __tablename__ = "calibration_session_contexts"
+    # #CRITICAL: security: these columns hold illness, allergy, and hormonal
+    # context. Capture assessment 13.11 and the remediation plan section 18 say
+    # not to collect them before a consent contract (consent text/version and
+    # timestamp) exists. That contract is R7a PR 2's consent-event table.
+    # #VERIFY: no write path for this table may ship before the consent-event
+    # table does, and no sensitive field may be required to finish a session.
+    __table_args__: tuple[SchemaItem, ...] = (
+        UniqueConstraint("session_id"),
+        CheckConstraint(in_check("illness", CONTEXT_ANSWERS), name="illness_valid"),
+        CheckConstraint(
+            in_check("nasal_congestion", CONTEXT_ANSWERS),
+            name="nasal_congestion_valid",
+        ),
+        CheckConstraint(
+            in_check("allergy_symptoms", CONTEXT_ANSWERS),
+            name="allergy_symptoms_valid",
+        ),
+        CheckConstraint(in_check("hunger", HUNGER_LEVELS), name="hunger_valid"),
+        CheckConstraint(
+            "hours_since_food IS NULL OR hours_since_food >= 0",
+            name="food_hours_nonnegative",
+        ),
+        CheckConstraint(
+            "hours_since_caffeine IS NULL OR hours_since_caffeine >= 0",
+            name="caffeine_hours_nonnegative",
+        ),
+        CheckConstraint(
+            in_check("personal_fragrance_worn", CONTEXT_ANSWERS),
+            name="personal_fragrance_worn_valid",
+        ),
+        CheckConstraint(
+            in_check("ambient_odor", CONTEXT_ANSWERS), name="ambient_odor_valid"
+        ),
+        CheckConstraint(
+            "room_temperature_c IS NULL OR (room_temperature_c >= -10 AND room_temperature_c <= 50)",
+            name="room_temperature_c_range",
+        ),
+        CheckConstraint(
+            "room_humidity_pct IS NULL OR (room_humidity_pct >= 0 AND room_humidity_pct <= 100)",
+            name="room_humidity_pct_range",
+        ),
+        CheckConstraint(
+            in_check("hormonal_context", HORMONAL_CONTEXT_ANSWERS),
+            name="hormonal_context_valid",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("calibration_sessions.id", ondelete="RESTRICT")
+    )
+    illness: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    nasal_congestion: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    allergy_symptoms: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    hunger: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    hours_since_food: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hours_since_caffeine: Mapped[float | None] = mapped_column(Float, nullable=True)
+    personal_fragrance_worn: Mapped[str | None] = mapped_column(
+        String(30), nullable=True
+    )
+    ambient_odor: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    ambient_odor_detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    room_temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    room_humidity_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hormonal_context: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recorded_by: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
 
 
 class Presentation(Base):
-    """A concealed presentation; repeats have independent random codes."""
+    """A concealed presentation; repeats have independent random codes.
+
+    R7a adds when and how the stimulus actually reached the evaluator, and
+    which physical sample it came from (ML structure review X-08, X-09). Every
+    such column is nullable: NULL means "not recorded", which is the truth for
+    every row written before R7a. ``position`` remains the actual position.
+
+    Blotter and skin are two exposures of one presentation. "Presented" names
+    the blotter exposure and "application" names the skin exposure.
+
+    R7a columns:
+        presented_at: When the blotter was first smelled, naive UTC; local
+            time reads through the session's ``evaluator_timezone``.
+        applied_at: When the sample was applied to skin, naive UTC.
+        application_timezone: IANA zone for ``applied_at`` and the skin
+            observations of this wear, which can fall on a later day and in a
+            different place than the blotter session.
+        application_method: How it was applied to skin.
+        application_dose_sprays: Sprays (or dabs) applied to skin.
+        sample_source_type: Where the physical sample came from.
+        sample_container: The container the sample was presented from.
+        sample_volume_ml: Nominal volume of that container.
+        sample_acquired_on: Date the household obtained the sample.
+        sample_decanted_on: Date it was decanted, when it is a decant.
+        sample_opened_on: Date the container was first opened.
+        sample_batch_code: Batch or lot code printed on the source, verbatim.
+        physical_sample_confirmed: The operator confirmed that the physical
+            sample matches the membership's version (P1.1 validator's
+            ``physical_sample_confirmed``, which had no column).
+    """
 
     __tablename__ = "calibration_presentations"
     __table_args__ = (
         UniqueConstraint("session_id", "position"),
         UniqueConstraint("blind_code"),
+        CheckConstraint(
+            in_check("application_method", APPLICATION_METHODS),
+            name="application_method_valid",
+        ),
+        CheckConstraint(
+            "application_dose_sprays IS NULL OR application_dose_sprays > 0",
+            name="application_dose_sprays_positive",
+        ),
+        CheckConstraint(
+            in_check("sample_source_type", SAMPLE_SOURCE_TYPES),
+            name="sample_source_type_valid",
+        ),
+        CheckConstraint(
+            in_check("sample_container", SAMPLE_CONTAINERS),
+            name="sample_container_valid",
+        ),
+        CheckConstraint(
+            "sample_volume_ml IS NULL OR sample_volume_ml > 0",
+            name="sample_volume_ml_positive",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     session_id: Mapped[str] = mapped_column(
@@ -130,11 +372,31 @@ class Presentation(Base):
     blotter_locked_at: Mapped[datetime | None]
     skin_locked_at: Mapped[datetime | None]
 
+    # Exposure timing (X-08). Client-clock times, not server receipt.
+    presented_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    applied_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    application_timezone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    application_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    application_dose_sprays: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Physical-sample provenance (X-09; gap analysis section 6, step 6).
+    sample_source_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    sample_container: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    sample_volume_ml: Mapped[float | None] = mapped_column(Float, nullable=True)
+    sample_acquired_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sample_decanted_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sample_opened_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    sample_batch_code: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    physical_sample_confirmed: Mapped[bool | None] = mapped_column(
+        Boolean, nullable=True
+    )
+
 
 class Observation(Base):
     """Append-only submitted response; post-reveal never replaces blind data.
 
-    Every field below (other than the identity/timing columns) mirrors a
+    Every field below (other than the identity/timing columns and the R7a
+    capture columns at the end) mirrors a
     field of ``schemas.calibration.ResponseInput`` one-for-one by name, so
     ``calibration_service.observe()`` can populate them by splatting
     ``data.model_dump()`` rather than maintaining a second, drift-prone list.
@@ -256,6 +518,54 @@ class Observation(Base):
             "phase IN ('PRE_REVEAL', 'PREVIOUSLY_REVEALED', 'POST_REVEAL')",
             name="phase_valid",
         ),
+        # R7a. Closed vocabularies; NULL means "not recorded" (every pre-R7a row).
+        CheckConstraint(
+            in_check("response_status", RESPONSE_STATUSES),
+            name="response_status_valid",
+        ),
+        # #ASSUME: data-integrity: `not_detected` is the status form of the
+        # existing non-detection rule (detected = false, intensity 0, liking
+        # NULL), so it must agree with `detected`. Only this direction is
+        # enforced: an `interrupted` or `invalidated` row may carry any
+        # detection answer it got before it stopped.
+        # #VERIFY: unit test that not_detected with detected true/NULL fails.
+        CheckConstraint(
+            "response_status IS NULL OR response_status <> 'not_detected' OR (detected IS NOT NULL AND NOT detected)",
+            name="not_detected_status",
+        ),
+        CheckConstraint(
+            in_check("recognition", RECOGNITION_CODES), name="recognition_valid"
+        ),
+        CheckConstraint(
+            in_check("owned_or_worn", OWNED_OR_WORN_CODES),
+            name="owned_or_worn_valid",
+        ),
+        CheckConstraint(
+            "time_to_scrub_minutes IS NULL OR time_to_scrub_minutes >= 0",
+            name="scrub_time_nonnegative",
+        ),
+        CheckConstraint(
+            "time_to_scrub_minutes IS NULL OR (scrubbed_off IS NOT NULL AND scrubbed_off)",
+            name="scrub_time_requires_scrub",
+        ),
+        # A blotter cannot be scrubbed off; X-22 is about skin wear.
+        CheckConstraint(
+            "scrubbed_off IS NULL OR stage = 'SKIN'",
+            name="scrubbed_off_requires_skin",
+        ),
+        CheckConstraint(
+            "last_detected_elapsed_min IS NULL OR last_detected_elapsed_min >= 0",
+            name="last_detected_nonnegative",
+        ),
+        CheckConstraint(
+            "first_not_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min >= 0",
+            name="first_not_detected_nonnegative",
+        ),
+        # Interval-censored longevity: the scent was gone at the later bound.
+        CheckConstraint(
+            "last_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min > last_detected_elapsed_min",
+            name="longevity_interval_ordered",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     presentation_id: Mapped[str] = mapped_column(
@@ -311,6 +621,124 @@ class Observation(Base):
 
     recorded_by: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
+
+    # R7a capture shape (ADR-005 2026-09-19 amendment; X-08, X-14, X-22). These
+    # are not yet fields of ``ResponseInput``; the R7a service PR adds them.
+    # Until then ``observe()`` leaves them NULL, which reads as "not recorded".
+    # When the evaluator actually made this observation (client clock, naive
+    # UTC); ``created_at`` stays server receipt and ``elapsed_minutes`` stays
+    # the submitted value, kept for audit.
+    observed_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # Why a required answer is or is not present. NULL on pre-R7a rows.
+    response_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # Recognition and prior ownership/exposure are separate constructs; the
+    # 0-5 ``familiarity`` above stays as the optional "feels familiar" strength.
+    recognition: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    owned_or_worn: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    # Skin-wear summary, reported on the skin observation that closes the wear
+    # (same placement as ``longevity_minutes``). Longevity is interval-censored:
+    # the scent was last detected at one elapsed minute and first missed at a
+    # later one. ``longevity_minutes`` keeps its meaning for existing rows.
+    scrubbed_off: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    time_to_scrub_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_detected_elapsed_min: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+    first_not_detected_elapsed_min: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
+
+
+class RankEvent(Base):
+    """One end-of-session ranking over the session's eligible presentations.
+
+    The ADR-005 2026-09-19 amendment ("Ranking" row) and ML Decisions Q8 decide
+    that a ranking is one dependent event, analyzed with a rank-ordered
+    likelihood, never stored as independent pairwise rows. This table is the
+    ``PairwiseComparison``/rank-event of the R7a plan row: a single pairwise
+    judgment is a rank event with two entries, so no separate pairwise table
+    exists.
+
+    Append-only like ``Observation``: a correction invalidates an event
+    (``response_status = 'invalidated'``) and records a new one; nothing is
+    updated in place.
+
+    Columns:
+        session_id: The session whose presentations were ranked.
+        stage: Which exposure was ranked (blotter at end of session today).
+        phase: Disclosure state when ranked, same codes as ``Observation``;
+            a pre-reveal ranking is never replaced by a post-reveal one.
+        criterion: What the order means. Only ``liking`` today.
+        response_status: ``completed`` or why the ranking is incomplete.
+        ranked_at: When the evaluator ranked (client clock, naive UTC).
+        recorded_by: Who was at the keyboard (may differ from the evaluator).
+        created_at: Server receipt time.
+    """
+
+    __tablename__ = "calibration_rank_events"
+    # #ASSUME: data-integrity: the amendment says to omit the event entirely
+    # when fewer than two samples in the session were detected, and every
+    # entry's presentation must belong to `session_id`. Neither is expressible
+    # as a portable CHECK across tables.
+    # #VERIFY: the R7a service refuses both; tests listed in the PR notes.
+    __table_args__: tuple[SchemaItem, ...] = (
+        CheckConstraint(in_check("stage", STAGES, nullable=False), name="stage_valid"),
+        CheckConstraint(in_check("phase", PHASES, nullable=False), name="phase_valid"),
+        CheckConstraint(
+            in_check("criterion", RANK_CRITERIA, nullable=False),
+            name="criterion_valid",
+        ),
+        CheckConstraint(
+            in_check("response_status", RANK_EVENT_STATUSES, nullable=False),
+            name="response_status_valid",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("calibration_sessions.id", ondelete="RESTRICT"), index=True
+    )
+    stage: Mapped[str] = mapped_column(String(20))
+    phase: Mapped[str] = mapped_column(String(20))
+    criterion: Mapped[str] = mapped_column(String(20))
+    response_status: Mapped[str] = mapped_column(String(20))
+    ranked_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    recorded_by: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
+
+
+class RankEntry(Base):
+    """One presentation's place in a rank event.
+
+    Every presentation shown in the ranked session gets an entry, eligible or
+    not, so an export can tell "not ranked because not detected" from "not
+    shown". An ineligible entry (the sample was not detected) never has a
+    position: forcing it into the order would invent a preference.
+
+    Ties share a position (1, 1, 3), so ``rank_position`` is deliberately not
+    unique within an event.
+    """
+
+    __tablename__ = "calibration_rank_entries"
+    __table_args__: tuple[SchemaItem, ...] = (
+        UniqueConstraint("rank_event_id", "presentation_id"),
+        CheckConstraint(
+            "rank_position IS NULL OR rank_position >= 1",
+            name="rank_position_positive",
+        ),
+        CheckConstraint(
+            "eligible_for_rank OR rank_position IS NULL",
+            name="ineligible_has_no_position",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    rank_event_id: Mapped[str] = mapped_column(
+        ForeignKey("calibration_rank_events.id", ondelete="RESTRICT")
+    )
+    presentation_id: Mapped[str] = mapped_column(
+        ForeignKey("calibration_presentations.id", ondelete="RESTRICT"), index=True
+    )
+    eligible_for_rank: Mapped[bool] = mapped_column(Boolean)
+    rank_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ModelCheckpoint(Base):

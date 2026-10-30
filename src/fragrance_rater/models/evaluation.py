@@ -14,6 +14,11 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
+from fragrance_rater.models.calibration import (
+    OWNED_OR_WORN_CODES,
+    RECOGNITION_CODES,
+    in_check,
+)
 
 if TYPE_CHECKING:
     from fragrance_rater.models.fragrance import Fragrance
@@ -53,6 +58,12 @@ class Evaluation(Base):
             and must reference a different reviewer than `reviewer_id`.
             Captured as evidence only: per ADR-011, affinity/recommendation
             scoring for `reviewer_id` reads only rows where this is NULL.
+        recognition (Mapped[str | None]): Familiarity recognition code at
+            this encounter (``new``, ``vaguely_familiar``,
+            ``recognized_exact``); NULL means not asked.
+        owned_or_worn (Mapped[str | None]): Whether the reviewer has owned
+            or regularly worn this fragrance (``yes``, ``no``, ``unknown``),
+            kept separate from recognition; NULL means not asked.
         fragrance (Mapped[Fragrance]): Evaluated fragrance.
         reviewer (Mapped[Reviewer]): Reviewer who made the evaluation.
         worn_by_reviewer (Mapped[Reviewer | None]): Reviewer the fragrance
@@ -86,6 +97,14 @@ class Evaluation(Base):
         # `idx_evaluations_reviewer_fragrance` but never declared here, so
         # create_all() databases lacked it (architecture review D-11).
         Index("ix_evaluations_reviewer_id_fragrance_id", "reviewer_id", "fragrance_id"),
+        # R7a: the same familiarity codes as calibration_observations.
+        CheckConstraint(
+            in_check("recognition", RECOGNITION_CODES), name="recognition_valid"
+        ),
+        CheckConstraint(
+            in_check("owned_or_worn", OWNED_OR_WORN_CODES),
+            name="owned_or_worn_valid",
+        ),
     )
     # Every ordinary encounter is retained, including repeated fragrance ratings.
 
@@ -143,6 +162,13 @@ class Evaluation(Base):
         default=None,
         index=True,
     )
+
+    # R7a (ADR-005 2026-09-19 amendment, X-14): familiarity at this encounter.
+    # Ordinary evidence is not blind, so ``recognition`` here means whether
+    # the reviewer had smelled this exact fragrance before this encounter.
+    # NULL means not asked, which is every row written before R7a.
+    recognition: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    owned_or_worn: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     fragrance: Mapped[Fragrance] = relationship(back_populates="evaluations")
     reviewer: Mapped[Reviewer] = relationship(
