@@ -871,3 +871,152 @@ class TestMlCommands:
 
         assert result.exit_code == 1
         assert "gbm-v9" in result.output
+
+
+_ALIAS_FILE = (
+    "mapping_version: nm-v1\n"
+    "aliases:\n"
+    "  - raw_label: vanille\n"
+    "    canonical: Vanilla\n"
+    "    evidence: checked against the bottle\n"
+    "    decided_by: owner\n"
+)
+
+
+class TestVocabAliasesCommands:
+    """R6 PR 2: validate, load, and report curated note aliases."""
+
+    def test_validate_accepts_a_good_file_and_prints_its_hash(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "aliases.yaml"
+        path.write_text(_ALIAS_FILE, encoding="utf-8")
+
+        result = CliRunner().invoke(cli, ["vocab", "aliases", "validate", str(path)])
+
+        assert result.exit_code == 0
+        assert "ok (nm-v1, 1 decision(s), sha256 " in result.output
+
+    def test_validate_reports_every_problem_and_exits_nonzero(
+        self, tmp_path: Path
+    ) -> None:
+        good = tmp_path / "good.yaml"
+        good.write_text(_ALIAS_FILE, encoding="utf-8")
+        bad = tmp_path / "bad.yaml"
+        bad.write_text(
+            "mapping_version: nm-v1\naliases:\n  - raw_label: vanille\n    colour: red\n",
+            encoding="utf-8",
+        )
+
+        result = CliRunner().invoke(
+            cli, ["vocab", "aliases", "validate", str(good), str(bad)]
+        )
+
+        assert result.exit_code == 1
+        assert "good.yaml: ok" in result.output
+        assert "bad.yaml: invalid" in result.output
+        assert "unrecognized key(s) colour" in result.output
+        assert "canonical is required" in result.output
+
+    def test_the_committed_alias_file_validates(self) -> None:
+        path = Path(__file__).parents[2] / "data/aliases/note-aliases-nm-v1.yaml"
+
+        result = CliRunner().invoke(cli, ["vocab", "aliases", "validate", str(path)])
+
+        assert result.exit_code == 0
+
+    def test_execute_without_an_actor_is_refused_before_any_work(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "aliases.yaml"
+        path.write_text(_ALIAS_FILE, encoding="utf-8")
+
+        result = CliRunner().invoke(
+            cli, ["vocab", "aliases", "load", str(path), "--execute"]
+        )
+
+        assert result.exit_code == 2
+        assert "--actor is required" in result.output
+
+    @patch("fragrance_rater.cli.get_session")
+    @patch("fragrance_rater.cli.load_aliases")
+    def test_load_is_a_dry_run_by_default(
+        self, mock_load: MagicMock, mock_get_session: MagicMock, tmp_path: Path
+    ) -> None:
+        from fragrance_rater.services.note_aliases import (
+            AliasDecision,
+            AliasLoadItem,
+            AliasLoadReport,
+        )
+
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=AsyncMock())
+        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
+        decision = AliasDecision("vanille", "Vanilla", "checked", "owner")
+        mock_load.return_value = AliasLoadReport(
+            mapping_version="nm-v1",
+            content_hash="abc",
+            active=True,
+            items=(AliasLoadItem(decision, "create", "'vanille' -> 'Vanilla'"),),
+            applied=False,
+        )
+        path = tmp_path / "aliases.yaml"
+        path.write_text(_ALIAS_FILE, encoding="utf-8")
+
+        result = CliRunner().invoke(cli, ["vocab", "aliases", "load", str(path)])
+
+        assert result.exit_code == 0
+        assert "[DRY RUN] nm-v1" in result.output
+        assert "create 1, unchanged 0, blocked 0" in result.output
+        assert mock_load.call_args.kwargs["execute"] is False
+
+    @patch("fragrance_rater.cli.get_session")
+    @patch("fragrance_rater.cli.load_aliases")
+    def test_a_blocked_load_exits_nonzero_and_says_nothing_was_written(
+        self, mock_load: MagicMock, mock_get_session: MagicMock, tmp_path: Path
+    ) -> None:
+        from fragrance_rater.services.note_aliases import (
+            AliasDecision,
+            AliasLoadItem,
+            AliasLoadReport,
+        )
+
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=AsyncMock())
+        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
+        decision = AliasDecision("vanille", "Vanilla", "checked", "owner")
+        mock_load.return_value = AliasLoadReport(
+            mapping_version="nm-v1",
+            content_hash="abc",
+            active=True,
+            items=(AliasLoadItem(decision, "missing_canonical", "no such note"),),
+            applied=False,
+        )
+        path = tmp_path / "aliases.yaml"
+        path.write_text(_ALIAS_FILE, encoding="utf-8")
+
+        result = CliRunner().invoke(
+            cli,
+            ["vocab", "aliases", "load", str(path), "--execute", "--actor", "me"],
+        )
+
+        assert result.exit_code == 1
+        assert "nothing was written" in result.output
+
+    @patch("fragrance_rater.cli.get_session")
+    @patch("fragrance_rater.cli.find_ambiguities")
+    def test_ambiguities_exit_nonzero_when_any_exist(
+        self, mock_find: MagicMock, mock_get_session: MagicMock
+    ) -> None:
+        from fragrance_rater.services.note_aliases import AmbiguousKey
+
+        mock_get_session.return_value.__aenter__ = AsyncMock(return_value=AsyncMock())
+        mock_get_session.return_value.__aexit__ = AsyncMock(return_value=None)
+        mock_find.return_value = [AmbiguousKey("musk", "Musk", "White Musk", "Musk")]
+
+        result = CliRunner().invoke(cli, ["vocab", "aliases", "ambiguities"])
+
+        assert result.exit_code == 1
+        assert "1 ambiguous key(s)" in result.output
+
+        mock_find.return_value = []
+        clean = CliRunner().invoke(cli, ["vocab", "aliases", "ambiguities"])
+        assert clean.exit_code == 0
