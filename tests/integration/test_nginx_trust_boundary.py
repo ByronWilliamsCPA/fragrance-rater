@@ -87,6 +87,7 @@ def _render(cidr: str | None, tmp_path: Path, echo_port: int, port: int) -> Path
         text=True,
         env=env,
         check=True,
+        timeout=30,
     ).stdout
     rendered = rendered.replace("listen 80;", f"listen 127.0.0.1:{port};")
     rendered = rendered.replace("http://app:8000/", f"http://127.0.0.1:{echo_port}/")
@@ -120,6 +121,7 @@ def _nginx(main: Path, *args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        timeout=30,
     )
 
 

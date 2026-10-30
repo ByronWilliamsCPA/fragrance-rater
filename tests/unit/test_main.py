@@ -206,7 +206,9 @@ def test_production_app_hides_docs_and_validates_host() -> None:
         capture_output=True,
         text=True,
         env=env,
-        check=True,
+        check=False,
+        timeout=60,
     )
+    assert result.returncode == 0, result.stderr
     docs, schema, live, wrong_host = result.stdout.split()
     assert (docs, schema, live, wrong_host) == ("404", "404", "200", "400")
