@@ -15,9 +15,9 @@ from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
     FragranceNote,
-    Note,
     TrainingEligibility,
 )
+from fragrance_rater.services.vocabulary import VocabularyResolver
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -41,6 +41,7 @@ class FragranceService:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+        self._resolver = VocabularyResolver(session)
 
     async def get_by_id(self, fragrance_id: str) -> Fragrance | None:
         """Get a fragrance by ID with all relationships loaded.
@@ -121,6 +122,9 @@ class FragranceService:
             Fragrance: Created fragrance.
 
         Raises:
+            ValidationError: If a note label cannot be matched to exactly one
+                catalog note (ambiguous or unusable), or the eligibility code
+                is unknown or inactive.
             DatabaseError: If the flushed fragrance cannot be read back.
         """
         if data.training_eligibility_code is not None:
@@ -145,26 +149,46 @@ class FragranceService:
         )
         self.session.add(fragrance)
 
-        # Add notes
+        # Add notes, resolved to canonical notes (R6). The caller's order within a
+        # position is the rank.
+        ranks: dict[str, int] = {}
         for note_data in data.notes:
-            note = await self._get_or_create_note(
+            resolution = await self._resolver.resolve_note(
                 note_data.note_name, note_data.note_category
             )
-            fragrance_note = FragranceNote(
-                fragrance_id=fragrance.id,
-                note_id=note.id,
-                position=note_data.position,
+            if resolution.note is None:
+                msg = (
+                    f"Note {note_data.note_name!r} cannot be matched to one "
+                    f"catalog note ({resolution.status}); ask a manager to settle it"
+                )
+                raise ValidationError(msg, field="notes", value=note_data.note_name)
+            rank = ranks.get(note_data.position, 0)
+            ranks[note_data.position] = rank + 1
+            self.session.add(
+                FragranceNote(
+                    fragrance_id=fragrance.id,
+                    note_id=resolution.note.id,
+                    position=note_data.position,
+                    rank=rank,
+                )
             )
-            self.session.add(fragrance_note)
 
-        # Add accords
-        for accord_data in data.accords:
-            accord = FragranceAccord(
-                fragrance_id=fragrance.id,
-                accord_type=accord_data.accord_type,
-                intensity=accord_data.intensity,
+        # Add accords, one row per normalized accord code.
+        seen: set[str] = set()
+        for rank, accord_data in enumerate(data.accords):
+            accord_type = await self._resolver.resolve_accord(accord_data.accord_type)
+            if accord_type is None or accord_type.code in seen:
+                continue
+            seen.add(accord_type.code)
+            self.session.add(
+                FragranceAccord(
+                    fragrance_id=fragrance.id,
+                    accord_type=accord_type.code,
+                    intensity=accord_data.intensity,
+                    intensity_source=accord_data.intensity_source,
+                    rank=rank,
+                )
             )
-            self.session.add(accord)
 
         await self.session.flush()
         created = await self.get_by_id(fragrance.id)
@@ -287,27 +311,6 @@ class FragranceService:
         fragrance.deleted_at = now_naive_utc()
         await self.session.flush()
         return True
-
-    async def _get_or_create_note(self, name: str, category: str) -> Note:
-        """Get an existing note or create a new one.
-
-        Args:
-            name (str): Note name.
-            category (str): Note category.
-
-        Returns:
-            Note: Note instance.
-        """
-        stmt = select(Note).where(Note.name == name)
-        result = await self.session.execute(stmt)
-        note = result.scalar_one_or_none()
-
-        if not note:
-            note = Note(id=str(uuid4()), name=name, category=category)
-            self.session.add(note)
-            await self.session.flush()
-
-        return note
 
     async def _validate_training_eligibility_code(self, code: str) -> None:
         """Ensure a training_eligibility_code exists and is active.

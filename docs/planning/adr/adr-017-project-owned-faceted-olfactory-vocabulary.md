@@ -230,6 +230,33 @@ taxonomy mappings, and evaluator perception stay in separate layers.
   CC BY-NC 4.0 versus Legal-page conflict should exist in the same place ADR-006 already
   requires reuse-rights review to be recorded.
 
+## Amendment, 2026-10-30: what R6 shipped, and the feature-space number
+
+Milestone R6 (PR 1) built the layer-2 pieces this ADR planned for it, ahead of D1:
+
+- `note_aliases` (`raw_label`, `alias_key`, `canonical_note_id`, `mapping_version`, `origin`),
+  with the active version `nm-v1`. A `curated` row is a decision a person made; an `observed`
+  row only keeps a spelling an importer met that already normalizes to the note. One spelling is
+  unique per version, and a key has at most one curated decision per version. D1 still migrates
+  these rows into the generalized `provider_term_mapping` (item 2 above), where `origin` becomes
+  part of the row's evidence.
+- `notes.name_key`, a unique, normalized identity key, so `Oak Moss` and `oakmoss` are one note.
+  Normalization removes only case, accents, and separators; `vanille` and `vanilla` stay
+  different keys, and joining them is a curated alias.
+- `accord_types` as a controlled lookup with `fragrance_accords.accord_type` as a foreign key to
+  it, and `intensity_source` (`measured`, `positional`, `absent`) plus `rank` on accords.
+- `FragranceNote.rank` and a CHECK on `position`; `Note.category` no longer carries a pyramid
+  position.
+- One `VocabularyResolver` used by the Kaggle importer and the manual catalog service.
+
+None of this contradicts the ADR: `declared_label` (layer 1), `vocabulary` and its siblings
+(layer 3), and `term_assertion` (layer 4) remain D1, behind the F1 decision.
+
+**Feature-space number.** This ADR and the design spec name the layer-4 profile's feature space
+`fs-v2`. R6 changed the vocabulary every note and accord feature draws on, which is a feature-space
+change by `ml/feature_space.py`'s own rule, so R6 took `fs-v2`. The layer-4 derived profile
+becomes `fs-v3`. Read "fs-v2" in the items above and in the design spec as `fs-v3`.
+
 ## Related
 
 - [ADR-003](adr-003-llm-integration.md): OpenRouter LLM integration this ADR's expert-baseline

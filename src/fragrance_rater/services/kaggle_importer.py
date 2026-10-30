@@ -12,15 +12,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 from uuid import uuid4
 
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.models.fragrance import (
     Fragrance,
     FragranceAccord,
     FragranceNote,
-    Note,
 )
+from fragrance_rater.services.vocabulary import VocabularyResolver
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -57,6 +56,9 @@ class ParsedFragrance:
     heart_notes: list[str]
     base_notes: list[str]
     accords: dict[str, float]
+    # How each accord's weight arose ("measured" or "positional"); an accord
+    # missing here is taken as measured. See ``FragranceAccord.intensity_source``.
+    accord_sources: dict[str, str] = field(default_factory=dict)
 
 
 class KaggleImporter:
@@ -121,7 +123,7 @@ class KaggleImporter:
 
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-        self._note_cache: dict[str, Note] = {}
+        self._resolver = VocabularyResolver(session)
 
     async def import_csv(
         self, file_path: Path | str, *, dry_run: bool = False
@@ -261,7 +263,8 @@ class KaggleImporter:
         base_notes = self._parse_notes(row.get(col_map.get("base_notes", ""), ""))
 
         # Parse accords
-        accords = self._parse_accords(row.get(col_map.get("accords", ""), ""))
+        accords_text = row.get(col_map.get("accords", ""), "")
+        accords = self._parse_accords(accords_text)
 
         return ParsedFragrance(
             name=name,
@@ -275,6 +278,7 @@ class KaggleImporter:
             heart_notes=heart_notes,
             base_notes=base_notes,
             accords=accords,
+            accord_sources=self._parse_accord_sources(accords_text),
         )
 
     def _parse_notes(self, notes_str: str) -> list[str]:
@@ -290,6 +294,34 @@ class KaggleImporter:
             return []
         return [n.strip() for n in notes_str.split(",") if n.strip()]
 
+    @staticmethod
+    def _scan_accords(accords_str: str) -> list[tuple[str, float, str]]:
+        """Read an accords string into ``(name, intensity, source)`` entries.
+
+        A percentage ("Citrus (45%)") is a reported weight, ``measured``. A bare name
+        gets a weight that falls with its place in the list; that is order, not
+        strength, so it is ``positional`` (X-04).
+        """
+        entries: list[tuple[str, float, str]] = []
+        for i, part in enumerate(accords_str.split(",")):
+            part = part.strip()
+            if not part:
+                continue
+
+            # Check for percentage pattern like "Citrus (45%)"
+            match = re.match(r"(.+?)\s*\((\d+)%?\)", part)
+            if match:
+                name = match.group(1).strip()
+                intensity = float(match.group(2)) / 100.0
+                source = "measured"
+            else:
+                name = part
+                # Assign decreasing weights based on position
+                intensity = max(0.1, 1.0 - (i * 0.15))
+                source = "positional"
+            entries.append((name, min(1.0, intensity), source))
+        return entries
+
     def _parse_accords(self, accords_str: str) -> dict[str, float]:
         """Parse accords string into dictionary with weights.
 
@@ -301,28 +333,20 @@ class KaggleImporter:
         """
         if not accords_str:
             return {}
+        return {name: weight for name, weight, _ in self._scan_accords(accords_str)}
 
-        accords: dict[str, float] = {}
-        parts = accords_str.split(",")
+    def _parse_accord_sources(self, accords_str: str) -> dict[str, str]:
+        """Return how each accord's weight arose, by accord name.
 
-        for i, part in enumerate(parts):
-            part = part.strip()
-            if not part:
-                continue
+        Args:
+            accords_str (str): Accords string, as given to ``_parse_accords``.
 
-            # Check for percentage pattern like "Citrus (45%)"
-            match = re.match(r"(.+?)\s*\((\d+)%?\)", part)
-            if match:
-                name = match.group(1).strip()
-                intensity = float(match.group(2)) / 100.0
-            else:
-                name = part
-                # Assign decreasing weights based on position
-                intensity = max(0.1, 1.0 - (i * 0.15))
-
-            accords[name] = min(1.0, intensity)
-
-        return accords
+        Returns:
+            dict[str, str]: Accord name to ``measured`` or ``positional``.
+        """
+        if not accords_str:
+            return {}
+        return {name: source for name, _, source in self._scan_accords(accords_str)}
 
     async def _save_fragrance(self, parsed: ParsedFragrance) -> Fragrance:
         """Save a parsed fragrance to the database.
@@ -352,23 +376,42 @@ class KaggleImporter:
         # (fragrance_id, note_id, position) triple is rejected, and that
         # rejection is isolated per-row below so it cannot abort the rest
         # of this fragrance's notes or the rest of the import.
-        for position, category, note_names in (
-            ("top", "Top", parsed.top_notes),
-            ("heart", "Heart", parsed.heart_notes),
-            ("base", "Base", parsed.base_notes),
+        for position, note_names in (
+            ("top", parsed.top_notes),
+            ("heart", parsed.heart_notes),
+            ("base", parsed.base_notes),
         ):
-            for note_name in note_names:
-                note = await self._get_or_create_note(note_name, category)
+            for rank, note_name in enumerate(note_names):
+                # The position is the junction row's, never the note's category.
+                resolution = await self._resolver.resolve_note(note_name)
+                if resolution.note is None:
+                    logger.warning(
+                        "Skipping unmatched note: fragrance=%r note=%r status=%s",
+                        parsed.name,
+                        note_name,
+                        resolution.status,
+                    )
+                    continue
                 await self._add_fragrance_note(
-                    fragrance.id, note.id, position, note_name
+                    fragrance.id, resolution.note.id, position, note_name, rank
                 )
 
-        # Add accords
-        for accord_type, intensity in parsed.accords.items():
-            accord = FragranceAccord(
-                fragrance_id=fragrance.id, accord_type=accord_type, intensity=intensity
+        # Add accords. Insertion order is the source's list order.
+        seen: set[str] = set()
+        for rank, (accord_name, intensity) in enumerate(parsed.accords.items()):
+            accord_type = await self._resolver.resolve_accord(accord_name)
+            if accord_type is None or accord_type.code in seen:
+                continue
+            seen.add(accord_type.code)
+            self.session.add(
+                FragranceAccord(
+                    fragrance_id=fragrance.id,
+                    accord_type=accord_type.code,
+                    intensity=intensity,
+                    intensity_source=parsed.accord_sources.get(accord_name, "measured"),
+                    rank=rank,
+                )
             )
-            self.session.add(accord)
 
         return fragrance
 
@@ -386,7 +429,12 @@ class KaggleImporter:
     # appears in two different positions (allowed) and by a same-position
     # duplicate (skipped, not fatal).
     async def _add_fragrance_note(
-        self, fragrance_id: str, note_id: str, position: str, note_name: str
+        self,
+        fragrance_id: str,
+        note_id: str,
+        position: str,
+        note_name: str,
+        rank: int | None = None,
     ) -> None:
         """Insert one fragrance-note row, isolated in its own SAVEPOINT.
 
@@ -395,12 +443,16 @@ class KaggleImporter:
             note_id (str): Referenced note ID.
             position (str): Pyramid position (top, heart, base).
             note_name (str): Note name, for the warning log on conflict.
+            rank (int | None): Zero-based place within the position as listed.
         """
         try:
             async with self.session.begin_nested():
                 self.session.add(
                     FragranceNote(
-                        fragrance_id=fragrance_id, note_id=note_id, position=position
+                        fragrance_id=fragrance_id,
+                        note_id=note_id,
+                        position=position,
+                        rank=rank,
                     )
                 )
                 await self.session.flush()
@@ -411,34 +463,6 @@ class KaggleImporter:
                 note_name,
                 position,
             )
-
-    async def _get_or_create_note(self, name: str, category: str) -> Note:
-        """Get an existing note or create a new one.
-
-        Args:
-            name (str): Note name.
-            category (str): Note category.
-
-        Returns:
-            Note: Note instance.
-        """
-        # Check cache first
-        cache_key = name.lower()
-        if cache_key in self._note_cache:
-            return self._note_cache[cache_key]
-
-        # Query database
-        stmt = select(Note).where(Note.name == name)
-        result = await self.session.execute(stmt)
-        note = result.scalar_one_or_none()
-
-        if not note:
-            note = Note(id=str(uuid4()), name=name, category=category)
-            self.session.add(note)
-            await self.session.flush()
-
-        self._note_cache[cache_key] = note
-        return note
 
     def iter_csv_preview(
         self, file_path: Path | str, limit: int = 5

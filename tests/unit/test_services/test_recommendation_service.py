@@ -14,6 +14,7 @@ from fragrance_rater.ml.model import (
 )
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
+    AccordType,
     Fragrance,
     FragranceAccord,
     FragranceNote,
@@ -698,6 +699,13 @@ class TestRecommendationServiceIntegration:
             training_eligibility_code="excluded_pending_classification",
         )
         async_session.add_all([eligible_fragrance, ineligible_fragrance])
+        async_session.add_all(
+            [
+                AccordType(code="citrus", label="Citrus"),
+                AccordType(code="woody", label="Woody"),
+            ]
+        )
+        await async_session.flush()
 
         async_session.add_all(
             [

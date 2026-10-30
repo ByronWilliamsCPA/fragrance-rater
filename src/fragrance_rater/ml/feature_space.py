@@ -22,8 +22,17 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from fragrance_rater.models.fragrance import Fragrance
 
-FEATURE_SPACE_VERSION = "fs-v1"
-"""Identifier for the current feature representation (see module docstring)."""
+FEATURE_SPACE_VERSION = "fs-v2"
+"""Identifier for the current feature representation (see module docstring).
+
+``fs-v2`` (R6) is ``fs-v1`` over a canonical vocabulary: notes resolve through
+``NoteAlias`` and share one id per normalized spelling, accord names are the
+``accord_types`` codes, and each accord says whether its intensity was measured
+(``intensity_source``) and where it sat in its source's list (``rank``). Notes carry
+their ``rank`` within position. Every ``ModelSpec`` digest includes this string, so
+moving to ``fs-v2`` changed the ``affinity-v1`` and ``affinity-v2`` digests while
+leaving their parameters alone: a prediction records which representation it scored.
+"""
 
 
 @dataclass(frozen=True)
@@ -37,11 +46,14 @@ class NoteFeature:
         name (str): The note's catalog name at the time of vectorization.
         position (str): Pyramid position (``top``, ``heart``, ``base``,
             ``flat``) as recorded by the source.
+        rank (int | None): Zero-based place within the position as the source
+            listed it, or ``None`` when not recorded.
     """
 
     note_id: str | None
     name: str
     position: str
+    rank: int | None = None
 
 
 @dataclass(frozen=True)
@@ -49,14 +61,21 @@ class AccordFeature:
     """One published accord on a fragrance version.
 
     Attributes:
-        name (str): Accord label as stored on ``FragranceAccord.accord_type``.
-        intensity (float): Source-reported or positional intensity in
-            ``[0, 1]``; the current schema does not distinguish the two
-            (see the ML structure review, X-04).
+        name (str): Accord code as stored on ``FragranceAccord.accord_type``.
+        intensity (float): Intensity in ``[0, 1]``. Read it with
+            ``intensity_source``: a ``positional`` value is a list place, not a
+            strength (ML structure review, X-04).
+        intensity_source (str): ``measured``, ``positional``, or ``absent``;
+            ``unknown`` for an accord rebuilt from a manifest written before the
+            source was recorded.
+        rank (int | None): Zero-based place in the source's accord list, or
+            ``None`` when not recorded.
     """
 
     name: str
     intensity: float
+    intensity_source: str = "measured"
+    rank: int | None = None
 
 
 @dataclass(frozen=True)
@@ -98,9 +117,9 @@ class FeatureVector:
 
         Returns:
             dict[str, object]: JSON-serializable dict carrying the version
-                identity, family labels, notes (with ``note_id``, ``name`` and
-                ``position``), accords (``name`` and ``intensity``) and the
-                feature-space version.
+                identity, family labels, notes (with ``note_id``, ``name``,
+                ``position`` and ``rank``), accords (``name``, ``intensity``,
+                ``intensity_source`` and ``rank``) and the feature-space version.
         """
         return {
             "feature_space_version": self.feature_space_version,
@@ -109,11 +128,22 @@ class FeatureVector:
             "primary_family": self.primary_family,
             "subfamily": self.subfamily,
             "notes": [
-                {"note_id": n.note_id, "name": n.name, "position": n.position}
+                {
+                    "note_id": n.note_id,
+                    "name": n.name,
+                    "position": n.position,
+                    "rank": n.rank,
+                }
                 for n in self.notes
             ],
             "accords": [
-                {"name": a.name, "intensity": a.intensity} for a in self.accords
+                {
+                    "name": a.name,
+                    "intensity": a.intensity,
+                    "intensity_source": a.intensity_source,
+                    "rank": a.rank,
+                }
+                for a in self.accords
             ],
         }
 
@@ -138,11 +168,22 @@ def vectorize(fragrance: Fragrance) -> FeatureVector:
         primary_family=fragrance.primary_family,
         subfamily=fragrance.subfamily,
         notes=tuple(
-            NoteFeature(note_id=fn.note.id, name=fn.note.name, position=fn.position)
+            NoteFeature(
+                note_id=fn.note.id,
+                name=fn.note.name,
+                position=fn.position,
+                rank=fn.rank,
+            )
             for fn in fragrance.notes
         ),
         accords=tuple(
-            AccordFeature(name=acc.accord_type, intensity=float(acc.intensity))
+            AccordFeature(
+                name=acc.accord_type,
+                intensity=float(acc.intensity),
+                # An unflushed row has no value yet; the column default is measured.
+                intensity_source=acc.intensity_source or "measured",
+                rank=acc.rank,
+            )
             for acc in fragrance.accords
         ),
     )
@@ -150,6 +191,12 @@ def vectorize(fragrance: Fragrance) -> FeatureVector:
 
 def _as_str(value: object) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _as_int(value: object) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
 
 
 def _as_float(value: object, default: float = 0.0) -> float:
@@ -190,6 +237,7 @@ def from_source_features(
                     note_id=_as_str(entry_dict.get("note_id")),
                     name=_as_str(entry_dict.get("name")) or "",
                     position=_as_str(entry_dict.get("position")) or "",
+                    rank=_as_int(entry_dict.get("rank")),
                 )
             )
     accords: list[AccordFeature] = []
@@ -202,6 +250,9 @@ def from_source_features(
                 AccordFeature(
                     name=_as_str(entry_dict_a.get("name")) or "",
                     intensity=_as_float(entry_dict_a.get("intensity")),
+                    intensity_source=_as_str(entry_dict_a.get("intensity_source"))
+                    or "unknown",
+                    rank=_as_int(entry_dict_a.get("rank")),
                 )
             )
     version = _as_str(features.get("feature_space_version")) or "fs-v0"

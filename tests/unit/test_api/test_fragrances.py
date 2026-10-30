@@ -632,3 +632,111 @@ async def test_line_and_market_status_round_trip(test_app):
         headers=headers,
     )
     assert rejected.status_code == 422
+
+
+_BASE = {
+    "brand": "Vocabulary House",
+    "concentration": "EDP",
+    "gender_target": "Unisex",
+    "primary_family": "woody",
+    "subfamily": "aromatic",
+}
+
+
+@pytest.mark.asyncio
+class TestFragranceVocabulary:
+    """R6: manual catalog writes resolve notes and accords like the importers."""
+
+    async def test_note_spellings_share_one_note_and_keep_order(self, test_app):
+        first = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                **_BASE,
+                "name": "First",
+                "notes": [
+                    {"note_name": "Oak Moss", "position": "base"},
+                    {"note_name": "Amber", "position": "base"},
+                ],
+            },
+        )
+        second = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                **_BASE,
+                "name": "Second",
+                "notes": [{"note_name": "oakmoss", "position": "base"}],
+            },
+        )
+
+        assert first.status_code == second.status_code == 201
+        first_notes = first.json()["notes"]
+        second_notes = second.json()["notes"]
+        assert [(n["note"]["name"], n["rank"]) for n in first_notes] == [
+            ("Oak Moss", 0),
+            ("Amber", 1),
+        ]
+        assert second_notes[0]["note"]["id"] == first_notes[0]["note"]["id"]
+        assert second_notes[0]["note"]["name"] == "Oak Moss"
+
+    async def test_a_note_category_may_be_omitted(self, test_app):
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                **_BASE,
+                "name": "No Category",
+                "notes": [{"note_name": "Iris", "position": "heart"}],
+            },
+        )
+
+        assert response.status_code == 201
+        assert response.json()["notes"][0]["note"]["category"] is None
+
+    @pytest.mark.parametrize("category", ["Top", "heart", " BASE ", "middle", "flat"])
+    async def test_a_pyramid_position_is_rejected_as_a_note_category(
+        self, test_app, category
+    ):
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                **_BASE,
+                "name": "Bad Category",
+                "notes": [
+                    {
+                        "note_name": "Rose",
+                        "note_category": category,
+                        "position": "heart",
+                    }
+                ],
+            },
+        )
+
+        assert response.status_code == 422
+        assert "pyramid position" in response.text
+
+    async def test_accords_use_one_code_and_say_how_they_were_weighted(self, test_app):
+        response = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                **_BASE,
+                "name": "Accord Codes",
+                "accords": [
+                    {"accord_type": "Fresh  Spicy", "intensity": 0.8},
+                    {"accord_type": "fresh spicy", "intensity": 0.2},
+                    {
+                        "accord_type": "Woody",
+                        "intensity": 0.5,
+                        "intensity_source": "positional",
+                    },
+                ],
+            },
+        )
+
+        assert response.status_code == 201
+        accords = response.json()["accords"]
+        assert sorted(
+            (a["accord_type"], a["intensity"], a["intensity_source"], a["rank"])
+            for a in accords
+        ) == [
+            ("fresh spicy", 0.8, "measured", 0),
+            ("woody", 0.5, "positional", 2),
+        ]

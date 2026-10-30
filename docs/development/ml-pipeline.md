@@ -52,15 +52,33 @@ the default scorer's spec, so the label written on runs cannot drift from the co
 ## Feature space
 
 `FeatureVector` carries the version identity, family labels, notes (each with `note_id`, `name`,
-`position`) and accords (`name`, `intensity`), plus `feature_space_version`. The training manifest's
+`position`, `rank`) and accords (`name`, `intensity`, `intensity_source`, `rank`), plus
+`feature_space_version`. The training manifest's
 `source_features` is now produced by `FeatureVector.to_source_features()`, so a frozen manifest can
 be turned back into scorer input with `from_source_features`. Manifests written before this change
 carry no note ids; they rebuild as `fs-v0` vectors whose notes cannot be scored by an id-keyed
 model, which is reported rather than guessed (review M-02).
 
 Bump `FEATURE_SPACE_VERSION` whenever the set of fields, their meaning, or the vocabulary they draw
-on changes. The vocabulary itself (note aliases, controlled accords, versioned families) is
-still the review's Tier 1 work; the vectorizer is the single place that work plugs in.
+on changes.
+
+`fs-v2` (R6) is `fs-v1` over a canonical vocabulary. Notes resolve through `VocabularyResolver`
+(`services/vocabulary.py`) to one `Note` per normalized spelling, so `Note.id` is stable across
+spellings; accord names are `accord_types` codes. Each accord says whether its intensity was
+`measured`, `positional` (a list place, not a strength), or `absent`. A manifest written before
+the source was recorded rebuilds its accords as `unknown`.
+
+Two consequences for the dataset builder (`ml/dataset.py`):
+
+- The `accords` space includes only `measured` weights. Positional, absent, and unknown weights
+  are left out rather than fed in as measurements (ML structure review X-04; ML decisions Q5).
+- The `accord_ranks` space keeps list order: `1 / (rank + 1)` for every accord with a rank.
+
+`ModelSpec.digest` covers the feature-space string, so the move to `fs-v2` changed the
+`affinity-v1` and `affinity-v2` digests with their parameters untouched. Their previous
+digests (`a7ac4c6b...` and `b658f750...`) are exactly what the specs produce when named
+`fs-v1`; `tests/unit/test_ml/test_model.py` checks that. Predictions and checkpoints recorded
+before R6 carry `fs-v1` and the old digest; those recorded after carry `fs-v2` and the new one.
 
 ## Adding a model
 

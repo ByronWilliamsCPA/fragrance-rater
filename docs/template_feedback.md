@@ -426,6 +426,36 @@ already a transitive dependency there).
 
 ---
 
+### Stacked pull requests get no CI, and retargeting does not start it
+
+**Priority**: Medium
+
+**Issue**: `ci.yml`, `security-analysis.yml`, and `postman-api-tests.yml` trigger on `pull_request`
+with `branches: [main, ...]`, and `ci.yml` lists only the `opened`, `synchronize`, and `reopened`
+types. A pull request whose base is another feature branch (a stacked pair) therefore runs only the
+lightweight checks (`pr-validation.yml`, docs, REUSE), never the test, security, or contract
+suites. Retargeting it to `main` afterwards does not help: changing the base fires `edited`, which
+only `pr-validation.yml` listens for, so the heavy workflows stay unrun until the next push.
+CodeRabbit also skips non-default bases. The reviewer sees a mostly green PR that never ran its
+tests.
+
+**Context**: Discovered opening fragrance-rater's R6 PR 1 stacked on a docs PR. After retargeting to
+`main`, 12 of the usual ~35 checks existed and none was a test job.
+
+**Suggested Fix**: Add `edited` to the `pull_request` types of every workflow that gates merging,
+guarded so it runs only when the base actually changed
+(`github.event.changes.base != null || github.event.action != 'edited'`), or drop the `branches`
+filter on `pull_request` so stacked PRs are tested. Document in `docs/ci-gates.md` that a stacked
+PR should be retargeted to `main` before review and re-pushed.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.github/workflows/ci.yml`
+- `{{cookiecutter.project_slug}}/.github/workflows/security-analysis.yml`
+- `{{cookiecutter.project_slug}}/.github/workflows/postman-api-tests.yml`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

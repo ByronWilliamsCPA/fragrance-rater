@@ -19,6 +19,7 @@ from fragrance_rater.models.calibration import (
     Program,
 )
 from fragrance_rater.models.fragrance import (
+    AccordType,
     Fragrance,
     FragranceAccord,
     FragranceNote,
@@ -97,7 +98,9 @@ async def program(async_session):
     async_session.add(Reviewer(id="owner", name="Owner"))
     async_session.add(Reviewer(id="other", name="Other"))
     for note_id, name in NOTES.items():
-        async_session.add(Note(id=note_id, name=name, category="Top"))
+        async_session.add(Note(id=note_id, name=name, category=None))
+    for code in sorted({a for spec in CATALOG.values() for a, _ in spec["accords"]}):
+        async_session.add(AccordType(code=code, label=code.title()))
     for key, spec in CATALOG.items():
         async_session.add(
             Fragrance(

@@ -12,12 +12,20 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import select
 
-from fragrance_rater.models.fragrance import Fragrance, FragranceNote
+from fragrance_rater.models.fragrance import (
+    AccordType,
+    Fragrance,
+    FragranceAccord,
+    FragranceNote,
+    Note,
+    NoteAlias,
+)
 from fragrance_rater.services.kaggle_importer import (
     ImportResult,
     KaggleImporter,
     ParsedFragrance,
 )
+from fragrance_rater.services.vocabulary import NOTE_MAPPING_VERSION
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -572,3 +580,162 @@ class TestKaggleImporterSavepointIsolation:
         frag_stmt = select(Fragrance).where(Fragrance.name == "Clean Fragrance")
         fragrance = (await async_session.execute(frag_stmt)).scalar_one_or_none()
         assert fragrance is not None
+
+
+class TestKaggleImporterVocabulary:
+    """R6: the importer writes through the shared resolver (X-01 to X-04, X-12)."""
+
+    @pytest.mark.asyncio
+    async def test_spelling_variants_across_fragrances_share_one_note(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "base"],
+                ["First", "Test Brand", "Oak Moss"],
+                ["Second", "Test Brand", "oakmoss"],
+            ],
+        )
+
+        result = await KaggleImporter(async_session).import_csv(csv_path)
+
+        assert result.errors == []
+        notes = (await async_session.execute(select(Note))).scalars().all()
+        assert [(n.name, n.name_key) for n in notes] == [("Oak Moss", "oakmoss")]
+        links = (await async_session.execute(select(FragranceNote))).scalars().all()
+        assert {link.note_id for link in links} == {notes[0].id}
+
+    @pytest.mark.asyncio
+    async def test_notes_carry_rank_and_no_pyramid_position_as_category(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "top", "heart"],
+                ["Ranked", "Test Brand", "Bergamot, Lemon, Neroli", "Rose"],
+            ],
+        )
+
+        await KaggleImporter(async_session).import_csv(csv_path)
+
+        rows = (
+            await async_session.execute(
+                select(Note.name, FragranceNote.position, FragranceNote.rank)
+                .join(FragranceNote, FragranceNote.note_id == Note.id)
+                .order_by(FragranceNote.position, FragranceNote.rank)
+            )
+        ).all()
+        assert rows == [
+            ("Rose", "heart", 0),
+            ("Bergamot", "top", 0),
+            ("Lemon", "top", 1),
+            ("Neroli", "top", 2),
+        ]
+        categories = (await async_session.execute(select(Note.category))).scalars()
+        assert set(categories) == {None}
+
+    @pytest.mark.asyncio
+    async def test_reimporting_creates_no_duplicate_notes_or_accord_types(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        rows = [
+            ["name", "brand", "top", "accords"],
+            ["Again", "Test Brand", "Bergamot, Oak Moss", "Citrus, Woody"],
+            ["Other", "Test Brand", "bergamot, OAKMOSS", "citrus, woody"],
+        ]
+        importer = KaggleImporter(async_session)
+        await importer.import_csv(_write_csv(tmp_path, rows))
+        note_count = len((await async_session.execute(select(Note))).scalars().all())
+        type_count = len(
+            (await async_session.execute(select(AccordType))).scalars().all()
+        )
+
+        # A fresh importer, as a later run would be.
+        again = await KaggleImporter(async_session).import_csv(
+            _write_csv(
+                tmp_path, [*rows[:1], ["Third", "Test Brand", "BERGAMOT", "Woody"]]
+            )
+        )
+
+        assert again.errors == []
+        assert (note_count, type_count) == (2, 2)
+        assert len((await async_session.execute(select(Note))).scalars().all()) == 2
+        assert (
+            len((await async_session.execute(select(AccordType))).scalars().all()) == 2
+        )
+
+    @pytest.mark.asyncio
+    async def test_accord_provenance_and_rank_are_recorded(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        csv_path = _write_csv(
+            tmp_path,
+            [
+                ["name", "brand", "accords"],
+                ["Listed", "Test Brand", "Woody, Fresh Spicy"],
+                ["Measured", "Test Brand", "Citrus (45%), Woody (30%)"],
+            ],
+        )
+
+        await KaggleImporter(async_session).import_csv(csv_path)
+
+        rows = (
+            await async_session.execute(
+                select(
+                    Fragrance.name,
+                    FragranceAccord.accord_type,
+                    FragranceAccord.intensity,
+                    FragranceAccord.intensity_source,
+                    FragranceAccord.rank,
+                )
+                .join(FragranceAccord, FragranceAccord.fragrance_id == Fragrance.id)
+                .order_by(Fragrance.name, FragranceAccord.rank)
+            )
+        ).all()
+        assert rows == [
+            ("Listed", "woody", 1.0, "positional", 0),
+            ("Listed", "fresh spicy", 0.85, "positional", 1),
+            ("Measured", "citrus", 0.45, "measured", 0),
+            ("Measured", "woody", 0.3, "measured", 1),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_an_ambiguous_note_is_skipped_and_the_rest_imported(
+        self, async_session: AsyncSession, tmp_path: Path
+    ) -> None:
+        async_session.add_all(
+            [Note(id="n-a", name="Musk"), Note(id="n-b", name="White Musk")]
+        )
+        async_session.add(
+            NoteAlias(
+                raw_label="Musk",
+                alias_key="musk",
+                canonical_note_id="n-b",
+                mapping_version=NOTE_MAPPING_VERSION,
+                origin="curated",
+            )
+        )
+        await async_session.flush()
+        csv_path = _write_csv(
+            tmp_path,
+            [["name", "brand", "base"], ["Skipped", "Test Brand", "musk, Amber"]],
+        )
+
+        result = await KaggleImporter(async_session).import_csv(csv_path)
+
+        assert result.errors == []
+        assert result.imported == 1
+        linked = (
+            (
+                await async_session.execute(
+                    select(Note.name).join(
+                        FragranceNote, FragranceNote.note_id == Note.id
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert linked == ["Amber"]
