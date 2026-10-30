@@ -46,7 +46,7 @@ from enum import Enum
 
 import httpx
 
-from fragrance_rater.core.config import settings
+from fragrance_rater.core.config import secret_value, settings
 
 
 def _str_list(value: object) -> list[str]:
@@ -178,7 +178,9 @@ class FragellaClient:
     MAX_LIMIT: int = 10
 
     def __init__(self, api_key: str | None = None, base_url: str | None = None) -> None:
-        self.api_key = api_key if api_key is not None else settings.fragella_api_key
+        self.api_key = (
+            api_key if api_key is not None else secret_value(settings.fragella_api_key)
+        )
         self.base_url = (base_url or settings.fragella_base_url).rstrip("/")
 
     def _require_api_key(self) -> str:

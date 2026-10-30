@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.auth import VerifiedIdentity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.services.kaggle_importer import KaggleImporter
 from fragrance_rater.utils.logging import get_logger, log_audit_event
@@ -35,12 +35,11 @@ async def import_kaggle_csv(
     # (a mutating, non-dry-run call can bulk-insert arbitrary caller-supplied
     # data) and previously carried no authentication dependency at all,
     # letting any caller who could reach the service trigger an import.
-    # #VERIFY: reuses the same Authentik forward-auth identity dependency
-    # already enforced on the other mutating routes (fragrances/evaluations/
-    # reviewers, see fragrance_rater.core.auth.get_current_identity); fails
-    # closed with 401 whenever settings.authentik_required is true and the
-    # request did not transit the Traefik forward-auth middleware.
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    # #VERIFY: VerifiedIdentity, from fragrance_rater.core.auth.require_identity,
+    # requires a non-empty Authentik forward-auth username and fails closed
+    # with 401 for an unnamed caller, whatever settings.authentik_required
+    # says (R3, S-06).
+    identity: VerifiedIdentity,
     dry_run: bool = False,
 ) -> ImportResponse:
     """Import fragrances from a Kaggle CSV file.
@@ -51,9 +50,8 @@ async def import_kaggle_csv(
 
     Set dry_run=true to validate without writing to database.
 
-    Requires a verified Authentik forward-auth identity (see
-    ``fragrance_rater.core.auth.get_current_identity``) when
-    ``settings.authentik_required`` is true.
+    Requires a named caller: a non-empty Authentik forward-auth username
+    (see ``fragrance_rater.core.auth.require_identity``); otherwise 401.
     """
     filename = file.filename
     if not filename or not filename.endswith(".csv"):

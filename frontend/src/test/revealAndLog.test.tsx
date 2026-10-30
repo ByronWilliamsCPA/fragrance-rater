@@ -63,6 +63,7 @@ function revealedEnrollment(
         skin_planned: true,
         blotter_locked: true,
         skin_locked: false,
+        post_reveal_entry: true,
         identity: {
           fragrance_id: 'f-1',
           name: 'Signature',
@@ -176,6 +177,29 @@ describe('Revealed sample', () => {
         .getAllByRole('columnheader')
         .map((cell) => cell.textContent)
     ).toEqual(['Time', 'Stage', 'Phase', 'Intensity', 'Liking', 'Comment'])
+  })
+
+  it("routes entry by the server's post_reveal_entry flag, not by identity", async () => {
+    // F-15: the server decides which form applies. Identity is present in
+    // both cases; only the flag differs.
+    await openSample()
+    expect(await screen.findByText('Post-reveal observation')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
+    expect(await screen.findByText(/Observation saved/)).toBeInTheDocument()
+    expect(post).toHaveBeenCalledWith(
+      '/calibration/presentations/sample/post-reveal',
+      expect.anything()
+    )
+  })
+
+  it('keeps the blind form when the server says entry is still blind', async () => {
+    const enrollment = revealedEnrollment()
+    enrollment.presentations[0].post_reveal_entry = false
+    mockApi(enrollment)
+    await openSample()
+
+    expect(await screen.findByText('Blind observation')).toBeInTheDocument()
+    expect(screen.queryByText('Post-reveal observation')).not.toBeInTheDocument()
   })
 
   it('shows the skin-test scales once the skin stage is selected', async () => {

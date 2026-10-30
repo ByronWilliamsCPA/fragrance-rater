@@ -115,7 +115,7 @@ export function SampleObservationPanel({
           .filter(Boolean)
       : null
     await api.post(
-      `/calibration/presentations/${sample.id}/${sample.identity ? 'post-reveal' : 'observations'}`,
+      `/calibration/presentations/${sample.id}/${sample.post_reveal_entry ? 'post-reveal' : 'observations'}`,
       data
     )
     form.reset()
@@ -201,11 +201,13 @@ export function SampleObservationPanel({
         <fieldset
           disabled={
             task.busy ||
-            (!sample.identity &&
+            (!sample.post_reveal_entry &&
               (stage === 'BLOTTER' ? sample.blotter_locked : sample.skin_locked))
           }
         >
-          <legend>{sample.identity ? 'Post-reveal observation' : 'Blind observation'}</legend>
+          <legend>
+            {sample.post_reveal_entry ? 'Post-reveal observation' : 'Blind observation'}
+          </legend>
           <div className="fields fields-compact">
             <label>
               Elapsed minutes
@@ -221,9 +223,7 @@ export function SampleObservationPanel({
             </label>
           </div>
           {detected === 'no' && (
-            <p className="notice">
-              Intensity will be saved as 0; liking will remain unanswered.
-            </p>
+            <p className="notice">Intensity will be saved as 0; liking will remain unanswered.</p>
           )}
           {blotterGroups.map((group) => (
             <ScaleGroupFields
@@ -256,7 +256,7 @@ export function SampleObservationPanel({
           <button>Save observation</button>
         </fieldset>
       </form>
-      {!sample.identity && (
+      {!sample.post_reveal_entry && (
         <ConfirmAction
           actionLabel={`Lock ${stage.toLowerCase()} responses`}
           confirmLabel={`Confirm ${stage.toLowerCase()} lock`}

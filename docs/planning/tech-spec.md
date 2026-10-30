@@ -55,6 +55,12 @@ Requirements:
 version key distinguish versions. Unknown concentration remains unknown. Once assigned to a
 controlled program, identity fields are immutable.
 
+`Fragrance` also carries two house-confirmable facts outside version identity: `line` (collection)
+and `market_status` (the house's commercial status, distinct from D4 sample availability).
+`FragranceGtin` links each barcode to exactly one version and cites the `SourceSnapshot` that
+established it. The house intake form maps every field onto these or onto layer-1 declared labels
+([house intake design](../superpowers/specs/2026-10-02-house-intake-design.md)).
+
 `Note`, `FragranceNote`, and `FragranceAccord` represent normalized catalog features while
 preserving source-specific evidence separately. Parent product/house modeling and inventory
 management are outside current scope.
@@ -168,7 +174,8 @@ The current generated API includes:
 | Fragrances | List/get/create/update/delete under `/api/v1/fragrances` |
 | Reviewers | List/get/create/delete/seed under `/api/v1/reviewers` |
 | Evaluations | List/get/create/update/delete under `/api/v1/evaluations` |
-| Recommendations | List, profile, and explanation under `/api/v1/recommendations` |
+| Recommendations | List and profile under `/api/v1/recommendations` |
+| Recommendation measurement | Runs, impression explanation, linkable outcomes, append-only responses, metrics, and operational events under `/api/v1/recommendation-measurement`; explanations exist only for a persisted impression (architecture review B-02) |
 | Import | Kaggle import under `/api/v1/import/kaggle` |
 | Calibration programs | Create/list, add members, activate, and enroll |
 | Calibration enrollments | List/get, mapping, skin-plan lock, reveal, and checkpoints |

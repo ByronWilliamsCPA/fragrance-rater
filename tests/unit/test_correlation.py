@@ -480,3 +480,90 @@ class TestModuleExports:
 
         for export in expected_exports:
             assert hasattr(correlation, export), f"{export} not exported from module"
+
+
+class TestIncomingIdValidation:
+    """S-25: client-supplied IDs are validated before logging or echoing."""
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "550e8400-e29b-41d4-a716-446655440000",
+            "4bf92f3577b34da6a3ce929d0e0e4736",
+            "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+            "incoming-corr-id",
+            "a" * 128,
+        ],
+    )
+    def test_well_formed_ids_are_kept(self, value: str) -> None:
+        from fragrance_rater.middleware.correlation import _safe_id
+
+        assert _safe_id(value) == value
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "",
+            "a" * 129,
+            "id\nINFO forged log line",
+            "id with spaces",
+            '{"json": true}',
+            "-leading-dash",
+            None,
+        ],
+    )
+    def test_malformed_ids_are_rejected(self, value: str | None) -> None:
+        from fragrance_rater.middleware.correlation import _safe_id
+
+        assert _safe_id(value) is None
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_middleware_replaces_malformed_ids(self) -> None:
+        """A forged correlation ID is replaced; forged tracing IDs are dropped."""
+        from fragrance_rater.middleware.correlation import (
+            CORRELATION_ID_HEADER,
+            REQUEST_ID_HEADER,
+            SPAN_ID_HEADER,
+            TRACE_ID_HEADER,
+            CorrelationMiddleware,
+            get_correlation_id,
+            get_request_id,
+            get_span_id,
+            get_trace_id,
+        )
+
+        middleware = CorrelationMiddleware(app=MagicMock())
+        mock_request = MagicMock()
+        mock_request.headers = {
+            CORRELATION_ID_HEADER: "x\r\nSet-Cookie: pwned",
+            REQUEST_ID_HEADER: "y" * 500,
+            TRACE_ID_HEADER: "bad trace",
+            SPAN_ID_HEADER: "bad\tspan",
+        }
+        mock_response = MagicMock()
+        mock_response.headers = {}
+        seen: dict[str, str | None] = {}
+
+        async def mock_call_next(request):
+            # What logging reads during the request, not just the echo.
+            seen["correlation"] = get_correlation_id()
+            seen["request"] = get_request_id()
+            seen["trace"] = get_trace_id()
+            seen["span"] = get_span_id()
+            return mock_response
+
+        response = await middleware.dispatch(mock_request, mock_call_next)
+
+        uuid.UUID(response.headers[CORRELATION_ID_HEADER])
+        uuid.UUID(response.headers[REQUEST_ID_HEADER])
+        assert TRACE_ID_HEADER not in response.headers
+        assert SPAN_ID_HEADER not in response.headers
+        assert seen == {
+            "correlation": response.headers[CORRELATION_ID_HEADER],
+            "request": response.headers[REQUEST_ID_HEADER],
+            "trace": None,
+            "span": None,
+        }

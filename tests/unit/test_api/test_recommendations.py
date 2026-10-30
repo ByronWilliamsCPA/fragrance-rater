@@ -3,11 +3,14 @@
 import pytest
 from sqlalchemy import select
 
-from fragrance_rater.core.config import settings
 from fragrance_rater.core.database import get_db
 from fragrance_rater.main import app
 from fragrance_rater.middleware import limiter
-from fragrance_rater.models.recommendation_measurement import LLMInvocation
+from fragrance_rater.models.recommendation_measurement import (
+    LLMInvocation,
+    RecommendationImpression,
+    RecommendationRun,
+)
 from fragrance_rater.services.llm_service import (
     RECOMMENDATION_PROMPT_VERSION,
     LLMResponse,
@@ -16,19 +19,49 @@ from fragrance_rater.services.llm_service import (
 
 API_PREFIX = "/api/v1"
 
-# #ASSUME: security: /explain requires the shared household X-API-Key (see
-# fragrance_rater.middleware.auth.require_api_key), mirroring POST /ratings,
-# because it always triggers a billed OpenRouter call. Every request in this
-# module must send AUTH_HEADERS below with settings.api_key patched to match.
-# #VERIFY: if require_api_key is ever removed from this route, drop the
-# monkeypatch/header plumbing here too so tests don't mask a regression.
-API_KEY = "test-explain-key"
-AUTH_HEADERS = {"X-API-Key": API_KEY}
+
+async def _impression(reviewer_id: str, fragrance_id: str) -> str:
+    """Persist a one-item run so the explanation has an impression to read.
+
+    Explanations are only served for persisted impressions (architecture
+    review B-02); the catalog-ID route that took any fragrance id was a
+    holdout oracle and is gone.
+    """
+    sessions = app.dependency_overrides[get_db]()
+    session = await anext(sessions)
+    try:
+        run = RecommendationRun(
+            reviewer_id=reviewer_id,
+            algorithm_version="test",
+            candidate_strategy="test",
+            input_manifest=[],
+        )
+        session.add(run)
+        await session.flush()
+        impression = RecommendationImpression(
+            run_id=run.id,
+            fragrance_id=fragrance_id,
+            rank=1,
+            score_type="affinity",
+            score_value=0.5,
+        )
+        session.add(impression)
+        await session.commit()
+        return impression.id
+    finally:
+        await sessions.aclose()
+
+
+def _explanation_url(impression_id: str) -> str:
+    return (
+        f"{API_PREFIX}/recommendation-measurement/impressions/"
+        f"{impression_id}/explanation"
+    )
 
 
 @pytest.mark.asyncio
 class TestRecommendationExplainAPI:
-    """Tests for the /recommendations/{reviewer_id}/{fragrance_id}/explain endpoint."""
+    """Tests for explanations served through a persisted impression."""
 
     async def test_explain_returns_200_with_explanation(
         self, test_app, monkeypatch: pytest.MonkeyPatch
@@ -36,7 +69,6 @@ class TestRecommendationExplainAPI:
         """The explain endpoint must not 500 (MissingGreenlet) and must return
         a real explanation payload once notes and accords are both eager-loaded.
         """
-        monkeypatch.setattr(settings, "api_key", API_KEY)
         # Seed a reviewer
         reviewer_resp = await test_app.post(
             f"{API_PREFIX}/reviewers",
@@ -83,10 +115,8 @@ class TestRecommendationExplainAPI:
             assert eval_resp.status_code == 201
 
         target_fragrance_id = fragrance_ids[0]
-        response = await test_app.get(
-            f"{API_PREFIX}/recommendations/{reviewer_id}/{target_fragrance_id}/explain",
-            headers=AUTH_HEADERS,
-        )
+        impression_id = await _impression(reviewer_id, target_fragrance_id)
+        response = await test_app.get(_explanation_url(impression_id))
 
         assert response.status_code == 200
         data = response.json()
@@ -99,7 +129,6 @@ class TestRecommendationExplainAPI:
         self, test_app, monkeypatch: pytest.MonkeyPatch
     ):
         """A failed provider call retains attempted model, prompt, usage, and cost."""
-        monkeypatch.setattr(settings, "api_key", API_KEY)
         reviewer = await test_app.post(
             f"{API_PREFIX}/reviewers", json={"name": "Telemetry Tester"}
         )
@@ -148,11 +177,9 @@ class TestRecommendationExplainAPI:
                     provider_cost_usd=0.002,
                 )
 
+        impression_id = await _impression(reviewer_id, fragrance_ids[0])
         app.dependency_overrides[get_llm_service] = FailedProvider
-        response = await test_app.get(
-            f"{API_PREFIX}/recommendations/{reviewer_id}/{fragrance_ids[0]}/explain",
-            headers=AUTH_HEADERS,
-        )
+        response = await test_app.get(_explanation_url(impression_id))
         assert response.status_code == 200
         assert response.json()["model"] == "fallback"
 
@@ -172,35 +199,15 @@ class TestRecommendationExplainAPI:
         finally:
             await sessions.aclose()
 
-    async def test_explain_requires_api_key(
-        self, test_app, monkeypatch: pytest.MonkeyPatch
-    ):
-        """No X-API-Key header sent -> 401, not a silent 200.
-
-        Regression test for the LLM-backed /explain route being reachable
-        without the same credential POST /ratings requires (see
-        fragrance_rater.middleware.auth.require_api_key).
-        """
-        monkeypatch.setattr(settings, "api_key", API_KEY)
-
+    async def test_catalog_id_explain_route_is_gone(self, test_app):
+        """B-02: the catalog-ID route answered 404 for exactly the caller's
+        holdouts among listable catalog fragrances, so it no longer exists."""
         response = await test_app.get(
             f"{API_PREFIX}/recommendations/some-reviewer/some-fragrance/explain"
         )
 
-        assert response.status_code == 401
-
-    async def test_explain_fails_closed_when_no_api_key_configured(
-        self, test_app, monkeypatch: pytest.MonkeyPatch
-    ):
-        """No FRAGRANCE_RATER_API_KEY configured -> 503, not a silent 200."""
-        monkeypatch.setattr(settings, "api_key", None)
-
-        response = await test_app.get(
-            f"{API_PREFIX}/recommendations/some-reviewer/some-fragrance/explain",
-            headers=AUTH_HEADERS,
-        )
-
-        assert response.status_code == 503
+        assert response.status_code == 404
+        assert response.json() == {"detail": "Not Found"}
 
     async def test_explain_computes_real_score_for_target_outside_top_100(
         self, test_app, monkeypatch: pytest.MonkeyPatch
@@ -223,8 +230,6 @@ class TestRecommendationExplainAPI:
         fallback explanation text, which always embeds the exact
         `recommendation.match_percent` passed to it.
         """
-        monkeypatch.setattr(settings, "api_key", API_KEY)
-
         reviewer_resp = await test_app.post(
             f"{API_PREFIX}/reviewers",
             json={"name": "Outside Top 100 Tester"},
@@ -321,10 +326,8 @@ class TestRecommendationExplainAPI:
         assert target_resp.status_code == 201
         target_id = target_resp.json()["id"]
 
-        response = await test_app.get(
-            f"{API_PREFIX}/recommendations/{reviewer_id}/{target_id}/explain",
-            headers=AUTH_HEADERS,
-        )
+        impression_id = await _impression(reviewer_id, target_id)
+        response = await test_app.get(_explanation_url(impression_id))
 
         assert response.status_code == 200
         data = response.json()
@@ -357,12 +360,8 @@ class TestRecommendationExplainAPI:
         assert f"{expected_percent}%" in explanation
         assert "50%" not in explanation
 
-    async def test_explain_fragrance_not_found(
-        self, test_app, monkeypatch: pytest.MonkeyPatch
-    ):
-        """Explaining a nonexistent fragrance returns 404, not a 500."""
-        monkeypatch.setattr(settings, "api_key", API_KEY)
-
+    async def test_explain_fragrance_not_found(self, test_app):
+        """Explaining an impression whose fragrance is gone returns 404."""
         reviewer_resp = await test_app.post(
             f"{API_PREFIX}/reviewers",
             json={"name": "Explain 404 Tester"},
@@ -390,8 +389,26 @@ class TestRecommendationExplainAPI:
                 json={"fragrance_id": fid, "reviewer_id": reviewer_id, "rating": 4},
             )
 
-        response = await test_app.get(
-            f"{API_PREFIX}/recommendations/{reviewer_id}/nonexistent-fragrance/explain",
-            headers=AUTH_HEADERS,
+        target = await test_app.post(
+            f"{API_PREFIX}/fragrances",
+            json={
+                "name": "404 Target",
+                "brand": "Brand",
+                "concentration": "EDP",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+            },
         )
+        target_id = target.json()["id"]
+        impression_id = await _impression(reviewer_id, target_id)
+        deleted = await test_app.delete(f"{API_PREFIX}/fragrances/{target_id}")
+        assert deleted.status_code == 204
+
+        response = await test_app.get(_explanation_url(impression_id))
+        missing = await test_app.get(_explanation_url("no-such-impression"))
+
+        # A deleted (or since-assigned holdout) fragrance answers exactly
+        # like a missing impression, so the 404 discloses nothing (B-02).
         assert response.status_code == 404
+        assert response.json() == missing.json()

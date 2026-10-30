@@ -9,6 +9,8 @@ export type FragranceSummary = Person & {
 export type Access = {
   username: string
   manager: boolean
+  /** The fragrance house this account submits for; absent for household accounts. */
+  house?: string | null
 }
 
 export type Assignment = {
@@ -106,6 +108,12 @@ export type Sample = {
   skin_planned: boolean
   blotter_locked: boolean
   skin_locked: boolean
+  /**
+   * The server's decision that new responses to this sample are post-reveal
+   * notes rather than blind responses (architecture review F-15). The client
+   * routes entry by this flag, never by inferring it from `identity`.
+   */
+  post_reveal_entry: boolean
   /**
    * Present only after reveal. The backend omits the whole key while an
    * enrollment is blind, so its absence is the disclosure state (ADR-005) and
@@ -290,6 +298,13 @@ export type RecommendationResponse = {
   would_buy: boolean | null
 }
 
+/** One encounter the server would accept as an impression's outcome (F-15). */
+export type LinkableOutcome = {
+  id: string
+  workflow: 'ORDINARY' | 'CONTROLLED'
+  observed_at: string
+}
+
 export type HistoryItem = {
   id: string
   workflow: 'ORDINARY' | 'CONTROLLED'
@@ -307,18 +322,21 @@ export type HistoryItem = {
 export type Capabilities = {
   canRecordCalibration: boolean
   canManagePrograms: boolean
+  isHouseContributor: boolean
 }
 
 export function capabilitiesFor(access: Access, assignments: Assignment[]): Capabilities {
   return {
     canRecordCalibration: access.manager || assignments.length > 0,
     canManagePrograms: access.manager,
+    isHouseContributor: Boolean(access.house),
   }
 }
 
-export type RoleLabel = 'Manager' | 'Recorder' | 'Participant'
+export type RoleLabel = 'Manager' | 'Recorder' | 'Participant' | 'Fragrance house'
 
 export function roleLabelFor(capabilities: Capabilities): RoleLabel {
+  if (capabilities.isHouseContributor) return 'Fragrance house'
   return capabilities.canManagePrograms
     ? 'Manager'
     : capabilities.canRecordCalibration

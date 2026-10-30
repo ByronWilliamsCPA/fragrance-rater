@@ -129,7 +129,7 @@ dev = [
 # API framework dependencies
 api = [
     "fastapi>=0.120.1",
-    "uvicorn[standard]>=0.23.0",
+    "uvicorn[standard]>=0.45.0",  # CIDR values in FORWARDED_ALLOW_IPS (R3, S-02)
     "python-multipart>=0.0.18",
     "starlette>=0.49.1",
     "sqlalchemy[asyncio]>=2.0.0",  # ORM for database operations
@@ -612,6 +612,10 @@ markers = [
 # Note: Coverage source is specified via pytest's --cov argument in addopts above
 [tool.coverage.run]
 branch = true
+# SQLAlchemy's asyncio engine resumes ORM code inside greenlets; without
+# greenlet tracing, every line after an `await session...` reads as
+# uncovered even when tests execute it (docs/template_feedback.md).
+concurrency = ["greenlet", "thread"]
 relative_files = true  # Required for SonarCloud in GitHub Actions
 omit = [
     # Test files

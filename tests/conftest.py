@@ -35,9 +35,11 @@ from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import StaticPool, create_engine
+from sqlalchemy import Engine, StaticPool, create_engine, event
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import ConnectionPoolEntry
 
 from fragrance_rater.core.database import Base
 from fragrance_rater.models.fragrance import TrainingEligibility
@@ -265,6 +267,25 @@ async def _seed_training_eligibilities(conn) -> None:
     await conn.run_sync(_insert)
 
 
+def _enforce_sqlite_foreign_keys(engine: Engine) -> None:
+    """Turn on SQLite foreign-key enforcement for every new connection.
+
+    SQLite ignores FOREIGN KEY clauses unless each connection opts in, so
+    without this every ``ondelete="RESTRICT"`` guard (ADR-011, checkpoint,
+    observation, membership, and prediction protection) went unexercised by
+    the unit suite (architecture review D-07). PostgreSQL always enforces
+    them, so this makes the test engine behave like production.
+    """
+
+    @event.listens_for(engine, "connect")
+    def _set_pragma(
+        dbapi_connection: DBAPIConnection, _record: ConnectionPoolEntry
+    ) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+
 @pytest_asyncio.fixture(scope="function")
 async def async_engine():
     """Create async SQLite engine for testing."""
@@ -273,6 +294,7 @@ async def async_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    _enforce_sqlite_foreign_keys(engine.sync_engine)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _seed_training_eligibilities(conn)
@@ -302,6 +324,7 @@ def sync_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+    _enforce_sqlite_foreign_keys(engine)
     Base.metadata.create_all(bind=engine)
     yield engine
     Base.metadata.drop_all(bind=engine)
@@ -403,11 +426,20 @@ def mock_openrouter_response() -> dict[str, Any]:
 # ============================================================================
 
 
+TEST_MANAGER_USERNAME = "test-manager"
+"""Identity the ``test_app`` client sends by default (R3: every non-public
+route requires a named caller). It is added to the manager allowlist for the
+test, so reviewer-scoped reads see every reviewer. Tests of the anonymous or
+non-manager cases override the header per request (an empty value counts as
+missing)."""
+
+
 @pytest_asyncio.fixture
-async def test_app(tmp_path):
+async def test_app(tmp_path, monkeypatch: pytest.MonkeyPatch):
     """Create a FastAPI test app with database override using a temp file."""
     from httpx import ASGITransport, AsyncClient
 
+    from fragrance_rater.core.config import settings
     from fragrance_rater.core.database import get_db
     from fragrance_rater.main import app
 
@@ -422,6 +454,7 @@ async def test_app(tmp_path):
         db_url,
         connect_args={"check_same_thread": False},
     )
+    _enforce_sqlite_foreign_keys(engine.sync_engine)
 
     # Create all tables
     async with engine.begin() as conn:
@@ -440,8 +473,17 @@ async def test_app(tmp_path):
 
     app.dependency_overrides[get_db] = override_get_db
 
+    monkeypatch.setattr(
+        settings,
+        "calibration_admin_usernames",
+        [*settings.calibration_admin_usernames, TEST_MANAGER_USERNAME],
+    )
     transport = ASGITransport(app=app)  # type: ignore[arg-type]
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-Authentik-Username": TEST_MANAGER_USERNAME},
+    ) as client:
         yield client
 
     app.dependency_overrides.clear()

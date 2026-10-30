@@ -17,7 +17,8 @@ issuing a real OpenRouter call. See
 
 Auth and rate limiting: ``POST /ratings`` (the only mutating, LLM-backed
 endpoint) requires a shared household ``X-API-Key`` header (see
-``fragrance_rater.middleware.auth``) and is rate limited (see
+``fragrance_rater.middleware.auth``) and a named caller in
+``X-Authentik-Username``, and is rate limited (see
 ``fragrance_rater.middleware.rate_limit``) to bound OpenRouter spend. Set
 ``FRAGRANCE_RATER_API_KEY`` before deploying outside a fully trusted,
 single-household network.
@@ -43,6 +44,7 @@ from fragrance_rater.api import (
     reviewers_router,
 )
 from fragrance_rater.api.calibration import router as calibration_router
+from fragrance_rater.api.house_intake import router as house_intake_router
 from fragrance_rater.api.predictions import router as predictions_router
 from fragrance_rater.core.config import settings
 from fragrance_rater.middleware import (
@@ -52,6 +54,8 @@ from fragrance_rater.middleware import (
     limiter,
     rate_limit_exceeded_handler,
 )
+from fragrance_rater.middleware.house_fence import HouseContributorFenceMiddleware
+from fragrance_rater.utils.logging import setup_logging
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -70,8 +74,15 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     Yields:
         None: Control to the application.
     """
-    # Startup: nothing to initialise yet. The ORM models are already registered
-    # on Base.metadata because the API routers imported above import them.
+    # Startup. Without this call LOG_LEVEL, JSON_LOGS, the correlation
+    # processor, and secret redaction were all inert: the API logged
+    # unconfigured console output (architecture review S-07). The ORM models
+    # are already registered on Base.metadata by the router imports above.
+    setup_logging(
+        level=settings.log_level,
+        json_logs=settings.json_logs,
+        include_correlation=True,
+    )
     yield
     # Shutdown: nothing to clean up yet (e.g., close connections)
 
@@ -87,8 +98,10 @@ app = FastAPI(
         "`anthropic/claude-3.5-sonnet`); set `TEST_MODE=true` to use the "
         "bundled fixture response instead, which is what the Newman "
         "contract tests rely on. `POST /ratings` requires a shared "
-        "household `X-API-Key` header and is rate limited; read-only "
-        "endpoints do not require it."
+        "household `X-API-Key` header and a named caller in "
+        "`X-Authentik-Username`, and is rate limited. Every other route "
+        "except health checks also requires the named caller; read-only "
+        "endpoints do not require the key."
     ),
     version=settings.version,
     contact={
@@ -97,8 +110,11 @@ app = FastAPI(
         "url": "https://github.com/ByronWilliamsCPA/fragrance-rater",
     },
     license_info={"name": "MIT"},
-    docs_url="/docs",
-    redoc_url="/redoc",
+    # The interactive docs and schema describe every route, including the
+    # manager-only ones, so production does not serve them (S-18).
+    docs_url=None if settings.environment == "production" else "/docs",
+    redoc_url=None if settings.environment == "production" else "/redoc",
+    openapi_url=None if settings.environment == "production" else "/openapi.json",
     lifespan=lifespan,
 )
 
@@ -136,6 +152,11 @@ if settings.rate_limit_enabled:
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
     app.add_middleware(DefaultRateLimitMiddleware)
 
+# House contributors are external parties; confine them to the house-intake
+# routes before any router sees the request. Registered inside the
+# correlation and security layers so its 403 still carries their headers.
+app.add_middleware(HouseContributorFenceMiddleware)
+
 # Add correlation ID middleware (should be added first)
 app.add_middleware(CorrelationMiddleware)
 
@@ -155,7 +176,11 @@ app.add_middleware(CorrelationMiddleware)
 # registered on `app` and that only origins in
 # `settings.cors_allowed_origins` receive CORS headers; re-check that test
 # before adding any other CORSMiddleware registration in this module.
-add_security_middleware(app, allowed_origins=settings.cors_allowed_origins)
+add_security_middleware(
+    app,
+    allowed_origins=settings.cors_allowed_origins,
+    allowed_hosts=settings.trusted_hosts,
+)
 
 # Include routers
 app.include_router(health_router)
@@ -189,3 +214,4 @@ async def root() -> dict[str, str]:
 
 app.include_router(calibration_router, prefix=settings.api_v1_prefix)
 app.include_router(predictions_router, prefix=settings.api_v1_prefix)
+app.include_router(house_intake_router, prefix=settings.api_v1_prefix)

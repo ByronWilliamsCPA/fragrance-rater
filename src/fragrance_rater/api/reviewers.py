@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from fragrance_rater.core.auth import AuthenticatedIdentity, get_current_identity
+from fragrance_rater.core.auth import VerifiedIdentity, require_identity
 from fragrance_rater.core.database import get_db
 from fragrance_rater.schemas.reviewer import ReviewerCreate, ReviewerResponse
 from fragrance_rater.services.reviewer_service import ReviewerService
@@ -24,7 +24,11 @@ async def get_reviewer_service(
     return ReviewerService(session)
 
 
-@router.get("", response_model=list[ReviewerResponse])
+@router.get(
+    "",
+    response_model=list[ReviewerResponse],
+    dependencies=[Depends(require_identity)],
+)
 async def list_reviewers(
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
 ) -> list[ReviewerResponse]:
@@ -41,7 +45,11 @@ async def list_reviewers(
     ]
 
 
-@router.get("/{reviewer_id}", response_model=ReviewerResponse)
+@router.get(
+    "/{reviewer_id}",
+    response_model=ReviewerResponse,
+    dependencies=[Depends(require_identity)],
+)
 async def get_reviewer(
     reviewer_id: str,
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
@@ -66,7 +74,7 @@ async def get_reviewer(
 async def create_reviewer(
     data: ReviewerCreate,
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> ReviewerResponse:
     """Create a new reviewer.
 
@@ -121,7 +129,7 @@ async def create_reviewer(
 @router.post("/seed", response_model=list[ReviewerResponse])
 async def seed_reviewers(
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> list[ReviewerResponse]:
     """Create default family reviewer profiles.
 
@@ -151,7 +159,7 @@ async def seed_reviewers(
 async def delete_reviewer(
     reviewer_id: str,
     service: Annotated[ReviewerService, Depends(get_reviewer_service)],
-    identity: Annotated[AuthenticatedIdentity, Depends(get_current_identity)],
+    identity: VerifiedIdentity,
 ) -> None:
     """Soft-delete a reviewer by ID."""
     deleted = await service.delete(reviewer_id)

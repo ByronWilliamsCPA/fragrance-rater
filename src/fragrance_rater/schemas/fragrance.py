@@ -7,7 +7,11 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-from fragrance_rater.core.vocabulary import GenderTarget
+from fragrance_rater.core.vocabulary import (
+    EARLIEST_LAUNCH_YEAR,
+    GenderTarget,
+    MarketStatus,
+)
 
 
 class NoteCreate(BaseModel):
@@ -67,13 +71,15 @@ class FragranceCreate(BaseModel):
 
     name: str = Field(..., min_length=1, max_length=255)
     brand: str = Field(..., min_length=1, max_length=255)
+    line: str | None = Field(None, max_length=255)
     concentration: str = Field(..., min_length=1, max_length=50)
     version_key: str = Field(default="legacy", min_length=1, max_length=200)
-    launch_year: int | None = Field(None, ge=1800, le=2100)
+    launch_year: int | None = Field(None, ge=EARLIEST_LAUNCH_YEAR, le=2100)
     gender_target: GenderTarget = "Unisex"
     primary_family: str = Field(..., min_length=1, max_length=50)
     subfamily: str = Field(..., min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
+    market_status: MarketStatus | None = None
     # #ASSUME: security: any authenticated identity may set
     # `training_eligibility_code` here (and in `FragranceUpdate` below),
     # with no additional authorization tier. This is a deliberate,
@@ -107,12 +113,14 @@ class FragranceUpdate(BaseModel):
 
     name: str | None = Field(None, min_length=1, max_length=255)
     brand: str | None = Field(None, min_length=1, max_length=255)
+    line: str | None = Field(None, max_length=255)
     concentration: str | None = Field(None, min_length=1, max_length=50)
-    launch_year: int | None = Field(None, ge=1800, le=2100)
+    launch_year: int | None = Field(None, ge=EARLIEST_LAUNCH_YEAR, le=2100)
     gender_target: GenderTarget | None = None
     primary_family: str | None = Field(None, min_length=1, max_length=50)
     subfamily: str | None = Field(None, min_length=1, max_length=50)
     intensity: str | None = Field(None, max_length=20)
+    market_status: MarketStatus | None = None
     # See FragranceCreate.training_eligibility_code above: same deliberate
     # single-tier authorization posture applies to this PATCH field.
     training_eligibility_code: str | None = Field(None, max_length=50)
@@ -191,6 +199,7 @@ class FragranceResponse(BaseModel):
     id: str
     name: str
     brand: str
+    line: str | None = None
     concentration: str
     version_key: str
     launch_year: int | None
@@ -198,6 +207,9 @@ class FragranceResponse(BaseModel):
     primary_family: str
     subfamily: str
     intensity: str | None
+    # Plain str, like gender_target above: the value comes from a column the
+    # ck_fragrances_market_status CHECK already constrains.
+    market_status: str | None = None
     training_eligibility_code: str | None
     training_eligibility_display_label: str | None = None
     data_source: str

@@ -117,6 +117,7 @@ export function enrollmentFixture(
         blind_code: 'ABC-123',
         blotter_locked: revealed,
         skin_locked: false,
+        post_reveal_entry: revealed,
         skin_planned: false,
         identity: revealed
           ? {

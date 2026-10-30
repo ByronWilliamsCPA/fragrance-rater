@@ -33,12 +33,38 @@ from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import JSONResponse, Response
 
+from fragrance_rater.core.config import settings
 from fragrance_rater.utils.logging import get_logger
 
 if TYPE_CHECKING:
     from fastapi import FastAPI, Request
 
 logger = get_logger(__name__)
+
+
+PUBLIC_CACHEABLE_PREFIXES = ("/fragrances",)
+"""API paths, below the version prefix, a shared cache may keep: the catalog
+is the same for every caller."""
+
+
+def _identity_scoped(path: str) -> bool:
+    """Whether a response must never be stored by a shared or browser cache.
+
+    Everything under the API prefix answers per caller (evaluations,
+    recommendations, predictions, reviewers, calibration), so ``no-store``
+    is the default there and only the public catalog opts out (architecture
+    review B-26). The previous allowlist named two prefixes and silently
+    left the rest cacheable.
+    """
+    prefix = settings.api_v1_prefix.rstrip("/")
+    path = path.rstrip("/")
+    if path != prefix and not path.startswith(f"{prefix}/"):
+        return False
+    below = path.removeprefix(prefix)
+    return not any(
+        below == public or below.startswith(f"{public}/")
+        for public in PUBLIC_CACHEABLE_PREFIXES
+    )
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -64,12 +90,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         """Add security headers to response."""
         response = await call_next(request)
 
-        path = request.url.path.rstrip("/")
-        identity_scoped = any(
-            path.endswith(fragment) or f"{fragment}/" in path
-            for fragment in ("/calibration", "/recommendation-measurement")
-        )
-        if request.method == "GET" and identity_scoped:
+        if _identity_scoped(request.url.path):
             response.headers["Cache-Control"] = "private, no-store"
             vary = [
                 item.strip() for item in response.headers.get("Vary", "").split(",")
