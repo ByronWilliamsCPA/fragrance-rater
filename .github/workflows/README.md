@@ -73,12 +73,8 @@ Full CI with:
 **Calls**: `ByronWilliamsCPA/.github/.github/workflows/python-security-analysis.yml@main`
 
 Full security scanning with:
-- CodeQL advanced analysis
 - Bandit static security analysis
-- Safety dependency CVE scanning
 - OSV Scanner
-- OWASP dependency check
-- Dependency review (PRs only)
 
 **Triggers**: Push/PR to main, weekly schedule, manual dispatch
 

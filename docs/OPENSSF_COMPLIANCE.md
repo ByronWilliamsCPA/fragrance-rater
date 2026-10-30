@@ -203,7 +203,7 @@ Full static analysis on every commit.
 - **Ruff**: Python linting with security rules
 - **Bandit**: Python security issue detection
 - **BasedPyright**: Type safety (prevents entire classes of bugs)
-- **CodeQL**: Advanced semantic code analysis
+- **OSV Scanner**: Dependency vulnerability scanning
 
 **Workflow**: `.github/workflows/security-analysis.yml`
 

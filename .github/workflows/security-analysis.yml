@@ -47,8 +47,11 @@ jobs:
       python-version: '3.12'
       fail-on-high: true
       fail-on-medium: false
-      run-codeql: true
-      run-dependency-review: true
+      # #EDGE: the org reusable workflow no longer contains the CodeQL and
+      # dependency-review jobs (GitHub Advanced Security is billed separately),
+      # so the run-codeql and run-dependency-review inputs were dropped here.
+      # #VERIFY: re-check the callee's job coverage list (Bandit, OSV Scanner,
+      # gate) whenever the pinned SHA above is bumped.
       run-bandit: true
       run-osv: true
       # Override reusable workflow's no-build: true default for projects
