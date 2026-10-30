@@ -25,6 +25,7 @@ This directory contains the governing documents for Fragrance Rater.
 | [Fragella Integration and Source-Use Boundary](../fragella-api.md) | Draft description of the bounded Fragella lookup integration and the limits on publishing or reusing vendor material |
 | [ADR-017 Project-Owned Faceted Olfactory Vocabulary](adr/adr-017-project-owned-faceted-olfactory-vocabulary.md) | Proposed record for the project-owned `fr-core` vocabulary (v0 merged in PR #127); amends ADR-004, ADR-010, and ADR-013 |
 | [Product Research Remediation Implementation Plan](product-research-remediation-implementation-plan.md) | Reconciles the roles/workflows, frontend, and ML/data gap-analysis documents with the authoritative plan and Milestone R; specifies concrete schema, API, frontend, and evidence-governance changes with traceable IDs; not yet approved |
+| [Idea Register from Reviewed Claude Branches](review-branch-idea-register.md) | Non-authoritative register of six still-open ideas and one undecided owner question captured from two reviewed, unmerged remote review documents; does not override the plan or any ADR |
 
 When documents disagree, stop implementation and reconcile them. Code demonstrates current
 behavior but does not silently supersede an accepted ADR.

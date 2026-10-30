@@ -664,14 +664,14 @@ State only. No deletion has been performed or approved.
   `backup/pr125-pre-rebase` (unique file `docs/planning/commercialization-revenue-options.md`, absent from `main`); and
   `stash@{0}` on `main` (a work-in-progress stash of the `tmp_cleanup` gitignore and ADR-004/ADR-010 cross-links;
   overlap with merged #95 not verified).
-- **Remote-only branches with unique, never-merged review documents (no pull request):**
-  `claude/fragrance-app-architecture-8i6v4i` (`docs/planning/architecture-review.md`),
-  `claude/fragrance-dataset-concept-w2qvwa` (`docs/planning/dataset-constraint-concept.md`),
-  `claude/project-plan-implementation-review-t1ht0j`
-  (`docs/planning/reviews/2026-09-12-plan-vs-implementation-review.md`; it also edits `PROJECT-PLAN.md`, `README.md`,
-  and `mkdocs.yml`), and `claude/repo-inconsistencies-review-45w1ao`
-  (`docs/planning/repo-inconsistencies-review-2026-09.md` plus a scorer comment fix in
-  `services/recommendation_service.py`). Owner decision: land them as archived reviews, or delete them.
+- **Remote-only `claude/*` review branches (no pull request), reviewed 2026-10-30:** the documents were not landed
+  because main's ADRs, this plan, and the architecture review supersede them; the still-open ideas are captured in
+  the [idea register](review-branch-idea-register.md). Source tip SHAs for recovery: architecture review
+  (`claude/fragrance-app-architecture-8i6v4i`) `307ee845`; dataset concept (`claude/fragrance-dataset-concept-w2qvwa`)
+  `e1995db1`; plan-vs-implementation review (`claude/project-plan-implementation-review-t1ht0j`) `440b9a4f`, remote
+  branch already deleted; repo-inconsistencies review (`claude/repo-inconsistencies-review-45w1ao`) `b78c1425`, its
+  still-needed fixes are in a separate PR. The architecture-review and dataset-concept remote branches are scheduled
+  for deletion once this change merges.
 - **Local `main` is stale** (22 commits behind `origin/main`); its one ahead commit `f29dfc7` is already in
   `origin/main` as `2fc4e65` (#121). A fast-forward or reset is safe after owner approval.
 - **`docs/fragella-api-reference`** (the checkout of the primary clone, no upstream) is 7 commits ahead of `main` and
