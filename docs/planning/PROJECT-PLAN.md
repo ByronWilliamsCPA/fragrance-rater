@@ -638,7 +638,8 @@ Issue #5 is the Renovate dashboard.
 
 Each step needs a green re-run of the required checks.
 
-1. R7a PR 1 (`feat/r7a-capture-schema`), then R7a PR 2. Before the next deploy, take a backup (the vocabulary migration runs at container start) and deploy a commit at or after `de7084e`.
+1. R7a PR 1 (`feat/r7a-capture-schema`), then R7a PR 2. Before the next deploy, take a backup (the vocabulary
+   migration runs at container start) and deploy a commit at or after `de7084e`.
 
 ### Pending owner approval
 

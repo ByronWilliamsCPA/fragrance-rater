@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+from contextlib import contextmanager
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -54,6 +55,8 @@ from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from sqlalchemy import Table
     from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -76,10 +79,6 @@ def _values(table: Table, rule: str) -> set[str]:
     return set(re.findall(r"'([^']*)'", str(_check(table, rule).sqltext)))
 
 
-def _literal(values: tuple[str, ...]) -> str:
-    return "(" + ", ".join(f"'{v}'" for v in values) + ")"
-
-
 VOCABULARIES = [
     ("calibration_observations", "response_status_valid", RESPONSE_STATUSES),
     ("calibration_observations", "recognition_valid", RECOGNITION_CODES),
@@ -92,6 +91,11 @@ VOCABULARIES = [
     ("calibration_rank_events", "stage_valid", STAGES),
     ("calibration_rank_events", "phase_valid", PHASES),
     ("calibration_rank_events", "criterion_valid", RANK_CRITERIA),
+    (
+        "calibration_rank_events",
+        "response_status_valid",
+        tuple(code for code in RESPONSE_STATUSES if code != "not_detected"),
+    ),
     ("calibration_session_contexts", "illness_valid", CONTEXT_ANSWERS),
     ("calibration_session_contexts", "nasal_congestion_valid", CONTEXT_ANSWERS),
     ("calibration_session_contexts", "allergy_symptoms_valid", CONTEXT_ANSWERS),
@@ -116,15 +120,50 @@ def test_model_vocabulary_matches_its_check(
     assert _values(Base.metadata.tables[table], rule) == set(codes)
 
 
+class _RecordingOp:
+    """Stand-in for ``alembic.op`` that records each CHECK the migration creates."""
+
+    def __init__(self) -> None:
+        self.checks: dict[str, str] = {}
+
+    def create_table(self, _name: str, *items: object) -> None:
+        for item in items:
+            if isinstance(item, CheckConstraint):
+                self.checks[str(item.name)] = str(item.sqltext)
+
+    def create_index(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
+    @contextmanager
+    def batch_alter_table(self, _table: str) -> Iterator[_RecordingOp]:
+        yield self
+
+    def add_column(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
+    def create_check_constraint(self, name: str, condition: str) -> None:
+        self.checks[name] = condition
+
+
+@pytest.fixture(scope="module")
+def migration_checks() -> dict[str, str]:
+    """Run the migration's ``upgrade`` against a recorder; return CHECKs by name."""
+    migration = _migration_module()
+    recorder = _RecordingOp()
+    migration.op = recorder
+    migration.upgrade()
+    return recorder.checks
+
+
 @pytest.mark.parametrize(("table", "rule", "codes"), VOCABULARIES)
 def test_migration_writes_the_same_vocabulary(
-    table: str, rule: str, codes: tuple[str, ...]
+    migration_checks: dict[str, str], table: str, rule: str, codes: tuple[str, ...]
 ) -> None:
-    """Migration 3f14014a49cb spells each closed list literally; pin it to the model."""
-    source = MIGRATION.read_text(encoding="utf-8")
-    assert _literal(codes) in source or all(f"'{c}'" in source for c in codes), (
-        f"{table}.{rule}: migration does not carry the model's vocabulary"
-    )
+    """Each CHECK the migration creates lists exactly the model's codes."""
+    name = f"ck_{table}_{rule}"
+    assert name in migration_checks, f"{name}: not created by the migration"
+    written = set(re.findall(r"'([^']*)'", migration_checks[name]))
+    assert written == set(codes), f"{name}: migration and model vocabularies differ"
 
 
 def test_response_status_has_the_plan_row_codes() -> None:
