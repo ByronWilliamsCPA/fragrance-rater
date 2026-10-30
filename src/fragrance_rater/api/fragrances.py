@@ -161,6 +161,7 @@ async def get_fragrance(
                     subcategory=fn.note.subcategory,
                 ),
                 position=fn.position,
+                rank=fn.rank,
             )
             for fn in fragrance.notes
         ],
@@ -168,6 +169,8 @@ async def get_fragrance(
             FragranceAccordResponse(
                 accord_type=acc.accord_type,
                 intensity=acc.intensity,
+                intensity_source=acc.intensity_source,
+                rank=acc.rank,
             )
             for acc in fragrance.accords
         ],

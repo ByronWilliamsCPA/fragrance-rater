@@ -9,11 +9,13 @@ from fragrance_rater.core.database import Base
 from fragrance_rater.models import calibration as calibration
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import (
+    AccordType,
     Fragrance,
     FragranceAccord,
     FragranceGtin,
     FragranceNote,
     Note,
+    NoteAlias,
     TrainingEligibility,
 )
 from fragrance_rater.models.house_intake import HouseSubmission
@@ -28,6 +30,7 @@ from fragrance_rater.models.recommendation_measurement import (
 from fragrance_rater.models.reviewer import Reviewer
 
 __all__ = [
+    "AccordType",
     "Base",
     "Evaluation",
     "Fragrance",
@@ -37,6 +40,7 @@ __all__ = [
     "HouseSubmission",
     "LLMInvocation",
     "Note",
+    "NoteAlias",
     "PilotOperationalEvent",
     "PredictionSnapshot",
     "RecommendationImpression",

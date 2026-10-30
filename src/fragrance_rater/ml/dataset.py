@@ -103,7 +103,13 @@ absent from ordinary evaluations altogether (X-14), so it is not comparable
 across workflows.
 """
 
-FEATURE_SPACES: tuple[str, ...] = ("notes", "accords", "families", "perception")
+FEATURE_SPACES: tuple[str, ...] = (
+    "notes",
+    "accords",
+    "accord_ranks",
+    "families",
+    "perception",
+)
 """Feature spaces ``to_arrays`` can project a row set into."""
 
 
@@ -439,11 +445,26 @@ def _note_terms(row: TrainingRow) -> dict[str, float]:
 
 
 def _accord_terms(row: TrainingRow) -> dict[str, float]:
+    # Only weights a source reported. A positional intensity is a list place, and an
+    # accord from a manifest that never recorded its source cannot be vouched for;
+    # both are left out rather than fed in as measurements (X-04, ML decisions Q5).
+    # Their order is still available as ``accord_ranks``.
     terms: dict[str, float] = {}
     for accord in row.features.accords:
-        if not accord.name:
+        if not accord.name or accord.intensity_source != "measured":
             continue
         terms[accord.name] = max(terms.get(accord.name, 0.0), float(accord.intensity))
+    return terms
+
+
+def _accord_rank_terms(row: TrainingRow) -> dict[str, float]:
+    # Reciprocal rank: 1.0 for the first-listed accord, then 1/2, 1/3, and so on.
+    # Order only; no claim about how strong any accord is.
+    terms: dict[str, float] = {}
+    for accord in row.features.accords:
+        if not accord.name or accord.rank is None:
+            continue
+        terms[accord.name] = max(terms.get(accord.name, 0.0), 1.0 / (accord.rank + 1))
     return terms
 
 
@@ -471,6 +492,7 @@ def _perception_terms(row: TrainingRow) -> dict[str, float]:
 _TERMS = {
     "notes": _note_terms,
     "accords": _accord_terms,
+    "accord_ranks": _accord_rank_terms,
     "families": _family_terms,
     "perception": _perception_terms,
 }
@@ -488,10 +510,12 @@ def to_arrays(
     Feature spaces:
 
     - ``notes``: one-hot over canonical ``Note.id``.
-    - ``accords``: accord label weighted by its reported intensity. The
-        schema does not yet distinguish a measured intensity from one
-        fabricated out of list position (X-04), so a caller that needs only
-        measured weights must filter upstream.
+    - ``accords``: accord code weighted by its reported intensity, for accords
+        whose ``intensity_source`` is ``measured`` only. Positional and
+        unrecorded weights are excluded (X-04).
+    - ``accord_ranks``: accord code weighted by the reciprocal of its place in
+        the source's list (``1 / (rank + 1)``), for every accord with a rank.
+        This is the order the positional intensities were derived from.
     - ``families``: one-hot over namespaced ``family:`` and ``subfamily:``
         labels. Both draw on three uncontrolled vocabularies today (X-10,
         X-11).

@@ -774,7 +774,9 @@ class TestMlCommands:
         assert "affinity-v1" in result.output
         assert "param_digest" in result.output
         assert AffinityV1.spec.digest in result.output
-        assert "fs-v1" in result.output
+        assert f"feature_space_version: {AffinityV1.spec.feature_space_version}" in (
+            result.output
+        )
 
     @patch("fragrance_rater.cli.get_session")
     @patch("fragrance_rater.cli.predict_and_freeze")

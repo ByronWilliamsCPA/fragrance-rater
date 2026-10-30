@@ -3,8 +3,10 @@
 This module defines the core fragrance data models including:
 - Fragrance: Main fragrance entity with classification
 - Note: Individual scent components
+- NoteAlias: Spellings of a note that resolve to one canonical ``Note`` (R6)
 - FragranceNote: Junction table with note position (top/heart/base)
-- FragranceAccord: Accord types with intensity weights
+- AccordType: Controlled lookup of accord codes (R6)
+- FragranceAccord: Accord types with intensity weights and their provenance
 """
 
 from __future__ import annotations
@@ -26,10 +28,40 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
+from fragrance_rater.utils.labels import NOTE_KEY_MAX_LENGTH, normalize_note_key
 
 if TYPE_CHECKING:
+    from sqlalchemy.engine.default import DefaultExecutionContext
+    from sqlalchemy.sql.schema import SchemaItem
+
     from fragrance_rater.models.calibration import VersionPerfumer
     from fragrance_rater.models.evaluation import Evaluation
+
+NOTE_POSITIONS = ("top", "heart", "base", "flat")
+"""Controlled values of ``FragranceNote.position`` (X-12); ``flat`` is a source that
+lists notes without a pyramid."""
+
+POSITION_VALUED_CATEGORIES = frozenset({"top", "heart", "middle", "base", "flat"})
+"""Pyramid positions that older importers wrote into ``Note.category`` (X-02)."""
+
+ACCORD_INTENSITY_SOURCES = ("measured", "positional", "absent")
+"""Controlled values of ``FragranceAccord.intensity_source`` (X-04).
+
+``measured`` is a weight a source reported. ``positional`` is a value derived from the
+accord's place in a list (the Kaggle importer's ``1.0 - 0.15 * i``), so it carries
+order and not strength. ``absent`` is an accord a source listed with no weight at all;
+its ``intensity`` is a placeholder.
+"""
+
+
+def _sql_in(values: tuple[str, ...]) -> str:
+    return ", ".join(f"'{value}'" for value in values)
+
+
+def _name_key_from_name(context: DefaultExecutionContext) -> str:
+    """Derive ``notes.name_key`` from the row's own ``name`` at insert time."""
+    name: object = context.get_current_parameters()["name"]  # pyright: ignore[reportAny]
+    return normalize_note_key(str(name))
 
 
 class TrainingEligibility(Base):
@@ -241,11 +273,20 @@ class Fragrance(Base):
 class Note(Base):
     """Individual scent component.
 
+    Identity is ``name_key``, the normalized form of ``name`` (see
+    ``utils/labels.py``), so ``Oak Moss`` and ``oakmoss`` are one row. Other spellings
+    and decided synonyms are ``NoteAlias`` rows pointing here; callers go through
+    ``services/vocabulary.VocabularyResolver`` rather than querying ``name``.
+
     Attributes:
         id (Mapped[str]): Unique identifier (UUID).
-        name (Mapped[str]): Note name (unique).
-        category (Mapped[str]): Primary category (Citrus, Floral, Wood, etc.).
+        name (Mapped[str]): The first spelling recorded, kept verbatim (unique).
+        name_key (Mapped[str]): Normalized identity key (unique).
+        category (Mapped[str | None]): Olfactory family label (Citrus, Floral, Wood,
+            etc.), or NULL when unknown. It never holds a pyramid position; that is
+            ``FragranceNote.position`` (X-02).
         subcategory (Mapped[str | None]): More specific classification.
+        aliases (Mapped[list[NoteAlias]]): Spellings that resolve to this note.
     """
 
     __tablename__ = "notes"
@@ -254,8 +295,70 @@ class Note(Base):
         String(36), primary_key=True, default=lambda: str(uuid4())
     )
     name: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    category: Mapped[str] = mapped_column(String(50))
+    name_key: Mapped[str] = mapped_column(
+        String(NOTE_KEY_MAX_LENGTH), unique=True, default=_name_key_from_name
+    )
+    category: Mapped[str | None] = mapped_column(String(50), nullable=True)
     subcategory: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
+    aliases: Mapped[list[NoteAlias]] = relationship(back_populates="canonical_note")
+
+
+class NoteAlias(Base):
+    """One spelling of a note, resolved to a canonical ``Note`` under a mapping version.
+
+    ``raw_label`` is verbatim and never normalized; ``alias_key`` is its normalized
+    form. A ``curated`` row is a decision a person made (``vanille`` means
+    ``vanilla``); an ``observed`` row only records a spelling an importer met that
+    already normalizes to the note, so the raw label survives. The mapping version
+    names the decision set: a changed decision is a new version, not an edit.
+
+    A spelling is unique per version, and a key has at most one curated decision per
+    version, so resolving a key never has two answers. Many observed spellings may
+    share a key (``oakmoss`` and ``OAKMOSS``).
+
+    Attributes:
+        id (Mapped[str]): Unique identifier (UUID).
+        raw_label (Mapped[str]): The spelling as given.
+        alias_key (Mapped[str]): ``normalize_note_key(raw_label)``.
+        canonical_note_id (Mapped[str]): The note this spelling resolves to.
+        mapping_version (Mapped[str]): Decision set the row belongs to.
+        origin (Mapped[str]): ``curated`` or ``observed``.
+        created_at (Mapped[datetime]): When the row was recorded.
+        canonical_note (Mapped[Note]): The note the spelling resolves to.
+    """
+
+    __tablename__ = "note_aliases"
+    __table_args__: tuple[SchemaItem, ...] = (
+        UniqueConstraint("raw_label", "mapping_version"),
+        Index(
+            "uq_note_aliases_curated_key",
+            "alias_key",
+            "mapping_version",
+            unique=True,
+            postgresql_where=text("origin = 'curated'"),
+            sqlite_where=text("origin = 'curated'"),
+        ),
+        CheckConstraint("origin IN ('curated', 'observed')", name="origin"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    raw_label: Mapped[str] = mapped_column(String(NOTE_KEY_MAX_LENGTH))
+    alias_key: Mapped[str] = mapped_column(String(NOTE_KEY_MAX_LENGTH))
+    canonical_note_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("notes.id", ondelete="RESTRICT"), index=True
+    )
+    mapping_version: Mapped[str] = mapped_column(String(50))
+    origin: Mapped[str] = mapped_column(
+        String(10), default="curated", server_default="curated"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        default=func.now(), server_default=func.now()
+    )
+
+    canonical_note: Mapped[Note] = relationship(back_populates="aliases")
 
 
 class FragranceNote(Base):
@@ -265,7 +368,9 @@ class FragranceNote(Base):
         id (Mapped[str]): Surrogate primary key (UUID).
         fragrance_id (Mapped[str]): Foreign key to fragrance.
         note_id (Mapped[str]): Foreign key to note.
-        position (Mapped[str]): Note position (top, heart, base).
+        position (Mapped[str]): Note position (top, heart, base, flat).
+        rank (Mapped[int | None]): Zero-based place within the position as the source
+            listed it, or NULL when the order was not recorded (X-12).
         fragrance (Mapped[Fragrance]): Owning fragrance.
         note (Mapped[Note]): Referenced note.
     """
@@ -287,6 +392,8 @@ class FragranceNote(Base):
             "position",
             name="uq_fragrance_note_position",
         ),
+        CheckConstraint(f"position IN ({_sql_in(NOTE_POSITIONS)})", name="position"),
+        CheckConstraint("rank IS NULL OR rank >= 0", name="rank"),
     )
 
     id: Mapped[str] = mapped_column(
@@ -298,10 +405,33 @@ class FragranceNote(Base):
     note_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("notes.id", ondelete="CASCADE"), index=True
     )
-    position: Mapped[str] = mapped_column(String(10))  # top, heart, base
+    position: Mapped[str] = mapped_column(String(10))  # top, heart, base, flat
+    rank: Mapped[int | None] = mapped_column(nullable=True)
 
     fragrance: Mapped[Fragrance] = relationship(back_populates="notes")
     note: Mapped[Note] = relationship()
+
+
+class AccordType(Base):
+    """Controlled lookup of accord codes (X-03).
+
+    ``FragranceAccord.accord_type`` is a foreign key here, so an accord has exactly one
+    spelling: the lowercased, whitespace-collapsed ``code``. ``label`` keeps the first
+    spelling a source used, for display.
+
+    Attributes:
+        code (Mapped[str]): Normalized accord code (primary key).
+        label (Mapped[str]): First recorded spelling, verbatim.
+        created_at (Mapped[datetime]): When the code was registered.
+    """
+
+    __tablename__ = "accord_types"
+
+    code: Mapped[str] = mapped_column(String(50), primary_key=True)
+    label: Mapped[str] = mapped_column(String(50))
+    created_at: Mapped[datetime] = mapped_column(
+        default=func.now(), server_default=func.now()
+    )
 
 
 class FragranceAccord(Base):
@@ -309,18 +439,39 @@ class FragranceAccord(Base):
 
     Attributes:
         fragrance_id (Mapped[str]): Foreign key to fragrance.
-        accord_type (Mapped[str]): Type of accord (e.g., citrus, woody, sweet).
-        intensity (Mapped[float]): Intensity weight from 0.0 to 1.0.
+        accord_type (Mapped[str]): ``AccordType.code`` (e.g., citrus, woody, sweet).
+        intensity (Mapped[float]): Intensity weight from 0.0 to 1.0. Read it with
+            ``intensity_source``: a ``positional`` value is a list place, not a
+            strength (X-04).
+        intensity_source (Mapped[str]): ``measured``, ``positional``, or ``absent``.
+        rank (Mapped[int | None]): Zero-based place in the source's accord list, or
+            NULL when the order was not recorded. Kept so list order survives as a
+            rank feature when the positional intensity is excluded.
         fragrance (Mapped[Fragrance]): Owning fragrance.
     """
 
     __tablename__ = "fragrance_accords"
+    __table_args__: tuple[SchemaItem, ...] = (
+        CheckConstraint(
+            f"intensity_source IN ({_sql_in(ACCORD_INTENSITY_SOURCES)})",
+            name="intensity_source",
+        ),
+        CheckConstraint("rank IS NULL OR rank >= 0", name="rank"),
+    )
 
     fragrance_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("fragrances.id", ondelete="CASCADE"), primary_key=True
     )
-    accord_type: Mapped[str] = mapped_column(String(50), primary_key=True)
+    accord_type: Mapped[str] = mapped_column(
+        String(50),
+        ForeignKey("accord_types.code", ondelete="RESTRICT"),
+        primary_key=True,
+    )
     intensity: Mapped[float] = mapped_column(Float)
+    intensity_source: Mapped[str] = mapped_column(
+        String(10), default="measured", server_default="measured"
+    )
+    rank: Mapped[int | None] = mapped_column(nullable=True)
 
     fragrance: Mapped[Fragrance] = relationship(back_populates="accords")
 
