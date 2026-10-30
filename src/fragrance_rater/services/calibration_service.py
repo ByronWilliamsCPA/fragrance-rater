@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater import __version__
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -38,6 +39,35 @@ if TYPE_CHECKING:
 def reject(message: str, status: int = 409) -> NoReturn:
     """Raise a public domain error without disclosing hidden identity."""
     raise HTTPException(status_code=status, detail=message)
+
+
+UNPINNED_INSTRUMENT_PREFIX = "unpinned-app-"
+
+
+def activation_instrument_version(configured: str | None) -> str:
+    """Return the instrument version to record on a program at activation.
+
+    The configured value (``INSTRUMENT_VERSION``: the frontend build SHA or an
+    instrument release tag) is used when it is set and not blank. Otherwise
+    the fallback is ``unpinned-app-<package version>``: a true statement of
+    which application release activated the program, prefixed so an export or
+    the F1 gate can tell it from a pinned instrument build.
+
+    Args:
+        configured (str | None): ``settings.instrument_version``.
+
+    Returns:
+        str: The value to store in ``Program.instrument_version``.
+    """
+    # #ASSUME: external-resources: the deployment sets INSTRUMENT_VERSION to
+    # the build of the participant UI it serves. Nothing here can verify that
+    # the browser actually loaded that build.
+    # #VERIFY: the F1 gate (gates/f1.md, "Blind-baseline instrument
+    # completeness") refuses a program whose value starts with
+    # UNPINNED_INSTRUMENT_PREFIX.
+    if configured is not None and configured.strip():
+        return configured.strip()
+    return f"{UNPINNED_INSTRUMENT_PREFIX}{__version__}"
 
 
 def post_reveal_entry(

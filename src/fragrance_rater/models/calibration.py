@@ -105,15 +105,89 @@ HUNGER_LEVELS: tuple[str, ...] = (
     "prefer_not_to_answer",
 )
 
+# R7a PR 2 closed vocabularies; migration cd1e2375a2e4 writes the same lists
+# literally (same #ASSUME/#VERIFY as above).
+
+# ML Decisions Q9: a blind, coarse suitability judgment on skin-stage rows. The
+# option codes are the instrument v0.5 SK-SEASON/SK-SETTING codes, stored as one
+# best-fit answer per field (see the migration docstring for why single-select).
+SEASON_FIT_CODES: tuple[str, ...] = (
+    "spring",
+    "summer",
+    "fall",
+    "winter",
+    "year_round",
+    "none",
+    "cannot_judge",
+)
+SETTING_FIT_CODES: tuple[str, ...] = (
+    "work_school",
+    "home",
+    "social_outing",
+    "formal_event",
+    "outdoor_activity",
+    "other",
+    "none",
+    "cannot_judge",
+)
+# Capture assessment 13.6 (deviations) and 13.3 (mistimed evidence). A flag
+# describes what happened; it never removes or rewrites the flagged evidence.
+QUALITY_FLAG_CODES: tuple[str, ...] = (
+    "out_of_order_presentation",
+    "outside_planned_window",
+    "timestamp_inconsistent",
+    "daily_load_exceeded",
+    "minimum_spacing_violated",
+    "clean_air_break_missed",
+    "interrupted",
+    "sample_substitution",
+    "sample_spill",
+    "mislabel_suspected",
+    "competing_odor",
+    "recorder_assistance",
+    "instrument_fault",
+    "evaluator_reported_problem",
+    "other",
+)
+# Append-only lifecycle: a flag is raised once; a later row resolves it (with a
+# disposition) or invalidates it (raised in error). Nothing is updated.
+QUALITY_FLAG_ACTIONS: tuple[str, ...] = ("raised", "resolved", "invalidated")
+QUALITY_FLAG_SEVERITIES: tuple[str, ...] = ("info", "minor", "major")
+# Capture assessment 13.7: "automatic validation, evaluator, recorder, or manager".
+QUALITY_FLAG_SOURCES: tuple[str, ...] = (
+    "automatic_validation",
+    "evaluator",
+    "recorder",
+    "manager",
+)
+# Capture assessment 13.6: "an explicit include/exclude/review disposition".
+QUALITY_FLAG_DISPOSITIONS: tuple[str, ...] = ("review", "include", "exclude")
+
 
 class Program(Base):
-    """Immutable protocol definition once activated."""
+    """Immutable protocol definition once activated.
+
+    R7a column:
+        instrument_version: The participant instrument (questionnaire wording,
+            anchors, requiredness, skip logic) in force when the program was
+            activated, written once by activation (capture assessment 13.2).
+            NULL on programs activated before R7a and on every draft.
+    """
 
     __tablename__ = "calibration_programs"
     __table_args__ = (
         UniqueConstraint("name", "version"),
         # D-15: activation and enrollment gate on these exact strings.
         CheckConstraint("status IN ('draft', 'active')", name="status_valid"),
+        # Only activation writes it, so a draft never carries one.
+        CheckConstraint(
+            "instrument_version IS NULL OR status = 'active'",
+            name="instrument_version_requires_active",
+        ),
+        CheckConstraint(
+            "instrument_version IS NULL OR TRIM(instrument_version) <> ''",
+            name="instrument_version_nonblank",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     name: Mapped[str] = mapped_column(String(200))
@@ -122,6 +196,7 @@ class Program(Base):
     status: Mapped[str] = mapped_column(String(20), default="draft")
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
     locked_at: Mapped[datetime | None]
+    instrument_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
 
 MEMBERSHIP_ROLES: tuple[str, ...] = (
@@ -160,10 +235,34 @@ class Membership(Base):
 
 
 class Enrollment(Base):
-    """Per-evaluator reveal gate and explicit recorder grants."""
+    """Per-evaluator reveal gate and explicit recorder grants.
+
+    An enrollment owns its whole session schedule: ``CalibrationService.enroll``
+    shuffles, places repeats, and chunks every presentation into sessions in
+    one pass. The randomization record therefore lives here, once per
+    schedule, and each presentation's assigned slot lives on ``Presentation``.
+
+    R7a columns (NULL on enrollments generated before R7a):
+        randomization_algorithm: Versioned name of the ordering algorithm that
+            generated the schedule.
+        randomization_seed: The seed that reproduces the schedule. NULL when
+            the algorithm is not seedable (the current ``SystemRandom``
+            shuffle is not), so NULL with an algorithm means "not
+            reproducible", not "unknown".
+    """
 
     __tablename__ = "calibration_enrollments"
-    __table_args__ = (UniqueConstraint("program_id", "reviewer_id"),)
+    __table_args__ = (
+        UniqueConstraint("program_id", "reviewer_id"),
+        CheckConstraint(
+            "randomization_seed IS NULL OR randomization_algorithm IS NOT NULL",
+            name="seed_requires_algorithm",
+        ),
+        CheckConstraint(
+            "randomization_algorithm IS NULL OR TRIM(randomization_algorithm) <> ''",
+            name="randomization_algorithm_nonblank",
+        ),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     program_id: Mapped[str] = mapped_column(
         ForeignKey("calibration_programs.id", ondelete="RESTRICT")
@@ -175,6 +274,10 @@ class Enrollment(Base):
     skin_plan_locked_at: Mapped[datetime | None]
     revealed_at: Mapped[datetime | None]
     revealed_by: Mapped[str | None] = mapped_column(String(255))
+    randomization_algorithm: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    randomization_seed: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class CalibrationSession(Base):
@@ -236,9 +339,13 @@ class SessionContext(Base):
     # #CRITICAL: security: these columns hold illness, allergy, and hormonal
     # context. Capture assessment 13.11 and the remediation plan section 18 say
     # not to collect them before a consent contract (consent text/version and
-    # timestamp) exists. That contract is R7a PR 2's consent-event table.
-    # #VERIFY: no write path for this table may ship before the consent-event
-    # table does, and no sensitive field may be required to finish a session.
+    # timestamp) exists. That precondition now exists: the ``consent_events``
+    # table (models/consent.py, migration cd1e2375a2e4). No write path exists
+    # yet; R7b adds one.
+    # #VERIFY: the R7b write path refuses a context row unless the reviewer's
+    # latest ``session_context`` consent event is ``granted`` (a withdrawal
+    # stops further writes), and no sensitive field is required to finish a
+    # session.
     __table_args__: tuple[SchemaItem, ...] = (
         UniqueConstraint("session_id"),
         CheckConstraint(in_check("illness", CONTEXT_ANSWERS), name="illness_valid"),
@@ -332,12 +439,24 @@ class Presentation(Base):
         physical_sample_confirmed: The operator confirmed that the physical
             sample matches the membership's version (P1.1 validator's
             ``physical_sample_confirmed``, which had no column).
+        intended_position: The 1-based position in the session that the
+            enrollment's randomization assigned, written once at schedule
+            generation and never changed. ``position`` is the order the
+            presentation is shown in; the order it was actually smelled is
+            evidenced by ``presented_at``. Any mismatch is kept and flagged
+            (``out_of_order_presentation``), never corrected in place.
     """
 
     __tablename__ = "calibration_presentations"
     __table_args__ = (
         UniqueConstraint("session_id", "position"),
         UniqueConstraint("blind_code"),
+        # Not unique per session: a deviation must stay recordable, and a CHECK
+        # comparing it to ``position`` would reject the evidence it exists for.
+        CheckConstraint(
+            "intended_position IS NULL OR intended_position >= 1",
+            name="intended_position_positive",
+        ),
         CheckConstraint(
             in_check("application_method", APPLICATION_METHODS),
             name="application_method_valid",
@@ -390,6 +509,9 @@ class Presentation(Base):
     physical_sample_confirmed: Mapped[bool | None] = mapped_column(
         Boolean, nullable=True
     )
+
+    # Randomization record (capture assessment 13.6); see ``Enrollment``.
+    intended_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class Observation(Base):
@@ -566,6 +688,23 @@ class Observation(Base):
             "last_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min > last_detected_elapsed_min",
             name="longevity_interval_ordered",
         ),
+        # ML Decisions Q9: season and setting fit are asked at the skin stage
+        # only. Requiredness on skin rows is the instrument's (R7b), not a
+        # CHECK: pre-R7b skin rows and skipped or interrupted ones read NULL.
+        CheckConstraint(
+            in_check("season_fit", SEASON_FIT_CODES), name="season_fit_valid"
+        ),
+        CheckConstraint(
+            in_check("setting_fit", SETTING_FIT_CODES), name="setting_fit_valid"
+        ),
+        CheckConstraint(
+            "season_fit IS NULL OR stage = 'SKIN'",
+            name="season_fit_requires_skin",
+        ),
+        CheckConstraint(
+            "setting_fit IS NULL OR stage = 'SKIN'",
+            name="setting_fit_requires_skin",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     presentation_id: Mapped[str] = mapped_column(
@@ -647,6 +786,10 @@ class Observation(Base):
     first_not_detected_elapsed_min: Mapped[int | None] = mapped_column(
         Integer, nullable=True
     )
+    # Blind season/setting suitability (ML Decisions Q9), one best-fit code
+    # each, reported once per skin wear like the summary columns above.
+    season_fit: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    setting_fit: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class RankEvent(Base):
@@ -739,6 +882,121 @@ class RankEntry(Base):
     )
     eligible_for_rank: Mapped[bool] = mapped_column(Boolean)
     rank_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+# Exactly one of the three target columns is set.
+_ONE_FLAG_TARGET = "(CASE WHEN session_id IS NULL THEN 0 ELSE 1 END) + (CASE WHEN presentation_id IS NULL THEN 0 ELSE 1 END) + (CASE WHEN observation_id IS NULL THEN 0 ELSE 1 END) = 1"
+
+
+class QualityFlag(Base):
+    """A protocol deviation or data-quality flag on calibration evidence.
+
+    Capture assessment 13.3, 13.6, and 13.7: mistimed or deviant evidence is
+    kept and flagged, never rejected or overwritten. No CHECK anywhere in the
+    calibration schema rejects a row for being out of order or mistimed; this
+    table is where that fact is recorded. A flag describes what happened;
+    whether a flagged row enters a given analysis is a separate, versioned
+    eligibility decision (R8), not this table's.
+
+    Append-only. A flag is ``raised`` once. A later row with ``supersedes_id``
+    pointing at it either ``resolved`` it (carrying the final
+    ``disposition``) or ``invalidated`` it (it was raised in error). Nothing is
+    updated in place. Every row names the same target and code as the flag it
+    supersedes, so any row can be read on its own.
+
+    Columns:
+        session_id: Flagged session; exactly one target column is set.
+        presentation_id: Flagged presentation.
+        observation_id: Flagged observation.
+        supersedes_id: For ``resolved`` and ``invalidated`` rows, the flag
+            row this one closes; NULL exactly when ``action`` is ``raised``.
+        action: ``raised``, ``resolved``, or ``invalidated``.
+        code: What departed from protocol or looks wrong.
+        severity: ``info``, ``minor``, or ``major``.
+        source: Who or what raised it.
+        disposition: ``review`` (undecided), ``include``, or ``exclude``.
+        rule_version: The validation rule and version that raised an
+            automatic flag; required when ``source`` is
+            ``automatic_validation``.
+        explanation: Free text from whoever recorded the row.
+        occurred_at: When the deviation happened, when known (client clock,
+            naive UTC).
+        recorded_by: Who was at the keyboard.
+        created_at: Server receipt time.
+    """
+
+    __tablename__ = "calibration_quality_flags"
+    # #ASSUME: data-integrity: a superseding row names the same target and
+    # code as the flag it closes, and supersedes a ``raised`` row, not another
+    # resolution. Neither is expressible as a portable CHECK (it compares two
+    # rows).
+    # #VERIFY: the write path (R7b) copies target and code from the superseded
+    # row and refuses to supersede a non-``raised`` row.
+    __table_args__: tuple[SchemaItem, ...] = (
+        CheckConstraint(
+            in_check("action", QUALITY_FLAG_ACTIONS, nullable=False),
+            name="action_valid",
+        ),
+        CheckConstraint(
+            in_check("code", QUALITY_FLAG_CODES, nullable=False), name="code_valid"
+        ),
+        CheckConstraint(
+            in_check("severity", QUALITY_FLAG_SEVERITIES, nullable=False),
+            name="severity_valid",
+        ),
+        CheckConstraint(
+            in_check("source", QUALITY_FLAG_SOURCES, nullable=False),
+            name="source_valid",
+        ),
+        CheckConstraint(
+            in_check("disposition", QUALITY_FLAG_DISPOSITIONS, nullable=False),
+            name="disposition_valid",
+        ),
+        CheckConstraint(_ONE_FLAG_TARGET, name="one_target"),
+        CheckConstraint(
+            "(action = 'raised' AND supersedes_id IS NULL) OR (action <> 'raised' AND supersedes_id IS NOT NULL)",
+            name="supersedes_matches_action",
+        ),
+        CheckConstraint(
+            "supersedes_id IS NULL OR supersedes_id <> id",
+            name="not_self_superseding",
+        ),
+        CheckConstraint(
+            "source <> 'automatic_validation' OR (rule_version IS NOT NULL AND TRIM(rule_version) <> '')",
+            name="automatic_requires_rule",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    session_id: Mapped[str | None] = mapped_column(
+        ForeignKey("calibration_sessions.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    )
+    presentation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("calibration_presentations.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    )
+    observation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("calibration_observations.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    )
+    supersedes_id: Mapped[str | None] = mapped_column(
+        ForeignKey("calibration_quality_flags.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+    )
+    action: Mapped[str] = mapped_column(String(20))
+    code: Mapped[str] = mapped_column(String(40))
+    severity: Mapped[str] = mapped_column(String(10))
+    source: Mapped[str] = mapped_column(String(30))
+    disposition: Mapped[str] = mapped_column(String(10))
+    rule_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    occurred_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    recorded_by: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
 
 
 class ModelCheckpoint(Base):

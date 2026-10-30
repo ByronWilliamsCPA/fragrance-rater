@@ -783,3 +783,88 @@ async def test_enrollments_list_is_enriched_for_the_recorder(test_app):
     row = next(item for item in skin_done.json() if item["id"] == enrollment_id)
     assert row["skin_planned"] == 1
     assert row["skin_complete"] == 1
+
+
+async def _program_instrument_version(program_id: str) -> str | None:
+    """Read Program.instrument_version through the app's overridden session."""
+    from fragrance_rater.core.database import get_db
+    from fragrance_rater.main import app
+    from fragrance_rater.models.calibration import Program
+
+    sessions = app.dependency_overrides[get_db]()
+    db = await anext(sessions)
+    try:
+        program = await db.get(Program, program_id)
+        assert program is not None
+        return program.instrument_version
+    finally:
+        await sessions.aclose()
+
+
+@pytest.mark.asyncio
+async def test_activation_records_the_configured_instrument_version(
+    test_app, draft_member, monkeypatch
+):
+    """R7a: activation writes INSTRUMENT_VERSION onto the program (13.2)."""
+    program_id, _ = draft_member
+    assert await _program_instrument_version(program_id) is None
+    monkeypatch.setattr(settings, "instrument_version", " build-abc123 ")
+
+    response = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER
+    )
+
+    assert response.status_code == 200
+    assert await _program_instrument_version(program_id) == "build-abc123"
+
+
+@pytest.mark.parametrize("configured", [None, "", "   "])
+def test_unset_instrument_version_falls_back_to_unpinned_app_version(configured):
+    """Unset or blank INSTRUMENT_VERSION records a detectable unpinned value."""
+    from fragrance_rater import __version__
+    from fragrance_rater.services.calibration_service import (
+        activation_instrument_version,
+    )
+
+    assert activation_instrument_version(configured) == f"unpinned-app-{__version__}"
+
+
+@pytest.mark.asyncio
+async def test_activation_without_a_configured_version_records_an_unpinned_value(
+    test_app, draft_member, monkeypatch
+):
+    """R7a: an undeployed build pin is recorded as detectably unpinned, not skipped."""
+    from fragrance_rater import __version__
+
+    program_id, _ = draft_member
+    monkeypatch.setattr(settings, "instrument_version", "")
+
+    response = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER
+    )
+
+    assert response.status_code == 200
+    assert await _program_instrument_version(program_id) == (
+        f"unpinned-app-{__version__}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_reactivation_is_refused_and_keeps_the_recorded_version(
+    test_app, draft_member, monkeypatch
+):
+    """The version records the build that activated the program; it is not rewritten."""
+    program_id, _ = draft_member
+    monkeypatch.setattr(settings, "instrument_version", "build-first")
+    first = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER
+    )
+    assert first.status_code == 200
+    monkeypatch.setattr(settings, "instrument_version", "build-second")
+
+    again = await test_app.post(
+        f"{PREFIX}/programs/{program_id}/activate", headers=MANAGER
+    )
+
+    assert again.status_code == 409
+    assert await _program_instrument_version(program_id) == "build-first"
