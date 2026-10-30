@@ -19,6 +19,7 @@ from pydantic import SecretStr
 from fragrance_rater.core.config import Settings, secret_value, settings
 from fragrance_rater.middleware.correlation import set_correlation_id
 from fragrance_rater.utils.logging import (
+    AUDIT_LOGGER,
     REDACTED,
     get_logger,
     log_audit_event,
@@ -89,17 +90,21 @@ class TestLogAuditEvent:
         assert event["fragrance_id"] == "frag-1"
 
 
-@pytest.fixture
-def json_records(monkeypatch: pytest.MonkeyPatch) -> Iterator[io.StringIO]:
+@pytest.fixture(params=["INFO"])
+def json_records(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[io.StringIO]:
     """Configure logging as production does and capture the rendered lines."""
+    level: str = request.param
     root = logging.getLogger()
-    saved = (root.level, list(root.handlers))
+    audit = logging.getLogger(AUDIT_LOGGER)
+    saved = (root.level, list(root.handlers), audit.level)
     stream = io.StringIO()
-    setup_logging(level="INFO", json_logs=True, include_correlation=True)
+    setup_logging(level=level, json_logs=True, include_correlation=True)
     # basicConfig is a no-op under pytest's own root handlers, so attach the
     # capture stream directly; the rendering is structlog's either way.
     root.addHandler(logging.StreamHandler(stream))
-    root.setLevel(logging.INFO)
+    root.setLevel(getattr(logging, level))
     monkeypatch.setattr(
         settings, "openrouter_api_key", SecretStr("sk-or-very-secret-key")
     )
@@ -109,6 +114,7 @@ def json_records(monkeypatch: pytest.MonkeyPatch) -> Iterator[io.StringIO]:
         structlog.reset_defaults()
         root.handlers[:] = saved[1]
         root.setLevel(saved[0])
+        audit.setLevel(saved[2])
 
 
 def _lines(stream: io.StringIO) -> list[dict[str, object]]:
@@ -159,6 +165,35 @@ class TestProductionLogging:
         assert record["database_url"] == f"postgresql+asyncpg://fr:{REDACTED}@db/fr"
         # Usage counts are not secrets just because they say "tokens".
         assert record["prompt_tokens"] == 12
+
+    @pytest.mark.parametrize("json_records", ["WARNING"], indirect=True)
+    def test_audit_events_survive_a_warning_log_level(
+        self, json_records: io.StringIO
+    ) -> None:
+        """B-03: LOG_LEVEL=WARNING drops ordinary INFO, never the audit trail."""
+        caller = structlog.get_logger("fragrance_rater.api.calibration")
+        caller.info("ordinary_info")
+        log_audit_event(
+            caller,
+            action="reveal",
+            actor="manager",
+            target_type="calibration_enrollment",
+            target_id="enr-1",
+        )
+
+        (record,) = _lines(json_records)
+        assert record["event"] == "audit_event"
+        assert record["action"] == "reveal"
+        assert record["logger"] == AUDIT_LOGGER
+
+    def test_short_configured_key_is_redacted(
+        self, json_records: io.StringIO, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(settings, "api_key", SecretStr("k3y"))
+        structlog.get_logger("s15").info("rejected header k3y")
+
+        (record,) = _lines(json_records)
+        assert record["event"] == f"rejected header {REDACTED}"
 
 
 class TestSecretSettings:

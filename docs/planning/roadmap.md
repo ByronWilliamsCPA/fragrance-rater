@@ -1,6 +1,6 @@
 # Fragrance Rater Execution Roadmap
 
-> **Status**: Active mirror | **Updated**: 2026-10-21
+> **Status**: Active mirror | **Updated**: 2026-10-30
 
 The [Authoritative Project Plan](PROJECT-PLAN.md) owns scope, status, acceptance criteria,
 risks, and evidence. This page is a compact execution view and must be updated from that plan in
@@ -42,7 +42,8 @@ R14's documentation items gate nothing. R8 may land after the P6 go decision but
 
 ## Immediate queue
 
-1. Milestone R sprints in order: R1 (done), R2 (done), R3 (done), and R4 (Sonnet; in review), then R6-R8 before F1 (R5 done); see [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation)
+1. Milestone R sprints in order: R1 (done), R2 (done), R3 (done), and R4 (Sonnet; in review), then R6-R8 before
+   F1 (R5 done); see [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation)
    for scope, lead model, and gate.
 2. Use the P6 runbook and retained-evidence templates against the final release candidate.
 3. Complete P1 evidence: physical manifest, authorized fixtures, backup clone, migration,

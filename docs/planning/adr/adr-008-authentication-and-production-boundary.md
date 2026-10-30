@@ -93,7 +93,8 @@ B-26, S-07, and S-15:
   program activation, enrollment, stage and skin-plan locks, reveal, checkpoint creation, every
   retrieval of the blind mapping, and prediction create and outcome link. The mapping record names
   who retrieved which enrollment and nothing it returned. Prediction records leave out the
-  fragrance, because a prediction may target a holdout.
+  fragrance, because a prediction may target a holdout. Audit events go through the
+  `fragrance_rater.audit` logger, which stays at INFO whatever `LOG_LEVEL` says.
 - **Caching.** Everything under `/api/v1` is `Cache-Control: private, no-store` with
   `Vary: X-Authentik-Username` by default; only the public catalog opts out. The previous allowlist
   named two prefixes and left evaluations, recommendations, predictions, and reviewers cacheable.

@@ -312,17 +312,6 @@ async def build_recommendation_explanation(
             404 if `fragrance_id` does not resolve to a live (non-soft-
             deleted) fragrance.
     """
-    # A reviewer-specific explanation is itself a recommendation surface.
-    # Reject assigned holdouts; callers reach this only through a persisted
-    # impression (B-02), whose route maps this 404 onto its own.
-    if fragrance_id in await PreferenceHistoryService(session).excluded_versions(
-        reviewer_id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "NOT_FOUND", "message": "Fragrance not found"},
-        )
-
     # Build user profile
     profile = await service.build_preference_profile(reviewer_id)
     if profile.evaluation_count < 3:
@@ -332,6 +321,20 @@ async def build_recommendation_explanation(
                 "error": "INSUFFICIENT_DATA",
                 "message": "Need at least 3 evaluations to generate explanations",
             },
+        )
+
+    # A reviewer-specific explanation is itself a recommendation surface.
+    # Reject assigned holdouts; callers reach this only through a persisted
+    # impression (B-02), whose route maps this 404 onto its own. The check
+    # runs after the fragrance-independent evaluation count, so a reviewer
+    # with too little data gets the same 400 for a holdout as for any other
+    # impression.
+    if fragrance_id in await PreferenceHistoryService(session).excluded_versions(
+        reviewer_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "NOT_FOUND", "message": "Fragrance not found"},
         )
 
     # Get fragrance with notes

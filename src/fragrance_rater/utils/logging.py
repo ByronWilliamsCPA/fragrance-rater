@@ -35,6 +35,10 @@ console = Console(stderr=True)
 
 REDACTED = "[REDACTED]"
 
+# Audit events go through this logger, whose level setup_logging pins at INFO
+# or lower so LOG_LEVEL=WARNING cannot silence the audit trail.
+AUDIT_LOGGER = "fragrance_rater.audit"
+
 # Whole underscore-separated words, so ``prompt_tokens`` and ``total_tokens``
 # (LLM usage counts) survive while ``api_key``, ``x_api_key``,
 # ``authorization``, ``csrf_token``, and ``db_password`` are masked.
@@ -56,8 +60,9 @@ def _configured_secrets() -> list[str]:
         secret_value(settings.openrouter_api_key),
         secret_value(settings.fragella_api_key),
     }
-    # Very short values would mask ordinary words; real keys are long.
-    return sorted((v for v in values if len(v) >= 8), key=len, reverse=True)
+    # Any configured value is masked, however short; a short key that also
+    # masks an ordinary word is the lesser harm.
+    return sorted((v for v in values if v), key=len, reverse=True)
 
 
 def _redact_value(value: object, secrets: list[str]) -> object:
@@ -133,6 +138,11 @@ def setup_logging(
         >>> setup_logging(level="INFO", json_logs=True, include_correlation=True)
     """
     log_level = getattr(logging, level.upper(), logging.INFO)
+    # #CRITICAL: security: audit events must survive any LOG_LEVEL. Records
+    # from the audit logger still reach the root handlers, which have no level
+    # of their own.
+    # #VERIFY: tests/unit/test_logging.py renders an audit event at WARNING.
+    logging.getLogger(AUDIT_LOGGER).setLevel(min(log_level, logging.INFO))
 
     # Configure standard Python logging
     logging.basicConfig(
@@ -233,7 +243,7 @@ def get_logger(name: str) -> BoundLogger:
 
 
 def log_audit_event(
-    logger: BoundLogger,
+    _logger: BoundLogger,
     *,
     action: str,
     actor: str | None,
@@ -250,8 +260,12 @@ def log_audit_event(
     soft-delete (or any other mutation) can be traced back to both the
     acting identity and the specific request that caused it.
 
+    The event is written through the ``fragrance_rater.audit`` logger, so it
+    is kept whatever LOG_LEVEL says (B-03).
+
     Args:
-        logger (BoundLogger): Structured logger instance from get_logger().
+        _logger (BoundLogger): The calling module's logger. Unused since audit
+            events moved to the audit logger; kept so call sites are unchanged.
         action (str): The action performed, e.g. "create", "update",
             "soft_delete".
         actor (str | None): The acting identity's username (from the
@@ -284,7 +298,7 @@ def log_audit_event(
         get_correlation_id,
     )
 
-    logger.info(
+    get_logger(AUDIT_LOGGER).info(
         "audit_event",
         action=action,
         actor=actor,

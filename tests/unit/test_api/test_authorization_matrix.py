@@ -303,20 +303,54 @@ async def test_holdout_answers_are_role_neutral(test_app: AsyncClient) -> None:
     """A holdout is never named or distinguishable to the recorder (B-01, B-02).
 
     An impression whose fragrance became the reviewer's holdout explains
-    exactly like a missing impression, and feedback on it is refused without
-    naming the membership role (ADR-005).
+    exactly like an ordinary impression while the reviewer has too little
+    data, and like a missing impression once they have enough; feedback on it
+    is refused without naming the membership role (ADR-005).
     """
     ids = await _reviewer_with_recorder(test_app)
     base = f"{API}/recommendation-measurement/impressions"
 
-    holdout = await test_app.get(
-        f"{base}/{ids['holdout_impression']}/explanation", headers=RECORDER
+    async def explain(impression_id: str) -> tuple[int, object]:
+        response = await test_app.get(
+            f"{base}/{impression_id}/explanation", headers=RECORDER
+        )
+        return response.status_code, response.json()
+
+    # Too little data: the holdout answers exactly like an ordinary impression,
+    # because the fragrance-independent check runs first.
+    assert await explain(ids["holdout_impression"]) == await explain(
+        ids["assigned_impression"]
     )
-    missing = await test_app.get(
-        f"{base}/no-such-impression/explanation", headers=RECORDER
-    )
-    assert holdout.status_code == missing.status_code == 404
-    assert holdout.json() == missing.json()
+    assert (await explain(ids["holdout_impression"]))[0] == 400
+
+    # Enough data: the holdout answers exactly like a missing impression.
+    for name in ("Second", "Third"):
+        fragrance = await test_app.post(
+            f"{API}/fragrances",
+            json={
+                "brand": "Matrix house",
+                "name": name,
+                "concentration": "EDT",
+                "gender_target": "Unisex",
+                "primary_family": "woody",
+                "subfamily": "aromatic",
+            },
+            headers=MANAGER,
+        )
+        assert fragrance.status_code == 201, fragrance.text
+        evaluation = await test_app.post(
+            f"{API}/evaluations",
+            json={
+                "reviewer_id": ids["assigned"],
+                "fragrance_id": fragrance.json()["id"],
+                "rating": 3,
+            },
+            headers=MANAGER,
+        )
+        assert evaluation.status_code == 201, evaluation.text
+    holdout = await explain(ids["holdout_impression"])
+    assert holdout == await explain("no-such-impression")
+    assert holdout[0] == 404
 
     feedback = await test_app.post(
         f"{base}/{ids['holdout_impression']}/responses",
