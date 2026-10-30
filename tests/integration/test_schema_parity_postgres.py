@@ -212,12 +212,19 @@ async def test_check_migration_names_violating_rows_and_changes_nothing() -> Non
             reviewer = Reviewer(name=f"R2 preflight {suffix}")
             session.add(reviewer)
             await session.flush()
-            evaluation = Evaluation(
-                fragrance_id=fragrance_id, reviewer_id=reviewer.id, rating=9
+            # Core insert for the same reason: the ORM ``Evaluation`` also
+            # renders ``recognition`` and ``owned_or_worn`` (R7a, 3f14014a49cb).
+            evaluation_id = str(uuid4())
+            await session.execute(
+                insert(Evaluation).values(
+                    id=evaluation_id,
+                    fragrance_id=fragrance_id,
+                    reviewer_id=reviewer.id,
+                    rating=9,
+                )
             )
-            session.add(evaluation)
             await session.commit()
-            ids = (evaluation.id, fragrance_id, reviewer.id)
+            ids = (evaluation_id, fragrance_id, reviewer.id)
 
         with pytest.raises(subprocess.CalledProcessError) as failure:
             _alembic("upgrade", "head")

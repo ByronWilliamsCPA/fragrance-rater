@@ -456,6 +456,29 @@ PR should be retargeted to `main` before review and re-pushed.
 
 ---
 
+### `uv run ruff format .` rewrites Python snippets in every Markdown file
+
+**Priority**: Low
+
+**Issue**: Ruff 0.16.6 and later format fenced Python blocks in `.md` files by default. The
+pre-commit hook pins `types_or: [python, pyi, jupyter]` to keep the old scope, but
+`[tool.ruff]` in `pyproject.toml` does not, so the gate command CLAUDE.md lists
+(`uv run ruff format .`) rewrites 14 unrelated Markdown files (CLAUDE.md, ADRs, plans) on every
+run, and an agent following the gate list commits an unreviewed docs diff.
+
+**Context**: Running the CLAUDE.md gate sequence on fragrance-rater's R7a PR 1 (ruff 0.17.2)
+touched only Python sources, yet the working tree gained 14 modified Markdown files.
+
+**Suggested Fix**: Add `extend-exclude = ["*.md"]` to `[tool.ruff]` (or `[tool.ruff.format]`)
+in the template until Markdown snippet formatting is adopted deliberately, matching the
+pre-commit hook's pinned scope.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/pyproject.toml`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

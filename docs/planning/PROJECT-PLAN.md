@@ -630,7 +630,7 @@ items not re-verified are marked.
 
 | PR | Branch | Purpose and plan home | Status |
 | :--- | :--- | :--- | :--- |
-| None | | | |
+| R7a PR 1 | `feat/r7a-capture-schema` | Capture shape (schema only, no API or instrument change): `calibration_session_contexts`, `calibration_rank_events` and `calibration_rank_entries` (a pairwise judgment is a two-entry rank event), `behavioral_events`; real session, presentation, and observation timing with evaluator timezone; typed sample provenance; response-status, recognition, and prior-ownership codes on both evidence tables; scrub-off and interval-longevity fields. Migration `3f14014a49cb`. PR 2 (randomization, deviation flags, consent events, `instrument_version`, scenario and setting lookups) follows | In review |
 
 Issue #5 is the Renovate dashboard.
 
@@ -638,7 +638,7 @@ Issue #5 is the Renovate dashboard.
 
 Each step needs a green re-run of the required checks.
 
-No pull request is open on this ledger. Before the next deploy, take a backup (the vocabulary migration runs at container start) and deploy a commit at or after `de7084e`.
+1. R7a PR 1 (`feat/r7a-capture-schema`), then R7a PR 2. Before the next deploy, take a backup (the vocabulary migration runs at container start) and deploy a commit at or after `de7084e`.
 
 ### Pending owner approval
 
