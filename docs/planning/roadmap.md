@@ -28,12 +28,17 @@ the same pull request.
 ## Dependency path
 
 ```text
-P0 ┬→ P1 ---------------------------------------------------------------------┐
-   └→ P2 → P3 → P4 → P5 → R1 ┬→ R2 ┐                                          │
-                             └→ R3 ┴→ R4 ------------------------------------┤
-                                                                              └→ P6 → F1 → D1 → D2 ┬→ D3
-                                                                                                   └→ D4 → D5
+P0 ┬→ P1 -------------------------------------------------------------------------┐
+   └→ P2 → P3 → P4 → P5 → R1 ┬→ R3 ------------------------------------------------┤
+                             ├→ R4 ------------------------------------------------┤
+                             ├→ R13 -----------------------------------------------┤
+                             ├→ R14 (secrets, topology validator, backups) ---------┤
+                             └→ R2 ┬→ R7a → R7b (merges before P6.3) ---------------┴→ P6 → F1 → D1 → D2 ┬→ D3
+                                   └→ R6 → R8 (F1 blockers only; R5 is done)                             └→ D4 → D5
 ```
+
+F1 also requires R2, R5, R6, R7a, R7b, and R8 merged. R9-R12 are maintainability sprints and gate nothing, and
+R14's documentation items gate nothing. R8 may land after the P6 go decision but must land before F1.
 
 ## Immediate queue
 
