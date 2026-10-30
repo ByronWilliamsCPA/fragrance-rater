@@ -663,12 +663,12 @@ State only. No deletion has been performed or approved.
   deleting. Branches for pull requests merged on 2026-10-21 join this list by pull request state, not by diff:
   `chore/renovate-hold-requires-python` (#141), `feat/house-intake-form` (#137), `feat/r2-schema-constraints` (#136),
   `fix/deps-mako-certifi-advisories` (#140), and `test/vary-header-assertion` (#142).
-- **Needs an owner decision before deletion:** `renovate/github-actions` (two commits, `bbb5d25` and `bcb91c6`, not on
-  its upstream, although #126 merged); `renovate/major-react-monorepo` (commit `489c9b7`, a three-line eslint-disable in
-  `frontend/src/pages/HomePage.tsx` absent from `main`); `pr116-check` (likely superseded by #116, not provable);
-  `backup/pr125-pre-rebase` (unique file `docs/planning/commercialization-revenue-options.md`, absent from `main`); and
-  `stash@{0}` on `main` (a work-in-progress stash of the `tmp_cleanup` gitignore and ADR-004/ADR-010 cross-links;
-  overlap with merged #95 not verified).
+- **Needs an owner decision before deletion:** `renovate/major-react-monorepo` (commit `489c9b7`, a three-line
+  eslint-disable in `frontend/src/pages/HomePage.tsx` absent from `main`) and `pr116-check` (likely superseded by #116,
+  not provable).
+- **Resolved 2026-10-30:** `renovate/github-actions` (tip `bbb5d25`) and `backup/pr125-pre-rebase` (tip `a8c394b`) were
+  deleted, and `stash@{0}` was dropped (stash commit `07bdfb3`). The backup branch's other four commits had landed
+  through #121 and #125; its one unlanded document was deliberately kept out of this public repository.
 - **Remote-only `claude/*` review branches (no pull request), reviewed 2026-10-30:** the documents were not landed
   because main's ADRs, this plan, and the architecture review supersede them; the still-open ideas are captured in
   the [idea register](review-branch-idea-register.md). Source tip SHAs for recovery: architecture review
