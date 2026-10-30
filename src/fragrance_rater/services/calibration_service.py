@@ -51,6 +51,11 @@ def reject(message: str, status: int = 409) -> NoReturn:
 
 UNPINNED_INSTRUMENT_PREFIX = "unpinned-app-"
 
+# What enroll() actually does: a system-entropy shuffle of the baseline block,
+# concealed repeats inserted with at least one session of separation, then a
+# shuffle of the holdout block. Bump the suffix if that procedure changes.
+RANDOMIZATION_ALGORITHM = "system-random-shuffle-v1"
+
 # Facts about the physical sample, recorded when the sample is first exposed.
 _SAMPLE_FACTS = (
     "sample_source_type",
@@ -136,6 +141,14 @@ def observation_payload(o: Observation) -> dict[str, object]:
         "would_buy": o.would_buy,
         "artistic_appreciation": o.artistic_appreciation,
         "projection": o.projection,
+        "observed_at": o.observed_at.isoformat() if o.observed_at else None,
+        "response_status": o.response_status,
+        "recognition": o.recognition,
+        "owned_or_worn": o.owned_or_worn,
+        "scrubbed_off": o.scrubbed_off,
+        "time_to_scrub_minutes": o.time_to_scrub_minutes,
+        "last_detected_elapsed_min": o.last_detected_elapsed_min,
+        "first_not_detected_elapsed_min": o.first_not_detected_elapsed_min,
         "longevity_minutes": o.longevity_minutes,
         "perceived_notes": o.perceived_notes,
         "likes": o.likes,
@@ -300,10 +313,15 @@ class CalibrationService:
         ):
             reject("Reviewer already enrolled")
         get_llm_service().invalidate_reviewer_cache(data.reviewer_id)
+        # #ASSUME: data-integrity: the schedule is drawn from the operating
+        # system's entropy (SystemRandom, randbelow), which cannot be seeded, so
+        # no seed is recorded. A seeded algorithm would store its seed here.
+        # #VERIFY: randomization_seed stays NULL while this algorithm is used.
         enrollment = Enrollment(
             program_id=program_id,
             reviewer_id=data.reviewer_id,
             recorder_usernames=data.recorder_usernames,
+            randomization_algorithm=RANDOMIZATION_ALGORITHM,
         )
         self.db.add(enrollment)
         await self.db.flush()
@@ -370,6 +388,7 @@ class CalibrationService:
                                 else secrets.token_hex(4).upper()
                             ),
                             position=position,
+                            intended_position=position,
                         )
                     )
         await self.db.flush()

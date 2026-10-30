@@ -44,6 +44,7 @@ from fragrance_rater.api import (
     reviewers_router,
 )
 from fragrance_rater.api.calibration import router as calibration_router
+from fragrance_rater.api.capture import router as capture_router
 from fragrance_rater.api.house_intake import router as house_intake_router
 from fragrance_rater.api.predictions import router as predictions_router
 from fragrance_rater.core.config import settings
@@ -213,5 +214,6 @@ async def root() -> dict[str, str]:
 
 
 app.include_router(calibration_router, prefix=settings.api_v1_prefix)
+app.include_router(capture_router, prefix=settings.api_v1_prefix)
 app.include_router(predictions_router, prefix=settings.api_v1_prefix)
 app.include_router(house_intake_router, prefix=settings.api_v1_prefix)
