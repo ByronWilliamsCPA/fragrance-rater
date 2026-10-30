@@ -99,8 +99,11 @@ app = FastAPI(
         "url": "https://github.com/ByronWilliamsCPA/fragrance-rater",
     },
     license_info={"name": "MIT"},
-    docs_url="/docs",
-    redoc_url="/redoc",
+    # The interactive docs and schema describe every route, including the
+    # manager-only ones, so production does not serve them (S-18).
+    docs_url=None if settings.environment == "production" else "/docs",
+    redoc_url=None if settings.environment == "production" else "/redoc",
+    openapi_url=None if settings.environment == "production" else "/openapi.json",
     lifespan=lifespan,
 )
 
@@ -162,7 +165,11 @@ app.add_middleware(CorrelationMiddleware)
 # registered on `app` and that only origins in
 # `settings.cors_allowed_origins` receive CORS headers; re-check that test
 # before adding any other CORSMiddleware registration in this module.
-add_security_middleware(app, allowed_origins=settings.cors_allowed_origins)
+add_security_middleware(
+    app,
+    allowed_origins=settings.cors_allowed_origins,
+    allowed_hosts=settings.trusted_hosts,
+)
 
 # Include routers
 app.include_router(health_router)

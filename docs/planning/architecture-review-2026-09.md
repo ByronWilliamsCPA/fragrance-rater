@@ -601,8 +601,8 @@ what has actually shipped. As of 2026-09-21:
   execute, while the same code called directly against the `async_session` fixture does. Recorded
   in `docs/ci-gates.md`'s residual-gaps section rather than root-caused here; treat this repository's
   reported coverage percentage as a floor, not an exact count.
-- **WS-9 / R2 PR 1 (migration tooling and naming) is in review as of 2026-10-02.** It closes D-03, D-04, D-05,
-  D-07, D-11, D-17, D-19, and D-20 (merge commit to be recorded here on merge). **R2 PR 2**, stacked on it, closes
+- **WS-9 / R2 is done (2026-10-21).** R2 PR 1 (#135, merge commit `329c648`) closes D-03, D-04, D-05,
+  D-07, D-11, D-17, D-19, and D-20. **R2 PR 2** (#136, merge commit `00f14d6`) closes
   D-02, D-09 (Q17's default, "yes", applied), D-10, D-15 for role, status, stage, and phase (the other enum-shaped columns
   it lists remain unconstrained), and ML review X-25. D-09 needed one change this review did not name: the ORM
   relationships `Fragrance.evaluations` and `Reviewer.evaluations` carried `cascade="all, delete-orphan"`, which would
@@ -611,7 +611,12 @@ what has actually shipped. As of 2026-09-21:
   CONSTRAINT` for unnamed CHECKs, because Alembic does not compare CHECK constraints at all. The real risk was the
   reverse: a dropped or renamed CHECK was invisible to autogenerate. R2 PR 1 therefore adds a constraint-name parity
   test alongside `compare_metadata`.
-- All other workstreams (WS-2 through WS-8, WS-10, WS-11, and the rest of WS-9: D-01 (ADR-012 fields landed in PR #125; the rest is R8), D-08, D-12, D-16, D-21, D-22) remain open; see PROJECT-PLAN.md for
+- **WS-2 / R3 PR 1 (the edge) is in review as of 2026-10-21.** It closes S-01 in code (nginx forwards identity
+  and forwarding headers only from `FRAGRANCE_TRAEFIK_CIDR`; the deployed forged-header check stays with P1.6), S-02,
+  S-17, S-18, S-19, B-27, and S-25 (merge commit to be recorded here on merge). S-01's recommended longer-term fix,
+  verifying Authentik's signed JWT, was offered and the owner chose the peer-subnet check for now. R3 PR 2 carries
+  S-03, S-05/B-10, S-06, B-11, S-23, and F-02.
+- All other workstreams (the rest of WS-2, WS-3 through WS-8, WS-10, WS-11, and the rest of WS-9: D-01 (ADR-012 fields landed in PR #125; the rest is R8), D-08, D-12, D-16, D-21, D-22) remain open; see PROJECT-PLAN.md for
   current status.
 
 ## 8. Template feedback

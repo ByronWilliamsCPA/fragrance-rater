@@ -184,3 +184,50 @@ def test_health_live_does_not_require_api_key(
     response = client.get("/health/live")
 
     assert response.status_code == 200
+
+
+def test_rate_limit_buckets_are_per_identity(client: TestClient) -> None:
+    """Household members behind one proxy address get separate buckets (S-02).
+
+    Every request here comes from the same TestClient address; only the
+    verified Authentik username differs.
+    """
+    from fragrance_rater.middleware import DEFAULT_RATE_LIMIT
+
+    limit = int(DEFAULT_RATE_LIMIT.split("/")[0])
+    alice = {"X-Authentik-Username": "alice"}
+    bob = {"X-Authentik-Username": "bob"}
+
+    alice_statuses = [
+        client.get("/health/live", headers=alice).status_code for _ in range(limit + 1)
+    ]
+    assert alice_statuses[limit] == 429
+
+    assert client.get("/health/live", headers=bob).status_code == 200
+    assert client.get("/health/live").status_code == 200
+
+
+def test_rate_limit_key_prefers_identity_then_address() -> None:
+    """The key names the verified user, falling back to the client address."""
+    from starlette.requests import Request
+
+    from fragrance_rater.middleware.rate_limit import rate_limit_key
+
+    def request(headers: list[tuple[bytes, bytes]]) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/",
+                "headers": headers,
+                "client": ("192.0.2.7", 5000),
+            }
+        )
+
+    assert rate_limit_key(request([(b"x-authentik-username", b"alice")])) == (
+        "user:alice"
+    )
+    assert rate_limit_key(request([(b"x-authentik-username", b"  ")])) == (
+        "ip:192.0.2.7"
+    )
+    assert rate_limit_key(request([])) == "ip:192.0.2.7"

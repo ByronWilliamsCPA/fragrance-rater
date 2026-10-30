@@ -127,11 +127,27 @@ Create the external Docker network named by `FRAGRANCE_TRAEFIK_NETWORK` and atta
 Traefik service and this deployment's frontend. A shared proxy network lets unrelated containers
 reach nginx with forged identity headers and does not satisfy the P1 trust-boundary gate.
 
-Render the exact deployment configuration and save it to the private evidence directory:
+nginx forwards `X-Authentik-*` identity headers, and Traefik's `X-Forwarded-For` and
+`X-Forwarded-Proto`, only from peers inside `FRAGRANCE_TRAEFIK_CIDR`; from any other peer it clears
+the identity headers (the API then answers 401) and resets the forwarding headers. Set it to the
+edge network's subnet, which the production Compose render requires:
+
+```bash
+docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" --format '{{(index .IPAM.Config 0).Subnet}}'
+```
+
+The same render sets `ENVIRONMENT=production` (no `/docs`, `/redoc`, or `/openapi.json`; no
+development CORS origins), `TRUSTED_HOSTS` (the public host plus `localhost` for the healthcheck),
+and `FORWARDED_ALLOW_IPS` (the private app network and the edge subnet, so rate limits and logs see
+the real client). The validator below rejects a render missing any of them or using `*`.
+
+Render the exact deployment configuration and save it to the private evidence directory, then
+validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json
-uv run python scripts/validate_production_topology.py /secure/path/compose.json
+uv run python scripts/validate_production_topology.py /secure/path/compose.json \
+  "$(docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" --format '{{(index .IPAM.Config 0).Subnet}}')"
 ```
 
 From every reachable network, verify that only Traefik's TLS entry point is open. Requests
@@ -139,6 +155,22 @@ without an Authentik session must be challenged. Requests sent directly to the a
 from an untrusted network must be unreachable. Inside the private Docker network, a mutation
 without the verified identity header must return 401 when `AUTHENTIK_REQUIRED=true`. Confirm the
 manager and participant role matrix with separate Authentik accounts.
+
+Forged-header check (architecture review S-01): from a throwaway container on the private app
+network, which is outside `FRAGRANCE_TRAEFIK_CIDR`, send a mutation through nginx with a forged
+manager identity. It must return 401, not succeed. Send the public host name as `Host`: nginx
+passes it through, and a host outside `TRUSTED_HOSTS` (such as `frontend`) gets 400 before identity
+is checked, which proves nothing. Compose prefixes the network with the project name;
+`docker network ls | grep fragrance_rater-network` shows it:
+
+```bash
+docker run --rm --network <project>_fragrance_rater-network curlimages/curl -s -o /dev/null -w '%{http_code}\n' \
+  -X POST -H "Host: $FRAGRANCE_HOST" -H 'Content-Type: application/json' \
+  -H 'X-Authentik-Username: <a manager username>' \
+  -d '{"name":"forged-header probe"}' http://frontend/api/v1/reviewers
+```
+
+Record the status code in the redacted evidence. Anything other than 401 fails P1.6.
 
 ## Recovery drill
 
