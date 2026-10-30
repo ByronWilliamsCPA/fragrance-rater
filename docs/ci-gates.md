@@ -45,12 +45,13 @@ this repository's own `.github/workflows/*.yml`.
 
 Every caller in this repository except `scorecard.yml` pins
 `ByronWilliamsCPA/.github/.github/workflows/<name>.yml` to the same commit SHA,
-`b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89` (tagged `# main`). Before R1 this had drifted:
-`docker-publish.yml` was two commits ahead of the other ten callers that share the pin
-(S-22). Bump *all* callers together when updating this pin, and diff the reusable
-workflows between the old and new SHA first: the two commits this pin skipped when it
-drifted touched only `python-docker.yml`, so the bump was a no-op for every other caller,
-but that will not always be true. `scorecard.yml` pins a different SHA entirely
+`74cfc8e9d1ea1f6babc40bea102b3071af620942` (tagged `# main`). Before R1 this had drifted:
+`docker-publish.yml` was two commits ahead of the other ten callers that shared the pin
+(S-22); R1 aligned them on `b7c661ec3bfeb04370ce3a9c748bd8c4e93bfe89`, and later bumps
+have moved all callers together to the current pin. Bump *all* callers together when
+updating this pin, and diff the reusable workflows between the old and new SHA first: a
+bump can change the jobs a caller runs (the CodeQL and dependency-review jobs disappeared
+from `python-security-analysis.yml` this way). `scorecard.yml` pins a different SHA entirely
 (`f05c26a424a708a73fc445a0ebb5b3ce476c1793`, no `# main` tag comment) and was out of
 scope for the R1 alignment sweep; see "Known residual gaps" below.
 
@@ -60,7 +61,7 @@ scope for the R1 alignment sweep; see "Known residual gaps" below.
 | :--- | :--- | :--- | :--- | :--- |
 | `ci.yml` | PR, push to main/master/develop, merge_group, dispatch | `ci` job delegates to `python-ci.yml`: Ruff, BasedPyright (strict), unit + integration + security pytest tiers, 80% coverage floor. `frontend` job: `npm ci`, lint, typecheck, `test:coverage`, build. `frontend-e2e` job: mocked-API Playwright suite (5 P4 journeys + P5 manager journey) plus the axe-core accessibility scan. `postgres-integration` job (added R1/D-06): a real `postgres:16` service, `alembic upgrade head`, then `pytest tests/integration -m integration` so `P1_DATABASE_URL`-gated tests actually run instead of skipping. Since R2 these include `test_schema_parity_postgres.py`: migrated-schema-versus-ORM structural parity (`compare_metadata == []`), constraint and index name parity, and a head-revision downgrade/upgrade round trip. `ci-gate` aggregates all four. | Any of `ci`, `frontend`, `frontend-e2e`, `postgres-integration` failing | **Yes**, via the bare `CI Gate` check (required org-ruleset context) |
 | `pr-validation.yml` | PR, merge_group | `PR Title Format` (conventional-commit regex), `PR Body Non-Empty`, `Dependency & Standards Validation` (lockfile/requirements sync) | Any check failing (title-check/body-check skip cleanly, not fail, under merge_group) | Yes, as the three bare check names |
-| `security-analysis.yml` | PR, push, weekly schedule, dispatch | `Security Analysis` job: CodeQL, Bandit, Safety/pip-audit, OSV Scanner, dependency review (PR only). `Security Gate Validation` aggregates. | High/critical findings from any scanner | Yes |
+| `security-analysis.yml` | PR, push, weekly schedule, dispatch | `Security Analysis` job, a call to the org's `python-security-analysis.yml` that runs `Detect Security Changes`, `Python SAST (Bandit)`, and `OSV Vulnerability Scanner` (the last two skip on PRs that touch no security-relevant files), then its own inner `Security Gate Validation`. The bare `Security Gate Validation` job in this repository aggregates the call's result. CodeQL, dependency review, and Safety are not run: the first two need GitHub Advanced Security (billed separately) and were removed from the callee, and Safety was removed in org PR #140. | High/critical findings from any scanner | Yes |
 | `reuse.yml` | PR, push, merge_group | `Check REUSE Compliance` (REUSE/SPDX licensing), `Validate License Files` (LICENSE/REUSE.toml existence) | Either check failing | Yes |
 | `container-security.yml` | Push/PR touching Dockerfile paths (both backend and frontend, R1/S-29), weekly schedule, dispatch | Matrixed `Container Security Scan (backend)` / `(frontend)`: builds each image, Trivy vuln scan at CRITICAL/HIGH, Hadolint, SBOM, and a suppression-revisit-date check (`.trivyignore.yaml`, 90-day horizon) | **Partial (R1/S-10)**: the reusable workflow's CVE gate exists (`fail-on-vulnerabilities` input) and was briefly flipped to `true` in R1, but a live run surfaced 52 HIGH findings with no `.trivyignore.yaml` suppression entries in place to triage them first, so it was reverted to `false` (report-only) pending a real baseline. Not fixed yet; flip back once entries exist. | No while report-only; would be a candidate for a required context once the gate is flipped back on |
 | `docker-publish.yml` | `workflow_run` after CI succeeds on main/master, PR on image-relevant paths, dispatch | Builds and (outside PRs) pushes both images to GHCR via the org's `python-docker.yml`; runs its own Trivy pass | **No**, `trivy-fail-on-vuln: false` for both backend and frontend. Left this way deliberately: unlike `container-security.yml`, the reusable `python-docker.yml` passes no `trivyignores` to its Trivy step, so there is no way to accept a specific CVE here; flipping this on would block every future image publish on any CRITICAL/HIGH finding with no recovery but reverting the flag. Revisit if `python-docker.yml` gains the same `.trivyignore.yaml` mechanism `python-container-security.yml` has. | No (post-merge publish path; PR runs never push) |
