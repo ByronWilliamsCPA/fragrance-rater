@@ -54,7 +54,11 @@ and assigns blind labels under one of two schemes chosen at enrollment (`label_s
 
 - `standard` (default): `E{enrollment}-S{session}-{position}`, for example `E01-S1-2`. Labels are
   readable and quick to write on vials. Order is still randomized per evaluator, so a label
-  carries no identity signal; it does reveal session grouping, which the participant already sees.
+  carries no identity signal. It does reveal session grouping, which the participant already sees.
+  Session numbers also run baseline first and holdout last, so the `S` number discloses whether a
+  session is baseline or holdout. Only identities are blinded, never that partition. This is an
+  accepted trade-off for the default (decision recorded 2026-10-30); use `random` for any trial
+  where that partition must stay hidden.
 - `random`: an independent 8-character hex code per presentation, with no structure at all.
 Repeats are interleaved with baseline stimuli with separation where the number of stimuli
 permits it. Small diagnostic/test definitions may have insufficient stimuli for the usual

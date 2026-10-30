@@ -38,7 +38,9 @@ configured manager usernames before opening the program.
 
 Enroll the named evaluator and grant only the recorder usernames that need access. Choose the
 blind label scheme at enrollment: **Standard** (for example `E01-S1-2`, the default and easiest
-to label) or **Random code** (8 hex characters). Generate the
+to label) or **Random code** (8 hex characters). Standard labels reveal which sessions are
+baseline and which are holdout (holdout sessions are numbered last), so choose Random code when
+that must stay hidden from evaluators and recorders. Generate the
 manager-only mapping and print the blind labels. Keep the mapping away from participants and
 remove discarded labels from the work area.
 
