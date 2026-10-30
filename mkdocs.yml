@@ -205,6 +205,7 @@ nav:
       - Architecture and Design Review 2026-09: planning/architecture-review-2026-09.md
       - ML Structure Review 2026-09: planning/ml-structure-review-2026-09.md
       - ML Decisions 2026-09: planning/ml-decisions-2026-09.md
+      - Idea Register from Reviewed Branches: planning/review-branch-idea-register.md
 
   - Deployment:
       - P1 Release Readiness: deployment/p1-release-readiness.md
