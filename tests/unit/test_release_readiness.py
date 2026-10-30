@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -611,6 +613,58 @@ def test_production_topology_accepts_a_dedicated_edge_cidr(cidr: str) -> None:
     config = valid_topology()
     config["services"]["frontend"]["environment"]["FRAGRANCE_TRAEFIK_CIDR"] = cidr
     assert validator.validate_topology(config) == []
+
+
+def _mismatch(live: str) -> str:
+    return (
+        "FRAGRANCE_TRAEFIK_CIDR '172.30.0.0/24' does not match the edge "
+        f"network subnet {live!r}"
+    )
+
+
+@pytest.mark.parametrize("live", ["172.30.0.0/24", " 172.30.0.0/24\n", "172.30.0.5/24"])
+def test_production_topology_accepts_the_live_edge_subnet(live: str) -> None:
+    """The CIDR matches the subnet Docker reports for the edge network."""
+    validator = load_script("validate_production_topology")
+    assert validator.validate_topology(valid_topology(), edge_subnet=live) == []
+
+
+@pytest.mark.parametrize(
+    ("live", "message"),
+    [
+        ("172.30.0.0/16", _mismatch("172.30.0.0/16")),
+        ("172.31.0.0/24", _mismatch("172.31.0.0/24")),
+        ("", "edge network subnet '' is not a valid CIDR"),
+    ],
+)
+def test_production_topology_rejects_a_cidr_that_is_not_the_live_subnet(
+    live: str, message: str
+) -> None:
+    """A stale or mistyped CIDR can exclude Traefik or trust other peers."""
+    validator = load_script("validate_production_topology")
+    assert validator.validate_topology(valid_topology(), edge_subnet=live) == [message]
+
+
+def test_production_topology_cli_requires_the_live_edge_subnet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The deployment check cannot run without the inspected subnet."""
+    validator = load_script("validate_production_topology")
+    rendered = tmp_path / "compose.json"
+    rendered.write_text(json.dumps(valid_topology()), encoding="utf-8")
+
+    monkeypatch.setattr(sys, "argv", ["validate", str(rendered)])
+    assert validator.main() == 2
+    assert "EDGE_SUBNET" in capsys.readouterr().err
+
+    monkeypatch.setattr(sys, "argv", ["validate", str(rendered), "172.31.0.0/24"])
+    assert validator.main() == 1
+    assert "does not match" in capsys.readouterr().err
+
+    monkeypatch.setattr(sys, "argv", ["validate", str(rendered), "172.30.0.0/24"])
+    assert validator.main() == 0
 
 
 @pytest.mark.parametrize("hosts", [None, "", "*", "fragrance.example.com,*"])

@@ -41,7 +41,8 @@ could act as any user, including a manager.
   long-term option.
 - nginx refuses to start without `FRAGRANCE_TRAEFIK_CIDR`, and the production Compose render and
   `scripts/validate_production_topology.py` both require it, narrower than /16 (IPv4) or /48
-  (IPv6).
+  (IPv6). The validator also takes the edge network's live subnet from `docker network inspect`
+  and rejects a CIDR that differs from it.
 - uvicorn trusts forwarding headers only from the private app network and that subnet
   (`FORWARDED_ALLOW_IPS`), and the rate limiter keys on the verified username before the client
   address, so household members no longer share one bucket.
