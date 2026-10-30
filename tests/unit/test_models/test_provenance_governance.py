@@ -26,8 +26,6 @@ from fragrance_rater.models.calibration import (
     QUALITY_FLAG_DISPOSITIONS,
     QUALITY_FLAG_SEVERITIES,
     QUALITY_FLAG_SOURCES,
-    SEASON_FIT_CODES,
-    SETTING_FIT_CODES,
     CalibrationSession,
     Enrollment,
     Membership,
@@ -72,8 +70,6 @@ def _values(table: Table, rule: str) -> set[str]:
 
 
 VOCABULARIES = [
-    ("calibration_observations", "season_fit_valid", SEASON_FIT_CODES),
-    ("calibration_observations", "setting_fit_valid", SETTING_FIT_CODES),
     ("calibration_quality_flags", "action_valid", QUALITY_FLAG_ACTIONS),
     ("calibration_quality_flags", "code_valid", QUALITY_FLAG_CODES),
     ("calibration_quality_flags", "severity_valid", QUALITY_FLAG_SEVERITIES),
@@ -156,7 +152,6 @@ def test_every_model_check_is_created_by_the_migration(
         "calibration_programs": {"instrument_version"},
         "calibration_enrollments": {"randomization_algorithm", "randomization_seed"},
         "calibration_presentations": {"intended_position"},
-        "calibration_observations": {"season_fit", "setting_fit"},
     }
     missing: list[str] = []
     for table in Base.metadata.tables.values():
@@ -228,17 +223,6 @@ async def _world(
     session.add(observation)
     await session.flush()
     return program, enrollment, calibration, presentation, observation
-
-
-def _obs(presentation: Presentation, **fields: object) -> Observation:
-    values: dict[str, object] = {
-        "presentation_id": presentation.id,
-        "stage": "SKIN",
-        "phase": "PRE_REVEAL",
-        "recorded_by": "rec",
-    }
-    values.update(fields)
-    return Observation(**values)
 
 
 # --- programs: instrument version ----------------------------------------
@@ -381,59 +365,6 @@ async def test_intended_position_is_not_unique_within_a_session(
     )
     async_session.add(second)
     await async_session.flush()
-
-
-# --- observations: season and setting fit ---------------------------------
-
-
-@pytest.mark.asyncio
-async def test_a_plain_observation_leaves_season_and_setting_null(
-    async_session: AsyncSession,
-) -> None:
-    *_, observation = await _world(async_session)
-
-    assert observation.season_fit is None
-    assert observation.setting_fit is None
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("code", SEASON_FIT_CODES)
-async def test_every_season_code_is_accepted_on_a_skin_row(
-    async_session: AsyncSession, code: str
-) -> None:
-    _, _, _, presentation, _ = await _world(async_session)
-    async_session.add(_obs(presentation, season_fit=code))
-    await async_session.flush()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("code", SETTING_FIT_CODES)
-async def test_every_setting_code_is_accepted_on_a_skin_row(
-    async_session: AsyncSession, code: str
-) -> None:
-    _, _, _, presentation, _ = await _world(async_session)
-    async_session.add(_obs(presentation, setting_fit=code))
-    await async_session.flush()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "fields",
-    [
-        {"season_fit": "monsoon"},
-        {"setting_fit": "beach"},
-        {"season_fit": "spring", "stage": "BLOTTER"},
-        {"setting_fit": "home", "stage": "BLOTTER"},
-        {"season_fit": "year_round", "setting_fit": "home", "stage": "BLOTTER"},
-    ],
-)
-async def test_season_and_setting_are_skin_stage_only_and_closed(
-    async_session: AsyncSession, fields: dict[str, object]
-) -> None:
-    """Q9: the labels are asked at skin stage only; blotter rows never carry them."""
-    _, _, _, presentation, _ = await _world(async_session)
-
-    await _rejects(async_session, _obs(presentation, **fields))
 
 
 # --- quality flags --------------------------------------------------------
@@ -820,11 +751,25 @@ async def test_a_reviewer_with_consent_events_cannot_be_hard_deleted(
 # --- migration downgrade guard --------------------------------------------
 
 
+def _without_dropped_columns(migration) -> None:
+    """Forget columns that revision f74bf7ff9c2d dropped from the current models.
+
+    This migration's guard describes the schema as it stood after cd1e2375a2e4;
+    the test database is built from today's models, which no longer have
+    ``season_fit`` or ``setting_fit``.
+    """
+    migration._NEW_COLUMNS = {
+        table: tuple(c for c in columns if c not in {"season_fit", "setting_fit"})
+        for table, columns in migration._NEW_COLUMNS.items()
+    }
+
+
 @pytest.mark.asyncio
 async def test_the_downgrade_guard_sees_nothing_in_an_empty_database(
     async_session: AsyncSession,
 ) -> None:
     migration = _migration_module()
+    _without_dropped_columns(migration)
     connection = await async_session.connection()
 
     found = await connection.run_sync(migration._captured_data)
@@ -838,6 +783,7 @@ async def test_the_downgrade_guard_names_recorded_provenance(
 ) -> None:
     """Consent and flags exist nowhere else, so the guard says what it found."""
     migration = _migration_module()
+    _without_dropped_columns(migration)
     program, enrollment, calibration, presentation, _ = await _world(async_session)
     reviewer = await _reviewer(async_session)
     program.status = "active"

@@ -14,6 +14,7 @@ from fragrance_rater import __version__
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
+    FitChoice,
     Membership,
     Observation,
     Presentation,
@@ -466,8 +467,24 @@ class CalibrationService:
         # it (see the Observation docstring), so the remaining perceptual/
         # temporal/free-text fields are splatted rather than repeated here.
         typed_fields = data.model_dump(
-            exclude={"stage", "elapsed_minutes", "detected", "intensity", "liking"}
+            exclude={
+                "stage",
+                "elapsed_minutes",
+                "detected",
+                "intensity",
+                "liking",
+                "season_fit",
+                "setting_fit",
+            }
         )
+        # #ASSUME: timing-dependency: observed_at is the client's clock at submit
+        # (or the recorder's explicit transcription time). When the client sends
+        # none, the server's receipt time stands in, which is what the column
+        # held implicitly before R7b via created_at, so it is never NULL for new
+        # rows. #VERIFY: a recorder transcribing late sends observed_at; the
+        # schema rejects stamps in the future.
+        if typed_fields["observed_at"] is None:
+            typed_fields["observed_at"] = now_naive_utc()
         observation = Observation(
             presentation_id=obj.id,
             stage=data.stage,
@@ -480,6 +497,17 @@ class CalibrationService:
             **typed_fields,
         )
         self.db.add(observation)
+        await self.db.flush()
+        for dimension, choices in (
+            ("season", data.season_fit),
+            ("setting", data.setting_fit),
+        ):
+            for code in choices or []:
+                self.db.add(
+                    FitChoice(
+                        observation_id=observation.id, dimension=dimension, code=code
+                    )
+                )
         await self.db.flush()
         return observation
 
