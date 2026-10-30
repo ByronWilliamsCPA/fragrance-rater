@@ -501,7 +501,8 @@ the authoritative per-workflow record and its "Known residual gaps" section for 
 including that `docker-publish.yml`'s CVE gate stays report-only and that Q9's default resolved only PyPI publishing
 and the Python version matrix, not FIPS/SLSA/mutation-testing/semantic-release). Completed on 2026-10-21: R2
 (PRs #135 and #136). Completed on 2026-10-30: R3 (PRs #143 and #144) and R4
-(PR #149: disclosure leaks, audit trail, logging); see the sprint table. In progress on 2026-10-30: R6 (PR 1, the vocabulary schema, in review).
+(PR #149: disclosure leaks, audit trail, logging); see the sprint table.
+In progress on 2026-10-30: R6 (PR 1, the vocabulary schema, in review).
 
 **Depends on:** P5. **Blocks:** P6 closure (R1-R4, R7a-R7b via P6.3, R13, and R14's secrets, validator, and backup
 items) and F1 (R2, R5-R8).

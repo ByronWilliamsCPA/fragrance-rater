@@ -152,6 +152,7 @@ class FragranceService:
         # Add notes, resolved to canonical notes (R6). The caller's order within a
         # position is the rank.
         ranks: dict[str, int] = {}
+        seen_notes: set[tuple[str, str]] = set()
         for note_data in data.notes:
             resolution = await self._resolver.resolve_note(
                 note_data.note_name, note_data.note_category
@@ -162,6 +163,11 @@ class FragranceService:
                     f"catalog note ({resolution.status}); ask a manager to settle it"
                 )
                 raise ValidationError(msg, field="notes", value=note_data.note_name)
+            # Two spellings of one note in one position are one link.
+            link = (resolution.note.id, note_data.position)
+            if link in seen_notes:
+                continue
+            seen_notes.add(link)
             rank = ranks.get(note_data.position, 0)
             ranks[note_data.position] = rank + 1
             self.session.add(
