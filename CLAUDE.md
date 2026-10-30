@@ -366,7 +366,7 @@ END BASELINE DEVELOPMENT STANDARDS
 > evidence is pending through P6. That P1 evidence, Milestone R's R1-R4 and R7a-R7b sprints
 > (R7b via the P6.3 synthetic rehearsal), R13 and R14's operations items (per their sprint-table rows),
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
-> As of 2026-10-30, R1-R5 are done (R4 merged as #149) and R6 PRs 1 and 2 are merged (#151, #157); the 43-version alias decisions wait for the verified manifest. R7a PR 1 is merged (#160), PR 2 in review. The project plan owns milestone status.
+> As of 2026-10-30, R1-R5 are done (R4 merged as #149) and R6 PRs 1 and 2 are merged (#151, #157); the 43-version alias decisions wait for the verified manifest. R7a's schema is merged (#160, #161); its service writes remain open. The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
