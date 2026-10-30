@@ -279,14 +279,9 @@ class CaptureService:
             if raised is None:
                 reject("Flag not found", 404)
             assert raised is not None
-            if raised.action != "raised":
-                reject("Only a raised flag can be closed")
-            if await self.db.scalar(
-                select(QualityFlag.id).where(QualityFlag.supersedes_id == raised.id)
-            ):
-                reject("That flag is already closed")
             # Authorize through the original target, so closing a flag needs the
-            # same standing as raising it.
+            # same standing as raising it. That also takes the enrollment lock, so
+            # the closing-state checks below run under it and cannot race.
             target_type = (
                 "session"
                 if raised.session_id
@@ -299,6 +294,12 @@ class CaptureService:
             )
             assert target_id is not None
             target = await self._flag_target(target_type, target_id, username, admin)
+            if raised.action != "raised":
+                reject("Only a raised flag can be closed")
+            if await self.db.scalar(
+                select(QualityFlag.id).where(QualityFlag.supersedes_id == raised.id)
+            ):
+                reject("That flag is already closed")
             code, severity, supersedes_id = (
                 raised.code,
                 data.severity or raised.severity,

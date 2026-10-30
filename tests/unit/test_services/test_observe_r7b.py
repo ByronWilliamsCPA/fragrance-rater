@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 
 import pytest
@@ -117,7 +117,7 @@ async def test_observed_at_defaults_to_receipt_time(
     async_session: AsyncSession,
 ) -> None:
     presentation = await _presentation(async_session)
-    before = datetime.now()  # noqa: DTZ005 - compared with naive-UTC server stamps
+    before = datetime.now(UTC).replace(tzinfo=None)  # server stamps are naive UTC
 
     observation = await _observe(
         async_session, presentation, detected=True, intensity=2

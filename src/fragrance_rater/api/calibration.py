@@ -507,9 +507,17 @@ async def read_session_context(
     session_id: str, db: DB, identity: Identity
 ) -> dict[str, object]:
     """Read a session's recorded conditions; manager or assigned recorder only."""
-    obj = await CalibrationService(db).session_context(session_id, *actor(identity))
+    service = CalibrationService(db)
+    username, admin = actor(identity)
+    obj = await service.session_context(session_id, username, admin)
     if obj is None:
         return {"recorded": False}
+    # Same rule as the evidence export: withdrawn or absent consent withholds the
+    # answers (the owner decides who may see raw answers; see the consent text).
+    _, enrollment = await service.session_target(session_id, username, admin)
+    consent = await ConsentService(db).state(enrollment.reviewer_id)
+    if consent.get("session_context") != "granted":
+        return {"recorded": True, "withheld": True}
     return {
         "recorded": True,
         "id": obj.id,
@@ -562,6 +570,12 @@ async def record_consent(
     """Append a consent grant or withdrawal, stamped with the shown text."""
     username, admin = actor(identity)
     await authorize_reviewer(db, reviewer_id, username, admin)
+    if await db.get(Reviewer, reviewer_id) is None:
+        reject("Reviewer not found", 404)
+    if data.enrollment_id is not None:
+        enrolled = await db.get(Enrollment, data.enrollment_id)
+        if enrolled is None or enrolled.reviewer_id != reviewer_id:
+            reject("Enrollment not found for this reviewer", 404)
     event = await ConsentService(db).record(
         reviewer_id,
         data.scope,

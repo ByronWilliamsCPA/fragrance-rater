@@ -43,7 +43,7 @@ R14's documentation items gate nothing. R8 may land after the P6 go decision but
 ## Immediate queue
 
 1. Milestone R sprints in order: R1-R5 (done), R6 (mechanism merged; alias decisions wait for the verified
-   manifest), then R7a (schema merged, service writes open) and R7b before the P6 go decision and R8
+   manifest), then R7a (merged) and R7b (PR 1 in review) before the P6 go decision and R8
    before F1; see [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation)
    for scope, lead model, and gate.
 2. Use the P6 runbook and retained-evidence templates against the final release candidate.

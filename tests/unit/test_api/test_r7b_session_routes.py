@@ -671,3 +671,56 @@ async def test_only_assigned_people_can_stamp_an_exposure(
     assert (
         await test_app.post(url, json={"stage": "BLOTTER"}, headers=MANAGER)
     ).status_code == 200
+
+
+# --- review follow-ups ------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_consent_refuses_an_unknown_reviewer_or_a_foreign_enrollment(
+    test_app: Any, world: dict[str, str], approved_consent: ConsentText
+) -> None:
+    body = {"scope": "session_context", "event_type": "granted"}
+
+    unknown_reviewer = await test_app.post(
+        f"{PREFIX}/reviewers/no-such-reviewer/consent", json=body, headers=MANAGER
+    )
+    foreign = await test_app.post(
+        f"{PREFIX}/reviewers/{world['reviewer_id']}/consent",
+        json={**body, "enrollment_id": "no-such-enrollment"},
+        headers=MANAGER,
+    )
+    own = await test_app.post(
+        f"{PREFIX}/reviewers/{world['reviewer_id']}/consent",
+        json={**body, "enrollment_id": world["enrollment_id"]},
+        headers=MANAGER,
+    )
+
+    assert unknown_reviewer.status_code == 404
+    assert foreign.status_code == 404
+    assert own.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_reading_context_is_withheld_after_consent_is_withdrawn(
+    test_app: Any, world: dict[str, str], approved_consent: ConsentText
+) -> None:
+    consent_url = f"{PREFIX}/reviewers/{world['reviewer_id']}/consent"
+    url = f"{PREFIX}/sessions/{world['session_id']}/context"
+    await test_app.post(
+        consent_url,
+        json={"scope": "session_context", "event_type": "granted"},
+        headers=RECORDER,
+    )
+    await test_app.post(url, json={"illness": "no"}, headers=RECORDER)
+    visible = (await test_app.get(url, headers=RECORDER)).json()
+    await test_app.post(
+        consent_url,
+        json={"scope": "session_context", "event_type": "withdrawn"},
+        headers=RECORDER,
+    )
+
+    withheld = (await test_app.get(url, headers=RECORDER)).json()
+
+    assert visible["illness"] == "no"
+    assert withheld == {"recorded": True, "withheld": True}
