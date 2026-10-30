@@ -360,7 +360,7 @@ END BASELINE DEVELOPMENT STANDARDS
 > **Status**: P0-P5 are complete; P1 external evidence, Milestone R's R1-R4 and R7a-R7b sprints
 > (R7b via the P6.3 synthetic rehearsal), R13 and R14's operations items (per their sprint-table rows),
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
-> As of 2026-10-30, R1-R5 are done (R4 merged as #149) and R6 PR 1 is in review. The project plan owns milestone status.
+> As of 2026-10-30, R1-R5 are done (R4 merged as #149) and R6 PR 1 is merged (#151). The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
