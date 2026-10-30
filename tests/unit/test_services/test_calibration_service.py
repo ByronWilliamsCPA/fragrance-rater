@@ -94,6 +94,38 @@ async def enroll(protocol, reviewer="reviewer-0"):
     )
 
 
+@pytest.mark.asyncio
+async def test_standard_label_scheme_is_default_and_unique_across_enrollments(
+    protocol,
+):
+    service, *_ = protocol
+    first = await enroll(protocol)
+    second = await enroll(protocol, "reviewer-1")
+    first_codes = [row.blind_code for row in await service.presentations(first.id)]
+    second_codes = [row.blind_code for row in await service.presentations(second.id)]
+    assert first_codes == ["E01-S1-1", "E01-S1-2", "E01-S2-1"]
+    assert second_codes == ["E02-S1-1", "E02-S1-2", "E02-S2-1"]
+
+
+@pytest.mark.asyncio
+async def test_random_label_scheme_keeps_independent_hex_codes(protocol):
+    service, program, *_ = protocol
+    program.status = "active"
+    await service.db.flush()
+    enrollment = await service.enroll(
+        program.id,
+        EnrollmentInput(
+            reviewer_id="reviewer-0",
+            recorder_usernames=["family-recorder"],
+            session_size=2,
+            label_scheme="random",
+        ),
+    )
+    codes = [row.blind_code for row in await service.presentations(enrollment.id)]
+    assert len(set(codes)) == 3
+    assert all(len(code) == 8 and int(code, 16) >= 0 for code in codes)
+
+
 async def answer_and_lock(service, presentation, stage="BLOTTER"):
     """Submit a real response before locking its stage."""
     response = await service.observe(
