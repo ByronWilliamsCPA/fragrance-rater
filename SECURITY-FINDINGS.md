@@ -1,7 +1,8 @@
 # Security Findings: Re-verification Against the Real Tree
 
 **Date**: 2026-10-31
-**Verified against**: `main` at `a7443a4` (the branch point of R14 PR 3a)
+**Verified against**: `main` at `a7443a4`. `main` has since gained #178 (the topology validator now requires the
+`backup` service), which changes none of the controls below and was not separately re-verified.
 **Supersedes**: the 2026-05-15 review of this file ("OWASP LLM Top 10 (2025) Focused Review"), which is kept in
 the repository history and is no longer accurate.
 

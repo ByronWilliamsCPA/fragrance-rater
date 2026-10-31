@@ -499,7 +499,9 @@ check is red on every main run even though the MkDocs build passes.
 
 ### Template ships stale root and docs-home content that no one owns
 
-**Priority**: Medium
+- **Priority**: Medium
+- **Category**: Documentation
+- **Discovered**: 2026-10-31
 
 **Issue**: The generated `README.md` was 736 lines, about ten of them product overview, and carried Assured OSS and
 Google Cloud setup the project never used. `docs/index.md` still tells readers to `pip install fragrance-rater` and run
@@ -523,7 +525,9 @@ from the same description instead of a fictional install and CLI example.
 
 ### Two ADR directories whose guides disagree
 
-**Priority**: Low
+- **Priority**: Low
+- **Category**: Structure
+- **Discovered**: 2026-10-31
 
 **Issue**: The template creates `docs/ADRs/` (a generic guide and template) while the planning generator writes real
 ADRs to `docs/planning/adr/`. The result is two homes, the guide's naming scheme (`0001-title.md`) contradicting the
@@ -544,7 +548,9 @@ generator, the guide and the naming convention agree.
 
 ### Baseline CLAUDE.md names agent tools and policies the project does not provide
 
-**Priority**: Medium
+- **Priority**: Medium
+- **Category**: Documentation
+- **Discovered**: 2026-10-31
 
 **Issue**: The baseline Supervisor section assigns work to `mcp__zen__*` tools although the template's `.mcp.json` does
 not configure them, and says "address ALL type checker warnings" although a strict BasedPyright run on real code carries
@@ -568,7 +574,9 @@ pointer to the tree.
 
 ### `status: draft` is not honoured by MkDocs, and the front-matter hook skips `docs/planning/`
 
-**Priority**: Low
+- **Priority**: Low
+- **Category**: Tooling
+- **Discovered**: 2026-10-31
 
 **Issue**: The front-matter schema allows `draft | in-review | published`, but the MkDocs configuration has no plugin that
 reads it, so a `draft` page is still built and searchable; keeping it out of the public navigation is a manual nav edit.
@@ -591,7 +599,9 @@ it does not), and validate planning documents against the planning schema instea
 
 ### Ignore ledgers carry reassessment dates that nothing checks
 
-**Priority**: Medium
+- **Priority**: Medium
+- **Category**: Security
+- **Discovered**: 2026-10-31
 
 **Issue**: `pyproject.toml` `[tool.pip-audit] ignore-vuln` and `docs/known-vulnerabilities.md` both record a "reassess by"
 date, but no hook or workflow fails when the date passes, and the two files can disagree. Here the OSV advisory was
@@ -614,7 +624,9 @@ needed.
 
 ### Assured OSS and Google Cloud scaffolding is on by default
 
-**Priority**: Low
+- **Priority**: Low
+- **Category**: Configuration
+- **Discovered**: 2026-10-31
 
 **Issue**: A project that does not use Google Assured OSS still ships `scripts/validate_assuredoss.py`, an `assuredoss`
 nox session, and a `GOOGLE_CLOUD_PROJECT=assured-oss-...` line in `.env.example`.

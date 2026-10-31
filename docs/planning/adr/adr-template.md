@@ -15,7 +15,9 @@ purpose: "Document the decision to [choose X approach] for [problem area], with 
   for alternatives considered."
 ---
 
-> **Status**: `draft` → Change to `published` once approved, or `deprecated`/`superseded` if no longer valid
+> **Document status** (the `status` front-matter field): `draft` → change to `published` once the page is ready to publish, or
+> `deprecated`/`superseded` if no longer valid. This is separate from the **decision status** (`Proposed` →
+> `Accepted`, see the [ADR process](README.md#creating-adrs)), which you record in the ADR body.
 >
 > For help with this template, see the [ADR index and process](README.md)
 

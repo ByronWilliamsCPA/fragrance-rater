@@ -402,10 +402,9 @@ backfill, then tighten constraints only where safe.
   (nullable `brand_id`) rather than guessing merges, per the "leave uncertain historical values
   null" instruction. Keep the `brand` string column and existing unique index untouched.
 - **Step 5 (v1.1: done, `000091664cdd`, FK included): add `accord_types` lookup table**, seeded from the distinct values already present
-  in `fragrance_accords.accord_type`. Add it as a reference table only in this pass (no FK
-  constraint yet on `fragrance_accords.accord_type`, to avoid a breaking migration if any
-  existing row's value needs review first); tighten to an FK in a later, separately reviewed
-  migration once the vocabulary is confirmed complete.
+  in `fragrance_accords.accord_type`. v1.0 proposed adding it as a reference table only, deferring the FK on
+  `fragrance_accords.accord_type` to a later, separately reviewed migration; the FK
+  (`fk_fragrance_accords_accord_type`) landed in the same migration (`000091664cdd`).
 - **Step 6 (v1.1: done, `3f14014a49cb`, no backfill): add sample-provenance columns** to `calibration_memberships` and/or
   `calibration_presentations` (exact placement depends on whether provenance is per-membership
   or per-physical-unit; recommend per-`Presentation` since that is the concrete physical
@@ -414,8 +413,8 @@ backfill, then tighten constraints only where safe.
   `sample_decanted_at` (nullable date), `sample_batch_code` (nullable string). Add the two new
   lookup tables from §5. Backfill from `Membership.selection` JSON where a value maps cleanly;
   leave the rest null.
-- **Step 7 (v1.1: done as schema, `620c8c861268`): add `training_eligibility` code column** to `evaluations` (default `ELIGIBLE`), and
-  the corresponding lookup table.
+- **Step 7 (v1.1: done as schema, `620c8c861268`): add `training_eligibility` code column** to `evaluations` (v1.0 proposed default
+  `ELIGIBLE`; the shipped default is `unreviewed`, which is not trainable), and the corresponding lookup table.
 
 **Sequence (P1, before adaptive/ML work in milestones D1/D4/D5):**
 
@@ -667,6 +666,9 @@ data would require an irreversible-feeling backfill of production history.
   records which columns a snapshot evidences.
 
 ### E. Recommended Implementation Sequence
+
+> **v1.1 note**: this is the original 2026-09-12 sequence, kept for history. Steps 1, 5, 6 and 7 have landed (7 as
+> schema only), step 2 is partial, and steps 3, 4 and 8-12 are open; the §9 ledger is the current status.
 
 1. §6 steps 1-3 together, as one PR: promote `Observation.responses` to typed columns, add
    `familiarity`, normalize `perceived_notes`. These three are tightly coupled (all touch the

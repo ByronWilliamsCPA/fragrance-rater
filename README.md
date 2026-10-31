@@ -103,7 +103,8 @@ CI workflows and what each one blocks are listed in [docs/ci-gates.md](docs/ci-g
 
 ## Documentation
 
-Run `uv run mkdocs serve` for a local preview. Good starting points:
+Run `uv run mkdocs serve --dev-addr 127.0.0.1:8001` for a local preview (the default port, 8000, is the Compose
+application's). Good starting points:
 
 - [Project vision](docs/planning/project-vision.md) and [project plan](docs/planning/PROJECT-PLAN.md)
 - [Technical spec](docs/planning/tech-spec.md) and [architecture decision records](docs/planning/adr/README.md)
