@@ -752,7 +752,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.14.3" },
     { name = "click", specifier = ">=8.1.0" },
     { name = "cyclonedx-bom", marker = "extra == 'supply-chain'", specifier = ">=4.6.0" },
-    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.120.1" },
+    { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.121.0" },
     { name = "google-api-core", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "google-auth", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "griffe-pydantic", marker = "extra == 'dev'", specifier = ">=1.1.0" },

@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 
 async def get_reviewer_service(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> ReviewerService:
     """Dependency to get ReviewerService instance."""
     return ReviewerService(session)

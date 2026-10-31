@@ -54,7 +54,7 @@ from fragrance_rater.utils.timestamps import now_naive_utc
 
 router = APIRouter(prefix="/calibration", tags=["calibration"])
 logger = get_logger(__name__)
-DB = Annotated[AsyncSession, Depends(get_db)]
+DB = Annotated[AsyncSession, Depends(get_db, scope="function")]
 Identity = VerifiedIdentity
 
 

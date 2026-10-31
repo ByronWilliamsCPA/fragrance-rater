@@ -105,7 +105,7 @@ class ExplanationResponse(BaseModel):
 
 
 async def get_recommendation_service(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> RecommendationService:
     """Dependency to get RecommendationService instance."""
     return RecommendationService(session)
@@ -116,7 +116,7 @@ async def get_recommendations(
     *,
     reviewer_id: str,
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
     identity: VerifiedIdentity,
     limit: Annotated[
         int, Query(ge=1, le=50, description="Maximum recommendations")
@@ -201,7 +201,7 @@ async def get_profile_summary(
     *,
     request: Request,
     reviewer_id: str,
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
     service: Annotated[RecommendationService, Depends(get_recommendation_service)],
     llm_service: Annotated[LLMService, Depends(get_llm_service)],
     identity: VerifiedIdentity,
@@ -224,7 +224,7 @@ async def get_profile_summary(
         request (Request): Incoming request, required by the
             ``@limiter.limit`` decorator to key rate limiting on the caller.
         reviewer_id (str): Reviewer to summarize.
-        session (Annotated[AsyncSession, Depends(get_db)]): Database session, injected.
+        session (Annotated[AsyncSession, Depends(get_db, scope="function")]): Database session, injected.
         service (Annotated[RecommendationService, Depends(get_recommendation_service)]):
             Recommendation service, injected.
         llm_service (Annotated[LLMService, Depends(get_llm_service)]): LLM service, injected.

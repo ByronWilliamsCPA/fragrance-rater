@@ -30,7 +30,7 @@ class ImportResponse(BaseModel):
 @router.post("/kaggle", response_model=ImportResponse)
 async def import_kaggle_csv(
     file: Annotated[UploadFile, File(description="Kaggle CSV file to import")],
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
     # #CRITICAL: security: this route writes fragrance rows to the database
     # (a mutating, non-dry-run call can bulk-insert arbitrary caller-supplied
     # data) and previously carried no authentication dependency at all,
