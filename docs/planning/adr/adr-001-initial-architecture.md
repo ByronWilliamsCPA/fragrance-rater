@@ -3,6 +3,12 @@
 > **Status**: Accepted; authentication portions superseded by ADR-008
 >
 > **Date**: 2025-12-28
+>
+> **Amendment (2026-10-31, architecture review G-12)**: the Implementation section below (the `backend/app/`
+> layout, `requirements.txt` and Tailwind CSS) never matched the repository and is retained only as the original
+> sketch. The decision itself (a Docker Compose monolith of React, FastAPI and PostgreSQL) stands. The real
+> layout is `src/fragrance_rater/` with `alembic/`, managed by uv, and a Vite-based `frontend/`; see
+> [Architecture](../../development/architecture.md) for the current components and boundaries.
 
 ## TL;DR
 
