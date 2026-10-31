@@ -10,14 +10,18 @@ This module implements the recommendation algorithm with:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, TypedDict
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.core.exceptions import BusinessLogicError
 from fragrance_rater.core.vocabulary import TRAINING_INELIGIBLE_CODES
-from fragrance_rater.ml.feature_space import vectorize
+from fragrance_rater.ml.feature_space import (
+    FeatureVector,
+    from_source_features,
+    vectorize,
+)
 from fragrance_rater.ml.model import (
     COMPONENT_WEIGHTS,
     DEFAULT_SCORER_FACTORY,
@@ -35,6 +39,7 @@ from fragrance_rater.models.calibration import (
 )
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
+from fragrance_rater.models.soft_delete import live
 from fragrance_rater.services.preference_history import PreferenceHistoryService
 
 if TYPE_CHECKING:
@@ -169,8 +174,8 @@ class RecommendationService:
             .where(
                 Evaluation.reviewer_id == reviewer_id,
                 Evaluation.worn_by_reviewer_id.is_(None),
-                Evaluation.deleted_at.is_(None),
-                Fragrance.deleted_at.is_(None),
+                live(Evaluation),
+                live(Fragrance),
             )
             .options(
                 selectinload(Evaluation.fragrance)
@@ -227,6 +232,67 @@ class RecommendationService:
                 if fragrance.training_eligibility_code not in TRAINING_INELIGIBLE_CODES
             ],
         )
+
+    def profile_from_manifest(
+        self, reviewer_id: str, manifest: list[dict[str, object]]
+    ) -> UserProfile:
+        """Build a profile from a training manifest instead of raw tables.
+
+        R8 (X-05): ``ml.predict`` freezes predictions from evidence read out of
+        ``v_training_rows``, so its profile must be built from exactly that
+        manifest rather than from a second, independent query. The rules are
+        ``build_preference_profile``'s: each ordinary row (already the latest
+        eligible encounter per version) contributes its rating weight; a
+        controlled row contributes only once its enrollment is revealed, one
+        row per version, skin preferred over blotter. Holdouts, deleted
+        versions, and ADR-014 exclusions never reach the manifest.
+
+        Args:
+            reviewer_id (str): The evaluator.
+            manifest (list[dict[str, object]]): ``ml.training_view`` rows.
+
+        Returns:
+            UserProfile: The profile those rows imply.
+
+        Raises:
+            BusinessLogicError: When a controlled row carries no numeric liking.
+        """
+        contributions: dict[str, tuple[FeatureVector, list[float]]] = {}
+        controlled: dict[str, dict[str, object]] = {}
+        for row in manifest:
+            fid = str(row["fragrance_id"])
+            features = row.get("source_features")
+            if not isinstance(features, dict):
+                continue
+            vector = from_source_features(fid, cast("dict[str, object]", features))
+            if row["workflow"] == "ORDINARY":
+                rating = row["rating"]
+                weight = (
+                    RATING_WEIGHTS.get(rating, 0.0) if isinstance(rating, int) else 0.0
+                )
+                contributions[fid] = (vector, [weight])
+            elif row.get("revealed") is True and (
+                fid not in controlled
+                or (row["stage"] == "SKIN" and controlled[fid]["stage"] != "SKIN")
+            ):
+                controlled[fid] = {**row, "vector": vector}
+        for fid, row in controlled.items():
+            rating = row["rating"]
+            if not isinstance(rating, (int, float)):
+                message = (
+                    f"controlled manifest row for fragrance {fid!r} has a "
+                    f"non-numeric rating {rating!r}"
+                )
+                raise BusinessLogicError(message, rule="numeric_controlled_rating")
+            contribution = self.model.controlled_affinity(float(rating))
+            if fid in contributions:
+                contributions[fid][1].append(contribution)
+            else:
+                contributions[fid] = (
+                    cast("FeatureVector", row["vector"]),
+                    [contribution],
+                )
+        return self.model.build_profile(reviewer_id, list(contributions.values()))
 
     async def _contributions(
         self,
@@ -367,7 +433,7 @@ class RecommendationService:
         # since `NOT IN` never matches NULL in SQL.
         stmt = (
             select(Fragrance)
-            .where(Fragrance.deleted_at.is_(None))
+            .where(live(Fragrance))
             .where(
                 or_(
                     Fragrance.training_eligibility_code.is_(None),
@@ -397,7 +463,7 @@ class RecommendationService:
             rated_stmt = select(Evaluation.fragrance_id).where(
                 Evaluation.reviewer_id == reviewer_id,
                 Evaluation.worn_by_reviewer_id.is_(None),
-                Evaluation.deleted_at.is_(None),
+                live(Evaluation),
             )
             rated_result = await self.session.execute(rated_stmt)
             rated_ids = {row[0] for row in rated_result.all()}

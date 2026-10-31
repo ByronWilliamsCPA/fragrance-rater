@@ -6,19 +6,23 @@ whose ordinary and controlled rows have disjoint key sets, so two workflows
 (let alone two evaluators) could not be concatenated (ML structure review
 M-01, M-22).
 
-``TrainingRow`` is that uniform row. It is built strictly *on top of* the
-manifest, never beside it: every eligibility rule (holdout exclusion, hidden
-repeats, pre-reveal phase, stage locks, worn-by exclusion, latest-encounter
-selection) stays in the one place that already enforces it, and this module
-adds only target selection, the split label, the feature vector, and the
-"would affinity-v1 have used this row" flag.
+``TrainingRow`` is that uniform row. It is built strictly *on top of* a
+manifest, never beside it. Since R8 (X-05) that manifest is read from the
+``v_training_rows`` view (``ml.training_view``), not by joining the evidence
+tables: the per-row ``training_eligibility`` gate and every structural rule
+(holdout exclusion, hidden repeats, pre-reveal phase, stage locks, worn-by
+exclusion, latest-observation selection) are the view's, and this module adds
+only target selection, the split label, the feature vector, and the "would
+affinity-v1 have used this row" flag. A row that is not ``eligible`` never
+reaches it.
 
 Two things this module deliberately does *not* do:
 
-- It never emits the manifest's ``role`` key. The manifest already excludes
-  holdouts and hidden repeats, so the role is never a leak by value, but a
-  role column on a training row is a leak vector by shape (X-06): a trainer
-  that can read it can learn the experimental design.
+- It never emits a ``role``. The view carries no role, repeat, program,
+  session, or presentation column (X-06), so a trainer reading it cannot
+  learn the experimental design; ``program_id`` is therefore ``None`` on rows
+  built from the view, and is set only when replaying a pre-R8 frozen
+  manifest that recorded it.
 - It never maps a controlled 0-10 liking onto the ordinary 1-5 scale, or the
   reverse. ``TrainingRow.scale`` states which scale a label is on and the
   caller decides what may be pooled (ADR-007; review Section 3).
@@ -38,8 +42,8 @@ from typing import TYPE_CHECKING, Literal, cast
 from sqlalchemy import select
 
 from fragrance_rater.ml.feature_space import from_source_features
+from fragrance_rater.ml.training_view import training_manifest
 from fragrance_rater.models.calibration import Enrollment
-from fragrance_rater.services.preference_history import PreferenceHistoryService
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -137,7 +141,9 @@ class TrainingRow:
         stage (str | None): ``"BLOTTER"`` or ``"SKIN"`` for controlled rows.
         phase (str | None): Always ``"PRE_REVEAL"`` for controlled rows that
             reach the manifest.
-        program_id (str | None): Calibration program for controlled rows.
+        program_id (str | None): Calibration program, only when replaying a
+            pre-R8 manifest that recorded one; ``None`` for rows read from
+            ``v_training_rows``, which withholds it (X-06).
         observed_at (str): ISO-8601 timestamp of the underlying row.
         features (FeatureVector): Published catalog features of the version,
             rebuilt from the frozen manifest rather than re-read live.
@@ -150,7 +156,9 @@ class TrainingRow:
             other two; ``split_for`` is the shared definition.
         contributed_to_affinity_v1 (bool): Whether affinity-v1 would have
             consumed this row as evidence. Ordinary rows always do;
-            controlled rows only once their program is revealed.
+            controlled rows only once their enrollment is revealed (the
+            view's ``revealed`` column, or for a pre-R8 manifest its
+            ``program_id`` among the revealed programs).
     """
 
     reviewer_id: str
@@ -321,6 +329,13 @@ def _controlled_row(
             else _as_float(observation_features.get(column))
         )
     program_id = _as_str(row.get("program_id"))
+    # A view-built manifest carries ``revealed`` and no program (X-06); a
+    # pre-R8 frozen manifest carries ``program_id`` and no ``revealed``.
+    contributed = (
+        program_id in revealed_program_ids
+        if program_id is not None
+        else row.get("revealed") is True
+    )
     return TrainingRow(
         reviewer_id=reviewer_id,
         fragrance_id=fragrance_id,
@@ -337,7 +352,7 @@ def _controlled_row(
         observation_features=observation_features,
         notes_text=_as_dict(row.get("notes_text")),
         split="DEV",
-        contributed_to_affinity_v1=program_id in revealed_program_ids,
+        contributed_to_affinity_v1=contributed,
     )
 
 
@@ -358,7 +373,8 @@ def rows_from_manifest(
     Args:
         reviewer_id (str): The evaluator the manifest belongs to.
         manifest (Sequence[dict[str, object]]): Manifest rows as returned by
-            ``PreferenceHistoryService.training_manifest``.
+            ``ml.training_view.training_manifest`` (or a frozen pre-R8
+            manifest from ``PreferenceHistoryService.training_manifest``).
         target (str): A member of ``TARGETS`` or ``"primary"``.
         revealed_program_ids (set[str] | None): Programs whose reveal gate
             has opened, used only for ``contributed_to_affinity_v1``.
@@ -411,12 +427,12 @@ async def build_examples(
     include_ordinary: bool = True,
     include_controlled: bool = True,
 ) -> list[TrainingRow]:
-    """Build one evaluator's training rows from the eligibility-correct source.
+    """Build one evaluator's training rows from ``v_training_rows``.
 
-    Delegates every eligibility rule to
-    ``PreferenceHistoryService.training_manifest`` and adds only target
-    selection, the split label, the rebuilt feature vector, and the
-    affinity-v1 contribution flag.
+    Delegates every eligibility rule to the view (through
+    ``ml.training_view.training_manifest``) and adds only target selection,
+    the split label, the rebuilt feature vector, and the affinity-v1
+    contribution flag. No query here joins the blind mapping.
 
     Args:
         session (AsyncSession): Open database session.
@@ -428,13 +444,11 @@ async def build_examples(
     Returns:
         list[TrainingRow]: Uniform rows, null labels retained.
     """
-    manifest = await PreferenceHistoryService(session).training_manifest(reviewer_id)
-    revealed = await revealed_program_ids(session, reviewer_id)
+    manifest = await training_manifest(session, reviewer_id)
     return rows_from_manifest(
         reviewer_id,
         manifest,
         target=target,
-        revealed_program_ids=revealed,
         include_ordinary=include_ordinary,
         include_controlled=include_controlled,
     )

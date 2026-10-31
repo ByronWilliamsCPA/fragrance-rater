@@ -63,10 +63,17 @@ def make_observation(
     stage="BLOTTER",
     phase="PRE_REVEAL",
     created_at=None,
+    training_eligibility="eligible",
     **columns,
 ):
-    """Build a submitted response with the null-detection semantics intact."""
+    """Build a submitted response with the null-detection semantics intact.
+
+    ``eligible`` by default: the fixture's stages are locked and unflagged,
+    which is what R8 option C promotes at write time. Pass another code to
+    model a row the service would hold back.
+    """
     return Observation(
+        training_eligibility=training_eligibility,
         presentation_id=presentation.id,
         stage=stage,
         phase=phase,

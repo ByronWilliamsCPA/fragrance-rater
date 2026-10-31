@@ -194,7 +194,7 @@ async def _reviewer_with_recorder(client: AsyncClient) -> dict[str, str]:
         f"{API}/calibration/programs/{program['id']}/activate", headers=MANAGER
     )
     assert activated.status_code == 200, activated.text
-    await post(
+    enrollment = await post(
         f"{API}/calibration/programs/{program['id']}/enroll",
         {"reviewer_id": assigned["id"], "recorder_usernames": ["recorder"]},
     )
@@ -207,6 +207,7 @@ async def _reviewer_with_recorder(client: AsyncClient) -> dict[str, str]:
         {"reviewer_id": other["id"], "fragrance_id": baseline["id"], "rating": 2},
     )
     return {
+        "enrollment": enrollment["id"],
         "assigned": assigned["id"],
         "other": other["id"],
         "fragrance": baseline["id"],
@@ -295,6 +296,35 @@ async def test_outcome_metrics_stay_manager_only(test_app: AsyncClient) -> None:
 
     assert (await test_app.get(url, headers=MANAGER)).status_code == 200
     assert (await test_app.get(url, headers=RECORDER)).status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("authentik_required")
+async def test_training_eligibility_and_linkage_stay_manager_only(
+    test_app: AsyncClient,
+) -> None:
+    """R8 PR 2: eligibility decisions and the role/repeat linkage (X-06).
+
+    Even the recorder assigned to the reviewer gets 403: the linkage is the
+    blind mapping, and an eligibility decision is a manager's call.
+    """
+    ids = await _reviewer_with_recorder(test_app)
+    decide = f"{API}/training-eligibility/evaluation/{ids['assigned_eval']}"
+    body = {"training_eligibility": "withheld", "reason": "Matrix check"}
+    linkage = f"{API}/calibration/enrollments/{ids['enrollment']}/linkage"
+
+    for headers in (RECORDER, OUTSIDER):
+        refused = await test_app.put(decide, json=body, headers=headers)
+        assert refused.status_code == 403, refused.text
+        assert (await test_app.get(linkage, headers=headers)).status_code == 403
+    refused = await test_app.put(decide, json=body, headers=ANONYMOUS)
+    assert refused.status_code == 401, refused.text
+    assert (await test_app.get(linkage, headers=ANONYMOUS)).status_code == 401
+
+    decided = await test_app.put(decide, json=body, headers=MANAGER)
+    assert decided.status_code == 200, decided.text
+    assert decided.json()["previous"] == "eligible"
+    assert (await test_app.get(linkage, headers=MANAGER)).status_code == 200
 
 
 @pytest.mark.asyncio

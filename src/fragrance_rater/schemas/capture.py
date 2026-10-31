@@ -23,6 +23,8 @@ FlagAction = Literal["raised", "resolved", "invalidated"]
 FlagSource = Literal["evaluator", "recorder", "manager"]
 FlagSeverity = Literal["info", "minor", "major"]
 FlagDisposition = Literal["review", "include", "exclude"]
+# R8 option C: what a manager decides for the evidence a resolved flag covered.
+TrainingOutcome = Literal["eligible", "withheld", "invalidated"]
 FlagCode = Literal[
     "out_of_order_presentation",
     "outside_planned_window",
@@ -112,6 +114,9 @@ class QualityFlagInput(StrictInput):
     supersedes_id: str | None = Field(default=None, min_length=1, max_length=36)
     explanation: str | None = Field(default=None, max_length=4000)
     occurred_at: datetime | None = None
+    # R8 option C: a manager resolving a flag decides the training eligibility
+    # of the rows the flag made ``questionable``; ``explanation`` is the reason.
+    training_outcome: TrainingOutcome | None = None
 
     @field_validator("occurred_at")
     @classmethod
@@ -134,9 +139,18 @@ class QualityFlagInput(StrictInput):
             if self.supersedes_id is not None:
                 message = "A raised flag has nothing to supersede"
                 raise ValueError(message)
+            if self.training_outcome is not None:
+                message = "Only a resolved flag decides a training outcome"
+                raise ValueError(message)
             return self
         if self.supersedes_id is None:
             message = f"A {self.action} flag must name the flag it closes"
+            raise ValueError(message)
+        if self.training_outcome is not None and self.action != "resolved":
+            message = "Only a resolved flag decides a training outcome"
+            raise ValueError(message)
+        if self.training_outcome is not None and not (self.explanation or "").strip():
+            message = "A training outcome needs the reason in explanation"
             raise ValueError(message)
         if self.target_type or self.target_id or self.code:
             message = "A closing flag inherits its target and code"

@@ -53,10 +53,12 @@ async def list_rankings(
 @router.post("/quality-flags", status_code=201)
 async def record_flag(
     data: QualityFlagInput, db: DB, identity: Identity
-) -> dict[str, str]:
+) -> dict[str, object]:
     """Raise a quality flag, or close one with a later resolved or invalidated row."""
     username, admin = actor(identity)
-    flag = await CaptureService(db).record_flag(data, username, admin)
+    flag, changes = await CaptureService(db).record_flag_with_eligibility(
+        data, username, admin
+    )
     log_audit_event(
         logger,
         action=f"quality_flag_{flag.action}",
@@ -67,8 +69,10 @@ async def record_flag(
         severity=flag.severity,
         source=flag.source,
         supersedes_id=flag.supersedes_id,
+        training_outcome=data.training_outcome,
+        training_eligibility_changes=len(changes),
     )
-    return {"id": flag.id}
+    return {"id": flag.id, "training_eligibility_changes": len(changes)}
 
 
 @router.get("/sessions/{session_id}/quality-flags")

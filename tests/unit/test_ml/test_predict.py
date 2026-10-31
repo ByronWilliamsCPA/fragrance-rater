@@ -5,6 +5,7 @@ import pytest_asyncio
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from fragrance_rater.ml import predict as predict_module
 from fragrance_rater.ml.feature_space import FEATURE_SPACE_VERSION, vectorize
 from fragrance_rater.ml.model import AffinityV1
 from fragrance_rater.ml.predict import (
@@ -14,6 +15,7 @@ from fragrance_rater.ml.predict import (
     leakage_check,
     predict_and_freeze,
 )
+from fragrance_rater.ml.training_view import TrainingRead, training_manifest
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -76,6 +78,8 @@ async def world(async_session):
                 fragrance_id=key,
                 rating=rating,
                 evaluated_at=now_naive_utc(),
+                # What EvaluationService.create writes (R8 option C).
+                training_eligibility="eligible",
             )
         )
     program = Program(name="Prospective", version="1")
@@ -267,7 +271,7 @@ async def test_leakage_check_flags_a_holdout_row(world):
     session, _, _ = world
     history = PreferenceHistoryService(session)
     excluded = await history.excluded_versions("owner")
-    manifest = await history.training_manifest("owner", excluded=excluded)
+    manifest = await training_manifest(session, "owner")
     assert leakage_check(excluded, manifest) == []
     leaky = [*manifest, {"id": "leaked-row", "fragrance_id": "holdout"}]
     assert leakage_check(excluded, leaky) == ["leaked-row"]
@@ -277,10 +281,14 @@ async def test_leakage_check_flags_a_holdout_row(world):
 async def test_leaky_manifest_aborts_the_run(world, monkeypatch):
     session, _, _ = world
 
-    async def leaky_manifest(self, reviewer_id, **kwargs):
-        return [{"id": "leaked-row", "fragrance_id": "holdout"}]
+    async def leaky_read(session, reviewer_id):
+        return TrainingRead(
+            rows=[],
+            manifest=[{"id": "leaked-row", "fragrance_id": "holdout"}],
+            input_digest="0" * 64,
+        )
 
-    monkeypatch.setattr(PreferenceHistoryService, "training_manifest", leaky_manifest)
+    monkeypatch.setattr(predict_module, "read_training", leaky_read)
     with pytest.raises(ValueError, match="holdout evidence"):
         await _run(session)
     assert list(await session.scalars(select(PredictionSnapshot.id))) == []
