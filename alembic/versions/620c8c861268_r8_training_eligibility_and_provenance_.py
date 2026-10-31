@@ -157,7 +157,7 @@ SELECT
     o.stage AS stage,
     CAST('0-10' AS VARCHAR(10)) AS scale,
     o.liking AS rating,
-    o.created_at AS observed_at
+    COALESCE(o.observed_at, o.created_at) AS observed_at
 FROM calibration_observations AS o
 JOIN calibration_presentations AS p ON p.id = o.presentation_id
 JOIN calibration_memberships AS m ON m.id = p.membership_id

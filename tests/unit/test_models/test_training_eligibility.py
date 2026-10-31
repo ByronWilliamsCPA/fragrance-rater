@@ -12,7 +12,7 @@ from __future__ import annotations
 import importlib.util
 import itertools
 import re
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, get_args
 
@@ -208,6 +208,7 @@ async def _observation(
     liking: int | None = 7,
     eligibility: str = TRAINABLE_EVIDENCE_ELIGIBILITY,
     response_status: str | None = None,
+    observed_at: datetime | None = None,
 ) -> Observation:
     member = Membership(program_id=program.id, fragrance_id=fragrance.id, role=role)
     session.add(member)
@@ -232,6 +233,7 @@ async def _observation(
         recorded_by="rec",
         training_eligibility=eligibility,
         response_status=response_status,
+        observed_at=observed_at,
     )
     session.add(observation)
     await session.flush()
@@ -510,6 +512,35 @@ async def test_the_view_applies_the_controlled_structural_rules(
     assert row.rating == 7
     assert row.stage == "SKIN"
     assert row.reviewer_id == reviewer.id
+
+
+@pytest.mark.asyncio
+async def test_the_view_reports_the_real_observation_time_when_one_was_recorded(
+    async_session: AsyncSession,
+) -> None:
+    """R7b records when the evaluator actually observed; receipt time is the fallback."""
+    reviewer = await _reviewer(async_session)
+    program, calibration = await _enrollment(async_session, reviewer)
+    stamped = await _observation(
+        async_session,
+        program,
+        calibration,
+        await _fragrance(async_session, "Stamped"),
+        observed_at=datetime(2026, 10, 30, 14, 0, 0, tzinfo=UTC).replace(tzinfo=None),
+    )
+    unstamped = await _observation(
+        async_session, program, calibration, await _fragrance(async_session, "Plain")
+    )
+    await _with_view(async_session)
+
+    async def observed(row_id: str) -> object:
+        return await async_session.scalar(
+            text("SELECT observed_at FROM v_training_rows WHERE row_id = :id"),
+            {"id": row_id},
+        )
+
+    assert str(await observed(stamped.id)).startswith("2026-10-30 14:00:00")
+    assert str(await observed(unstamped.id)).startswith(str(unstamped.created_at)[:19])
 
 
 @pytest.mark.asyncio
