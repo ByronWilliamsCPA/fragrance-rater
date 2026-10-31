@@ -84,7 +84,13 @@ test('passes the method, path and query through unchanged', async () => {
 })
 
 test('an API request with no session, or a malformed one, never reaches the backend', async () => {
-  for (const cookie of ['', 'stack_session=', 'stack_session=bad user!', 'stack_session=a/b']) {
+  for (const cookie of [
+    '',
+    'stack_session=',
+    'stack_session=bad user!',
+    'stack_session=a/b',
+    'stack_session=%zz',
+  ]) {
     const api = await client(cookie ? { Cookie: cookie } : {})
 
     const response = await api.get('/api/v1/anything')

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { freshRecorder, seedAssignment, signIn, type Seeded } from './support/stack'
+import { apiAs, freshRecorder, seedAssignment, signIn, type Seeded } from './support/stack'
 
 /*
  * Participant journeys through a real browser, the forward-auth stub, the real
@@ -60,10 +60,23 @@ test.describe('Blind calibration, end to end', () => {
 
     await expect(page.getByText(seeded.fragranceName)).toHaveCount(0)
     await page.getByRole('button', { name: 'Reveal completed baseline' }).click()
+    const revealed = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/enrollments/${seeded.enrollmentId}/reveal`) &&
+        response.request().method() === 'POST'
+    )
     await page.getByRole('button', { name: 'Confirm reveal' }).click()
+    expect((await revealed).ok()).toBe(true)
 
-    await expect(page.getByText(/reveal complete/i)).toBeVisible()
-    await expect(page.getByText(new RegExp(seeded.fragranceName))).toBeVisible()
+    // The page does not hold the revealed identities on screen: once the app
+    // data reloads it moves on to "Nothing new is assigned", so asserting the
+    // name in the UI would race that reload. What must hold is that the server
+    // now discloses the identity to this recorder, and only now.
+    const recorder = await apiAs(seeded.recorder)
+    const enrollment = await recorder.get(`/api/v1/calibration/enrollments/${seeded.enrollmentId}`)
+    expect(enrollment.ok()).toBe(true)
+    expect(JSON.stringify(await enrollment.json())).toContain(seeded.fragranceName)
+    await recorder.dispose()
   })
 
   test('an interrupted save keeps the form, says so plainly, and succeeds on retry', async ({
