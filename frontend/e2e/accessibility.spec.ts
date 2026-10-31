@@ -7,6 +7,7 @@ import {
   fragranceCatalog,
   enrollmentFixture,
   recommendationRunFixture,
+  sessionIntroRoutes,
 } from './support/mock-api'
 import type { Observation } from '../src/api/types'
 
@@ -63,8 +64,9 @@ const routeChecks: {
     // 'guided'}` and the wizard renders its default first step (the
     // skin-test plan decision) for the scan.
     path: '/calibration',
-    heading: 'Guided calibration',
+    heading: 'Before you begin',
     mocks: {
+      ...sessionIntroRoutes({ approved: true, consent: 'granted' }),
       '/calibration/enrollments': [
         {
           id: 'enr1',
