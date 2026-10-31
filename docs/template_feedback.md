@@ -479,6 +479,26 @@ adopted deliberately, matching the pre-commit hook's pinned scope.
 
 ---
 
+### Docs workflow deploys to GitHub Pages by default
+
+**Priority**: Medium
+
+**Issue**: `docs.yml` sets `deploy-to-pages` true on every push to main. When Pages is not enabled
+(for org-owned repos it requires verified domains), the "Setup Pages" step fails and the Documentation
+check is red on every main run even though the MkDocs build passes.
+
+**Context**: fragrance-rater's Documentation workflow failed on every main push since at least
+2026-09-21 with `Get Pages site failed... Not Found` from `actions/configure-pages`.
+
+**Suggested Fix**: Add a cookiecutter option (e.g. `deploy_docs_to_pages`, default false) that drives
+`deploy-to-pages`, so projects opt in once Pages is enabled.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.github/workflows/docs.yml`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

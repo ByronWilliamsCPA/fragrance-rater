@@ -179,3 +179,28 @@ export function recommendationRunFixture(interested = false) {
     ],
   } satisfies RunView
 }
+
+/**
+ * The endpoints the guided flow's first screen reads: the consent wording, the
+ * reviewer's consent state, any recorded conditions, and the session start.
+ * `approved` is whether a person has approved the wording; `consent` is the
+ * reviewer's current `session_context` state.
+ */
+export function sessionIntroRoutes(
+  options: { approved?: boolean; consent?: 'none' | 'granted' | 'withdrawn' } = {}
+): MockRoutes {
+  return {
+    '/calibration/consent/text': {
+      version: 'family-consent-v1',
+      approved: options.approved ?? false,
+      text: 'Version: family-consent-v1\n\nHow your answers are used.',
+    },
+    '/calibration/reviewers/r1/consent': {
+      state: { session_context: options.consent ?? 'none' },
+      events: [],
+    },
+    '/calibration/sessions/sess1/context': { recorded: false },
+    '/calibration/sessions/sess1/start': { id: 'sess1' },
+    '/calibration/sessions/sess1/rankings': [],
+  }
+}

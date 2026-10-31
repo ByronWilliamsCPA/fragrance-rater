@@ -1,10 +1,11 @@
 import { test, expect, type Route } from '@playwright/test'
-import { mockApi, bootstrapRoutes, managerAccess } from './support/mock-api'
+import { mockApi, bootstrapRoutes, managerAccess, sessionIntroRoutes } from './support/mock-api'
 
 test.describe('Calibration entry routing', () => {
   test('opens the guided wizard on step 1 for a never-started enrollment', async ({ page }) => {
     await mockApi(page, {
       ...bootstrapRoutes(),
+      ...sessionIntroRoutes(),
       '/calibration/enrollments': [
         {
           id: 'enr1',
@@ -45,6 +46,10 @@ test.describe('Calibration entry routing', () => {
     })
 
     await page.goto('/calibration')
+
+    // A session opens on the consent screen, which never blocks.
+    await expect(page.getByRole('heading', { name: 'Before you begin' })).toBeVisible()
+    await page.getByRole('button', { name: 'Continue to the samples' }).click()
 
     await expect(page.getByRole('heading', { name: 'Guided calibration' })).toBeVisible()
     await expect(page.getByText(/Step 1 of/)).toBeVisible()
