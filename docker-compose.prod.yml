@@ -116,6 +116,54 @@ services:
         delay: 5s
         max_attempts: 3
 
+  backup:
+    # Scheduled database backup (architecture review D-18). The postgres image
+    # has pg_dump, pg_restore, and psql; the script verifies each dump, writes a
+    # checksum and manifest, prunes by age with a floor, and the healthcheck goes
+    # unhealthy when backups stop succeeding. Backups land in the `backups`
+    # volume on THIS host: copy them off-host (the operator's job; see
+    # docs/deployment/backup-and-restore.md), and prove them with
+    # scripts/verify_restore.py, because a dump that was never restored is not
+    # yet a backup.
+    image: postgres:16-alpine
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          /scripts/backup_database.sh backup || echo "backup failed" >&2
+          sleep "$$((BACKUP_INTERVAL_HOURS * 3600))"
+        done
+    environment:
+      PGHOST: db
+      PGUSER: fragrance_rater
+      PGDATABASE: fragrance_rater
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in production}
+      BACKUP_DIR: /backups
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_KEEP_MIN: ${BACKUP_KEEP_MIN:-3}
+      BACKUP_MAX_AGE_HOURS: ${BACKUP_MAX_AGE_HOURS:-30}
+    volumes:
+      - ./scripts/backup_database.sh:/scripts/backup_database.sh:ro
+      - backups:/backups
+    networks:
+      - fragrance_rater-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/scripts/backup_database.sh", "check"]
+      interval: 1h
+      timeout: 10s
+      retries: 1
+      start_period: 10m
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
   db:
     # Production database settings
     environment:
@@ -166,6 +214,11 @@ services:
 #
 # 4. Monitor:
 #    docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
+
+volumes:
+  # Database backups (see the `backup` service). Back this volume up off-host.
+  backups:
+    driver: local
 
 networks:
   authenticated-edge:
