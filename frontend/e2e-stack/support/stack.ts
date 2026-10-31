@@ -28,6 +28,7 @@ async function ok(
 
 export type Seeded = {
   enrollmentId: string
+  recorder: string
   programId: string
   programName: string
   reviewerName: string
@@ -93,6 +94,7 @@ export async function seedAssignment(recorder: string = RECORDER): Promise<Seede
   await manager.dispose()
   return {
     enrollmentId,
+    recorder,
     programId,
     programName,
     reviewerName,

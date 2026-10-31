@@ -19,5 +19,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["e2e"]
+  "include": ["e2e", "e2e-stack"]
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { delay, http, HttpResponse } from 'msw'
 import { RatingsPage } from '../pages/RatingsPage'
 import { apiUrl, getJson, server } from './msw/server'
 
@@ -72,5 +72,21 @@ describe('encounter history names', () => {
 
     expect(await screen.findByText('Signature · 4/5')).toBeInTheDocument()
     expect(screen.getByText('Saved fragrance · 3/5')).toBeInTheDocument()
+  })
+
+  it('does not keep the page busy while a name is still being looked up', async () => {
+    server.use(
+      getJson('/evaluations', [encounter('e1', 'slow', 3)]),
+      http.get(apiUrl('/fragrances/slow'), async () => {
+        await delay('infinite')
+        return HttpResponse.json({ id: 'slow', name: 'Never arrives' })
+      })
+    )
+    render(<RatingsPage reviewers={reviewers} />)
+
+    await chooseEvaluator()
+
+    expect(await screen.findByText('Saved fragrance · 3/5')).toBeInTheDocument()
+    expect((await screen.findAllByLabelText('Evaluator'))[0]).toBeEnabled()
   })
 })
