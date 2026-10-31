@@ -113,6 +113,14 @@ class PredictionSnapshot(Base):
     feature_snapshot_version: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
+    # R8 (X-17): the frozen feature snapshot this prediction scored from.
+    # ``feature_snapshot_version`` stays as the free string it always was for
+    # rows written before R8; new producers point here instead.
+    feature_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("feature_snapshots.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
 
     # `predicted_scale` documents what `predicted_rating` means (e.g.
     # "0-10" to match controlled `liking`, "1-5" to match ordinary
