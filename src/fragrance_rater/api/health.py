@@ -220,7 +220,7 @@ async def check_external_service() -> ReadinessCheck:
     description="Checks if the application can serve traffic. Used by Kubernetes readiness probe.",
 )
 async def readiness(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> ReadinessStatus:
     """Kubernetes readiness probe.
 
@@ -233,7 +233,7 @@ async def readiness(
     If this fails, Kubernetes will stop sending traffic to this pod.
 
     Args:
-        session (Annotated[AsyncSession, Depends(get_db)]): Database session,
+        session (Annotated[AsyncSession, Depends(get_db, scope="function")]): Database session,
             injected via the `get_db` FastAPI dependency so the test suite's
             `app.dependency_overrides[get_db]` takes effect here too
             (Critical finding 1).
