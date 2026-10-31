@@ -497,6 +497,139 @@ check is red on every main run even though the MkDocs build passes.
 
 - `{{cookiecutter.project_slug}}/.github/workflows/docs.yml`
 
+### Template ships stale root and docs-home content that no one owns
+
+**Priority**: Medium
+
+**Issue**: The generated `README.md` was 736 lines, about ten of them product overview, and carried Assured OSS and
+Google Cloud setup the project never used. `docs/index.md` still tells readers to `pip install fragrance-rater` and run
+a `hello` command that does not exist. A `CONFIG_TEMPLATES_SUMMARY.md` describing the cookiecutter run itself (with a
+cookiecutter checkout path) was left at the repository root.
+
+**Context**: Found while consolidating documentation in R14 PR 3a (architecture review G-04). The README was rewritten
+and `CONFIG_TEMPLATES_SUMMARY.md` deleted there; `docs/index.md` was left as found and still needs the same treatment.
+
+**Suggested Fix**: Generate a short README from the project description, keep optional supply-chain material behind a
+cookiecutter flag that defaults off, do not emit template-run summaries into the project, and generate `docs/index.md`
+from the same description instead of a fictional install and CLI example.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/README.md`
+- `{{cookiecutter.project_slug}}/docs/index.md`
+- `{{cookiecutter.project_slug}}/CONFIG_TEMPLATES_SUMMARY.md`
+
+---
+
+### Two ADR directories whose guides disagree
+
+**Priority**: Low
+
+**Issue**: The template creates `docs/ADRs/` (a generic guide and template) while the planning generator writes real
+ADRs to `docs/planning/adr/`. The result is two homes, the guide's naming scheme (`0001-title.md`) contradicting the
+generated files (`adr-001-title.md`), and the generated `docs/planning/adr/README.md` pointing at the template in the
+other directory.
+
+**Context**: Merged into `docs/planning/adr/` in R14 PR 3a (architecture review G-04).
+
+**Suggested Fix**: Pick one location (`docs/planning/adr/`), ship the template and the process notes there, and make the
+generator, the guide and the naming convention agree.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/docs/ADRs/`
+- `{{cookiecutter.project_slug}}/docs/planning/adr/README.md`
+
+---
+
+### Baseline CLAUDE.md names agent tools and policies the project does not provide
+
+**Priority**: Medium
+
+**Issue**: The baseline Supervisor section assigns work to `mcp__zen__*` tools although the template's `.mcp.json` does
+not configure them, and says "address ALL type checker warnings" although a strict BasedPyright run on real code carries
+a baseline of warnings. Agents following the file either fail to find tools or are told to do something the repository
+does not enforce. The "Project Structure" section is also a fixed sketch that was never regenerated.
+
+**Context**: Architecture review G-05; fixed in this project's `CLAUDE.md` in R14 PR 3a (`uv run basedpyright src/`
+reports 0 errors and 132 warnings; the policy is that the count must not rise).
+
+**Suggested Fix**: Generate the agent mapping from the subagents, commands and skills the template actually ships, state a
+ratchet policy for type warnings, and either generate the structure section from the tree or drop it in favor of a
+pointer to the tree.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/CLAUDE.md`
+- `{{cookiecutter.project_slug}}/.standards/CLAUDE.baseline.md`
+- `{{cookiecutter.project_slug}}/.mcp.json`
+
+---
+
+### `status: draft` is not honoured by MkDocs, and the front-matter hook skips `docs/planning/`
+
+**Priority**: Low
+
+**Issue**: The front-matter schema allows `draft | in-review | published`, but the MkDocs configuration has no plugin that
+reads it, so a `draft` page is still built and searchable; keeping it out of the public navigation is a manual nav edit.
+Separately, the `validate-front-matter` hook (`files: ^docs/(?!planning/)`) and `tools/validate_front_matter.py` exclude
+`docs/planning/`, so the pages most likely to change status are never validated.
+
+**Context**: Marking the P6 evidence placeholders `draft` in R14 PR 3a (architecture review G-08) only took effect by
+removing them from `mkdocs.yml` nav.
+
+**Suggested Fix**: Add a small MkDocs hook that excludes `status: draft` pages from the nav and search (or documents that
+it does not), and validate planning documents against the planning schema instead of skipping them.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/mkdocs.yml`
+- `{{cookiecutter.project_slug}}/tools/validate_front_matter.py`
+- `{{cookiecutter.project_slug}}/.pre-commit-config.yaml`
+
+---
+
+### Ignore ledgers carry reassessment dates that nothing checks
+
+**Priority**: Medium
+
+**Issue**: `pyproject.toml` `[tool.pip-audit] ignore-vuln` and `docs/known-vulnerabilities.md` both record a "reassess by"
+date, but no hook or workflow fails when the date passes, and the two files can disagree. Here the OSV advisory was
+withdrawn and the OSV-Scanner ignore removed, while the pip-audit ignore stayed and its 2026-07-16 date lapsed for 107
+days unnoticed.
+
+**Context**: Found while superseding `SECURITY-FINDINGS.md` in R14 PR 3a (architecture review G-10).
+
+**Suggested Fix**: Add a check that parses the reassessment dates in `pyproject.toml` and the ledger, fails on an overdue
+or ledger-less ignore, and (optionally) runs the audit with the ignore disabled to report ignores that are no longer
+needed.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/pyproject.toml`
+- `{{cookiecutter.project_slug}}/docs/known-vulnerabilities.md`
+- `{{cookiecutter.project_slug}}/.github/workflows/security-analysis.yml`
+
+---
+
+### Assured OSS and Google Cloud scaffolding is on by default
+
+**Priority**: Low
+
+**Issue**: A project that does not use Google Assured OSS still ships `scripts/validate_assuredoss.py`, an `assuredoss`
+nox session, and a `GOOGLE_CLOUD_PROJECT=assured-oss-...` line in `.env.example`.
+
+**Context**: Noticed while removing the Assured OSS material from the README in R14 PR 3a. The script, session and
+`.env.example` line were left in place because that pass is documentation only.
+
+**Suggested Fix**: Gate all Assured OSS and GCP files and settings behind one cookiecutter flag that defaults off.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/scripts/validate_assuredoss.py`
+- `{{cookiecutter.project_slug}}/noxfile.py`
+- `{{cookiecutter.project_slug}}/.env.example`
+
 ---
 
 ## Submitting Feedback
