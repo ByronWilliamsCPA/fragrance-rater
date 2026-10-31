@@ -373,11 +373,13 @@ END BASELINE DEVELOPMENT STANDARDS
 > evidence is pending through P6. That P1 evidence, Milestone R's R1-R4 and R7a-R7b sprints
 > (R7b via the P6.3 synthetic rehearsal), R13 and R14's operations items (per their sprint-table rows),
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
-> As of 2026-10-30, R1-R5 are done (R4 merged as #149) and R6 PRs 1 and 2 are merged (#151, #157); the 43-version
+> As of 2026-10-31, R1-R5 are done (R4 merged as #149) and R6 PRs 1 and 2 are merged (#151, #157); the 43-version
 > alias decisions wait for the verified manifest. R7a is merged (#160, #161); R7b is merged (#165, #167; consent
 > wording awaits owner approval). R8 PR 1 (schema) is merged (#172); R8 PR 2 (readers on `v_training_rows`,
 > eligibility promotion, triggers, jsonb, UTC, idempotency, checkpoint reproduction) is merged (#181), as is its
-> review follow-up (#182: flag-resolution outcome stored, snapshot race). The project plan owns milestone status.
+> review follow-up (#182: flag-resolution outcome stored, snapshot race), so R8 is done. R13 is done (#168, #173-#175);
+> R14's P6-gating items are merged (#170, #171, #179) and its runtime-hardening PR remains. The project plan owns
+> milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
@@ -422,7 +424,7 @@ END BASELINE DEVELOPMENT STANDARDS
 | P3 | Role-aware routed product foundation |
 | P4 | Complete participant experience |
 | P5 | Complete manager, reporting, and operations experience |
-| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1; R1-R5 are done, R6 is in progress |
+| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1; R1-R5, R7a-R7b, R8, and R13 are done, R6 awaits the verified manifest, R14's remaining PR gates nothing |
 | P6 | Deployed synthetic rehearsal and pilot-readiness decision |
 | F1 | Initial family pilot using actual perfumes |
 | D1 | Source and vocabulary foundation |
