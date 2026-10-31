@@ -60,6 +60,7 @@ export function CalibrationPage({
   const [detected, setDetected] = useState('')
   const task = useTask()
   const [manualBrowse, setManualBrowse] = useState(false)
+  const [revealedHere, setRevealedHere] = useState('')
   const entry = calibrationEntryFor(assignments)
   const sample = enrollment?.presentations.find((presentation) => presentation.id === selected)
   function enrollmentGuidance() {
@@ -125,21 +126,22 @@ export function CalibrationPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialAssignmentId, refresh])
 
-  if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && entry.kind === 'resume') {
+  // The enrollment the guided flow is showing: the one the entry routing picks,
+  // or, once it has been revealed here, the one just revealed. A reveal makes the
+  // entry routing move on (nothing is left to resume), and without this the
+  // revealed identities would vanish from the screen as soon as the app data
+  // reloaded. They stay until the person chooses to browse or leaves the page.
+  const guidedEnrollmentId =
+    entry.kind === 'resume' || entry.kind === 'guided' ? entry.enrollmentId : revealedHere
+  if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && guidedEnrollmentId) {
     return (
       <GuidedCalibrationFlow
-        enrollmentId={entry.enrollmentId}
+        enrollmentId={guidedEnrollmentId}
         onExitToManualBrowse={() => setManualBrowse(true)}
-        onRevealed={reloadAppData}
-      />
-    )
-  }
-  if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && entry.kind === 'guided') {
-    return (
-      <GuidedCalibrationFlow
-        enrollmentId={entry.enrollmentId}
-        onExitToManualBrowse={() => setManualBrowse(true)}
-        onRevealed={reloadAppData}
+        onRevealed={async () => {
+          setRevealedHere(guidedEnrollmentId)
+          await reloadAppData()
+        }}
       />
     )
   }
