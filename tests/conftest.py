@@ -263,9 +263,7 @@ def _head_view_sql() -> tuple[str, str]:
     """
     import importlib.util
 
-    path = next(
-        (PROJECT_ROOT / "alembic" / "versions").glob("4edb5c967539_*.py")
-    )
+    path = next((PROJECT_ROOT / "alembic" / "versions").glob("4edb5c967539_*.py"))
     spec = importlib.util.spec_from_file_location("r8_pr2_migration", path)
     assert spec is not None
     assert spec.loader is not None
