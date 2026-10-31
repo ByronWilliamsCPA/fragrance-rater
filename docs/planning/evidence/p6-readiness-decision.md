@@ -1,7 +1,7 @@
 ---
 title: "P6 readiness decision"
 schema_type: common
-status: published
+status: draft
 owner: core-maintainer
 purpose: "Record the reviewed go or no-go decision that controls entry into F1."
 tags:

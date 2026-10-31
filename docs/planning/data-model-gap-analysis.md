@@ -1,6 +1,6 @@
 # Data Model Gap Analysis: Preference Learning, Controlled Evaluation, and Future ML
 
-> **Status**: Draft for core-maintainer review | **Version**: 1.0 | **Updated**: 2026-09-12
+> **Status**: Draft for core-maintainer review | **Version**: 1.1 | **Updated**: 2026-10-31
 >
 > **Author**: Claude Code, on request
 >
@@ -35,9 +35,22 @@ it is captured as [ADR-010](adr/adr-010-preference-learning-and-scenario-data-mo
 distinct from the repository's milestone names P0-P6.** Where a repository milestone is meant,
 it is written as "milestone P1", "milestone D1", etc.
 
+> **v1.1 update (2026-10-31)**: this revision adds status markers and the rows for what has landed since v1.0.
+> Statuses were derived from the models in `src/fragrance_rater/models/` and the Alembic chain in
+> `alembic/versions/` (single head `620c8c861268` at `main` commit `a7443a4`), not from plan text. A marker is
+> **done** only where code and a migration exist, **partial** where part of the item exists or it landed in a
+> different shape than proposed, and **open** where nothing in the tree implements it. Sections 1 to 8 still
+> describe the schema as audited on 2026-09-12 and are kept as the historical analysis; section 9 is the current
+> ledger and rows L1 to L8 at the end of the section 2 matrix are new. The 2026-09-12 update above, which says every
+> other recommendation "remains unimplemented", is superseded by section 9. Where a marker says "schema only", the
+> table exists but no service or route in `src/` writes it, so no data is captured yet.
+
 ---
 
 ## 1. Existing Schema Summary
+
+> *As audited on 2026-09-12 (v1.0).* Tables and columns added since then are listed in section 9 and rows L1 to
+> L8 of section 2; for example `calibration_observations.responses` described below no longer exists.
 
 ### 1.1 Catalog domain (`src/fragrance_rater/models/fragrance.py`)
 
@@ -174,6 +187,14 @@ work), **P2** (roadmap / safe to defer).
 | XLVI | First-class-variable test applied consistently | Partial | Most catalog/experiment concepts pass this test already | `Observation.responses` JSON is the one clear violation: `would_wear`, `would_buy`, `opening_liking`, `drydown_liking`, sensory dimensions, `perceived_notes`, and `confidence` are all filterable/aggregable/ML-relevant variables currently sitting in an opaque blob | Fix as Risk 1 (§3) | P0 |
 | XLVII | ML outputs the model must eventually support | Partial | Deterministic affinity scoring (ADR-004/007); `RecommendationImpression` for ranking measurement | Intrinsic "Like given User and Fragrance" scoring exists; contextual, pairwise, wear-probability, and purchase-behavior targets have no input data to train on yet | Direct consequence of closing the P1 items above (scenario, pairwise, behavioral events, typed sensory/temporal fields) | P1 |
 | XLVIII | Avoid premature overengineering | Complete | N/A | The existing team has already resisted building active learning, collaborative filtering, or a feature store ahead of need (confirmed by ADR-009 and the milestone plan explicitly deferring these to post-D5 decisions) | No action: hold this discipline for the recommendations below too | N/A |
+| L1 | **(v1.1)** Source and manufacturer provenance per fact (ADR-012; architecture review D-01). Treated as P0-class: the 2026-09-12 matrix left per-fact provenance at P2 (row III), but a manufacturer reply cannot be recorded without it | **Partial** | `SourceSnapshot` (`calibration_source_snapshots`): `source_type`, `permission_state`, `fields`, `source_reference`, nullable `source_url` with a has-source CHECK (`a3f8c1d9e2b7`, legacy rows backfilled to `excluded_legacy`); `source_revision`, `content_hash`, `parser_version`, `license_evidence`, `verified_by` plus source-to-permission pair, `fields` allow-list and SHA-256 CHECKs (`620c8c861268`) | The schema gap is closed. Open: no writer in `src/` sets `content_hash` or `parser_version` (the only `SourceSnapshot` writer, `house_review_service.py`, sets type, permission, fields, URL, reference, status and `verified_by`); the Parfumo write path fails closed rather than writing; the ADR-012 follow-ups it lists remain open | Populate the hash and parser version from the first sanctioned writer; do not mark done until a retained snapshot carries them | P0 |
+| L2 | **(v1.1)** Worn-by ("on others") evidence dimension (ADR-011) | Complete | `evaluations.worn_by_reviewer_id` (`da7c14f4a129`), FK RESTRICT plus a not-self CHECK; excluded from scoring in `preference_history.py`, `recommendation_service.py` and `recommendation_measurement_service.py`; `test_worn_by_reviewer_migration.py` | Ordinary evaluations only; controlled observations carry no worn-by field | None | N/A |
+| L3 | **(v1.1)** External ontology and standards crosswalk (ADR-013) | **Missing** | Decision only: no `provider_term_mapping`, `ClassificationSystem` or ontology table exists, and `src/`, `scripts/` and `data/` contain no Cinquieme Sens or IFRA reference. Related and already landed: the note alias layer (`note_aliases`, `000091664cdd`; `data/aliases/note-aliases-nm-v1.yaml`) | The crosswalk machinery ADR-013 reuses (ADR-010 `ClassificationSystem`, ADR-004 `provider_term_mapping`) is itself unbuilt | Build when milestone D1 needs it; reuse-rights review gates any stored term | P1 |
+| L4 | **(v1.1)** Fragella lookup log | Complete | `fragella_lookups` (`2c341c369192`), `FragellaLookup` in `models/calibration.py`, `fragella_lookup_service.py`: a reference-only quality-check log, not adopted source evidence | Not a requirement of v1.0; no gap | None | N/A |
+| L5 | **(v1.1)** R7a and R7b capture and consent tables | **Partial** | `3f14014a49cb`: `calibration_session_contexts`, `calibration_rank_events`, `calibration_rank_entries`, `behavioral_events`, typed timing, sample-provenance, `response_status`, `recognition`, `owned_or_worn` and scrub columns; `cd1e2375a2e4`: `consent_events`, `calibration_quality_flags`, program instrument version, randomization seed and algorithm, `intended_position`, season and setting fit; `f74bf7ff9c2d`: `calibration_fit_choices` (multi-select fit) | Rank events, quality flags, consent and session context have service and route support (`capture_service.py`, `consent.py`, `calibration_service.py`, `api/capture.py`, `api/calibration.py`). `behavioral_events` is schema only: nothing in `src/` writes `BehavioralEvent` | Add the behavioral-event write path before milestone F1 (v1.0 sequence step 7) | P1 |
+| L6 | **(v1.1)** R8 training eligibility and `v_training_rows` | **Complete (schema)** | `620c8c861268`: NOT NULL `training_eligibility` on `evaluations` and `calibration_observations` (closed CHECK vocabulary, default `unreviewed`, not trainable); view `v_training_rows` with no membership, presentation, session, program, role or repeat column (X-06); `feature_snapshots`; typed `calibration_checkpoint_predictions` (M-08); checkpoint reproduction columns. Also `7daf681ed339`: `training_eligibilities` lookup and `Fragrance.training_eligibility_code` (ADR-014) | v1.0 row XL proposed a default of `ELIGIBLE`; the shipped default is the conservative `unreviewed`, and the per-evidence review workflow is deliberately unbuilt (migration docstring) | Decide who classifies evidence and when; until then no row is trainable | P1 |
+| L7 | **(v1.1)** House intake and catalog alignment | Complete | `house_submissions` (`b7e3d91a4c2f`); `c5a9e2d7f1b4` adds line, market status and GTINs (`fragrance_gtins`) to the catalog | Not part of the v1.0 requirement set; listed so the ledger matches the migration chain | None | N/A |
+| L8 | **(v1.1)** Prediction and feature snapshots | Complete | `prediction_snapshots` (`72fe56efd128`, v1.0 update above), `feature_snapshots` and typed checkpoint predictions (`620c8c861268`); the JSON `calibration_checkpoints.predictions` column is retained alongside the typed rows | Supersedes the v1.0 "deferred" status of the `ModelCheckpoint.predictions` decomposition (row XXXVII) | None | N/A |
 
 ---
 
@@ -346,7 +367,7 @@ backfill, then tighten constraints only where safe.
 
 **Sequence (P0, before controlled baseline data collection scales up under milestone P1/F1):**
 
-- **Step 1 (IMPLEMENTED, migration `9ded7f54996c`): add typed columns to
+- **Step 1 (IMPLEMENTED, migration `9ded7f54996c`; v1.1: done): add typed columns to
   `calibration_observations`** for `confidence`, `sweetness`, `freshness`, `density`,
   `familiarity` (kept as the original numeric scale here; superseded by the new controlled code
   proposed in step 2 below, which remains unimplemented), `dryness`, `clean_soapy`,
@@ -368,24 +389,23 @@ backfill, then tighten constraints only where safe.
   condition holds for a future migration. `perceived_notes` gets its own step (3) because it
   needs a join table, not a scalar column; it currently ships as a typed JSON array of free-text
   labels (also part of Step 1's implemented migration), not yet normalized.
-- **Step 2 (NOT IMPLEMENTED): add a `familiarity` controlled-code column** to both
+- **Step 2 (v1.1: partial, see section 9): add a `familiarity` controlled-code column** to both
   `calibration_observations`
   (replacing the ambiguous int, after backfill/mapping) and `evaluations` (new, nullable, NULL =
   not asked). Add the `familiarity_states` lookup table.
-- **Step 3 (NOT IMPLEMENTED): normalize `perceived_notes`** into a new
+- **Step 3 (v1.1: open): normalize `perceived_notes`** into a new
   `observation_perceived_notes` junction
   table against the existing `notes` table, keeping a nullable `raw_label` text column per row
   for any perceived term that does not match the controlled vocabulary (never silently dropped).
-- **Step 4: add `brands` lookup table** + nullable `Fragrance.brand_id` FK. Backfill by grouping
+- **Step 4 (v1.1: open): add `brands` lookup table** + nullable `Fragrance.brand_id` FK. Backfill by grouping
   distinct existing `Fragrance.brand` strings; leave ambiguous/near-duplicate names unresolved
   (nullable `brand_id`) rather than guessing merges, per the "leave uncertain historical values
   null" instruction. Keep the `brand` string column and existing unique index untouched.
-- **Step 5: add `accord_types` lookup table**, seeded from the distinct values already present
-  in `fragrance_accords.accord_type`. Add it as a reference table only in this pass (no FK
-  constraint yet on `fragrance_accords.accord_type`, to avoid a breaking migration if any
-  existing row's value needs review first); tighten to an FK in a later, separately reviewed
-  migration once the vocabulary is confirmed complete.
-- **Step 6: add sample-provenance columns** to `calibration_memberships` and/or
+- **Step 5 (v1.1: done, `000091664cdd`, FK included): add `accord_types` lookup table**, seeded from the distinct values already present
+  in `fragrance_accords.accord_type`. v1.0 proposed adding it as a reference table only, deferring the FK on
+  `fragrance_accords.accord_type` to a later, separately reviewed migration; the FK
+  (`fk_fragrance_accords_accord_type`) landed in the same migration (`000091664cdd`).
+- **Step 6 (v1.1: done, `3f14014a49cb`, no backfill): add sample-provenance columns** to `calibration_memberships` and/or
   `calibration_presentations` (exact placement depends on whether provenance is per-membership
   or per-physical-unit; recommend per-`Presentation` since that is the concrete physical
   stimulus a session presents): `sample_source_type` (code, nullable), `sample_container` (code,
@@ -393,32 +413,32 @@ backfill, then tighten constraints only where safe.
   `sample_decanted_at` (nullable date), `sample_batch_code` (nullable string). Add the two new
   lookup tables from §5. Backfill from `Membership.selection` JSON where a value maps cleanly;
   leave the rest null.
-- **Step 7: add `training_eligibility` code column** to `evaluations` (default `ELIGIBLE`), and
-  the corresponding lookup table.
+- **Step 7 (v1.1: done as schema, `620c8c861268`): add `training_eligibility` code column** to `evaluations` (v1.0 proposed default
+  `ELIGIBLE`; the shipped default is `unreviewed`, which is not trainable), and the corresponding lookup table.
 
 **Sequence (P1, before adaptive/ML work in milestones D1/D4/D5):**
 
-- **Step 8**: add `seasons`, `climate_bands`, `occasions`, `desired_effects` lookup tables and
+- **Step 8 (v1.1: open; season and setting fit landed separately)**: add `seasons`, `climate_bands`, `occasions`, `desired_effects` lookup tables and
   their multi-select junction tables against `evaluations` and `calibration_observations`.
-- **Step 9**: add `ScenarioSuitability` (hypothetical judgment: fit rating, wear-likelihood,
+- **Step 9 (v1.1: open)**: add `ScenarioSuitability` (hypothetical judgment: fit rating, wear-likelihood,
   confidence, linked to an encounter) and `ActualWearContext` (observed: actual
   occasion/season/climate band/numeric temperature/humidity band/indoor-outdoor/time-of-day/
   formality/activity level, plus scenario-outcome fields: expectation-vs-actual label,
   would-wear-again).
-- **Step 10**: add `evaluation_drivers` lookup table + junction (positive/negative reasons,
+- **Step 10 (v1.1: open)**: add `evaluation_drivers` lookup table + junction (positive/negative reasons,
   with a polarity and an "is this an intensity complaint" flag).
-- **Step 11**: add `PairwiseComparison` (evaluator, two encounter/fragrance references,
+- **Step 11 (v1.1: partial, as rank events)**: add `PairwiseComparison` (evaluator, two encounter/fragrance references,
   preferred/tie, dimension, strength, confidence).
-- **Step 12**: add `BehavioralEvent` (evaluator, fragrance/variant reference, event type,
+- **Step 12 (v1.1: partial, schema only)**: add `BehavioralEvent` (evaluator, fragrance/variant reference, event type,
   occurred_at, optional format/quantity, recorded_by), generalizing the recommendation-scoped
   `would_wear`/`would_buy`/`sampling_state` already on `RecommendationResponseRevision` (which
   stays as-is: it answers "what happened to this specific recommendation," a narrower and
   still-useful question `BehavioralEvent` does not replace).
-- **Step 13**: add `ClassificationSystem` + `FragranceClassification` mapping table so
+- **Step 13 (v1.1: open)**: add `ClassificationSystem` + `FragranceClassification` mapping table so
   `primary_family`/`subfamily` become one row in a versioned, pluggable system rather than the
   only system; keep the existing string columns as the default system's materialized values so
   no existing query breaks.
-- **Step 14**: add `scrubbed_off`/`time_to_scrub_minutes` to the now-typed
+- **Step 14 (v1.1: done, `3f14014a49cb`)**: add `scrubbed_off`/`time_to_scrub_minutes` to the now-typed
   `calibration_observations`.
 
 **Deferred (P2, tracked by an existing milestone or genuinely not yet needed):**
@@ -542,6 +562,42 @@ requiring PostgreSQL-specific behavior to be tested in PostgreSQL, not only SQLi
 
 ---
 
+## 9. v1.1 status ledger
+
+Derived on 2026-10-31 from the models and the Alembic chain (head `620c8c861268`). "Evidence" names the revision id
+or file that justifies the marker; nothing is marked done on the strength of a plan or an ADR alone.
+
+| Item (v1.0 reference) | v1.0 priority | Status | Evidence and what is missing |
+| :--- | :--- | :--- | :--- |
+| Typed controlled-observation columns (step 1, Risk 1) | P0 | **done** | `9ded7f54996c`; `Observation` in `models/calibration.py` has no `responses` column; ADR-010 implementation status |
+| Familiarity as a controlled code on `evaluations` and `calibration_observations` (step 2) | P0 | **partial** | `3f14014a49cb` adds categorical `recognition` (`new`, `vaguely_familiar`, `recognized_exact`) and `owned_or_worn` (`yes`, `no`, `unknown`) to both tables as CHECK-coded columns. The 0-5 `familiarity` integer stays as "feels familiar" strength. The proposed seven-state code and a `familiarity_states` table do not exist |
+| Normalize `perceived_notes` against `Note` (step 3) | P0 | **open** | `perceived_notes` is still a JSON array of free text (`perceived_notes_is_array` in `models/calibration.py`); no junction table |
+| `brands` lookup and `Fragrance.brand_id` (step 4) | P0 | **open** | No brand model; `Fragrance.brand` is a free string in `models/fragrance.py` |
+| `accord_types` lookup (step 5) | P0 | **done** | `000091664cdd`; `AccordType`; `fk_fragrance_accords_accord_type` makes `fragrance_accords.accord_type` a foreign key (the tightening v1.0 deferred landed in the same migration), plus `intensity_source` and `rank` |
+| Typed sample-provenance columns (step 6) | P0 | **done** | `3f14014a49cb` on `calibration_presentations`: `sample_source_type`, `sample_container`, `sample_volume_ml`, `sample_acquired_on`, `sample_decanted_on`, `sample_opened_on`, `sample_batch_code`, `physical_sample_confirmed`; vocabularies are CHECK codes, not lookup tables. Existing rows were not backfilled (migration docstring) |
+| `training_eligibility` on `evaluations` (step 7) | P0 | **done (schema)** | `620c8c861268` (also on `calibration_observations`, default `unreviewed`, plus `v_training_rows`) and `7daf681ed339` (`Fragrance.training_eligibility_code`). The per-evidence classification workflow is unbuilt by design |
+| ADR-012 provenance on `SourceSnapshot` (row L1) | P0-class | **partial** | Schema done (`a3f8c1d9e2b7`, `620c8c861268`); no writer in `src/` populates `content_hash` or `parser_version`; ADR-012 follow-ups open |
+| Scenario and context domain (steps 8 and 9) | P1 | **partial** | Landed: blind season and setting fit as multi-select `calibration_fit_choices` (`cd1e2375a2e4`, `f74bf7ff9c2d`) and `calibration_session_contexts` (`3f14014a49cb`), controlled observations only. Open: `seasons`, `climate_bands`, `occasions`, `desired_effects`, `ScenarioSuitability`, `ActualWearContext`, and anything on ordinary evaluations |
+| Positive and negative driver vocabulary (step 10) | P1 | **open** | No `evaluation_drivers` table; `likes` and `dislikes` remain free text |
+| `PairwiseComparison` (step 11) | P1 | **partial** | `calibration_rank_events` and `calibration_rank_entries` (`3f14014a49cb`), with service and route (`capture_service.py`, `api/capture.py`). By design (ADR-005 2026-09-19 amendment) a pairwise judgment is a rank event with two entries, so no separate table; only end-of-session rankings are captured, nothing for ordinary encounters |
+| `BehavioralEvent` (step 12) | P1 | **partial** | `behavioral_events` and `models/behavioral_event.py` (`3f14014a49cb`); nothing in `src/` writes a `BehavioralEvent` (schema only), and there is no purchase-intent scale column |
+| `ClassificationSystem` and `FragranceClassification` (step 13) | P1 | **open** | No model; `primary_family` and `subfamily` remain free strings on `Fragrance` |
+| `scrubbed_off` and `time_to_scrub_minutes` (step 14) | P1 | **done** | `3f14014a49cb`; `Observation.scrubbed_off` with `scrubbed_off_requires_skin` and scrub-time CHECKs |
+| `ModelCheckpoint.predictions` decomposition | P1 (deferred) | **done** | `620c8c861268`: `calibration_checkpoint_predictions` (M-08), `feature_snapshots` link and reproduction columns; the JSON column is retained |
+| `FeatureDefinition` and `FeatureValue` for published sensory features | P1 | **open** | None; `feature_snapshots` freezes model inputs and is a different thing |
+| `TaxonomyVersion` and alias tables | P2 (milestone D1) | **partial** | Alias layer landed (`note_aliases`, `000091664cdd`, `services/note_aliases.py`, `data/aliases/note-aliases-nm-v1.yaml`); no `TaxonomyVersion` entity (checkpoints carry a `taxonomy_version` string) |
+| Per-fact source provenance | P2 | **partial** | `SourceSnapshot.fields` names which `Fragrance` columns a snapshot evidences (`a3f8c1d9e2b7`); notes and accords still inherit the fragrance's single source |
+| Recommendation `selection_objective` | P2 (milestone D4) | **open** | `candidate_strategy` is still a single literal |
+| `Embedding` storage | P2 | **open** | None; nothing produces embeddings |
+| `FragranceVariant` split | P2 | **not done, deliberate** | ADR-006 keeps version identity on `Fragrance` |
+| ADR-011 worn-by (row L2) | new | **done** | `da7c14f4a129`; excluded from scoring paths |
+| ADR-013 crosswalk (row L3) | new | **open** | Decision only; no tables |
+| `fragella_lookups` (row L4) | new | **done** | `2c341c369192` |
+| R7a and R7b capture and consent tables (row L5) | new | **partial** | `3f14014a49cb`, `cd1e2375a2e4`, `f74bf7ff9c2d`; `behavioral_events` schema only |
+| R8 training eligibility and `v_training_rows` (row L6) | new | **done (schema)** | `620c8c861268`, `7daf681ed339`; review workflow unbuilt |
+
+---
+
 ## Final Output
 
 ### A. Current Readiness
@@ -567,46 +623,52 @@ data would require an irreversible-feeling backfill of production history.
 
 ### B. Required Before Baseline (P0)
 
-- Promote `calibration_observations.responses` JSON fields to typed, constrained columns
+- **[done]** Promote `calibration_observations.responses` JSON fields to typed, constrained columns
   (§6 step 1): the single highest-priority item in this review.
-- Add a controlled `familiarity` code to both `evaluations` and `calibration_observations`
+- **[partial]** Add a controlled `familiarity` code to both `evaluations` and `calibration_observations`
   (§6 step 2).
-- Normalize `perceived_notes` against the `Note` vocabulary (§6 step 3).
-- Add `brands` lookup + `Fragrance.brand_id` (§6 step 4).
-- Add `accord_types` lookup table, non-breaking (§6 step 5).
-- Add typed physical-sample-provenance columns to replace ad hoc `Membership.selection` JSON
+- **[open]** Normalize `perceived_notes` against the `Note` vocabulary (§6 step 3).
+- **[open]** Add `brands` lookup + `Fragrance.brand_id` (§6 step 4).
+- **[done]** Add `accord_types` lookup table, non-breaking (§6 step 5).
+- **[done]** Add typed physical-sample-provenance columns to replace ad hoc `Membership.selection` JSON
   keys (§6 step 6).
-- Add `training_eligibility` to `evaluations` (§6 step 7).
+- **[done, schema only]** Add `training_eligibility` to `evaluations` (§6 step 7).
+- **[partial]** (v1.1, P0-class) ADR-012 source provenance on `SourceSnapshot` (row L1): columns landed, no writer
+  populates the hash or parser version.
 
 ### C. Required Before Adaptive Sampling / ML (P1)
 
-- Full scenario/context domain: seasons, climate bands, occasions, desired effects,
+- **[partial]** Full scenario/context domain: seasons, climate bands, occasions, desired effects,
   `ScenarioSuitability` vs. `ActualWearContext`, scenario outcomes (§6 steps 8-9).
-- Controlled positive/negative driver vocabulary, distinct from plain descriptive traits
+- **[open]** Controlled positive/negative driver vocabulary, distinct from plain descriptive traits
   (§6 step 10).
-- `PairwiseComparison` as a first-class entity (§6 step 11).
-- `BehavioralEvent` generalized beyond recommendation-scoped outcomes, with purchase
-  intent/format (§6 step 12).
-- `ClassificationSystem`/`FragranceClassification` to support more than one taxonomy
+- **[partial]** `PairwiseComparison` as a first-class entity (§6 step 11): captured as rank events.
+- **[partial]** `BehavioralEvent` generalized beyond recommendation-scoped outcomes, with purchase
+  intent/format (§6 step 12): schema only.
+- **[open]** `ClassificationSystem`/`FragranceClassification` to support more than one taxonomy
   (§6 step 13).
-- `scrubbed_off` explicit negative-behavior label (§6 step 14).
+- **[done]** `scrubbed_off` explicit negative-behavior label (§6 step 14).
 
 ### D. Safe to Defer (P2)
 
-- Splitting `FragranceVariant` out of `Fragrance` (governed by ADR-006; would need its own ADR
-  to reopen).
-- A full `PhysicalSample` entity beyond typed columns on `Membership`/`Presentation`.
-- `FeatureDefinition`/`FeatureValue` for backend-published sensory characteristics (no data
+- **[not done, deliberate]** Splitting `FragranceVariant` out of `Fragrance` (governed by ADR-006; would need its
+  own ADR to reopen).
+- **[not done]** A full `PhysicalSample` entity beyond typed columns on `Membership`/`Presentation`.
+- **[open]** `FeatureDefinition`/`FeatureValue` for backend-published sensory characteristics (no data
   source for these exists yet).
-- `ModelCheckpoint.predictions` decomposition (deferred; distinct from the already-implemented,
-  standalone `PredictionSnapshot` entity described in ADR-010): defer until a second
-  consumer needs typed rows, expected at milestone D5.
-- Recommendation `selection_objective`/`recommendation_type` taxonomy (owned by milestone D4).
-- `TaxonomyVersion`/alias/embedding infrastructure (owned by milestones D1-D3; do not duplicate
-  ahead of them).
-- Per-fact (rather than per-fragrance) source provenance granularity.
+- **[done]** `ModelCheckpoint.predictions` decomposition (distinct from the standalone `PredictionSnapshot`
+  entity described in ADR-010): `calibration_checkpoint_predictions` landed in `620c8c861268` ahead of the
+  milestone D5 expectation.
+- **[open]** Recommendation `selection_objective`/`recommendation_type` taxonomy (owned by milestone D4).
+- **[partial]** `TaxonomyVersion`/alias/embedding infrastructure (owned by milestones D1-D3; do not duplicate
+  ahead of them): the note alias layer has landed, the rest is open.
+- **[partial]** Per-fact (rather than per-fragrance) source provenance granularity: `SourceSnapshot.fields`
+  records which columns a snapshot evidences.
 
 ### E. Recommended Implementation Sequence
+
+> **v1.1 note**: this is the original 2026-09-12 sequence, kept for history. Steps 1, 5, 6 and 7 have landed (7 as
+> schema only), step 2 is partial, and steps 3, 4 and 8-12 are open; the §9 ledger is the current status.
 
 1. §6 steps 1-3 together, as one PR: promote `Observation.responses` to typed columns, add
    `familiarity`, normalize `perceived_notes`. These three are tightly coupled (all touch the
@@ -643,6 +705,9 @@ incremental extension, exactly as the review's framing requires.
 ## Related documents
 
 - [ADR-010 (Partially implemented): Preference-Learning and Scenario Data Model](adr/adr-010-preference-learning-and-scenario-data-model.md)
+- [ADR-011: Worn-By Evidence Dimension](adr/adr-011-worn-by-evidence-dimension.md)
+- [ADR-012: Data Source Compliance and Manufacturer Provenance](adr/adr-012-data-source-compliance-and-manufacturer-provenance.md)
+- [ADR-013: External Ontology and Standards Crosswalk](adr/adr-013-external-ontology-and-standards-crosswalk.md)
 - [ADR-006: Version Identity, Source Provenance, and Vocabulary](adr/adr-006-version-identity-and-source-provenance.md)
 - [ADR-007: Preference Evidence and Score Semantics](adr/adr-007-preference-evidence-and-score-semantics.md)
 - [ADR-009: Prospective Evaluation and Frozen Checkpoints](adr/adr-009-prospective-evaluation-and-checkpoints.md)

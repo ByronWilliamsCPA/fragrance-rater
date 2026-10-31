@@ -191,12 +191,9 @@ nav:
       - P4 Participant Disclosure Matrix: planning/evidence/p4-participant-disclosure.md
       - P5 Manager and Operations Gate: planning/gates/p5.md
       - P5 Manager Disclosure Matrix: planning/evidence/p5-manager-disclosure.md
+      # The five P6 evidence pages (docs/planning/evidence/p6-*.md) are status: draft and stay out of the
+      # nav until P6 closes; the gate page links to them directly.
       - P6 Integrated Pilot Readiness Gate: planning/gates/p6.md
-      - P6 Device Matrix: planning/evidence/p6-device-matrix.md
-      - P6 Synthetic Rehearsal: planning/evidence/p6-synthetic-rehearsal.md
-      - P6 Quality Report: planning/evidence/p6-quality-report.md
-      - P6 Operations Drill: planning/evidence/p6-operations-drill.md
-      - P6 Readiness Decision: planning/evidence/p6-readiness-decision.md
       - F1 Initial Family Pilot Gate: planning/gates/f1.md
       - Controlled Calibration V1: calibration-v1.md
       - Scent chords Analysis: research/scent-chords-analysis.md
@@ -230,7 +227,7 @@ nav:
       - ADR-009 Prospective Evaluation: planning/adr/adr-009-prospective-evaluation-and-checkpoints.md
       - ADR-010 Preference-Learning Data Model: planning/adr/adr-010-preference-learning-and-scenario-data-model.md
       - ADR-017 Project-Owned Faceted Olfactory Vocabulary: planning/adr/adr-017-project-owned-faceted-olfactory-vocabulary.md
-      - ADR Template: ADRs/adr-template.md
+      - ADR Template: planning/adr/adr-template.md
 
   - Reference:
       - CI Gates: ci-gates.md
@@ -240,7 +237,9 @@ nav:
       - Python Compatibility: PYTHON_COMPATIBILITY.md
       - Project Setup: PROJECT_SETUP.md
       - Template Feedback: template_feedback.md
-      - ADR Guidelines: ADRs/README.md
+
+  - Archive:
+      - Original Concept (historical): archive/concept.md
 
   - Project:
       - Roadmap: project/roadmap.md

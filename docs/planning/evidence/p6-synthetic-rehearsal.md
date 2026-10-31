@@ -1,7 +1,7 @@
 ---
 title: "P6 synthetic rehearsal log"
 schema_type: common
-status: published
+status: draft
 owner: core-maintainer
 purpose: "Retain the complete synthetic setup-to-report rehearsal result for P6."
 tags:

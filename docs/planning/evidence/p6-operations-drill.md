@@ -1,7 +1,7 @@
 ---
 title: "P6 operations drill"
 schema_type: common
-status: published
+status: draft
 owner: core-maintainer
 purpose: "Retain backup, recovery, alert, logging, secret ownership, and outage rehearsal evidence."
 tags:

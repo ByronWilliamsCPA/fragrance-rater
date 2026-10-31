@@ -488,7 +488,7 @@ git checkout -b feat/phase-1-core
 ## Related Documentation
 
 - [CONTRIBUTING.md][contributing] - How to contribute to the project
-- [ADRs/README.md](../ADRs/README.md) - Architecture Decision Records
+- [adr/README.md](adr/README.md) - Architecture Decision Records
 - [README.md][readme] - Project overview
 - [Code of Conduct][code-of-conduct] - Community guidelines (org-level)
 

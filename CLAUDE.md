@@ -181,7 +181,8 @@ When working on this project, always suggest appropriate security measures:
 ### 3. Code Quality Standards
 
 - Treat linting warnings as errors to fix, not ignore
-- Address ALL type checker warnings, not just errors
+- Type checker policy: the BasedPyright baseline is 0 errors and 132 warnings (`uv run basedpyright src/`). The
+  warning count must not rise, and warnings in code you touch are fixed rather than carried
 - Don't accumulate technical debt by deferring quality issues
 
 ### 4. Default to Strictest Settings
@@ -277,14 +278,20 @@ the PyStrict additions, but are equally enforced:
 
 ### Agent Assignment Patterns
 
+`.mcp.json` configures only `context7` (library documentation lookup) and `sonarqube`; no `mcp__zen__*` tools
+exist in this repository, so do not assign work to them. Delegate in general terms to what the repository and
+the Claude Code session actually provide:
+
 ```text
-- Security tasks       -> Security Agent (mcp__zen__secaudit)
-- Code reviews         -> Code Review Agent (mcp__zen__codereview)
-- Testing              -> Test Engineer Agent (mcp__zen__testgen)
-- Documentation        -> Documentation Agent (mcp__zen__docgen)
-- Debugging            -> Debug Agent (mcp__zen__debug)
-- Analysis             -> Analysis Agent (mcp__zen__analyze)
-- Refactoring          -> Refactor Agent (mcp__zen__refactor)
+- Security tasks       -> security-auditor subagent (.claude/agents/), /security command, security skill
+- Code reviews         -> code-reviewer subagent (.claude/agents/)
+- Testing              -> test-engineer subagent (.claude/agents/), /testing command, testing skill
+- Quality (lint, types) -> /quality command, quality skill
+- Commits and PRs      -> commit-prepare, pr-prepare and git skills, /pr command
+- Planning documents   -> /plan command, project-planning skill
+- Standards merges     -> merge-standards subagent and /merge-standards command
+- Documentation, debugging, analysis, refactoring -> the session's general-purpose subagents, or do it directly
+- Library documentation -> the context7 MCP server
 ```
 
 ---
@@ -481,30 +488,40 @@ docker build -t fragrance_rater .  # Build production image
 
 ```text
 src/fragrance_rater/
-├── __init__.py              # Package initialization
-├── cli.py                   # CLI entry point
-├── core/                    # Core business logic
-│   ├── __init__.py
-│   ├── config.py           # Configuration (Pydantic Settings)
-│   └── exceptions.py       # Centralized exception hierarchy
-├── middleware/              # Middleware components
-│   ├── __init__.py
-│   ├── security.py         # Security middleware (OWASP)
-│   └── correlation.py      # Request correlation/tracing
-└── utils/                   # Utilities
-    ├── __init__.py
-    ├── financial.py        # Financial utilities (Decimal precision)
-    └── logging.py          # Structured logging with correlation
+├── main.py                  # FastAPI application entry point (app factory, routers, middleware)
+├── cli.py                   # Click CLI (catalog imports)
+├── api/                     # FastAPI routers (calibration, capture, evaluations, fragrances, health,
+│                            #   house_intake, imports, predictions, ratings,
+│                            #   recommendation_measurement, recommendations, reviewers, catalog_stub)
+├── services/                # Business logic behind the routers (calibration, capture, evaluation,
+│                            #   recommendation, prediction, house intake/review, vocabulary, note aliases,
+│                            #   Fragella and Parfumo clients, Kaggle importer, LLM service, evidence export)
+├── models/                  # SQLAlchemy models (fragrance, evaluation, calibration, reviewer, consent,
+│                            #   prediction, feature_snapshot, behavioral_event, house_intake,
+│                            #   recommendation_measurement)
+├── schemas/                 # Pydantic request/response schemas, one module per model area
+├── llm/                     # OpenRouter client (optional recommendation explanations)
+├── ml/                      # Scoring model, dataset, evaluation, feature space, registry, reliability
+├── jobs/                    # Background job package (currently only __init__.py)
+├── consent/                 # Versioned participant consent text (family-consent-v1.md)
+├── core/                    # auth, cache, config (Pydantic Settings), database, exceptions, vocabulary
+├── middleware/              # auth, correlation, house_fence, rate_limit, security
+└── utils/                   # financial, gtin, labels, logging, timestamps
 
+alembic/                     # Alembic environment and versions/ (migration revisions)
 tests/
-├── unit/                   # Unit tests
-├── integration/            # Integration tests
-├── conftest.py            # Pytest fixtures
-└── test_example.py        # Example tests
-
-docs/                       # MkDocs documentation
-├── index.md               # Home page
-└── ...                    # Additional docs
+├── unit/                    # Unit tests: test_api/, test_core/, test_ml/, test_models/, test_schemas/,
+│                            #   test_scripts/, test_services/, test_utils/ plus top-level test_*.py
+├── integration/             # PostgreSQL-backed migration, schema parity, backup/restore and nginx tests
+├── conftest.py              # Pytest fixtures
+└── test_example.py          # Example tests
+frontend/                    # React + TypeScript (Vite): src/, e2e/, e2e-smoke/, e2e-stack/, nginx.conf
+scripts/                     # Operational and validation scripts (backup, restore, topology, readiness)
+data/                        # aliases/, calibration/, pilot/, vocabulary/ curated data
+tools/                       # Documentation tooling (front matter validator, tools catalog generator)
+docs/                        # MkDocs documentation: planning/ (plan, ADRs, gates, evidence), development/,
+                             #   guides/, deployment/, measurement/, research/, archive/
+.claude/                     # Subagents, commands, skills and settings for Claude Code
 ```
 
 ---

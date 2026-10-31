@@ -55,19 +55,15 @@ ADRs document significant architectural decisions along with their context and c
 
 ## Creating ADRs
 
-### Automatic Generation
-
-Run `/plan <project description>` to generate initial ADRs alongside other planning documents.
-
-### Manual Creation
-
 When making a new architectural decision:
 
-```text
-Create an ADR for [decision topic].
-Use template: docs/ADRs/adr-template.md
-Save to: docs/planning/adr/adr-NNN-[decision-slug].md
-```
+1. Copy [adr-template.md](adr-template.md) to `adr-NNN-short-description.md` in this directory, using the next
+   free number. Do not reuse or renumber an existing number (see the ADR-014 note above).
+2. Fill in the sections, set the status to `Proposed`, and open a pull request.
+3. Once the maintainer accepts it, change the status to `Accepted` and add a row to the index above in the same
+   pull request.
+
+Run `/plan <project description>` to generate initial ADRs alongside other planning documents.
 
 ## Naming Convention
 
@@ -77,9 +73,8 @@ ADRs follow this naming pattern:
 adr-NNN-short-description.md
 
 Examples:
-- adr-001-database-choice.md
-- adr-002-auth-strategy.md
-- adr-003-api-design.md
+- adr-001-initial-architecture.md
+- adr-008-authentication-and-production-boundary.md
 ```
 
 ## When to Create an ADR
@@ -100,14 +95,21 @@ Proposed → Accepted → [Deprecated | Superseded]
 
 - **Proposed**: Under discussion
 - **Accepted**: Decision made and in use
-- **Deprecated**: No longer relevant
-- **Superseded**: Replaced by another ADR
+- **Deprecated**: No longer relevant; add a notice at the top and name the replacement if there is one
+- **Superseded**: Replaced by another ADR; add a notice at the top that links the new record, and have the new
+  record cite the old one under its alternatives
+
+When a later ADR changes an accepted decision, update both records and this index so readers can follow the
+supersession chain. Prefer a dated amendment note on the old record over rewriting its history.
+
+## Best Practices
+
+- Make decisions explicit, even when they seem obvious, and include the trade-offs and the alternatives rejected.
+- Be concise and use examples or diagrams where they help.
+- Document how the decision was actually implemented, and keep the record in step with the repository.
+- Link ADRs with a relative path, for example `[ADR-008](adr-008-authentication-and-production-boundary.md)`.
 
 ## Template Reference
 
-See [the ADR template](../../ADRs/adr-template.md) for the full template structure.
-
-## More Information
-
-When a later ADR changes an accepted decision, update both records and this index so readers can
-follow the supersession chain.
+See the [ADR template](adr-template.md) for the full template structure. The template and the generic ADR
+guide used to live in a second, separate ADR directory; R14 PR 3a merged both here so there is one location.
