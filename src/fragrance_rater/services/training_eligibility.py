@@ -166,10 +166,28 @@ class TrainingEligibilityService:
 
     # --- controlled observations ------------------------------------------
 
+    async def _presentation_of(self, observation: Observation) -> Presentation:
+        """Load the presentation an observation belongs to.
+
+        Args:
+            observation (Observation): The observation.
+
+        Returns:
+            Presentation: Its presentation.
+
+        Raises:
+            LookupError: When the foreign key points at nothing (a bug or a
+                concurrent hard delete, never a normal state).
+        """
+        presentation = await self.db.get(Presentation, observation.presentation_id)
+        if presentation is None:
+            message = f"presentation {observation.presentation_id} not found"
+            raise LookupError(message)
+        return presentation
+
     async def _covering_open_flags(self, observation: Observation) -> list[str]:
         """Return the ids of open flags covering ``observation``."""
-        presentation = await self.db.get(Presentation, observation.presentation_id)
-        assert presentation is not None
+        presentation = await self._presentation_of(observation)
         return list(
             await self.db.scalars(
                 select(QualityFlag.id).where(
@@ -187,8 +205,7 @@ class TrainingEligibilityService:
         """What option C says an observation's code is, ignoring manager codes."""
         if await self._covering_open_flags(observation):
             return QUESTIONABLE
-        presentation = await self.db.get(Presentation, observation.presentation_id)
-        assert presentation is not None
+        presentation = await self._presentation_of(observation)
         locked = (
             presentation.skin_locked_at
             if observation.stage == "SKIN"
@@ -324,6 +341,10 @@ class TrainingEligibilityService:
 
         Returns:
             list[Transition]: The changes made.
+
+        Raises:
+            ValueError: If a resolved closing reaches the per-row loop without
+                an outcome (the early return above makes that unreachable).
         """
         if closing.action == "resolved" and outcome is None:
             return []
@@ -333,8 +354,12 @@ class TrainingEligibilityService:
                 continue
             if closing.action == "invalidated" or outcome == "eligible":
                 target = await self._rule_state(row)
+            elif outcome is None:
+                # Unreachable: a "resolved" closing without an outcome returned
+                # above. Fail loudly, not silently, if that guard ever changes.
+                message = "a resolved flag closing needs an outcome"
+                raise ValueError(message)
             else:
-                assert outcome is not None
                 target = outcome
             change = _change(row, target)
             if change is not None:
