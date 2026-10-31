@@ -76,8 +76,8 @@ comments hold the app at one replica until a shared store exists.
 ## 5. Dependency vulnerabilities
 
 See [SECURITY.md](SECURITY.md) for reporting and [docs/known-vulnerabilities.md](docs/known-vulnerabilities.md)
-for the ignore ledger. The ledger is stale in one respect, recorded there: `pyproject.toml` still carries a
-pip-audit ignore for `PYSEC-2022-42969` whose reassessment date (2026-07-16) has passed.
+for the ignore ledger. There are no active ignores: the pip-audit ignore for `PYSEC-2022-42969` was removed on
+2026-10-31 after the advisory was withdrawn upstream.
 
 ## 6. Open items from this pass
 
