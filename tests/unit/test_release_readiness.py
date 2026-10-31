@@ -488,6 +488,9 @@ def valid_topology() -> dict[str, Any]:
                     "TRUSTED_HOSTS": "fragrance.example.com,localhost,127.0.0.1",
                     "FORWARDED_ALLOW_IPS": "172.25.0.0/16,172.30.0.0/24",
                     "DATABASE_URL": "postgresql+asyncpg://app:secret@db/app",
+                    "CALIBRATION_ADMIN_USERNAMES": '["manager"]',
+                    "FRAGRANCE_RATER_API_KEY": "kR3pQ9vXw2LmN8sTz4YbH7cJdF5aUe1G",
+                    "OPENROUTER_API_KEY": "sk-or-v1-9f8e7d6c5b4a39281706f5e4d3c2b1a0",
                 },
             },
             "frontend": {
@@ -551,7 +554,7 @@ def test_production_topology_rejects_unrelated_middleware_chain() -> None:
         "traefik.http.routers.fragrance-rater.middlewares"
     ] = "security-headers@file"
     assert validator.validate_topology(config) == [
-        "Traefik router must declare the Authentik middleware"
+        "Traefik router must declare the Authentik middleware 'authentik@file'"
     ]
 
 
@@ -709,3 +712,225 @@ def test_production_topology_requires_explicit_forwarded_allow_ips(
     assert validator.validate_topology(config) == [
         "app must set FORWARDED_ALLOW_IPS to the proxy subnets"
     ]
+
+
+# --- S-04 and S-08: the app container's runtime requirements -----------------
+
+
+def _app_environment(config: dict[str, Any]) -> dict[str, Any]:
+    return config["services"]["app"]["environment"]
+
+
+def test_production_topology_accepts_a_configured_middleware_name() -> None:
+    """The expected middleware is an argument, not a hard-coded constant (S-08)."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    labels = config["services"]["frontend"]["labels"]
+    labels["traefik.http.routers.fragrance-rater.middlewares"] = "sso-forward@docker"
+
+    assert (
+        validator.validate_topology(config, authentik_middleware="sso-forward@docker")
+        == []
+    )
+    assert validator.validate_topology(config) == [
+        "Traefik router must declare the Authentik middleware 'authentik@file'"
+    ]
+
+
+@pytest.mark.parametrize("replicas", [1, "1", None])
+def test_production_topology_accepts_a_single_app_replica(replicas: object) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if replicas is not None:
+        config["services"]["app"]["deploy"] = {"replicas": replicas}
+
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize("replicas", [2, "3", 0])
+def test_production_topology_rejects_more_than_one_app_replica(
+    replicas: object,
+) -> None:
+    """The rate limiter is process-local: replicas multiply the effective limit."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["app"]["deploy"] = {"replicas": replicas}
+
+    errors = validator.validate_topology(config)
+
+    assert len(errors) == 1
+    assert "single replica" in errors[0]
+
+
+@pytest.mark.parametrize("value", ['["manager"]', "manager", "manager, second"])
+def test_production_topology_accepts_a_named_manager_allow_list(value: str) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    _app_environment(config)["CALIBRATION_ADMIN_USERNAMES"] = value
+
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "fragment"),
+    [
+        (None, "must be a JSON array or comma list"),
+        ("[]", "at least one manager"),
+        ("", "at least one manager"),
+        ('["manager", ""]', "at least one manager"),
+        ('["*"]', "wildcard"),
+        ("manager,*", "wildcard"),
+        ("[not json", "must be a JSON array or comma list"),
+    ],
+)
+def test_production_topology_rejects_a_bad_manager_allow_list(
+    value: str | None, fragment: str
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if value is None:
+        del _app_environment(config)["CALIBRATION_ADMIN_USERNAMES"]
+    else:
+        _app_environment(config)["CALIBRATION_ADMIN_USERNAMES"] = value
+
+    errors = validator.validate_topology(config)
+
+    assert len(errors) == 1
+    assert fragment in errors[0]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        None,
+        "",
+        '["https://fragrance.example.com"]',
+        "https://a.example,https://b.example",
+    ],
+)
+def test_production_topology_accepts_unset_or_https_cors(value: str | None) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if value is not None:
+        _app_environment(config)["CORS_ALLOWED_ORIGINS"] = value
+
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize(
+    ("value", "fragment"),
+    [
+        ('["*"]', "wildcard"),
+        ("*", "wildcard"),
+        ("http://fragrance.example.com", "https origin"),
+        ('["https://ok.example", "http://localhost:3000"]', "https origin"),
+    ],
+)
+def test_production_topology_rejects_open_or_insecure_cors(
+    value: str, fragment: str
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    _app_environment(config)["CORS_ALLOWED_ORIGINS"] = value
+
+    errors = validator.validate_topology(config)
+
+    assert errors
+    assert all(fragment in error for error in errors)
+
+
+@pytest.mark.parametrize("name", ["FRAGRANCE_RATER_API_KEY", "OPENROUTER_API_KEY"])
+def test_production_topology_requires_each_billed_endpoint_secret(name: str) -> None:
+    """Neither secret reaches the container unless the override passes it (S-04)."""
+    validator = load_script("validate_production_topology")
+    missing = valid_topology()
+    del _app_environment(missing)[name]
+    blank = valid_topology()
+    _app_environment(blank)[name] = "   "
+
+    assert validator.validate_topology(missing) == [f"app must set {name}"]
+    assert validator.validate_topology(blank) == [f"app must set {name}"]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "your-openrouter-api-key-here",
+        "changeme",
+        "CHANGE_ME",
+        "<paste key>",
+        "${OPENROUTER_API_KEY}",
+        "sk-or-v1-xxxxxxxxxxxx",
+        "example-key",
+        "placeholder",
+    ],
+)
+def test_production_topology_rejects_a_placeholder_secret(value: str) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    _app_environment(config)["OPENROUTER_API_KEY"] = value
+
+    assert validator.validate_topology(config) == [
+        "app OPENROUTER_API_KEY is a placeholder, not a secret"
+    ]
+
+
+@pytest.mark.parametrize("value", ["true", "TRUE", "1", "yes", "on"])
+def test_production_topology_rejects_test_mode(value: str) -> None:
+    """TEST_MODE swaps real model output for a fixture (S-27)."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    _app_environment(config)["TEST_MODE"] = value
+
+    assert validator.validate_topology(config) == [
+        "app must not set TEST_MODE in production"
+    ]
+
+
+@pytest.mark.parametrize("value", ["false", "0", ""])
+def test_production_topology_accepts_test_mode_off(value: str) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    _app_environment(config)["TEST_MODE"] = value
+
+    assert validator.validate_topology(config) == []
+
+
+def _run_main(validator: Any, monkeypatch: pytest.MonkeyPatch, *argv: str) -> int:
+    monkeypatch.setattr("sys.argv", ["validate_production_topology.py", *argv])
+    return validator.main()
+
+
+def test_main_takes_the_middleware_from_the_flag_then_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    labels = config["services"]["frontend"]["labels"]
+    labels["traefik.http.routers.fragrance-rater.middlewares"] = "sso-forward@docker"
+    path = tmp_path / "render.json"
+    path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.delenv("AUTHENTIK_MIDDLEWARE", raising=False)
+
+    assert _run_main(validator, monkeypatch, str(path), "172.30.0.0/24") == 1
+    assert (
+        _run_main(
+            validator,
+            monkeypatch,
+            str(path),
+            "172.30.0.0/24",
+            "--authentik-middleware",
+            "sso-forward@docker",
+        )
+        == 0
+    )
+    monkeypatch.setenv("AUTHENTIK_MIDDLEWARE", "sso-forward@docker")
+    assert _run_main(validator, monkeypatch, str(path), "172.30.0.0/24") == 0
+
+
+def test_main_still_requires_both_positional_arguments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    validator = load_script("validate_production_topology")
+
+    assert _run_main(validator, monkeypatch, "only-one.json") == 2

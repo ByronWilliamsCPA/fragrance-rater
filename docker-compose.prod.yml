@@ -33,6 +33,13 @@ services:
       # JSON object of Authentik username -> fragrance house; empty grants no house access.
       HOUSE_CONTRIBUTORS: ${HOUSE_CONTRIBUTORS:-{}}
       HOUSE_CONTRIBUTOR_GROUP: ${HOUSE_CONTRIBUTOR_GROUP:-fragrance-houses}
+      # The two secrets the billed endpoints need (S-04). Neither compose file
+      # has an env_file, so a value that is not named here never reaches the
+      # container and every billed endpoint answers 503. Both are required, so a
+      # render without them fails here instead of in production. Supply them
+      # from the secret store; never commit them.
+      FRAGRANCE_RATER_API_KEY: ${FRAGRANCE_RATER_API_KEY:?Set the shared household API key}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?Set the OpenRouter API key}
 
     # Production replicas (for load balancing).
     # Defaults to 1: rate_limit.py's Limiter uses slowapi's default in-memory

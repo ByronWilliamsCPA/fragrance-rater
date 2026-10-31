@@ -56,6 +56,9 @@ class Settings(BaseSettings):
             deployment, not a multi-tenant auth system. When unset, the
             endpoint rejects all requests with 503 rather than silently
             allowing writes; see ``fragrance_rater.middleware.auth``.
+        test_mode (bool): Serve the bundled fixture instead of calling the
+            model, via ``TEST_MODE``. For CI contract tests only; refused when
+            ``ENVIRONMENT=production``.
         database_url (str): PostgreSQL connection string.
         database_echo (bool): Echo SQL queries to logs.
         api_v1_prefix (str): API version 1 prefix.
@@ -159,6 +162,19 @@ class Settings(BaseSettings):
         description=(
             "Shared household API key required as the X-API-Key header on "
             "POST /ratings. Unset means the endpoint fails closed with 503."
+        ),
+    )
+
+    # TEST_MODE swaps real model output for a canned fixture (S-27). It exists
+    # for CI contract tests; in production it would silently serve fabricated
+    # ratings, so production refuses to start with it on. The LLM client reads
+    # the same variable directly, which is why the name is the contract here.
+    test_mode: bool = Field(
+        default=False,
+        validation_alias="TEST_MODE",
+        description=(
+            "Serve the bundled fixture instead of calling the model. "
+            "Refused when ENVIRONMENT=production."
         ),
     )
 
@@ -441,7 +457,8 @@ class Settings(BaseSettings):
             Self: This instance, with production CORS defaults applied.
 
         Raises:
-            ValueError: If production runs without trusted hosts.
+            ValueError: If production runs without trusted hosts, or with
+                ``TEST_MODE`` enabled.
         """
         if self.environment != "production":
             return self
@@ -449,6 +466,9 @@ class Settings(BaseSettings):
             self.cors_allowed_origins = []
         if not self.trusted_hosts:
             msg = "TRUSTED_HOSTS must be set when ENVIRONMENT=production"
+            raise ValueError(msg)
+        if self.test_mode:
+            msg = "TEST_MODE must not be enabled when ENVIRONMENT=production"
             raise ValueError(msg)
         return self
 
