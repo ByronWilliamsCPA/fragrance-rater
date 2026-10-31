@@ -72,6 +72,18 @@ name). The consequence: a new migration's unnamed constraint gets a
 PostgreSQL-invented name, and the name-parity test fails. Autogenerate already
 renders convention names as op.f("..."); keep them.
 
+VIEWS
+-----
+620c8c861268 creates v_training_rows (R8, X-05) over evaluations,
+calibration_observations, calibration_presentations, calibration_memberships,
+calibration_sessions, calibration_enrollments, and fragrances. The models do
+not declare it, so autogenerate and `alembic check` never see it. PostgreSQL
+refuses to drop or retype a column the view reads, and SQLite batch mode
+cannot rebuild a table the view names, so a later migration that alters one
+of those columns runs `DROP VIEW v_training_rows` first and recreates it,
+with the same column list, last. tests/unit/test_models/
+test_training_eligibility.py runs the migration's own view SQL.
+
 WRITING A MIGRATION
 -------------------
 1. Always create the file with `uv run alembic revision -m "..."` (add
