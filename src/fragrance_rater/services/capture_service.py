@@ -340,6 +340,7 @@ class CaptureService:
             source=data.source,
             disposition=data.disposition,
             explanation=data.explanation,
+            training_outcome=data.training_outcome,
             occurred_at=data.occurred_at,
             supersedes_id=supersedes_id,
             recorded_by=username,

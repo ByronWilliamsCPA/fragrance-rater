@@ -162,9 +162,11 @@ def leakage_check(
     # ``v_training_rows``, which applies its own holdout rule in SQL, so
     # ``excluded`` is an independent read of the same rule in the same
     # transaction. That independence is the point of the audit: a view or
-    # reader regression shows up here as a mismatch. A membership written
-    # between the two reads in another transaction is not visible to either
-    # under READ COMMITTED once both reads have run in this one.
+    # reader regression shows up here as a mismatch. Under READ COMMITTED
+    # each statement takes a fresh snapshot, so an enrollment committed
+    # between the two reads is visible only to the later view read; the
+    # view then excludes its holdouts, so the audit cannot false-positive,
+    # but ``excluded`` (and the default targets) may miss it.
     # #VERIFY: callers pass the ``excluded`` set they also use for targets
     # (see ``predict_and_freeze``); tests/unit/test_ml/test_predict.py's
     # leaky-manifest test proves a holdout row in the manifest is refused.

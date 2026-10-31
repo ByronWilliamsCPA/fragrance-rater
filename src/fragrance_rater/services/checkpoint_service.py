@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.ml.feature_space import FEATURE_SPACE_VERSION
 from fragrance_rater.ml.registry import MODELS
@@ -237,14 +238,25 @@ class CheckpointService:
             recorded_by=recorded_by,
         )
         # #ASSUME: concurrency: two checkpoints freezing identical content at
-        # the same instant would both miss the lookup above; the unique
-        # content_hash then fails the second transaction (a 500 the manager
-        # retries, and the retry reuses the winner). Checkpoints are rare,
-        # manager-only writes, so no savepoint dance is attempted.
-        # #VERIFY: tests/unit/test_services/test_checkpoint_service.py reuses
-        # an existing snapshot instead of inserting a twin.
-        self.db.add(snapshot)
-        await self.db.flush()
+        # the same instant (different enrollments do not share a row lock, and
+        # every empty manifest hashes the same) both miss the lookup above.
+        # #VERIFY: the unique content_hash rejects the second insert; a
+        # savepoint rolls back only that insert and the winner is re-read, so
+        # the checkpoint transaction continues
+        # (tests/unit/test_services/test_checkpoint_service.py).
+        try:
+            async with self.db.begin_nested():
+                self.db.add(snapshot)
+                await self.db.flush()
+        except IntegrityError:
+            winner = await self.db.scalar(
+                select(FeatureSnapshot).where(
+                    FeatureSnapshot.content_hash == content_hash
+                )
+            )
+            if winner is None:
+                raise
+            return winner
         return snapshot
 
     async def create(

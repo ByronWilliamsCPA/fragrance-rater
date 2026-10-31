@@ -18,6 +18,7 @@ from fragrance_rater.ml.training_view import FILTERS
 from fragrance_rater.models.calibration import CheckpointPrediction
 from fragrance_rater.models.feature_snapshot import FeatureSnapshot
 from fragrance_rater.services.checkpoint_service import (
+    CheckpointService,
     feature_content_hash,
     typed_predictions,
 )
@@ -270,3 +271,38 @@ async def test_a_prediction_outside_the_holdouts_or_scale_is_refused(
     )
     assert response.status_code == 422, response.text
     assert await _frozen(test_app, world) == []
+
+
+@pytest.mark.asyncio
+async def test_a_lost_snapshot_insert_race_reuses_the_winner(
+    test_app: AsyncClient,
+) -> None:
+    """Two checkpoints freezing the same content must not 500 the loser."""
+    del test_app  # only to install the in-memory database override
+    manifest: list[dict[str, object]] = [
+        {"fragrance_id": "f1", "source_features": {"notes": ["rose"]}}
+    ]
+    sessions = app.dependency_overrides[get_db]()
+    session = await anext(sessions)
+    try:
+        service = CheckpointService(session)
+        winner = await service.feature_snapshot(manifest, "manager")
+
+        real_scalar = session.scalar
+        calls = 0
+
+        async def lookup_misses_once(*args: Any, **kwargs: Any) -> Any:
+            """Hide the winner from the first lookup, as a concurrent insert would."""
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return None
+            return await real_scalar(*args, **kwargs)
+
+        session.scalar = lookup_misses_once  # type: ignore[method-assign]
+        loser = await service.feature_snapshot(manifest, "manager")
+    finally:
+        await sessions.aclose()
+
+    assert loser.id == winner.id
+    assert calls == 2
