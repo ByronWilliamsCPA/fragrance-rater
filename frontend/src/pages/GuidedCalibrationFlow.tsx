@@ -6,6 +6,9 @@ import { FeedbackBanner } from '../components/FeedbackBanner'
 import { LoadingState } from '../components/PageState'
 import { useTask } from '../hooks/useTask'
 import { SampleObservationPanel } from './SampleObservationPanel'
+import { FlagProblem } from './FlagProblem'
+import { RankingStep } from './RankingStep'
+import { SessionIntroStep } from './SessionIntroStep'
 
 export type WizardStep =
   | { kind: 'skin_plan' }
@@ -77,6 +80,8 @@ export function GuidedCalibrationFlow({
 }) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [detected, setDetected] = useState('')
+  const [introDone, setIntroDone] = useState(false)
+  const [rankingDone, setRankingDone] = useState(false)
   const task = useTask()
   // #CRITICAL: Timing Dependencies: enrollmentId can change, or refresh() can
   // be called again (e.g. after a lock/reveal action), before an in-flight
@@ -160,6 +165,28 @@ export function GuidedCalibrationFlow({
     )
   }
 
+  // The consent and conditions screen opens a session, before anything has
+  // been recorded or the skin plan decided. It never blocks: Continue is always
+  // offered.
+  const hasWork =
+    enrollment.skin_plan_locked ||
+    enrollment.presentations.some((item) => item.observations.length > 0)
+  if (!introDone && !hasWork) {
+    return (
+      <div className="workspace">
+        <section>
+          <div className="page-heading">
+            <div>
+              <h2>Before you begin</h2>
+            </div>
+          </div>
+          <FeedbackBanner error={task.error} notice={task.notice} />
+          <SessionIntroStep enrollment={enrollment} task={task} onDone={() => setIntroDone(true)} />
+        </section>
+      </div>
+    )
+  }
+
   const step = nextWizardStep(enrollment)
   const { step: stepNumber, total } = progressFor(enrollment)
   const sample =
@@ -193,9 +220,7 @@ export function GuidedCalibrationFlow({
                     <form
                       onSubmit={(event) => {
                         event.preventDefault()
-                        const reason = String(
-                          new FormData(event.currentTarget).get('reason')
-                        )
+                        const reason = String(new FormData(event.currentTarget).get('reason'))
                         void task.run(async () => {
                           await api.post(`/calibration/presentations/${item.id}/skin-plan`, {
                             reason,
@@ -240,7 +265,10 @@ export function GuidedCalibrationFlow({
             refresh={refresh}
           />
         )}
-        {step.kind === 'ready_to_reveal' && (
+        {step.kind === 'ready_to_reveal' && !rankingDone && (
+          <RankingStep enrollment={enrollment} task={task} onDone={() => setRankingDone(true)} />
+        )}
+        {step.kind === 'ready_to_reveal' && rankingDone && (
           <>
             <p className="notice">All required blind work is locked.</p>
             <ConfirmAction
@@ -258,6 +286,7 @@ export function GuidedCalibrationFlow({
             />
           </>
         )}
+        <FlagProblem enrollment={enrollment} task={task} />
         <button className="secondary" onClick={onExitToManualBrowse}>
           Browse assignments manually instead
         </button>

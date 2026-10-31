@@ -29,6 +29,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+import sqlalchemy as sa
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import (
@@ -45,7 +46,6 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from fragrance_rater.models import Base
-from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 
@@ -212,11 +212,20 @@ async def test_check_migration_names_violating_rows_and_changes_nothing() -> Non
             reviewer = Reviewer(name=f"R2 preflight {suffix}")
             session.add(reviewer)
             await session.flush()
-            # Core insert for the same reason: the ORM ``Evaluation`` also
-            # renders ``recognition`` and ``owned_or_worn`` (R7a, 3f14014a49cb).
+            # A lightweight table for the same reason: ``Evaluation`` also
+            # renders ``recognition`` and ``owned_or_worn`` (R7a, 3f14014a49cb)
+            # and the Python-side default of ``training_eligibility`` (R8).
             evaluation_id = str(uuid4())
             await session.execute(
-                insert(Evaluation).values(
+                insert(
+                    sa.table(
+                        "evaluations",
+                        sa.column("id"),
+                        sa.column("fragrance_id"),
+                        sa.column("reviewer_id"),
+                        sa.column("rating"),
+                    )
+                ).values(
                     id=evaluation_id,
                     fragrance_id=fragrance_id,
                     reviewer_id=reviewer.id,

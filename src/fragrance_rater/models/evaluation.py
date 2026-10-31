@@ -14,9 +14,11 @@ from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from fragrance_rater.core.database import Base
+from fragrance_rater.core.vocabulary import DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY
 from fragrance_rater.models.calibration import (
     OWNED_OR_WORN_CODES,
     RECOGNITION_CODES,
+    TRAINING_ELIGIBILITY_CHECK,
     in_check,
 )
 
@@ -64,6 +66,9 @@ class Evaluation(Base):
         owned_or_worn (Mapped[str | None]): Whether the reviewer has owned
             or regularly worn this fragrance (``yes``, ``no``, ``unknown``),
             kept separate from recognition; NULL means not asked.
+        training_eligibility (Mapped[str]): R8 (X-05) per-encounter training
+            gate, one of ``EVIDENCE_TRAINING_ELIGIBILITIES``. Every row starts
+            ``unreviewed``; only ``eligible`` rows reach ``v_training_rows``.
         fragrance (Mapped[Fragrance]): Evaluated fragrance.
         reviewer (Mapped[Reviewer]): Reviewer who made the evaluation.
         worn_by_reviewer (Mapped[Reviewer | None]): Reviewer the fragrance
@@ -105,6 +110,8 @@ class Evaluation(Base):
             in_check("owned_or_worn", OWNED_OR_WORN_CODES),
             name="owned_or_worn_valid",
         ),
+        # R8 (X-05): the same evidence gate as calibration_observations.
+        CheckConstraint(TRAINING_ELIGIBILITY_CHECK, name="training_eligibility_valid"),
     )
     # Every ordinary encounter is retained, including repeated fragrance ratings.
 
@@ -169,6 +176,11 @@ class Evaluation(Base):
     # NULL means not asked, which is every row written before R7a.
     recognition: Mapped[str | None] = mapped_column(String(20), nullable=True)
     owned_or_worn: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    training_eligibility: Mapped[str] = mapped_column(
+        String(20),
+        default=DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
+        server_default=DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
+    )
 
     fragrance: Mapped[Fragrance] = relationship(back_populates="evaluations")
     reviewer: Mapped[Reviewer] = relationship(

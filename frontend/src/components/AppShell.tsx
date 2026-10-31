@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { instrumentVersion } from '../instrumentVersion'
 import type { Access, Capabilities } from '../api/types'
 import { roleLabelFor } from '../api/types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -99,6 +100,11 @@ export function AppShell({ access, capabilities, route, navigate, children }: Ap
             >
               About this project
             </a>
+          </p>
+        )}
+        {instrumentVersion() && (
+          <p className="colophon__build">
+            Instrument build <code>{instrumentVersion()}</code>
           </p>
         )}
         {!house && evidenceNavItem && (

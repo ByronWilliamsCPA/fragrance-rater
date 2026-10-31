@@ -10,6 +10,7 @@ from fragrance_rater.models import calibration as calibration
 from fragrance_rater.models.behavioral_event import BehavioralEvent
 from fragrance_rater.models.consent import ConsentEvent
 from fragrance_rater.models.evaluation import Evaluation
+from fragrance_rater.models.feature_snapshot import FeatureSnapshot
 from fragrance_rater.models.fragrance import (
     AccordType,
     Fragrance,
@@ -37,6 +38,7 @@ __all__ = [
     "BehavioralEvent",
     "ConsentEvent",
     "Evaluation",
+    "FeatureSnapshot",
     "Fragrance",
     "FragranceAccord",
     "FragranceGtin",

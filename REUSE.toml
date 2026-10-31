@@ -146,6 +146,7 @@ path = [
     "frontend/**/*.ts",
     "frontend/**/*.tsx",
     "frontend/**/*.js",
+    "frontend/**/*.mjs",
     "frontend/**/*.jsx",
 ]
 SPDX-License-Identifier = "MIT"

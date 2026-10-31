@@ -52,6 +52,39 @@ TRAINING_INELIGIBLE_CODES: Final[frozenset[str]] = frozenset(
     {"excluded_pending_classification", "excluded_manual"}
 )
 
+# R8 (architecture review X-05; data-model-gap-analysis row XL): a per-row
+# training-eligibility code on both evidence tables, `evaluations` and
+# `calibration_observations`. Distinct from the fragrance-level
+# `training_eligibility_code` above: ADR-014 gates a fragrance for every
+# reviewer, this gates one encounter (a contaminated sample, a
+# mis-administered trial). Only `eligible` rows reach `v_training_rows`.
+# #CRITICAL: data-integrity: ADR-014 deliberately does not build this
+# per-evidence gate and so says nothing about its default. The gap analysis
+# suggested defaulting to ELIGIBLE; R8 instead defaults every existing and
+# new row to `unreviewed` (ineligible) until the owner decides, so that no
+# row trains a model without a deliberate decision. Reversing that is one
+# UPDATE plus a server-default change, and `unreviewed` stays distinct from a
+# deliberate `withheld` so the reversal cannot release withheld rows.
+# #VERIFY: tests/unit/test_models/test_training_eligibility.py pins this
+# tuple against the model CHECKs, the migration, and the view.
+EvidenceTrainingEligibility = Literal[
+    "unreviewed", "eligible", "withheld", "invalidated", "questionable"
+]
+
+EVIDENCE_TRAINING_ELIGIBILITIES: Final[tuple[EvidenceTrainingEligibility, ...]] = (
+    "unreviewed",
+    "eligible",
+    "withheld",
+    "invalidated",
+    "questionable",
+)
+
+#: The code every evidence row starts with (see the #CRITICAL note above).
+DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY: Final[EvidenceTrainingEligibility] = "unreviewed"
+
+#: The only code `v_training_rows` admits.
+TRAINABLE_EVIDENCE_ELIGIBILITY: Final[EvidenceTrainingEligibility] = "eligible"
+
 # House intake alignment (docs/superpowers/specs/2026-10-02-house-intake-design.md).
 # #ASSUME: data-integrity: the house form, the catalog schemas, and the
 # manager review compare these values directly, so each is defined once here

@@ -48,6 +48,8 @@ export type EnrollmentSummary = Assignment & {
 export type Observation = {
   id: string
   phase: string
+  created_at?: string
+  response_status?: string | null
   stage: string
   elapsed_minutes: number
   detected: boolean | null

@@ -77,6 +77,9 @@ services:
       target: production
       args:
         VITE_API_URL: /api
+        # Same value as the app service's INSTRUMENT_VERSION, so the build the
+        # evaluator sees is the build recorded on the program.
+        VITE_INSTRUMENT_VERSION: ${INSTRUMENT_VERSION:-}
     image: fragrance_rater-frontend:${VERSION:-latest}
     environment:
       VITE_API_URL: /api

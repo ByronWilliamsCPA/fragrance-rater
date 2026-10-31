@@ -109,6 +109,7 @@ jobs:
       context: './frontend'
       build-args: |
         VITE_API_URL=/api
+        VITE_INSTRUMENT_VERSION=${{ github.sha }}
       image-name: 'byronwilliamscpa/fragrance_rater-frontend'
       push: ${{ github.event_name != 'pull_request' }}
       tag-latest: true

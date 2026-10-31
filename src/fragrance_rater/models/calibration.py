@@ -21,6 +21,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.schema import SchemaItem
 
 from fragrance_rater.core.database import Base
+from fragrance_rater.core.vocabulary import (
+    DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
+    EVIDENCE_TRAINING_ELIGIBILITIES,
+)
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 
@@ -176,6 +180,145 @@ QUALITY_FLAG_SOURCES: tuple[str, ...] = (
 )
 # Capture assessment 13.6: "an explicit include/exclude/review disposition".
 QUALITY_FLAG_DISPOSITIONS: tuple[str, ...] = ("review", "include", "exclude")
+
+# R8 closed vocabularies and CHECK bodies; migration 620c8c861268 writes the
+# same lists literally (same #ASSUME/#VERIFY as the R7a block above).
+
+# X-05: the per-row evidence gate, shared with ``Evaluation``. The vocabulary
+# and its conservative default live in ``core/vocabulary.py``.
+TRAINING_ELIGIBILITY_CHECK = in_check(
+    "training_eligibility", EVIDENCE_TRAINING_ELIGIBILITIES, nullable=False
+)
+
+# ADR-012 2026-09-15 amendment and issue #130. The ``source_type`` and
+# ``permission_state`` vocabularies are the amendment's own lists.
+SOURCE_TYPES: tuple[str, ...] = (
+    "project_owned",
+    "manufacturer_provided",
+    "open_licensed",
+    "bounded_lookup",
+    "excluded_legacy",
+)
+PERMISSION_STATES: tuple[str, ...] = (
+    "retain_and_train",
+    "retain_for_qc_only",
+    "excluded_no_new_writes",
+)
+# #ASSUME: data-integrity: the amendment maps each source type to the widest
+# permission it may carry: project-owned, manufacturer-provided, and
+# open-licensed facts may be retained and trained on; a bounded lookup is
+# QC-only; a legacy Parfumo row is excluded. A narrower grant is always
+# allowed (an unattributed or scope-limited manufacturer reply "should not"
+# default to retain_and_train, per ADR-012's Context), a wider one never is.
+# #VERIFY: test_r8_provenance.py asserts every pair outside this
+# table fails at flush.
+SOURCE_PERMISSION_PAIRS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("project_owned", ("retain_and_train", "retain_for_qc_only")),
+    ("manufacturer_provided", ("retain_and_train", "retain_for_qc_only")),
+    ("open_licensed", ("retain_and_train", "retain_for_qc_only")),
+    ("bounded_lookup", ("retain_for_qc_only",)),
+    ("excluded_legacy", ("excluded_no_new_writes",)),
+)
+SOURCE_PERMISSION_PAIR_CHECK = " OR ".join(
+    f"(source_type = '{source}' AND permission_state IN ({quoted(states)}))"
+    for source, states in SOURCE_PERMISSION_PAIRS
+)
+# ADR-012: ``fields`` names the ``Fragrance`` facts a snapshot evidences. The
+# allow-list is the facts a house can confirm (``schemas/house_review.py``'s
+# ``ConfirmableField``, which already covers the legacy backfill's
+# ``concentration``, ``launch_year``, and ``brand``) plus ``gtin``, the barcode
+# fact ``CalibrationService`` reads from snapshot payloads and
+# ``fragrance_gtins`` links back to its snapshot.
+SOURCE_EVIDENCE_FIELDS: tuple[str, ...] = (
+    "name",
+    "brand",
+    "line",
+    "concentration",
+    "launch_year",
+    "market_status",
+    "gender_target",
+    "gtin",
+)
+
+
+def json_string_array_check(column: str, values: tuple[str, ...]) -> str:
+    """Return a portable CHECK that a JSON column is an array drawn from ``values``.
+
+    ``jsonb`` containment is PostgreSQL-only and SQLite has no JSON array
+    operators in a CHECK, so this requires exactly one ``[`` and one ``]``
+    (a flat array), strips every allowed quoted value, then the array
+    punctuation and spaces, from the column's text and requires nothing to
+    remain. Anything else (an unknown or misspelled name, a nested array, an
+    object, an escaped quote, a JSON ``null``) leaves a residue and fails. An
+    empty array passes: a snapshot may support barcodes or attributions alone.
+
+    Args:
+        column (str): Column name as written in SQL.
+        values (tuple[str, ...]): The legal array elements.
+
+    Returns:
+        str: A SQL expression usable in ``CheckConstraint`` and in migrations.
+    """
+    stripped = f"CAST({column} AS TEXT)"
+    for value in values:
+        stripped = f"REPLACE({stripped}, '\"{value}\"', '')"
+    for punctuation in ("[", "]", ",", " "):
+        stripped = f"REPLACE({stripped}, '{punctuation}', '')"
+    as_text = f"CAST({column} AS TEXT)"
+    return (
+        f"ltrim({as_text}) LIKE '[%' "
+        f"AND length({as_text}) - length(REPLACE({as_text}, '[', '')) = 1 "
+        f"AND length({as_text}) - length(REPLACE({as_text}, ']', '')) = 1 "
+        f"AND {stripped} = ''"
+    )
+
+
+def sha256_hex_check(column: str) -> str:
+    """Return a portable CHECK that ``column`` is NULL or a lowercase SHA-256 hex.
+
+    ``TRIM(x, chars)`` removes every leading and trailing character in
+    ``chars`` on both SQLite and PostgreSQL, so a 64-character value that
+    trims to the empty string is made only of lowercase hex digits.
+
+    Args:
+        column (str): Column name as written in SQL.
+
+    Returns:
+        str: A SQL expression usable in ``CheckConstraint`` and in migrations.
+    """
+    return (
+        f"{column} IS NULL OR (length({column}) = 64 "
+        f"AND TRIM({column}, '0123456789abcdef') = '')"
+    )
+
+
+def json_shape_check(column: str, opener: str) -> str:
+    """Return a portable CHECK that a nullable JSON column starts with ``opener``.
+
+    Same technique as ``perceived_notes_is_array``: ``[`` for an array, ``{``
+    for an object.
+
+    Args:
+        column (str): Column name as written in SQL.
+        opener (str): ``[`` or ``{``.
+
+    Returns:
+        str: A SQL expression usable in ``CheckConstraint`` and in migrations.
+    """
+    return f"{column} IS NULL OR ltrim(CAST({column} AS TEXT)) LIKE '{opener}%'"
+
+
+# M-08 and ADR-009's declared learning problem: what a checkpoint may predict,
+# each on its own original scale. ``rating`` is the ordinary 1-5 outcome and is
+# never mapped onto liking.
+CHECKPOINT_TARGET_SCALES: tuple[tuple[str, str], ...] = (
+    ("liking", "0-10"),
+    ("would_wear", "0-10"),
+    ("would_buy", "0-10"),
+    ("rating", "1-5"),
+)
+CHECKPOINT_TARGETS: tuple[str, ...] = tuple(t for t, _ in CHECKPOINT_TARGET_SCALES)
+PREDICTION_SCALES: tuple[str, ...] = ("0-10", "1-5")
 
 
 class Program(Base):
@@ -702,6 +845,8 @@ class Observation(Base):
             "last_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min IS NULL OR first_not_detected_elapsed_min > last_detected_elapsed_min",
             name="longevity_interval_ordered",
         ),
+        # R8 (X-05): see ``training_eligibility`` below.
+        CheckConstraint(TRAINING_ELIGIBILITY_CHECK, name="training_eligibility_valid"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     presentation_id: Mapped[str] = mapped_column(
@@ -782,6 +927,15 @@ class Observation(Base):
     )
     first_not_detected_elapsed_min: Mapped[int | None] = mapped_column(
         Integer, nullable=True
+    )
+    # R8 (X-05): whether this row may train a model. Every row starts
+    # ``unreviewed`` and only ``eligible`` rows reach ``v_training_rows``; the
+    # structural rules (holdout, hidden repeat, pre-reveal, stage lock) are
+    # applied by the view on top of this code, never instead of it.
+    training_eligibility: Mapped[str] = mapped_column(
+        String(20),
+        default=DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
+        server_default=DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
     )
 
 
@@ -1033,9 +1187,28 @@ class QualityFlag(Base):
 
 
 class ModelCheckpoint(Base):
-    """Frozen data manifest and typed predictions, never recomputed in place."""
+    """Frozen data manifest and typed predictions, never recomputed in place.
+
+    R8 (M-07, ADR-009 "freeze ... exclusions ... source-feature snapshot"):
+    the reproduction columns below record what a checkpoint was built from, so
+    the training set can be rebuilt and compared by digest. They are nullable
+    because every checkpoint written before R8 lacks them and none can be
+    reconstructed after the fact; the R8 checkpoint service populates them.
+    ``predictions`` stays as the caller-supplied JSON it always was; the typed
+    form is ``CheckpointPrediction`` (M-08).
+    """
 
     __tablename__ = "calibration_checkpoints"
+    __table_args__: tuple[SchemaItem, ...] = (
+        CheckConstraint(
+            json_shape_check("exclusions", "["), name="exclusions_is_array"
+        ),
+        CheckConstraint(json_shape_check("filters", "{"), name="filters_is_object"),
+        CheckConstraint(
+            json_shape_check("model_params", "{"), name="model_params_is_object"
+        ),
+        CheckConstraint(sha256_hex_check("input_digest"), name="input_digest_sha256"),
+    )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     enrollment_id: Mapped[str] = mapped_column(
         ForeignKey("calibration_enrollments.id", ondelete="RESTRICT"), index=True
@@ -1044,6 +1217,84 @@ class ModelCheckpoint(Base):
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
     manifest: Mapped[list[dict[str, object]]] = mapped_column(JSON)
     predictions: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    # #CRITICAL: data-integrity: ``none_as_null=True`` so a Python ``None``
+    # is a SQL NULL rather than the JSON text ``null``, which the shape CHECKs
+    # above would reject (same reasoning as ``Observation.perceived_notes``).
+    # #VERIFY: test_checkpoint_reproduction_columns_default_to_sql_null.
+    # Fragrance version ids withheld from training (holdouts and any other
+    # exclusion the run applied).
+    exclusions: Mapped[list[str] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
+    # Named row filters the run applied (eligibility policy, stage, phase).
+    filters: Mapped[dict[str, object] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
+    feature_space_version: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
+    )
+    taxonomy_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # The model's serialized parameters (``ModelSpec.params``).
+    model_params: Mapped[dict[str, object] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
+    # SHA-256 over the canonical JSON of the frozen manifest.
+    input_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    feature_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("feature_snapshots.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+
+
+class CheckpointPrediction(Base):
+    """One typed prediction frozen with a checkpoint (M-08).
+
+    Replaces reading ``ModelCheckpoint.predictions``' free-form JSON: each row
+    names the fragrance version it predicts (a join key to the manifest), the
+    declared target, and the target's own scale, so a 1-5 ordinary rating can
+    never be compared against a 0-10 liking. The rule that a row must target
+    the enrollment's holdout set is a service rule (it needs the enrollment's
+    memberships), enforced where checkpoints are created.
+    """
+
+    __tablename__ = "calibration_checkpoint_predictions"
+    __table_args__: tuple[SchemaItem, ...] = (
+        UniqueConstraint(
+            "checkpoint_id",
+            "fragrance_id",
+            "target",
+            name="uq_checkpoint_prediction_target",
+        ),
+        CheckConstraint(
+            " OR ".join(
+                f"(target = '{target}' AND scale = '{scale}')"
+                for target, scale in CHECKPOINT_TARGET_SCALES
+            ),
+            name="target_scale",
+        ),
+        # Excludes NaN and +/-Infinity as ``predicted_rating_finite`` does.
+        CheckConstraint(
+            "value = value AND ((scale = '0-10' AND value >= 0 AND value <= 10) OR (scale = '1-5' AND value >= 1 AND value <= 5))",
+            name="value_in_scale",
+        ),
+        CheckConstraint(
+            "uncertainty IS NULL OR (uncertainty = uncertainty AND uncertainty >= 0 AND uncertainty < 1e308)",
+            name="uncertainty_nonnegative",
+        ),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
+    checkpoint_id: Mapped[str] = mapped_column(
+        ForeignKey("calibration_checkpoints.id", ondelete="RESTRICT"), index=True
+    )
+    fragrance_id: Mapped[str] = mapped_column(
+        ForeignKey("fragrances.id", ondelete="RESTRICT"), index=True
+    )
+    target: Mapped[str] = mapped_column(String(20))
+    scale: Mapped[str] = mapped_column(String(10))
+    value: Mapped[float] = mapped_column(Float)
+    uncertainty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
 
 
 class SourceSnapshot(Base):
@@ -1097,6 +1348,18 @@ class SourceSnapshot(Base):
             ),
             name="has_source",
         ),
+        # R8 (issue #130). See the #ASSUME on ``SOURCE_PERMISSION_PAIRS``.
+        CheckConstraint(SOURCE_PERMISSION_PAIR_CHECK, name="source_permission_pair"),
+        # #ASSUME: data-integrity: ``fields`` holds only ``Fragrance`` column
+        # names a source can evidence; a typo would otherwise yield per-field
+        # provenance nothing can trace (issue #130).
+        # #VERIFY: test_r8_provenance.py rejects an unknown name,
+        # a non-array, and a JSON null.
+        CheckConstraint(
+            json_string_array_check("fields", SOURCE_EVIDENCE_FIELDS),
+            name="fields_allowed",
+        ),
+        CheckConstraint(sha256_hex_check("content_hash"), name="content_hash_sha256"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     fragrance_id: Mapped[str] = mapped_column(
@@ -1110,6 +1373,20 @@ class SourceSnapshot(Base):
     verification_status: Mapped[str] = mapped_column(String(30), default="unverified")
     retrieved_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
     payload: Mapped[dict[str, object]] = mapped_column(JSON)
+    # R8 (tech-spec D1 contract; X-16, D-01): the remaining provenance items.
+    # Nullable: no snapshot written before R8 recorded them.
+    # The source's own revision or edition identifier (a page revision id, a
+    # dataset release, a letter's date), distinct from ``retrieved_at``.
+    source_revision: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # SHA-256 (lowercase hex) of the raw evidence as retrieved.
+    content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Version of the parser or mapping that turned the evidence into ``fields``.
+    parser_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    # The license text, grant, or written permission that supports
+    # ``permission_state`` (or where it is kept).
+    license_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Username of the reviewer who verified the snapshot.
+    verified_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
 
 class FragellaLookup(Base):

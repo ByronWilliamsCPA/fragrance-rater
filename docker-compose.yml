@@ -23,6 +23,10 @@ services:
     environment:
       # Core settings
       ENVIRONMENT: ${ENVIRONMENT:-development}
+      # The participant UI build this deployment serves. Written onto each
+      # program at activation. Use the same value as the frontend build's
+      # VITE_INSTRUMENT_VERSION; blank records an "unpinned" instrument.
+      INSTRUMENT_VERSION: ${INSTRUMENT_VERSION:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       JSON_LOGS: ${JSON_LOGS:-false}
 
@@ -82,6 +86,7 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - VITE_API_URL=http://localhost:${APP_PORT:-8000}
+      - VITE_INSTRUMENT_VERSION=${INSTRUMENT_VERSION:-}
     volumes:
       # Development: Mount source code for hot reload
       - ./frontend/src:/app/src:ro

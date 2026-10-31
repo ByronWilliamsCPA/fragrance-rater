@@ -31,6 +31,11 @@ COPY . .
 ARG VITE_API_URL=/api
 ENV VITE_API_URL=${VITE_API_URL}
 
+# The participant-instrument build identifier (build SHA or release tag). The
+# backend records the same value on a program at activation (INSTRUMENT_VERSION).
+ARG VITE_INSTRUMENT_VERSION=
+ENV VITE_INSTRUMENT_VERSION=${VITE_INSTRUMENT_VERSION}
+
 # Build the application
 RUN npm run build
 

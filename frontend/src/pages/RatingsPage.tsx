@@ -17,6 +17,10 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
   const [catalog, setCatalog] = useState<FragranceSummary[]>([])
   const [catalogQuery, setCatalogQuery] = useState('')
   const [history, setHistory] = useState<Encounter[]>([])
+  // Names of fragrances in the history. The search results (`catalog`) are empty
+  // after a reload, so the history cannot rely on them to say what each
+  // encounter was for.
+  const [fragranceNames, setFragranceNames] = useState<Record<string, string>>({})
   const [reviewerId, setReviewerId] = useState('')
   const [wornByReviewerId, setWornByReviewerId] = useState('')
   const [wornByResetNotice, setWornByResetNotice] = useState(false)
@@ -41,7 +45,33 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     const response = await api.get<Encounter[]>('/evaluations', {
       params: { reviewer_id: reviewerId },
     })
-    if (generation === historyGeneration.current) setHistory(response.data)
+    if (generation !== historyGeneration.current) return
+    setHistory(response.data)
+    const ids = [...new Set(response.data.map((encounter) => encounter.fragrance_id))]
+    // Names already in the catalog are copied across now, so a later search that
+    // replaces the catalog does not turn those rows back into "Saved fragrance".
+    const fromCatalog: Record<string, string> = {}
+    for (const id of ids) {
+      const match = catalog.find((item) => item.id === id)
+      if (match && !fragranceNames[id]) fromCatalog[id] = match.name
+    }
+    if (Object.keys(fromCatalog).length) {
+      setFragranceNames((names) => ({ ...names, ...fromCatalog }))
+    }
+    const missing = ids.filter((id) => !fragranceNames[id] && !fromCatalog[id])
+    // One lookup per unknown fragrance, each applied as it arrives and not
+    // awaited, so a slow lookup never keeps the history task busy or delays the
+    // save confirmation. A fragrance that cannot be fetched (for example one
+    // that was removed) leaves its row on the generic label.
+    for (const id of missing) {
+      api
+        .get<FragranceSummary>(`/fragrances/${id}`)
+        .then((result) => {
+          if (generation !== historyGeneration.current || !result.data.name) return
+          setFragranceNames((names) => ({ ...names, [id]: result.data.name }))
+        })
+        .catch(() => undefined)
+    }
   }
 
   async function saveEncounter(form: HTMLFormElement) {
@@ -196,7 +226,8 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
         history.map((encounter) => (
           <article key={encounter.id}>
             <strong>
-              {catalog.find((item) => item.id === encounter.fragrance_id)?.name ||
+              {fragranceNames[encounter.fragrance_id] ||
+                catalog.find((item) => item.id === encounter.fragrance_id)?.name ||
                 'Saved fragrance'}{' '}
               · {encounter.rating}/5
             </strong>
