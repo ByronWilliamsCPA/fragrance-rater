@@ -35,8 +35,6 @@ jobs:
       # See ci.yml: reusable workflow defaults no-build: true; override to
       # allow editable+. install of fragrance-rater to build for docs.
       no-build: false
-      deploy-to-pages: >-
-        ${{
-          github.event_name == 'push' &&
-          github.ref == 'refs/heads/main'
-        }}
+      # Pages is not enabled: org-owned Pages sites require verified domains,
+      # so the deploy job failed in Setup Pages on every push. Build only.
+      deploy-to-pages: false
