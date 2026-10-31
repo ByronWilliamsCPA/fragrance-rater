@@ -1,6 +1,6 @@
 # Fragrance Rater Execution Roadmap
 
-> **Status**: Active mirror | **Updated**: 2026-10-30
+> **Status**: Active mirror | **Updated**: 2026-10-31
 
 The [Authoritative Project Plan](PROJECT-PLAN.md) owns scope, status, acceptance criteria,
 risks, and evidence. This page is a compact execution view and must be updated from that plan in
@@ -17,7 +17,7 @@ the same pull request.
 | P4 | Participant experience | Complete | P3 complete | Participant workflows require no IDs or API tools |
 | P5 | Manager and operations experience | Complete | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
 | P6 | Integrated pilot readiness | In progress; external execution pending | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
-| R | Review remediation and ML foundation | In progress; ML skeleton, affinity-v2, R1-R5 done; R6 mechanism merged (#151, #157), alias decisions pending the verified manifest; R7a merged (#160, #161); R7b merged (#165, #167); R8 done (#172, #181, #182); R13 done (#168, #173-#175); R14 secrets, validator, backups, and documentation merged (#170, #171, #179), runtime hardening (PR 3b) remaining and gating nothing | P5 complete | R1-R4 and R7a-R7b merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 |
+| R | Review remediation and ML foundation | In progress; ML skeleton, affinity-v2, R1-R5 done; R6 mechanism merged (#151, #157), alias decisions pending the verified manifest; R7a merged (#160, #161); R7b merged (#165, #167); R8 done (#172, #181, #182); R13 done (#168, #173-#175); R14 secrets, validator, backups, and documentation merged (#170, #171, #179), runtime hardening (PR 3b) remaining and gating nothing | P5 complete | R1-R4, R7a-R7b, R13, and R14's secrets, topology-validator, and backup items merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 |
 | F1 | Initial family perfume pilot | Planned | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
 | D1 | Source and vocabulary foundation | Planned | F1 complete | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
