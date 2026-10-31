@@ -106,6 +106,9 @@ async def test_the_view_has_only_the_declared_columns(session: AsyncSession) -> 
         "scale",
         "rating",
         "observed_at",
+        # R8 PR 2 (4edb5c967539): the reveal gate a reader needs instead of
+        # the program it must not join.
+        "revealed",
     ]
 
 

@@ -6,7 +6,6 @@ from datetime import date, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
-    JSON,
     Boolean,
     CheckConstraint,
     Date,
@@ -20,7 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.schema import SchemaItem
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, portable_json
 from fragrance_rater.core.vocabulary import (
     DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
     EVIDENCE_TRAINING_ELIGIBILITIES,
@@ -388,7 +387,7 @@ class Membership(Base):
         ForeignKey("calibration_memberships.id", ondelete="RESTRICT"), index=True
     )
     group_name: Mapped[str] = mapped_column(String(200), default="Baseline")
-    selection: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    selection: Mapped[dict[str, object]] = mapped_column(portable_json(), default=dict)
 
 
 class Enrollment(Base):
@@ -427,7 +426,7 @@ class Enrollment(Base):
     reviewer_id: Mapped[str] = mapped_column(
         ForeignKey("reviewers.id", ondelete="RESTRICT"), index=True
     )
-    recorder_usernames: Mapped[list[str]] = mapped_column(JSON)
+    recorder_usernames: Mapped[list[str]] = mapped_column(portable_json())
     skin_plan_locked_at: Mapped[datetime | None]
     revealed_at: Mapped[datetime | None]
     revealed_by: Mapped[str | None] = mapped_column(String(255))
@@ -463,7 +462,7 @@ class CalibrationSession(Base):
     enrollment_id: Mapped[str] = mapped_column(
         ForeignKey("calibration_enrollments.id", ondelete="RESTRICT"), index=True
     )
-    context: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    context: Mapped[dict[str, object]] = mapped_column(portable_json(), default=dict)
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
     # #ASSUME: data-integrity: an IANA name cannot be validated by a portable
     # CHECK, and a timestamp ordering CHECK (ended_at >= started_at) would
@@ -777,9 +776,9 @@ class Observation(Base):
             "longevity_minutes IS NULL OR longevity_minutes >= 0",
             name="longevity_minutes_nonnegative",
         ),
-        # `perceived_notes` is plain `JSON`, not `JSONB` (see the column
-        # below), so `jsonb_typeof` does not apply, and PostgreSQL's
-        # `json_typeof` isn't the same function as SQLite's `json_type`, so
+        # `perceived_notes` is `jsonb` on PostgreSQL since R8 PR 2 (D-12) but
+        # plain `JSON` on SQLite, and neither PostgreSQL's `jsonb_typeof` nor
+        # SQLite's `json_type` exists on the other engine, so
         # neither name is portable to both engines this repo runs against
         # (PostgreSQL in production per ADR-001, SQLite in this repo's
         # migration and unit tests). Casting to text and checking the
@@ -847,6 +846,15 @@ class Observation(Base):
         ),
         # R8 (X-05): see ``training_eligibility`` below.
         CheckConstraint(TRAINING_ELIGIBILITY_CHECK, name="training_eligibility_valid"),
+        # R8 PR 2 (D-22, Q18): one submission per client key per presentation.
+        # NULL keys never collide (NULLs are distinct on both engines), so a
+        # pre-R8 row or a keyless client is unaffected and genuine repeats
+        # with fresh keys stay recordable.
+        UniqueConstraint("presentation_id", "idempotency_key"),
+        CheckConstraint(
+            "idempotency_key IS NULL OR (length(idempotency_key) >= 8 AND length(idempotency_key) <= 64)",
+            name="idempotency_key_length",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     presentation_id: Mapped[str] = mapped_column(
@@ -891,9 +899,10 @@ class Observation(Base):
     # constraint. `none_as_null=True` makes Python `None` map to SQL NULL,
     # matching what the constraint and the rest of this codebase assume.
     # #VERIFY: keep this in sync with the matching `sa.JSON(none_as_null=True)`
+    # (jsonb on PostgreSQL since R8 PR 2's `JSONB(none_as_null=True)` variant)
     # in alembic/versions/9ded7f54996c_ml_prediction_snapshots.py.
     perceived_notes: Mapped[list[str] | None] = mapped_column(
-        JSON(none_as_null=True), nullable=True
+        portable_json(none_as_null=True), nullable=True
     )
     likes: Mapped[str | None] = mapped_column(Text, nullable=True)
     dislikes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -937,6 +946,10 @@ class Observation(Base):
         default=DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
         server_default=DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY,
     )
+    # R8 PR 2 (D-22, Q18): the client's key for this submission, stable across
+    # retries of the same submission and fresh for a new one. A replay with
+    # the same key returns this row instead of appending a second one.
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
 
 class FitChoice(Base):
@@ -1215,8 +1228,8 @@ class ModelCheckpoint(Base):
     )
     algorithm_version: Mapped[str] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
-    manifest: Mapped[list[dict[str, object]]] = mapped_column(JSON)
-    predictions: Mapped[list[dict[str, object]]] = mapped_column(JSON)
+    manifest: Mapped[list[dict[str, object]]] = mapped_column(portable_json())
+    predictions: Mapped[list[dict[str, object]]] = mapped_column(portable_json())
     # #CRITICAL: data-integrity: ``none_as_null=True`` so a Python ``None``
     # is a SQL NULL rather than the JSON text ``null``, which the shape CHECKs
     # above would reject (same reasoning as ``Observation.perceived_notes``).
@@ -1224,11 +1237,11 @@ class ModelCheckpoint(Base):
     # Fragrance version ids withheld from training (holdouts and any other
     # exclusion the run applied).
     exclusions: Mapped[list[str] | None] = mapped_column(
-        JSON(none_as_null=True), nullable=True
+        portable_json(none_as_null=True), nullable=True
     )
     # Named row filters the run applied (eligibility policy, stage, phase).
     filters: Mapped[dict[str, object] | None] = mapped_column(
-        JSON(none_as_null=True), nullable=True
+        portable_json(none_as_null=True), nullable=True
     )
     feature_space_version: Mapped[str | None] = mapped_column(
         String(100), nullable=True
@@ -1236,7 +1249,7 @@ class ModelCheckpoint(Base):
     taxonomy_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # The model's serialized parameters (``ModelSpec.params``).
     model_params: Mapped[dict[str, object] | None] = mapped_column(
-        JSON(none_as_null=True), nullable=True
+        portable_json(none_as_null=True), nullable=True
     )
     # SHA-256 over the canonical JSON of the frozen manifest.
     input_digest: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -1367,12 +1380,12 @@ class SourceSnapshot(Base):
     )
     source_type: Mapped[str] = mapped_column(String(30))
     permission_state: Mapped[str] = mapped_column(String(30))
-    fields: Mapped[list[str]] = mapped_column(JSON)
+    fields: Mapped[list[str]] = mapped_column(portable_json())
     source_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     source_reference: Mapped[str | None] = mapped_column(String(500), nullable=True)
     verification_status: Mapped[str] = mapped_column(String(30), default="unverified")
     retrieved_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
-    payload: Mapped[dict[str, object]] = mapped_column(JSON)
+    payload: Mapped[dict[str, object]] = mapped_column(portable_json())
     # R8 (tech-spec D1 contract; X-16, D-01): the remaining provenance items.
     # Nullable: no snapshot written before R8 recorded them.
     # The source's own revision or edition identifier (a page revision id, a
@@ -1428,7 +1441,9 @@ class FragellaLookup(Base):
     requested_by: Mapped[str] = mapped_column(String(255))
     status: Mapped[str] = mapped_column(String(20))
     error_message: Mapped[str | None] = mapped_column(Text)
-    results: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
+    results: Mapped[list[dict[str, object]]] = mapped_column(
+        portable_json(), default=list
+    )
 
 
 class Perfumer(Base):

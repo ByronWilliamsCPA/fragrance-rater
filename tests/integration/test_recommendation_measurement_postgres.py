@@ -56,30 +56,36 @@ async def test_postgres_run_feedback_metrics_and_holdout_exclusion() -> None:
                 for fragrance in fragrances[:3]
             ]
         )
+        # Members are added while the program is a draft and the program is
+        # activated afterwards, the order CalibrationService enforces and,
+        # since R8 PR 2, a database trigger as well (activated membership is
+        # immutable, D-08).
         program = Program(
             name=f"P1 holdout {suffix}",
             version="v1",
             description=None,
-            status="active",
+            status="draft",
         )
         session.add(program)
         await session.flush()
-        session.add_all(
-            [
-                Membership(
-                    program_id=program.id,
-                    fragrance_id=fragrances[3].id,
-                    role="HOLDOUT",
-                    repeat_of_id=None,
-                    group_name="Gate",
-                    selection={},
-                ),
-                Enrollment(
-                    program_id=program.id,
-                    reviewer_id=reviewer.id,
-                    recorder_usernames=["p1-gate"],
-                ),
-            ]
+        session.add(
+            Membership(
+                program_id=program.id,
+                fragrance_id=fragrances[3].id,
+                role="HOLDOUT",
+                repeat_of_id=None,
+                group_name="Gate",
+                selection={},
+            )
+        )
+        await session.flush()
+        program.status = "active"
+        session.add(
+            Enrollment(
+                program_id=program.id,
+                reviewer_id=reviewer.id,
+                recorder_usernames=["p1-gate"],
+            )
         )
         await session.commit()
 

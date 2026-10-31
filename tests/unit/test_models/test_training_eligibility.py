@@ -61,11 +61,15 @@ VIEW_COLUMNS = (
     "scale",
     "rating",
     "observed_at",
+    "revealed",
+)
+HEAD_VIEW_MIGRATION = next(
+    (Path(__file__).parents[3] / "alembic" / "versions").glob("4edb5c967539_*.py")
 )
 
 
-def _migration() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("r8_migration", MIGRATION)
+def _migration(path: Path = MIGRATION) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(f"r8_{path.stem[:12]}", path)
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -121,15 +125,17 @@ def test_the_migration_lists_the_same_vocabulary_and_default() -> None:
     assert migration._DEFAULT_ELIGIBILITY == DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY
 
 
-def test_the_view_admits_only_the_trainable_code() -> None:
-    sql = _migration().V_TRAINING_ROWS_SQL
+@pytest.mark.parametrize("path", [MIGRATION, HEAD_VIEW_MIGRATION])
+def test_the_view_admits_only_the_trainable_code(path: Path) -> None:
+    sql = _migration(path).V_TRAINING_ROWS_SQL
     assert set(re.findall(r"training_eligibility = '([^']*)'", sql)) == {
         TRAINABLE_EVIDENCE_ELIGIBILITY
     }
 
 
-def test_the_view_excludes_exactly_adr_014s_fragrance_codes() -> None:
-    sql = _migration().V_TRAINING_ROWS_SQL
+@pytest.mark.parametrize("path", [MIGRATION, HEAD_VIEW_MIGRATION])
+def test_the_view_excludes_exactly_adr_014s_fragrance_codes(path: Path) -> None:
+    sql = _migration(path).V_TRAINING_ROWS_SQL
     blocks = re.findall(r"training_eligibility_code NOT IN\s*\(([^)]*)\)", sql)
     assert len(blocks) == 2
     for block in blocks:
@@ -356,7 +362,13 @@ async def test_a_null_code_is_rejected(async_session: AsyncSession) -> None:
 
 
 async def _with_view(session: AsyncSession) -> None:
-    await session.execute(text(_migration().V_TRAINING_ROWS_SQL))
+    """(Re)build the head ``v_training_rows`` (R8 PR 2's definition).
+
+    The shared fixtures already create it; rebuilding keeps each test's
+    reads explicit and proves the head SQL itself runs on SQLite.
+    """
+    await session.execute(text("DROP VIEW IF EXISTS v_training_rows"))
+    await session.execute(text(_migration(HEAD_VIEW_MIGRATION).V_TRAINING_ROWS_SQL))
 
 
 async def _view_ids(session: AsyncSession) -> set[str]:

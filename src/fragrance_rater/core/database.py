@@ -5,15 +5,118 @@ This module provides async database connectivity using SQLAlchemy 2.0.
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import cast
 
-from sqlalchemy import MetaData
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import JSON, DateTime, MetaData, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.sql.compiler import SQLCompiler
+from sqlalchemy.sql.functions import FunctionElement
 
 from fragrance_rater.core.config import settings
+from fragrance_rater.core.exceptions import ConfigurationError
 from fragrance_rater.utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def portable_json(*, none_as_null: bool = False) -> JSON:
+    """Return the project's JSON column type: ``jsonb`` on PostgreSQL.
+
+    Architecture review D-12: every JSON column was plain ``json``, which
+    PostgreSQL cannot index or compare. ``with_variant`` keeps the generic
+    ``JSON`` type for SQLite (the unit suite) while PostgreSQL gets ``jsonb``.
+
+    Args:
+        none_as_null (bool): Store a Python ``None`` as SQL NULL rather than
+            the JSON text ``null`` (needed wherever a CHECK special-cases
+            SQL NULL only).
+
+    Returns:
+        JSON: ``JSON`` with a PostgreSQL ``JSONB`` variant.
+    """
+    return JSON(none_as_null=none_as_null).with_variant(
+        JSONB(none_as_null=none_as_null), "postgresql"
+    )
+
+
+class utc_now(FunctionElement[datetime]):  # noqa: N801 - reads like func.now()
+    """The current UTC time as a timezone-naive timestamp, on any engine.
+
+    Architecture review D-16 and Q16: every timestamp column is ``timestamp
+    without time zone`` holding naive UTC (``utils/timestamps.py``), but
+    ``now()`` returns a ``timestamptz`` that PostgreSQL converts to the
+    *session* ``TimeZone`` on assignment, so a non-UTC server would silently
+    write local time beside the application's UTC. ``timezone('utc', now())``
+    is UTC whatever the session says. SQLite's ``CURRENT_TIMESTAMP`` is UTC
+    already, and is what ``func.now()`` rendered there before.
+    """
+
+    type = DateTime()
+    inherit_cache = True
+
+
+@compiles(utc_now, "postgresql")
+def _utc_now_postgresql(
+    _element: utc_now, _compiler: SQLCompiler, **_kw: object
+) -> str:
+    return "timezone('utc', now())"
+
+
+@compiles(utc_now)
+def _utc_now_default(_element: utc_now, _compiler: SQLCompiler, **_kw: object) -> str:
+    return "CURRENT_TIMESTAMP"
+
+
+UTC_TIMEZONE_NAMES = frozenset({"utc", "etc/utc", "etc/uct", "uct", "etc/universal"})
+"""``TimeZone`` values PostgreSQL treats as plain UTC (compared lower-case)."""
+
+
+async def assert_database_timezone_is_utc(db_engine: AsyncEngine) -> str | None:
+    """Fail loudly unless a PostgreSQL session's ``TimeZone`` is UTC.
+
+    The models write naive UTC from Python and use ``utc_now`` for server
+    defaults, so a non-UTC ``TimeZone`` no longer corrupts new rows, but any
+    raw ``now()`` (a manual backfill, an operator's ``psql`` session) still
+    would, and ``timestamp`` reads would disagree with ``timestamptz`` ones.
+    The deployment therefore must run UTC (Q16), and this makes that a
+    startup failure instead of a silent drift. SQLite has no ``TimeZone``.
+
+    Args:
+        db_engine (AsyncEngine): The application's engine.
+
+    Returns:
+        str | None: The reported ``TimeZone`` on PostgreSQL, ``None`` on any
+            other dialect (skipped).
+
+    Raises:
+        ConfigurationError: When the PostgreSQL session ``TimeZone`` is not UTC.
+    """
+    if db_engine.dialect.name != "postgresql":
+        return None
+    # #ASSUME: external-resources: the database is reachable at startup;
+    # a connection failure propagates and fails startup, which is the
+    # existing behaviour of the first request anyway.
+    # #VERIFY: tests/integration/test_r8_hardening_postgres.py runs this
+    # against PostgreSQL with a UTC and a non-UTC session.
+    async with db_engine.connect() as connection:
+        zone = cast("str", await connection.scalar(text("SHOW TimeZone")))
+    if zone.lower() not in UTC_TIMEZONE_NAMES:
+        msg = (
+            f"PostgreSQL TimeZone is {zone!r}; it must be UTC. Set "
+            "`timezone = 'UTC'` in postgresql.conf, or ALTER DATABASE ... "
+            "SET timezone TO 'UTC'."
+        )
+        raise ConfigurationError(msg, details={"timezone": zone})
+    return zone
 
 
 # Deterministic constraint and index names (architecture review D-03).

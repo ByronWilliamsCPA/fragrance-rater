@@ -17,10 +17,10 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, CheckConstraint, Float, ForeignKey, String
+from sqlalchemy import CheckConstraint, Float, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, validates
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, portable_json
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 # Outcome-link columns that must move from NULL to a value exactly once; see
@@ -137,8 +137,12 @@ class PredictionSnapshot(Base):
     # deliberately not built out here.
     scenario: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
-    input_manifest: Mapped[list[dict[str, object]]] = mapped_column(JSON, default=list)
-    explanation: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
+    input_manifest: Mapped[list[dict[str, object]]] = mapped_column(
+        portable_json(), default=list
+    )
+    explanation: Mapped[dict[str, object] | None] = mapped_column(
+        portable_json(), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc, index=True)
     recorded_by: Mapped[str | None] = mapped_column(String(255), nullable=True)

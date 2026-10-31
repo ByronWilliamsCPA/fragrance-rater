@@ -35,7 +35,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import Engine, StaticPool, create_engine, event
+from sqlalchemy import Engine, StaticPool, create_engine, event, text
 from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -249,6 +249,46 @@ _TRAINING_ELIGIBILITY_SEED_ROWS = (
 )
 
 
+def _head_view_sql() -> tuple[str, str]:
+    """Return the newest view definitions from the migrations.
+
+    The view is not a model, so ``Base.metadata.create_all`` never builds it;
+    readers of training data (``ml/training_view.py``) need it in every test
+    database. The SQL is read from the migration that last defined it, so the
+    unit suite runs exactly what production runs.
+
+    Returns:
+        tuple[str, str]: The ``CREATE VIEW`` statements for
+            ``v_training_rows`` and ``v_manager_linkage``.
+    """
+    import importlib.util
+
+    path = next(
+        (PROJECT_ROOT / "alembic" / "versions").glob("4edb5c967539_*.py")
+    )
+    spec = importlib.util.spec_from_file_location("r8_pr2_migration", path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return str(module.V_TRAINING_ROWS_SQL), str(module.V_MANAGER_LINKAGE_SQL)
+
+
+V_TRAINING_ROWS_SQL, V_MANAGER_LINKAGE_SQL = _head_view_sql()
+
+
+async def _create_training_view(conn) -> None:
+    """Create the R8 views on a schema built by ``create_all``."""
+    await conn.execute(text(V_TRAINING_ROWS_SQL))
+    await conn.execute(text(V_MANAGER_LINKAGE_SQL))
+
+
+async def _drop_training_view(conn) -> None:
+    """Drop the R8 views before ``drop_all`` removes their tables."""
+    await conn.execute(text("DROP VIEW IF EXISTS v_manager_linkage"))
+    await conn.execute(text("DROP VIEW IF EXISTS v_training_rows"))
+
+
 async def _seed_training_eligibilities(conn) -> None:
     """Insert the standard training_eligibilities rows into a test database.
 
@@ -298,8 +338,10 @@ async def async_engine():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _seed_training_eligibilities(conn)
+        await _create_training_view(conn)
     yield engine
     async with engine.begin() as conn:
+        await _drop_training_view(conn)
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
@@ -460,6 +502,7 @@ async def test_app(tmp_path, monkeypatch: pytest.MonkeyPatch):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await _seed_training_eligibilities(conn)
+        await _create_training_view(conn)
 
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         async_session_maker = async_sessionmaker(

@@ -13,11 +13,11 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, CheckConstraint, String
+from sqlalchemy import CheckConstraint, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql.schema import SchemaItem
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, portable_json
 from fragrance_rater.models.calibration import sha256_hex_check
 from fragrance_rater.utils.timestamps import now_naive_utc
 
@@ -67,6 +67,6 @@ class FeatureSnapshot(Base):
     alias_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     parser_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     content_hash: Mapped[str] = mapped_column(String(64), unique=True)
-    features: Mapped[dict[str, object]] = mapped_column(JSON)
+    features: Mapped[dict[str, object]] = mapped_column(portable_json())
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
     recorded_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
