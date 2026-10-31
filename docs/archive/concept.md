@@ -1,4 +1,22 @@
-# Fragrance Preference Tracker
+---
+title: "Original project concept (historical)"
+schema_type: common
+status: published
+owner: core-maintainer
+purpose: "Preserve the original 2025 concept document as a historical record only."
+tags:
+  - documentation
+  - architecture
+---
+
+> **Historical document, superseded.** This is the original project concept, written before the first
+> implementation. It is kept only as a record of how the idea began. It is superseded by
+> [project-vision.md](../planning/project-vision.md) and contradicts the current vision in places (scope,
+> evidence model, scoring and data-source policy). Do not use it to decide what to build. The governing
+> documents are the [project vision](../planning/project-vision.md), the
+> [technical spec](../planning/tech-spec.md), the [project plan](../planning/PROJECT-PLAN.md) and the
+> [ADRs](../planning/adr/README.md).
+
 ## Project Concept Document
 
 ### Executive Summary
@@ -12,6 +30,7 @@ A personal fragrance evaluation and recommendation system designed for family us
 ## 1. Problem Statement
 
 Selecting perfumes for family members is challenging because:
+
 - Personal scent preferences are highly individual and difficult to articulate
 - The fragrance industry uses specialized vocabulary (notes, accords, families) that most consumers don't know
 - Without systematic tracking, it's hard to identify patterns in what someone likes or dislikes
@@ -30,7 +49,7 @@ The industry-standard classification system, analogous to the UC Davis Wine Arom
 #### Primary Families (4)
 
 | Family | Character | Typical Notes |
-|--------|-----------|---------------|
+| -------- | ----------- | --------------- |
 | **Fresh** | Light, energetic, daytime | Citrus, herbs, aquatic |
 | **Floral** | Feminine, romantic | Rose, jasmine, lily |
 | **Amber** (formerly Oriental) | Warm, sensual, exotic | Vanilla, resins, spices |
@@ -38,7 +57,7 @@ The industry-standard classification system, analogous to the UC Davis Wine Arom
 
 #### Subfamilies (14)
 
-```
+```text
 FRESH FAMILY
 ├── Aromatic (Fougère) - Lavender, herbs, coumarin
 ├── Citrus - Bergamot, lemon, grapefruit, mandarin
@@ -65,6 +84,7 @@ WOODY FAMILY
 #### Intensity Gradations
 
 Within each subfamily, fragrances are further classified as:
+
 - **Fresh** - Lightest, most volatile interpretation
 - **Crisp** - Clean, defined
 - **Classical** - Traditional, balanced
@@ -74,7 +94,7 @@ Within each subfamily, fragrances are further classified as:
 
 Every fragrance unfolds in three temporal phases based on molecular volatility:
 
-```
+```text
          ┌─────────────┐
          │  TOP NOTES  │  5-20 minutes
          │   (Head)    │  First impression
@@ -96,6 +116,7 @@ Every fragrance unfolds in three temporal phases based on molecular volatility:
 Accords are perceptual descriptors of how a fragrance "feels" overall, independent of specific ingredients:
 
 **Common Accords:**
+
 - Sweet, Fresh, Warm Spicy, Citrus, Floral, Powdery
 - Woody, Balsamic, Musky, Green, Aquatic
 - Fruity, Aromatic, Leather, Smoky, Earthy
@@ -107,7 +128,7 @@ Accords are perceptual descriptors of how a fragrance "feels" overall, independe
 
 ### 3.1 Core Entities
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        FRAGRANCE                            │
 ├─────────────────────────────────────────────────────────────┤
@@ -179,7 +200,7 @@ Accords are perceptual descriptors of how a fragrance "feels" overall, independe
 
 ### 3.2 Computed/Derived Entities
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                   REVIEWER_PREFERENCE                       │
 ├─────────────────────────────────────────────────────────────┤
@@ -210,8 +231,9 @@ Accords are perceptual descriptors of how a fragrance "feels" overall, independe
 
 ### 4.1 Primary: Fragrantica
 
-**URL:** https://www.fragrantica.com
+**URL:** <https://www.fragrantica.com>
 **Data Available:**
+
 - 60,000+ fragrances
 - Top/heart/base notes
 - Main accords (with visual intensity bars)
@@ -223,8 +245,9 @@ Accords are perceptual descriptors of how a fragrance "feels" overall, independe
 
 ### 4.2 Alternative: Fragella API
 
-**URL:** https://api.fragella.com
+**URL:** <https://api.fragella.com>
 **Data Available:**
+
 - 74,000+ fragrances
 - Structured JSON responses
 - Notes, accords, longevity, sillage
@@ -236,8 +259,9 @@ Accords are perceptual descriptors of how a fragrance "feels" overall, independe
 
 ### 4.3 Supplementary: Parfumo
 
-**URL:** https://www.parfumo.com
+**URL:** <https://www.parfumo.com>
 **Data Available:**
+
 - Extensive note directory with categories
 - Community reviews
 - Collection tracking features
@@ -256,7 +280,7 @@ The authoritative industry database. Available as an annual publication and onli
 
 ### 5.1 Evaluation Entry (Primary Screen)
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────┐
 │                    NEW EVALUATION                              │
 ├────────────────────────────────────────────────────────────────┤
@@ -285,7 +309,7 @@ The authoritative industry database. Available as an annual publication and onli
 
 ### 5.2 Fragrance Detail View
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────┐
 │  CHANEL CHANCE EAU TENDRE                              EDP     │
 ├────────────────────────────────────────────────────────────────┤
@@ -313,7 +337,7 @@ The authoritative industry database. Available as an annual publication and onli
 
 ### 5.3 Preference Profile View
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────┐
 │  BAYDEN'S FRAGRANCE PROFILE                                    │
 │  Based on 12 evaluations                                       │
@@ -346,7 +370,7 @@ The authoritative industry database. Available as an annual publication and onli
 
 ### 5.4 Recommendation View
 
-```
+```text
 ┌────────────────────────────────────────────────────────────────┐
 │  RECOMMENDATIONS FOR BAYDEN                                    │
 ├────────────────────────────────────────────────────────────────┤
@@ -459,7 +483,7 @@ Bayden likes citrus but not lemon specifically. The system handles this by:
 
 ### 7.1 Simple (MVP) - Local-First
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    LOCAL APPLICATION                        │
 ├─────────────────────────────────────────────────────────────┤
@@ -475,7 +499,7 @@ Bayden likes citrus but not lemon specifically. The system handles this by:
 
 ### 7.2 Moderate - Self-Hosted with API Integration
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                    DOCKER COMPOSE STACK                     │
 ├─────────────────────────────────────────────────────────────┤
@@ -499,6 +523,7 @@ Bayden likes citrus but not lemon specifically. The system handles this by:
 ### 7.3 Future State - ML-Enhanced
 
 Add a machine learning component that:
+
 - Uses collaborative filtering (what do people with similar profiles like?)
 - Identifies latent features in fragrance descriptions
 - Improves predictions beyond simple weighted scoring
@@ -508,6 +533,7 @@ Add a machine learning component that:
 ## 8. Implementation Phases
 
 ### Phase 1: Foundation (MVP)
+
 - [ ] Database schema implementation
 - [ ] Basic CRUD operations for fragrances, reviewers, evaluations
 - [ ] Simple entry form for evaluations
@@ -515,24 +541,28 @@ Add a machine learning component that:
 - [ ] Basic reporting (list evaluations by person)
 
 ### Phase 2: Data Enrichment
+
 - [ ] Integration with Fragrantica (scraping) or Fragella API
 - [ ] Auto-complete for fragrance entry
 - [ ] Automatic note/accord population
 - [ ] Note reference database
 
 ### Phase 3: Analytics
+
 - [ ] Preference profile calculation
 - [ ] Basic recommendation engine
 - [ ] Visual profile displays
 - [ ] Family/subfamily preference charts
 
 ### Phase 4: Polish
+
 - [ ] Mobile-friendly interface
 - [ ] Barcode/image scanning for fragrance identification
 - [ ] Export/import functionality
 - [ ] Wishlist and shopping list features
 
 ### Phase 5: Advanced (Optional)
+
 - [ ] ML-based recommendations
 - [ ] Natural language processing of notes field
 - [ ] Price tracking integration
@@ -570,20 +600,20 @@ Add a machine learning component that:
 ### Key Resources
 
 1. **Michael Edwards' Fragrance Wheel**
-   - https://www.fragrancesoftheworld.com
+   - <https://www.fragrancesoftheworld.com>
    - The industry standard classification system
 
 2. **Fragrantica**
-   - https://www.fragrantica.com
+   - <https://www.fragrantica.com>
    - Largest community fragrance database
-   - Note search: https://www.fragrantica.com/ingredients-search/
+   - Note search: <https://www.fragrantica.com/ingredients-search/>
 
 3. **Fragella API**
-   - https://api.fragella.com
+   - <https://api.fragella.com>
    - Commercial API with 74k+ fragrances
 
 4. **Parfumo Note Directory**
-   - https://www.parfumo.com/Fragrance_Notes
+   - <https://www.parfumo.com/Fragrance_Notes>
    - Detailed note categorization
 
 ### Analogous Systems
@@ -597,7 +627,7 @@ Add a machine learning component that:
 ## Appendix A: Note Categories Reference
 
 | Category | Example Notes |
-|----------|---------------|
+| ---------- | --------------- |
 | **Citrus** | Bergamot, lemon, orange, grapefruit, mandarin, lime, yuzu |
 | **Fruits** | Apple, peach, pear, berries, plum, fig, coconut |
 | **Florals** | Rose, jasmine, lily, tuberose, iris, violet, peony, orange blossom |
@@ -616,7 +646,7 @@ Add a machine learning component that:
 ## Appendix B: Accord Definitions
 
 | Accord | Description |
-|--------|-------------|
+| -------- | ------------- |
 | **Fresh** | Clean, light, invigorating |
 | **Citrus** | Bright, zesty, tangy |
 | **Fruity** | Sweet, juicy, non-citrus fruits |

@@ -17,7 +17,7 @@ purpose: "Document the decision to [choose X approach] for [problem area], with 
 
 > **Status**: `draft` → Change to `published` once approved, or `deprecated`/`superseded` if no longer valid
 >
-> For help with this template, see [ADRs/README.md](README.md)
+> For help with this template, see the [ADR index and process](README.md)
 
 ---
 
@@ -138,10 +138,12 @@ What aspects are neither good nor bad?
 **Approach**: How this approach would work
 
 **Advantages**:
+
 - Specific benefit 1
 - Specific benefit 2
 
 **Disadvantages**:
+
 - Specific drawback 1
 - Specific drawback 2
 
@@ -154,10 +156,12 @@ What aspects are neither good nor bad?
 **Approach**: How this approach would work
 
 **Advantages**:
+
 - Specific benefit 1
 - Specific benefit 2
 
 **Disadvantages**:
+
 - Specific drawback 1
 - Specific drawback 2
 
@@ -170,10 +174,12 @@ What aspects are neither good nor bad?
 **Approach**: How this approach would work
 
 **Advantages**:
+
 - Specific benefit 1
 - Specific benefit 2
 
 **Disadvantages**:
+
 - Specific drawback 1
 - Specific drawback 2
 
@@ -234,7 +240,7 @@ If applicable, document performance implications:
 ### Performance Benchmarks
 
 | Metric | Before | After | Impact |
-|--------|--------|-------|--------|
+| -------- | -------- | ------- | -------- |
 | Operation latency | XXms | XXms | YY% improvement |
 | Memory usage | XXMb | XXMb | YY% reduction |
 | Throughput | XX/sec | XX/sec | YY% improvement |
@@ -252,7 +258,7 @@ How will we validate that this decision achieved its goals?
 
 ### Related ADRs
 
-- `ADR-001: Previous Decision` (file: `0001-previous-decision.md`):
+- `ADR-001: Previous Decision` (file: `adr-001-previous-decision.md`):
   Related context (replace with real link when authoring)
 - `ADR-005: Future Decision` (file: `0005-future-decision.md`):
   Builds on this ADR (replace with real link when authoring)

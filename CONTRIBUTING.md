@@ -58,7 +58,7 @@ fragrance_rater/
 │   ├── unit/                             # Unit tests
 │   └── integration/                      # Integration tests
 ├── docs/                                 # Documentation
-│   ├── ADRs/                             # Architecture Decision Records
+│   ├── planning/adr/                     # Architecture Decision Records
 │   ├── planning/                         # Project planning
 │   └── guides/                           # User guides
 └── pyproject.toml                        # Dependencies & config
