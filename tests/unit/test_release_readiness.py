@@ -489,8 +489,8 @@ def valid_topology() -> dict[str, Any]:
                     "FORWARDED_ALLOW_IPS": "172.25.0.0/16,172.30.0.0/24",
                     "DATABASE_URL": "postgresql+asyncpg://app:secret@db/app",
                     "CALIBRATION_ADMIN_USERNAMES": '["manager"]',
-                    "FRAGRANCE_RATER_API_KEY": "kR3pQ9vXw2LmN8sTz4YbH7cJdF5aUe1G",
-                    "OPENROUTER_API_KEY": "sk-or-v1-9f8e7d6c5b4a39281706f5e4d3c2b1a0",
+                    "FRAGRANCE_RATER_API_KEY": "test-household-api-key-value",
+                    "OPENROUTER_API_KEY": "test-openrouter-api-key-value",
                 },
             },
             "frontend": {
