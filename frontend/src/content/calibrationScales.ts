@@ -213,3 +213,65 @@ export const observationNotes = [
   { name: 'reminds_me_of', label: 'Reminds you of' },
   { name: 'comments', label: 'Anything else' },
 ] as const
+
+/**
+ * Choice lists for the R7b capture fields. The values match the API literals in
+ * `src/fragrance_rater/schemas/calibration.py`; a mismatch is a 422, so the
+ * test in `instrumentChoices.test.ts` pins them.
+ *
+ * #VERIFY: the visible wording is DRAFT with the rest of this module and needs
+ * the maintainer's sign-off before F1.
+ */
+export type Choice = { value: string; label: string }
+
+export const recognitionChoices: Choice[] = [
+  { value: 'new', label: 'New to me' },
+  { value: 'vaguely_familiar', label: 'Vaguely familiar' },
+  { value: 'recognized_exact', label: 'I recognize exactly what this is' },
+]
+
+export const ownedOrWornChoices: Choice[] = [
+  { value: 'yes', label: 'Yes' },
+  { value: 'no', label: 'No' },
+  { value: 'unknown', label: 'Not sure' },
+]
+
+/** The instrument offers fixed skin timepoints; minutes since application. */
+export const skinTimepoints: Choice[] = [
+  { value: '10', label: '10 minutes' },
+  { value: '60', label: '1 hour' },
+  { value: '240', label: '4 hours' },
+  { value: '480', label: '8 hours' },
+]
+
+/** "Nothing to report" answers that cannot be combined with another option. */
+export const standaloneFitCodes = ['none', 'cannot_judge'] as const
+
+export const seasonFitChoices: Choice[] = [
+  { value: 'spring', label: 'Spring' },
+  { value: 'summer', label: 'Summer' },
+  { value: 'fall', label: 'Fall' },
+  { value: 'winter', label: 'Winter' },
+  { value: 'year_round', label: 'Year-round' },
+  { value: 'none', label: 'None of these' },
+  { value: 'cannot_judge', label: 'Cannot judge' },
+]
+
+export const settingFitChoices: Choice[] = [
+  { value: 'work_school', label: 'Work or school' },
+  { value: 'home', label: 'At home' },
+  { value: 'social_outing', label: 'Social outing' },
+  { value: 'formal_event', label: 'Formal event' },
+  { value: 'outdoor_activity', label: 'Outdoor activity' },
+  { value: 'other', label: 'Something else' },
+  { value: 'none', label: 'None of these' },
+  { value: 'cannot_judge', label: 'Cannot judge' },
+]
+
+/** Why a response group has no answers: sent as `response_status`. */
+export const unansweredReasons: Choice[] = [
+  { value: '', label: 'I answered this' },
+  { value: 'skipped', label: 'I chose to skip this' },
+  { value: 'unable_to_assess', label: 'I was unable to assess this' },
+  { value: 'interrupted', label: 'I was interrupted' },
+]

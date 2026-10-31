@@ -2,12 +2,19 @@ import { api } from '../api/client'
 import type { Enrollment, Sample } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
 import { EmptyState } from '../components/PageState'
+import { FitChoiceField } from '../components/FitChoiceField'
 import { ScaleField } from '../components/ScaleField'
 import {
   blotterGroups,
   numericFieldNames,
   observationNotes,
+  ownedOrWornChoices,
+  recognitionChoices,
+  seasonFitChoices,
+  settingFitChoices,
   skinGroups,
+  skinTimepoints,
+  unansweredReasons,
   type ScaleGroup,
 } from '../content/calibrationScales'
 import type { useTask } from '../hooks/useTask'
@@ -101,6 +108,26 @@ export function SampleObservationPanel({
       stage,
       elapsed_minutes: Number(values.elapsed_minutes || 0),
       detected: detected === '' ? null : detected === 'yes',
+      // The client clock at submit, unless a recorder is transcribing a
+      // paper sheet and names the real time of the observation.
+      observed_at: values.observed_at
+        ? new Date(String(values.observed_at)).toISOString()
+        : new Date().toISOString(),
+    }
+    const reason = String(values.unanswered_reason || '')
+    if (reason) data.response_status = reason
+    else if (detected === 'no') data.response_status = 'not_detected'
+    else if (detected === 'yes') data.response_status = 'completed'
+    if (stage === 'BLOTTER') {
+      data.recognition = values.recognition || null
+      data.owned_or_worn = values.owned_or_worn || null
+    } else {
+      if (values.scrubbed_off) data.scrubbed_off = values.scrubbed_off === 'yes'
+      if (values.scrubbed_off === 'yes' && values.time_to_scrub_minutes) {
+        data.time_to_scrub_minutes = Number(values.time_to_scrub_minutes)
+      }
+      data.season_fit = new FormData(form).getAll('season_fit')
+      data.setting_fit = new FormData(form).getAll('setting_fit')
     }
     for (const name of numericFieldNames) data[name] = !values[name] ? null : Number(values[name])
     if (detected === 'no') {
@@ -209,10 +236,23 @@ export function SampleObservationPanel({
             {sample.post_reveal_entry ? 'Post-reveal observation' : 'Blind observation'}
           </legend>
           <div className="fields fields-compact">
-            <label>
-              Elapsed minutes
-              <input name="elapsed_minutes" type="number" min="0" defaultValue="0" />
-            </label>
+            {stage === 'SKIN' ? (
+              <label>
+                Timepoint
+                <select name="elapsed_minutes" defaultValue="10">
+                  {skinTimepoints.map((point) => (
+                    <option key={point.value} value={point.value}>
+                      {point.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label>
+                Elapsed minutes
+                <input name="elapsed_minutes" type="number" min="0" defaultValue="0" />
+              </label>
+            )}
             <label>
               Detected
               <select value={detected} onChange={(event) => setDetected(event.target.value)}>
@@ -222,8 +262,44 @@ export function SampleObservationPanel({
               </select>
             </label>
           </div>
+          <label>
+            Anything stopping you answering?
+            <select name="unanswered_reason" defaultValue="">
+              {unansweredReasons.map((reason) => (
+                <option key={reason.value} value={reason.value}>
+                  {reason.label}
+                </option>
+              ))}
+            </select>
+          </label>
           {detected === 'no' && (
             <p className="notice">Intensity will be saved as 0; liking will remain unanswered.</p>
+          )}
+          {stage === 'BLOTTER' && (
+            <div className="fields fields-compact">
+              <label>
+                Do you recognize this?
+                <select name="recognition" defaultValue="">
+                  <option value="">Not answered</option>
+                  {recognitionChoices.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Have you owned or worn it?
+                <select name="owned_or_worn" defaultValue="">
+                  <option value="">Not answered</option>
+                  {ownedOrWornChoices.map((choice) => (
+                    <option key={choice.value} value={choice.value}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           )}
           {blotterGroups.map((group) => (
             <ScaleGroupFields
@@ -241,6 +317,32 @@ export function SampleObservationPanel({
                 Longevity (minutes)
                 <input name="longevity_minutes" type="number" min="0" />
               </label>
+              <div className="fields fields-compact">
+                <label>
+                  Did you wash it off?
+                  <select name="scrubbed_off" defaultValue="">
+                    <option value="">Not answered</option>
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </label>
+                <label>
+                  Minutes until you washed it off
+                  <input name="time_to_scrub_minutes" type="number" min="0" />
+                </label>
+              </div>
+              <FitChoiceField
+                name="season_fit"
+                legend="Which seasons suit it?"
+                hint="Tick all that apply."
+                choices={seasonFitChoices}
+              />
+              <FitChoiceField
+                name="setting_fit"
+                legend="Where would it suit you?"
+                hint="Tick all that apply."
+                choices={settingFitChoices}
+              />
             </>
           )}
           <label>
@@ -253,6 +355,10 @@ export function SampleObservationPanel({
               <textarea name={note.name} rows={2} />
             </label>
           ))}
+          <label>
+            Time of this observation (leave blank to use now)
+            <input name="observed_at" type="datetime-local" />
+          </label>
           <button>Save observation</button>
         </fieldset>
       </form>
