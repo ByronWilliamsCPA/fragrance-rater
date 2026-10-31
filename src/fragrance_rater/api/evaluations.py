@@ -28,21 +28,21 @@ logger = get_logger(__name__)
 
 
 async def get_evaluation_service(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> EvaluationService:
     """Dependency to get EvaluationService instance."""
     return EvaluationService(session)
 
 
 async def get_fragrance_service(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> FragranceService:
     """Dependency to get FragranceService instance (for FK validation)."""
     return FragranceService(session)
 
 
 async def get_reviewer_service(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> ReviewerService:
     """Dependency to get ReviewerService instance (for FK validation)."""
     return ReviewerService(session)
@@ -51,7 +51,7 @@ async def get_reviewer_service(
 @router.get("", response_model=list[EvaluationResponse])
 async def list_evaluations(
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
     identity: VerifiedIdentity,
     reviewer_id: Annotated[
         str | None, Query(description="Filter by reviewer ID")
@@ -102,7 +102,7 @@ async def list_evaluations(
 async def get_evaluation(
     evaluation_id: str,
     service: Annotated[EvaluationService, Depends(get_evaluation_service)],
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
     identity: VerifiedIdentity,
 ) -> EvaluationResponse:
     """Get an evaluation by ID, if the caller may read its reviewer."""

@@ -38,11 +38,13 @@ router = APIRouter(prefix="/house-intake", tags=["house-intake"])
 Identity = VerifiedIdentity
 
 
-def get_service(db: Annotated[AsyncSession, Depends(get_db)]) -> HouseIntakeService:
+def get_service(
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
+) -> HouseIntakeService:
     """Build the request-scoped intake service.
 
     Args:
-        db (Annotated[AsyncSession, Depends(get_db)]): Request-scoped session.
+        db (Annotated[AsyncSession, Depends(get_db, scope="function")]): Request-scoped session.
 
     Returns:
         HouseIntakeService: The service.
@@ -54,12 +56,12 @@ Service = Annotated[HouseIntakeService, Depends(get_service)]
 
 
 def get_review_service(
-    db: Annotated[AsyncSession, Depends(get_db)],
+    db: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> HouseReviewService:
     """Build the request-scoped review service.
 
     Args:
-        db (Annotated[AsyncSession, Depends(get_db)]): Request-scoped session.
+        db (Annotated[AsyncSession, Depends(get_db, scope="function")]): Request-scoped session.
 
     Returns:
         HouseReviewService: The service.

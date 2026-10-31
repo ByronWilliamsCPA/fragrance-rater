@@ -47,7 +47,7 @@ from fragrance_rater.services.recommendation_service import (
 )
 
 router = APIRouter(prefix="/recommendation-measurement", tags=["recommendations"])
-DB = Annotated[AsyncSession, Depends(get_db)]
+DB = Annotated[AsyncSession, Depends(get_db, scope="function")]
 Identity = VerifiedIdentity
 
 if TYPE_CHECKING:

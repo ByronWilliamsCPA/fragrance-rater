@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 
 async def get_fragrance_service(
-    session: Annotated[AsyncSession, Depends(get_db)],
+    session: Annotated[AsyncSession, Depends(get_db, scope="function")],
 ) -> FragranceService:
     """Dependency to get FragranceService instance."""
     return FragranceService(session)
