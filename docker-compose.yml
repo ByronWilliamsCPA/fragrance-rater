@@ -35,6 +35,8 @@ services:
       # .env.example) or the environment, so no weak literal password can
       # be inherited silently by any environment, including production.
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://fragrance_rater:${DB_PASSWORD:?DB_PASSWORD must be set (copy .env.example to .env)}@db:5432/fragrance_rater}
+      # Optional model override; the default matches core/config.py (pinned by a test).
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-3-haiku}
       # Redis cache (if applicable)
       # REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 

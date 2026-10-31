@@ -178,6 +178,23 @@ class Settings(BaseSettings):
         ),
     )
 
+    @field_validator("test_mode", mode="before")
+    @classmethod
+    def _normalize_test_mode(cls, value: object) -> object:
+        """Read an empty or padded ``TEST_MODE`` the way the LLM client does.
+
+        Args:
+            value (object): The raw ``TEST_MODE`` value.
+
+        Returns:
+            object: ``False`` for an empty string, the stripped string for a
+            padded one, otherwise the value unchanged.
+        """
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or False
+        return value
+
     @field_validator("log_level", mode="before")
     @classmethod
     def _normalize_log_level(cls, value: object) -> object:

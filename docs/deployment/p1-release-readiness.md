@@ -149,13 +149,18 @@ Render the exact deployment configuration and save it to the private evidence di
 validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json
+# The render contains both API keys in plaintext: write it straight to a
+# private file (never to the terminal or CI output) and delete it afterwards.
+umask 077
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json \
+  > /secure/path/compose.json
 uv run python scripts/validate_production_topology.py /secure/path/compose.json \
   "$(docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" --format '{{(index .IPAM.Config 0).Subnet}}')" \
-  --authentik-middleware "$AUTHENTIK_MIDDLEWARE"
+  ${AUTHENTIK_MIDDLEWARE:+--authentik-middleware "$AUTHENTIK_MIDDLEWARE"}
 ```
 
-The middleware name defaults to `$AUTHENTIK_MIDDLEWARE`, then to `authentik@file`; pass the name the
+The middleware name defaults to `$AUTHENTIK_MIDDLEWARE`, then to `authentik@file`; the flag is passed
+only when the variable is set, because an empty name would override the default. Pass the name the
 Traefik router label actually carries. Besides the network and proxy checks above, the validator
 also rejects a render in which:
 
