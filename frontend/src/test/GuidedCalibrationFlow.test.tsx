@@ -151,10 +151,25 @@ describe('nextWizardStep', () => {
   })
 })
 
+/** Answers each GET by URL: the consent screen reads three more endpoints. */
+function routeGets(enrollment: Enrollment) {
+  get.mockImplementation((url: string) => {
+    if (url.includes('/consent/text'))
+      return Promise.resolve({ data: { version: 'v', approved: false, text: 'Draft wording' } })
+    if (url.includes('/consent')) return Promise.resolve({ data: { state: {} } })
+    if (url.includes('/context')) return Promise.resolve({ data: { recorded: false } })
+    return Promise.resolve({ data: enrollment })
+  })
+}
+
+async function pastIntro() {
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue to the samples' }))
+}
+
 describe('GuidedCalibrationFlow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    get.mockResolvedValue({ data: baseEnrollment() })
+    routeGets(baseEnrollment())
     post.mockResolvedValue({ data: {} })
   })
 
@@ -167,6 +182,7 @@ describe('GuidedCalibrationFlow', () => {
       />
     )
     await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/enrollments/e1'))
+    await pastIntro()
     expect(await screen.findByText(/Step 1 of/)).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: 'Browse assignments manually instead' })
@@ -176,12 +192,9 @@ describe('GuidedCalibrationFlow', () => {
   it('calls onExitToManualBrowse when the escape hatch is clicked', async () => {
     const onExit = vi.fn()
     render(
-      <GuidedCalibrationFlow
-        enrollmentId="e1"
-        onExitToManualBrowse={onExit}
-        onRevealed={vi.fn()}
-      />
+      <GuidedCalibrationFlow enrollmentId="e1" onExitToManualBrowse={onExit} onRevealed={vi.fn()} />
     )
+    await pastIntro()
     await screen.findByText(/Step 1 of/)
     screen.getByRole('button', { name: 'Browse assignments manually instead' }).click()
     expect(onExit).toHaveBeenCalled()
@@ -198,11 +211,7 @@ describe('GuidedCalibrationFlow', () => {
     get.mockReturnValueOnce(deferred.promise)
     const onExit = vi.fn()
     render(
-      <GuidedCalibrationFlow
-        enrollmentId="e1"
-        onExitToManualBrowse={onExit}
-        onRevealed={vi.fn()}
-      />
+      <GuidedCalibrationFlow enrollmentId="e1" onExitToManualBrowse={onExit} onRevealed={vi.fn()} />
     )
 
     expect(
@@ -211,6 +220,7 @@ describe('GuidedCalibrationFlow', () => {
     expect(screen.getByText(/Loading/)).toBeInTheDocument()
 
     deferred.resolve({ data: baseEnrollment() })
+    await pastIntro()
     await screen.findByText(/Step 1 of/)
   })
 

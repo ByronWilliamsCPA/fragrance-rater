@@ -275,3 +275,42 @@ export const unansweredReasons: Choice[] = [
   { value: 'unable_to_assess', label: 'I was unable to assess this' },
   { value: 'interrupted', label: 'I was interrupted' },
 ]
+
+/**
+ * Session-context questions (R7b). Every answer is optional and refusable: a
+ * blank means "not asked" and `prefer_not_to_answer` is a recorded refusal, so
+ * the two stay distinguishable. Values match `schemas/consent.py`.
+ */
+export const yesNoRefuse: Choice[] = [
+  { value: 'yes', label: 'Yes' },
+  { value: 'no', label: 'No' },
+  { value: 'prefer_not_to_answer', label: 'Prefer not to answer' },
+]
+
+export const contextYesNo: { name: string; label: string }[] = [
+  { name: 'illness', label: 'Are you feeling unwell today?' },
+  { name: 'nasal_congestion', label: 'Is your nose congested?' },
+  { name: 'allergy_symptoms', label: 'Do you have allergy symptoms today?' },
+  { name: 'personal_fragrance_worn', label: 'Are you wearing a fragrance or scented products?' },
+  { name: 'ambient_odor', label: 'Is there a noticeable smell in the room?' },
+]
+
+export const hungerChoices: Choice[] = [
+  { value: 'not_hungry', label: 'Not hungry' },
+  { value: 'slightly_hungry', label: 'Slightly hungry' },
+  { value: 'hungry', label: 'Hungry' },
+  { value: 'very_hungry', label: 'Very hungry' },
+  { value: 'prefer_not_to_answer', label: 'Prefer not to answer' },
+]
+
+export const hormonalChoices: Choice[] = [
+  ...yesNoRefuse,
+  { value: 'not_applicable', label: 'Does not apply to me' },
+]
+
+export const contextNumbers: { name: string; label: string; min: number; max: number }[] = [
+  { name: 'hours_since_food', label: 'Hours since you last ate', min: 0, max: 168 },
+  { name: 'hours_since_caffeine', label: 'Hours since you last had caffeine', min: 0, max: 168 },
+  { name: 'room_temperature_c', label: 'Room temperature (°C)', min: -10, max: 50 },
+  { name: 'room_humidity_pct', label: 'Room humidity (%)', min: 0, max: 100 },
+]
