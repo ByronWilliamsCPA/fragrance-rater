@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.reviewer import Reviewer
+from fragrance_rater.models.soft_delete import live
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -41,7 +42,7 @@ class ReviewerService:
         """
         stmt = (
             select(Reviewer)
-            .where(Reviewer.id == reviewer_id, Reviewer.deleted_at.is_(None))
+            .where(Reviewer.id == reviewer_id, live(Reviewer))
             .options(selectinload(Reviewer.evaluations))
         )
         result = await self.session.execute(stmt)
@@ -64,7 +65,7 @@ class ReviewerService:
             int: Number of non-deleted evaluations for this reviewer.
         """
         stmt = select(func.count(Evaluation.id)).where(
-            Evaluation.reviewer_id == reviewer_id, Evaluation.deleted_at.is_(None)
+            Evaluation.reviewer_id == reviewer_id, live(Evaluation)
         )
         result = await self.session.execute(stmt)
         return result.scalar_one()
@@ -78,9 +79,7 @@ class ReviewerService:
         Returns:
             Reviewer | None: Reviewer if found, None otherwise.
         """
-        stmt = select(Reviewer).where(
-            Reviewer.name == name, Reviewer.deleted_at.is_(None)
-        )
+        stmt = select(Reviewer).where(Reviewer.name == name, live(Reviewer))
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -98,14 +97,14 @@ class ReviewerService:
             select(func.count(Evaluation.id))
             .where(
                 Evaluation.reviewer_id == Reviewer.id,
-                Evaluation.deleted_at.is_(None),
+                live(Evaluation),
             )
             .correlate(Reviewer)
             .scalar_subquery()
         )
         stmt = (
             select(Reviewer, eval_count_subq.label("eval_count"))
-            .where(Reviewer.deleted_at.is_(None))
+            .where(live(Reviewer))
             .order_by(Reviewer.name)
         )
         result = await self.session.execute(stmt)

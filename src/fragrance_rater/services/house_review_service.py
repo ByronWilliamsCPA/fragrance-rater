@@ -36,6 +36,7 @@ from fragrance_rater.models.calibration import (
 )
 from fragrance_rater.models.fragrance import Fragrance, FragranceGtin
 from fragrance_rater.models.house_intake import HouseSubmission
+from fragrance_rater.models.soft_delete import live
 from fragrance_rater.schemas.fragrance import FragranceUpdate
 from fragrance_rater.schemas.house_intake import (
     HouseSubmissionPayload,
@@ -243,7 +244,7 @@ class HouseReviewService:
         rows = list(
             await self.db.scalars(
                 select(Fragrance)
-                .where(Fragrance.deleted_at.is_(None), or_(*conditions))
+                .where(live(Fragrance), or_(*conditions))
                 .order_by(Fragrance.brand, Fragrance.name, Fragrance.concentration)
                 .limit(MAX_CANDIDATES)
             )
@@ -457,9 +458,7 @@ class HouseReviewService:
 
     async def _live_fragrance(self, fragrance_id: str) -> Fragrance:
         fragrance = await self.db.scalar(
-            select(Fragrance).where(
-                Fragrance.id == fragrance_id, Fragrance.deleted_at.is_(None)
-            )
+            select(Fragrance).where(Fragrance.id == fragrance_id, live(Fragrance))
         )
         if fragrance is None:
             msg = "That catalog version does not exist or has been archived."
