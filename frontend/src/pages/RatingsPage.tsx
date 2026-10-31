@@ -17,6 +17,10 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
   const [catalog, setCatalog] = useState<FragranceSummary[]>([])
   const [catalogQuery, setCatalogQuery] = useState('')
   const [history, setHistory] = useState<Encounter[]>([])
+  // Names of fragrances in the history. The search results (`catalog`) are empty
+  // after a reload, so the history cannot rely on them to say what each
+  // encounter was for.
+  const [fragranceNames, setFragranceNames] = useState<Record<string, string>>({})
   const [reviewerId, setReviewerId] = useState('')
   const [wornByReviewerId, setWornByReviewerId] = useState('')
   const [wornByResetNotice, setWornByResetNotice] = useState(false)
@@ -41,7 +45,25 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
     const response = await api.get<Encounter[]>('/evaluations', {
       params: { reviewer_id: reviewerId },
     })
-    if (generation === historyGeneration.current) setHistory(response.data)
+    if (generation !== historyGeneration.current) return
+    setHistory(response.data)
+    const missing = [...new Set(response.data.map((encounter) => encounter.fragrance_id))].filter(
+      (id) => !fragranceNames[id] && !catalog.some((item) => item.id === id)
+    )
+    // One lookup per unknown fragrance. A fragrance that cannot be fetched (for
+    // example one that was removed) must not hide the history, so each is
+    // settled on its own and the row falls back to a generic label.
+    const settled = await Promise.allSettled(
+      missing.map((id) => api.get<FragranceSummary>(`/fragrances/${id}`))
+    )
+    if (generation !== historyGeneration.current) return
+    const found: Record<string, string> = {}
+    settled.forEach((result, index) => {
+      if (result.status === 'fulfilled' && result.value.data.name) {
+        found[missing[index]] = result.value.data.name
+      }
+    })
+    if (Object.keys(found).length) setFragranceNames((names) => ({ ...names, ...found }))
   }
 
   async function saveEncounter(form: HTMLFormElement) {
@@ -196,7 +218,8 @@ export function RatingsPage({ reviewers }: { reviewers: Person[] }) {
         history.map((encounter) => (
           <article key={encounter.id}>
             <strong>
-              {catalog.find((item) => item.id === encounter.fragrance_id)?.name ||
+              {fragranceNames[encounter.fragrance_id] ||
+                catalog.find((item) => item.id === encounter.fragrance_id)?.name ||
                 'Saved fragrance'}{' '}
               · {encounter.rating}/5
             </strong>
