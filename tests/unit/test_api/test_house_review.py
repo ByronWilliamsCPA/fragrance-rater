@@ -225,6 +225,7 @@ async def test_adopt_writes_snapshot_with_house_permission(test_app):
     assert snapshot.source_url == "https://maison-a.example/cedre"
     assert "Ana Ruiz, Founder, Maison A" in snapshot.source_reference
     assert snapshot.verification_status == "verified"
+    assert snapshot.verified_by == "manager"
     assert snapshot.payload["house_submission_id"] == record["id"]
     assert snapshot.payload["declared"]["notes"][0] == {
         "text": "Bergamote de Calabre",

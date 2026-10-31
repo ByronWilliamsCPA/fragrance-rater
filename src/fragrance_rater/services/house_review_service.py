@@ -353,6 +353,8 @@ class HouseReviewService:
             source_url=payload.product_url,
             source_reference=self._reference(row, payload),
             verification_status="verified",
+            # R8 (tech-spec D1 "verification state and reviewer").
+            verified_by=manager,
             payload={
                 "house_submission_id": row.id,
                 "house": row.house,
