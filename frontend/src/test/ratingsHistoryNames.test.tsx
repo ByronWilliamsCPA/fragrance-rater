@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
-import { http, HttpResponse } from 'msw'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { delay, http, HttpResponse } from 'msw'
 import { RatingsPage } from '../pages/RatingsPage'
 import { apiUrl, getJson, server } from './msw/server'
 
@@ -72,5 +72,49 @@ describe('encounter history names', () => {
 
     expect(await screen.findByText('Signature · 4/5')).toBeInTheDocument()
     expect(screen.getByText('Saved fragrance · 3/5')).toBeInTheDocument()
+  })
+
+  it('does not keep the page busy while a name is still being looked up', async () => {
+    server.use(
+      getJson('/evaluations', [encounter('e1', 'slow', 3)]),
+      http.get(apiUrl('/fragrances/slow'), async () => {
+        await delay('infinite')
+        return HttpResponse.json({ id: 'slow', name: 'Never arrives' })
+      })
+    )
+    render(<RatingsPage reviewers={reviewers} />)
+
+    await chooseEvaluator()
+
+    expect(await screen.findByText('Saved fragrance · 3/5')).toBeInTheDocument()
+    expect((await screen.findAllByLabelText('Evaluator'))[0]).toBeEnabled()
+  })
+
+  it('keeps a name taken from the catalog after a later search replaces the catalog', async () => {
+    let lookups = 0
+    let searches = 0
+    server.use(
+      http.get(apiUrl('/fragrances'), () => {
+        searches += 1
+        return HttpResponse.json(searches === 1 ? [{ id: 'f1', name: 'Signature' }] : [])
+      }),
+      getJson('/evaluations', [encounter('e1', 'f1', 4)]),
+      http.get(apiUrl('/fragrances/f1'), () => {
+        lookups += 1
+        return HttpResponse.json({ id: 'f1', name: 'Signature' })
+      })
+    )
+    render(<RatingsPage reviewers={reviewers} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Search catalog' }))
+    await waitFor(() => expect(searches).toBe(1))
+    await chooseEvaluator()
+    expect(await screen.findByText('Signature · 4/5')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search catalog' }))
+    await waitFor(() => expect(searches).toBe(2))
+
+    expect(screen.getByText('Signature · 4/5')).toBeInTheDocument()
+    expect(lookups).toBe(0)
   })
 })

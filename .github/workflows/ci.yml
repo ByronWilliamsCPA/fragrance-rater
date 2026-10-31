@@ -209,9 +209,24 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+      - name: Get installed Playwright version
+        id: playwright-version
+        working-directory: frontend
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/@playwright/test'].version")" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browsers
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ steps.playwright-version.outputs.version }}
       - name: Install Playwright browsers
         working-directory: frontend
         run: npx playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - name: Install Playwright OS dependencies (cache hit)
+        working-directory: frontend
+        run: npx playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
       - name: Run real-stack e2e tests
         working-directory: frontend
         run: npm run test:e2e:stack

@@ -43,7 +43,13 @@ const types = {
 
 function sessionUser(req) {
   const match = /(?:^|;\s*)stack_session=([^;]+)/.exec(req.headers.cookie ?? '')
-  const value = match ? decodeURIComponent(match[1]).trim() : ''
+  let value = ''
+  try {
+    value = match ? decodeURIComponent(match[1]).trim() : ''
+  } catch {
+    // An undecodable cookie is no session, as at the real edge.
+    return ''
+  }
   // A username is a short token; anything else is treated as no session.
   return /^[A-Za-z0-9._-]{1,64}$/.test(value) ? value : ''
 }
@@ -86,7 +92,13 @@ function proxyApi(req, res) {
 }
 
 function serveStatic(req, res) {
-  const pathname = decodeURIComponent(new URL(req.url, 'http://stub').pathname)
+  let pathname
+  try {
+    pathname = decodeURIComponent(new URL(req.url, 'http://stub').pathname)
+  } catch {
+    sendJson(res, 400, { detail: 'Bad request' })
+    return
+  }
   const candidate = normalize(join(dist, pathname))
   const inside = candidate === dist || candidate.startsWith(dist + sep)
   let file = join(dist, 'index.html')
