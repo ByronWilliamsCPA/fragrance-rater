@@ -510,9 +510,82 @@ def valid_topology() -> dict[str, Any]:
                 },
             },
             "db": {"networks": {"fragrance_rater-network": None}},
+            "backup": {
+                "networks": {"fragrance_rater-network": None},
+                "healthcheck": {
+                    "test": ["CMD", "/scripts/backup_database.sh", "check"]
+                },
+                "volumes": [
+                    {"type": "volume", "source": "backups", "target": "/backups"}
+                ],
+            },
         },
         "networks": {"authenticated-edge": {"external": True}},
     }
+
+
+def test_production_topology_accepts_the_short_form_backup_mount() -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["backup"]["volumes"] = ["backups:/backups"]
+
+    assert validator.validate_topology(config) == []
+
+
+def test_production_topology_requires_the_backup_service() -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    del config["services"]["backup"]
+
+    assert validator.validate_topology(config) == [
+        "service backup is missing (scheduled database backup, D-18)"
+    ]
+
+
+@pytest.mark.parametrize("healthcheck", [None, {"disable": True}])
+def test_production_topology_requires_a_backup_healthcheck(
+    healthcheck: dict[str, Any] | None,
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if healthcheck is None:
+        del config["services"]["backup"]["healthcheck"]
+    else:
+        config["services"]["backup"]["healthcheck"] = healthcheck
+
+    assert validator.validate_topology(config) == [
+        "service backup has no healthcheck, so a stalled job is invisible"
+    ]
+
+
+@pytest.mark.parametrize(
+    "volumes", [None, [], [{"type": "volume", "target": "/tmp"}], ["nonsense"]]
+)
+def test_production_topology_requires_the_backup_volume(volumes: object) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if volumes is None:
+        del config["services"]["backup"]["volumes"]
+    else:
+        config["services"]["backup"]["volumes"] = volumes
+
+    assert validator.validate_topology(config) == [
+        "service backup must keep its dumps in a volume mounted at /backups"
+    ]
+
+
+def test_production_topology_keeps_the_backup_service_off_the_edge_and_the_host() -> (
+    None
+):
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["backup"]["ports"] = [{"published": "5432", "target": 5432}]
+    config["services"]["backup"]["networks"]["authenticated-edge"] = None
+
+    assert validator.validate_topology(config) == [
+        "service backup publishes a host port",
+        "service backup must not join the authenticated-edge network",
+    ]
 
 
 def test_production_topology_rejects_direct_backend_port() -> None:
