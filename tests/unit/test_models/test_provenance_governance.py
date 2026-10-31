@@ -48,9 +48,12 @@ if TYPE_CHECKING:
     from sqlalchemy import Table
     from sqlalchemy.ext.asyncio import AsyncSession
 
-MIGRATION = next(
-    (Path(__file__).parents[3] / "alembic" / "versions").glob("cd1e2375a2e4_*.py")
-)
+_VERSIONS = Path(__file__).parents[3] / "alembic" / "versions"
+MIGRATION = next(_VERSIONS.glob("cd1e2375a2e4_*.py"))
+# R8 review follow-up: adds ``calibration_quality_flags.training_outcome`` and its
+# CHECK to a table the migration above created, so both are read as one schema.
+FOLLOW_UP_MIGRATION = next(_VERSIONS.glob("50c1f75abb15_*.py"))
+TRAINING_OUTCOMES = ("eligible", "withheld", "invalidated")
 NOW = datetime(2026, 10, 30, 12, 0, 0)  # noqa: DTZ001 - schema stores naive UTC
 DIGEST = "a" * 64
 
@@ -75,6 +78,7 @@ VOCABULARIES = [
     ("calibration_quality_flags", "severity_valid", QUALITY_FLAG_SEVERITIES),
     ("calibration_quality_flags", "source_valid", QUALITY_FLAG_SOURCES),
     ("calibration_quality_flags", "disposition_valid", QUALITY_FLAG_DISPOSITIONS),
+    ("calibration_quality_flags", "training_outcome_valid", TRAINING_OUTCOMES),
     ("consent_events", "event_type_valid", CONSENT_EVENT_TYPES),
     ("consent_events", "scope_valid", CONSENT_SCOPES),
 ]
@@ -113,8 +117,8 @@ class _RecordingOp:
         self.checks[name] = condition
 
 
-def _migration_module():
-    spec = importlib.util.spec_from_file_location("provenance_migration", MIGRATION)
+def _migration_module(path: Path = MIGRATION):
+    spec = importlib.util.spec_from_file_location(f"migration_{path.stem}", path)
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -124,11 +128,12 @@ def _migration_module():
 
 @pytest.fixture(scope="module")
 def migration_checks() -> dict[str, str]:
-    """Run the migration's ``upgrade`` against a recorder; return CHECKs by name."""
-    migration = _migration_module()
+    """Run the migrations' ``upgrade`` against a recorder; return CHECKs by name."""
     recorder = _RecordingOp()
-    migration.op = recorder
-    migration.upgrade()
+    for path in (MIGRATION, FOLLOW_UP_MIGRATION):
+        migration = _migration_module(path)
+        migration.op = recorder
+        migration.upgrade()
     return recorder.checks
 
 
@@ -146,7 +151,11 @@ def test_migration_writes_the_same_vocabulary(
 def test_every_model_check_is_created_by_the_migration(
     migration_checks: dict[str, str],
 ) -> None:
-    """No CHECK on a new table or column exists only in the models."""
+    """No CHECK on a new table or column exists only in the models.
+
+    "The migration" is cd1e2375a2e4 plus its R8 follow-up 50c1f75abb15, which
+    adds one column (and its CHECK) to a table the first one created.
+    """
     new_tables = {"calibration_quality_flags", "consent_events"}
     new_columns = {
         "calibration_programs": {"instrument_version"},
