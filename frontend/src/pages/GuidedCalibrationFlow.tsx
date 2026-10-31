@@ -6,6 +6,8 @@ import { FeedbackBanner } from '../components/FeedbackBanner'
 import { LoadingState } from '../components/PageState'
 import { useTask } from '../hooks/useTask'
 import { SampleObservationPanel } from './SampleObservationPanel'
+import { FlagProblem } from './FlagProblem'
+import { RankingStep } from './RankingStep'
 import { SessionIntroStep } from './SessionIntroStep'
 
 export type WizardStep =
@@ -79,6 +81,7 @@ export function GuidedCalibrationFlow({
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [detected, setDetected] = useState('')
   const [introDone, setIntroDone] = useState(false)
+  const [rankingDone, setRankingDone] = useState(false)
   const task = useTask()
   // #CRITICAL: Timing Dependencies: enrollmentId can change, or refresh() can
   // be called again (e.g. after a lock/reveal action), before an in-flight
@@ -262,7 +265,10 @@ export function GuidedCalibrationFlow({
             refresh={refresh}
           />
         )}
-        {step.kind === 'ready_to_reveal' && (
+        {step.kind === 'ready_to_reveal' && !rankingDone && (
+          <RankingStep enrollment={enrollment} task={task} onDone={() => setRankingDone(true)} />
+        )}
+        {step.kind === 'ready_to_reveal' && rankingDone && (
           <>
             <p className="notice">All required blind work is locked.</p>
             <ConfirmAction
@@ -280,6 +286,7 @@ export function GuidedCalibrationFlow({
             />
           </>
         )}
+        <FlagProblem enrollment={enrollment} task={task} />
         <button className="secondary" onClick={onExitToManualBrowse}>
           Browse assignments manually instead
         </button>

@@ -154,6 +154,7 @@ describe('nextWizardStep', () => {
 /** Answers each GET by URL: the consent screen reads three more endpoints. */
 function routeGets(enrollment: Enrollment) {
   get.mockImplementation((url: string) => {
+    if (url.includes('/rankings')) return Promise.resolve({ data: [] })
     if (url.includes('/consent/text'))
       return Promise.resolve({ data: { version: 'v', approved: false, text: 'Draft wording' } })
     if (url.includes('/consent')) return Promise.resolve({ data: { state: {} } })
@@ -250,27 +251,30 @@ describe('GuidedCalibrationFlow', () => {
         },
       ],
     })
-    get.mockResolvedValueOnce({
-      data: baseEnrollment({
-        skin_plan_locked: true,
-        reveal_blocker: null,
-        reveal_eligible: true,
-        presentations: [
-          {
-            id: 's1',
-            session_id: 'sess1',
-            blind_code: 'AAA1',
-            position: 1,
-            skin_planned: false,
-            blotter_locked: true,
-            skin_locked: false,
-            post_reveal_entry: false,
-            observations: [],
-          },
-        ],
-      }),
+    let enrollmentReads = 0
+    const beforeReveal = baseEnrollment({
+      skin_plan_locked: true,
+      reveal_blocker: null,
+      reveal_eligible: true,
+      presentations: [
+        {
+          id: 's1',
+          session_id: 'sess1',
+          blind_code: 'AAA1',
+          position: 1,
+          skin_planned: false,
+          blotter_locked: true,
+          skin_locked: false,
+          post_reveal_entry: false,
+          observations: [],
+        },
+      ],
     })
-    get.mockResolvedValueOnce({ data: revealed })
+    get.mockImplementation((url: string) => {
+      if (url.includes('/rankings')) return Promise.resolve({ data: [] })
+      enrollmentReads += 1
+      return Promise.resolve({ data: enrollmentReads === 1 ? beforeReveal : revealed })
+    })
     const onRevealed = vi.fn().mockResolvedValue(undefined)
     render(
       <GuidedCalibrationFlow
@@ -280,6 +284,7 @@ describe('GuidedCalibrationFlow', () => {
       />
     )
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue without ranking' }))
     const revealButton = await screen.findByRole('button', {
       name: 'Reveal completed baseline',
     })
