@@ -198,6 +198,36 @@ class TestProductionDefaults:
         with pytest.raises(ValueError, match="TRUSTED_HOSTS"):
             Settings()
 
+    @pytest.mark.parametrize("value", ["true", "1", "yes", "on"])
+    def test_production_refuses_test_mode(
+        self, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        """TEST_MODE would serve a canned fixture as if it were a real rating (S-27)."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("TRUSTED_HOSTS", "fragrance.example.com,localhost")
+        monkeypatch.setenv("TEST_MODE", value)
+
+        with pytest.raises(ValueError, match="TEST_MODE"):
+            Settings()
+
+    @pytest.mark.parametrize("environment", ["development", "test"])
+    def test_test_mode_is_allowed_outside_production(
+        self, monkeypatch: pytest.MonkeyPatch, environment: str
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", environment)
+        monkeypatch.setenv("TEST_MODE", "true")
+
+        assert Settings().test_mode is True
+
+    def test_production_accepts_test_mode_off(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("TRUSTED_HOSTS", "fragrance.example.com,localhost")
+        monkeypatch.setenv("TEST_MODE", "false")
+
+        assert Settings().test_mode is False
+
     def test_production_drops_development_cors_origins(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
