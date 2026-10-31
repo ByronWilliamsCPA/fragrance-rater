@@ -116,7 +116,59 @@ def validate_topology(
     edge = declared_networks.get("authenticated-edge", {})
     if not isinstance(edge, dict) or not edge.get("external"):
         errors.append("authenticated-edge must be a dedicated external network")
+    errors.extend(_backup_errors(services.get("backup")))
     return errors
+
+
+def _backup_errors(backup: object) -> list[str]:
+    """Return violations for the scheduled-backup service (D-18).
+
+    A deployment with no backup job has no recovery point, and a job without a
+    healthcheck can stall without anyone noticing, so both are refused.
+
+    Args:
+        backup (object): The rendered ``backup`` service, or ``None`` when absent.
+
+    Returns:
+        list[str]: Human-readable violations; empty when the service is sound.
+    """
+    if not isinstance(backup, dict):
+        return ["service backup is missing (scheduled database backup, D-18)"]
+    errors: list[str] = []
+    healthcheck = backup.get("healthcheck")
+    if not isinstance(healthcheck, dict) or healthcheck.get("disable"):
+        errors.append(
+            "service backup has no healthcheck, so a stalled job is invisible"
+        )
+    if not any(
+        _mount_target(mount) == "/backups" for mount in backup.get("volumes") or []
+    ):
+        errors.append(
+            "service backup must keep its dumps in a volume mounted at /backups"
+        )
+    if backup.get("ports"):
+        errors.append("service backup publishes a host port")
+    if "authenticated-edge" in (backup.get("networks") or {}):
+        errors.append("service backup must not join the authenticated-edge network")
+    return errors
+
+
+def _mount_target(mount: object) -> str | None:
+    """Return the container path of a rendered volume entry.
+
+    Args:
+        mount (object): A long-form mapping or a ``source:target[:mode]`` string.
+
+    Returns:
+        str | None: The target path, or ``None`` when it cannot be read.
+    """
+    if isinstance(mount, dict):
+        target = mount.get("target")
+        return target if isinstance(target, str) else None
+    if isinstance(mount, str):
+        parts = mount.split(":")
+        return parts[1] if len(parts) > 1 else None
+    return None
 
 
 def _app_runtime_errors(app: dict[str, Any], environment: dict[str, Any]) -> list[str]:

@@ -173,6 +173,9 @@ also rejects a render in which:
   an example. The production override requires both, and neither compose file has an `env_file`, so
   a value that is not named there never reaches the container and every billed endpoint answers 503;
 - `TEST_MODE` is enabled (the app also refuses to start with it in production).
+- the `backup` service is missing, has no healthcheck, keeps its dumps anywhere other than a volume
+  mounted at `/backups`, publishes a host port, or joins the authenticated edge (see
+  [Backup and restore](backup-and-restore.md); a deployment with no backup job has no recovery point).
 
 From every reachable network, verify that only Traefik's TLS entry point is open. Requests
 without an Authentik session must be challenged. Requests sent directly to the app container IP

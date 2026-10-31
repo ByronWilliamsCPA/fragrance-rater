@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
+pytestmark = pytest.mark.unit
+
 if TYPE_CHECKING:
     from types import ModuleType
 
