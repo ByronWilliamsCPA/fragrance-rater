@@ -94,6 +94,27 @@ describe('submissionFor', () => {
     expect(key).toMatch(/^[A-Za-z0-9_-]{8,64}$/)
     expect(submissionFor(null, 'answers').key).not.toBe(key)
   })
+
+  it('still makes acceptable keys where randomUUID is missing (older browsers)', () => {
+    let counter = 0
+    vi.stubGlobal('crypto', {
+      getRandomValues: (bytes: Uint8Array) => {
+        bytes.forEach((_, index) => {
+          bytes[index] = (counter + index) % 256
+        })
+        counter += 16
+        return bytes
+      },
+    })
+    try {
+      const { key } = submissionFor(null, 'answers')
+      expect(key).toMatch(/^[A-Za-z0-9_-]{8,64}$/)
+      expect(key).toHaveLength(32)
+      expect(submissionFor(null, 'answers').key).not.toBe(key)
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
 })
 
 describe('observation form idempotency key (D-22)', () => {
