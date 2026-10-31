@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 import yaml
+
+pytestmark = pytest.mark.unit
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -53,10 +56,22 @@ def test_env_example_ships_no_literal_database_password() -> None:
     active = [
         line
         for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
-        if line.startswith("DATABASE_URL=")
+        if line.startswith(("DATABASE_URL=", "DB_PASSWORD="))
     ]
 
     assert active == []
+
+
+def test_the_documented_model_override_reaches_the_app_with_the_settings_default() -> (
+    None
+):
+    """``OPENROUTER_MODEL`` in ``.env`` only matters if Compose passes it on."""
+    from fragrance_rater.core.config import Settings
+
+    default = Settings.model_fields["openrouter_model"].default
+    environment = _service_environment("docker-compose.yml", "app")
+
+    assert environment["OPENROUTER_MODEL"] == f"${{OPENROUTER_MODEL:-{default}}}"
 
 
 def test_env_example_ships_no_placeholder_secret_as_an_active_setting() -> None:

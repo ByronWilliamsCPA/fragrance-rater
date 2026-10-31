@@ -781,6 +781,7 @@ def test_production_topology_accepts_a_named_manager_allow_list(value: str) -> N
         ('["*"]', "wildcard"),
         ("manager,*", "wildcard"),
         ("[not json", "must be a JSON array or comma list"),
+        ('["manager", 42]', "must be a JSON array or comma list"),
     ],
 )
 def test_production_topology_rejects_a_bad_manager_allow_list(
@@ -875,7 +876,7 @@ def test_production_topology_rejects_a_placeholder_secret(value: str) -> None:
     ]
 
 
-@pytest.mark.parametrize("value", ["true", "TRUE", "1", "yes", "on"])
+@pytest.mark.parametrize("value", ["true", "TRUE", "1", "yes", "on", "t", "y"])
 def test_production_topology_rejects_test_mode(value: str) -> None:
     """TEST_MODE swaps real model output for a fixture (S-27)."""
     validator = load_script("validate_production_topology")

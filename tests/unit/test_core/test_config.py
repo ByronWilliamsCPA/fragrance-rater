@@ -198,7 +198,7 @@ class TestProductionDefaults:
         with pytest.raises(ValueError, match="TRUSTED_HOSTS"):
             Settings()
 
-    @pytest.mark.parametrize("value", ["true", "1", "yes", "on"])
+    @pytest.mark.parametrize("value", ["true", "1", "yes", "on", "t", "y", " true "])
     def test_production_refuses_test_mode(
         self, monkeypatch: pytest.MonkeyPatch, value: str
     ) -> None:
@@ -227,6 +227,17 @@ class TestProductionDefaults:
         monkeypatch.setenv("TEST_MODE", "false")
 
         assert Settings().test_mode is False
+
+    @pytest.mark.parametrize(
+        ("value", "expected"), [("", False), ("  ", False), (" true ", True)]
+    )
+    def test_test_mode_reads_empty_and_padded_values_like_the_llm_client(
+        self, monkeypatch: pytest.MonkeyPatch, value: str, expected: bool
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "development")
+        monkeypatch.setenv("TEST_MODE", value)
+
+        assert Settings().test_mode is expected
 
     def test_production_drops_development_cors_origins(
         self, monkeypatch: pytest.MonkeyPatch

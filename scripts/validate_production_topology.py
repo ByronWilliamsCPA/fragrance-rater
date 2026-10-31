@@ -21,7 +21,9 @@ _PLACEHOLDER = re.compile(
     r"(change[-_ ]?me|your[-_ ]|placeholder|example|xxxx|todo|\$\{|<.*>|replace[-_ ]?me)",
     re.IGNORECASE,
 )
-_TRUTHY = {"1", "true", "yes", "on"}
+# Every spelling pydantic reads as true, so a render the app would refuse to
+# start on is rejected here too.
+_TRUTHY = {"1", "true", "t", "yes", "y", "on"}
 _REQUIRED_SECRETS = ("FRAGRANCE_RATER_API_KEY", "OPENROUTER_API_KEY")
 
 
@@ -158,7 +160,10 @@ def _split_list(value: object) -> list[str] | None:
             return None
         if not isinstance(parsed, list):
             return None
-        return [str(item).strip() for item in parsed]
+        if not all(isinstance(item, str) for item in parsed):
+            # The settings model is ``list[str]``: a number is not coerced.
+            return None
+        return [item.strip() for item in parsed]
     return [item.strip() for item in text.split(",") if item.strip()]
 
 
