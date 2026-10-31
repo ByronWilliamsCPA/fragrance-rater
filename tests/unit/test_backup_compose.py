@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 from typing import Any
 
+import pytest
 import yaml
+
+pytestmark = pytest.mark.unit
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -81,3 +85,15 @@ def test_the_schedule_and_retention_are_configurable_with_safe_defaults() -> Non
     assert environment["BACKUP_RETENTION_DAYS"] == "${BACKUP_RETENTION_DAYS:-14}"
     assert environment["BACKUP_KEEP_MIN"] == "${BACKUP_KEEP_MIN:-3}"
     assert environment["BACKUP_MAX_AGE_HOURS"] == "${BACKUP_MAX_AGE_HOURS:-30}"
+
+
+def test_the_shipped_backup_service_satisfies_the_topology_validator() -> None:
+    """The validator must accept what the production override really ships."""
+    path = ROOT / "scripts" / "validate_production_topology.py"
+    spec = importlib.util.spec_from_file_location("validate_production_topology", path)
+    assert spec is not None
+    assert spec.loader is not None
+    validator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validator)
+
+    assert validator._backup_errors(_prod()["services"]["backup"]) == []

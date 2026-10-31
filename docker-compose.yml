@@ -13,7 +13,9 @@ services:
         BUILD_ENV: ${ENVIRONMENT:-development}
     image: fragrance_rater:${VERSION:-latest}
     # No container_name: docker-compose.prod.yml scales this service via
-    # deploy.replicas (default 2), and Compose requires a per-replica
+    # deploy.replicas (default 1; the rate limiter is process-local, so more
+    # than one replica needs a shared limiter store first), and Compose
+    # requires a per-replica
     # generated name when replicas > 1. A static container_name here would
     # make production scaling fail to start at all.
     ports:
@@ -33,6 +35,8 @@ services:
       # .env.example) or the environment, so no weak literal password can
       # be inherited silently by any environment, including production.
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://fragrance_rater:${DB_PASSWORD:?DB_PASSWORD must be set (copy .env.example to .env)}@db:5432/fragrance_rater}
+      # Optional model override; the default matches core/config.py (pinned by a test).
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-anthropic/claude-3-haiku}
       # Redis cache (if applicable)
       # REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
 

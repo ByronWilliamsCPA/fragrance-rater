@@ -3,19 +3,42 @@
 
 from __future__ import annotations
 
+import argparse
 import ipaddress
 import json
+import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
 
+DEFAULT_AUTHENTIK_MIDDLEWARE = "authentik@file"
 
-def validate_topology(config: object, edge_subnet: str | None = None) -> list[str]:
+# A value an operator copied from an example file or left as a stand-in is not a
+# secret. This is deliberately conservative: it only rejects the shapes that
+# ``.env.example`` and typical documentation use.
+_PLACEHOLDER = re.compile(
+    r"(change[-_ ]?me|your[-_ ]|placeholder|example|xxxx|todo|\$\{|<.*>|replace[-_ ]?me)",
+    re.IGNORECASE,
+)
+# Every spelling pydantic reads as true, so a render the app would refuse to
+# start on is rejected here too.
+_TRUTHY = {"1", "true", "t", "yes", "y", "on"}
+_REQUIRED_SECRETS = ("FRAGRANCE_RATER_API_KEY", "OPENROUTER_API_KEY")
+
+
+def validate_topology(
+    config: object,
+    edge_subnet: str | None = None,
+    authentik_middleware: str = DEFAULT_AUTHENTIK_MIDDLEWARE,
+) -> list[str]:
     """Return security violations from a rendered Compose document.
 
     ``edge_subnet`` is the live subnet of ``FRAGRANCE_TRAEFIK_NETWORK`` as
     ``docker network inspect`` reports it; when given, the configured
-    ``FRAGRANCE_TRAEFIK_CIDR`` must equal it.
+    ``FRAGRANCE_TRAEFIK_CIDR`` must equal it. ``authentik_middleware`` is the
+    forward-auth middleware name the deployment configured
+    (``AUTHENTIK_MIDDLEWARE``); the Traefik router must carry exactly that one.
     """
     if not isinstance(config, dict) or not isinstance(config.get("services"), dict):
         return ["rendered Compose config must contain services"]
@@ -56,6 +79,7 @@ def validate_topology(config: object, edge_subnet: str | None = None) -> list[st
         "postgresql+asyncpg://"
     ):
         errors.append("app DATABASE_URL must use the postgresql+asyncpg scheme")
+    errors.extend(_app_runtime_errors(app, app_environment))
     frontend = services.get("frontend", {})
     frontend_environment = frontend.get("environment", {})
     if frontend_environment.get("VITE_API_URL") != "/api":
@@ -83,12 +107,145 @@ def validate_topology(config: object, edge_subnet: str | None = None) -> list[st
     middleware_tokens = {
         token.strip() for token in str(middleware_chain).split(",") if token.strip()
     }
-    if "authentik@file" not in middleware_tokens:
-        errors.append("Traefik router must declare the Authentik middleware")
+    if authentik_middleware not in middleware_tokens:
+        errors.append(
+            f"Traefik router must declare the Authentik middleware "
+            f"{authentik_middleware!r}"
+        )
     declared_networks = config.get("networks", {})
     edge = declared_networks.get("authenticated-edge", {})
     if not isinstance(edge, dict) or not edge.get("external"):
         errors.append("authenticated-edge must be a dedicated external network")
+    errors.extend(_backup_errors(services.get("backup")))
+    return errors
+
+
+def _backup_errors(backup: object) -> list[str]:
+    """Return violations for the scheduled-backup service (D-18).
+
+    A deployment with no backup job has no recovery point, and a job without a
+    healthcheck can stall without anyone noticing, so both are refused.
+
+    Args:
+        backup (object): The rendered ``backup`` service, or ``None`` when absent.
+
+    Returns:
+        list[str]: Human-readable violations; empty when the service is sound.
+    """
+    if not isinstance(backup, dict):
+        return ["service backup is missing (scheduled database backup, D-18)"]
+    errors: list[str] = []
+    healthcheck = backup.get("healthcheck")
+    if not isinstance(healthcheck, dict) or healthcheck.get("disable"):
+        errors.append(
+            "service backup has no healthcheck, so a stalled job is invisible"
+        )
+    if not any(
+        _mount_target(mount) == "/backups" for mount in backup.get("volumes") or []
+    ):
+        errors.append(
+            "service backup must keep its dumps in a volume mounted at /backups"
+        )
+    if backup.get("ports"):
+        errors.append("service backup publishes a host port")
+    if "authenticated-edge" in (backup.get("networks") or {}):
+        errors.append("service backup must not join the authenticated-edge network")
+    return errors
+
+
+def _mount_target(mount: object) -> str | None:
+    """Return the container path of a rendered volume entry.
+
+    Args:
+        mount (object): A long-form mapping or a ``source:target[:mode]`` string.
+
+    Returns:
+        str | None: The target path, or ``None`` when it cannot be read.
+    """
+    if isinstance(mount, dict):
+        target = mount.get("target")
+        return target if isinstance(target, str) else None
+    if isinstance(mount, str):
+        parts = mount.split(":")
+        return parts[1] if len(parts) > 1 else None
+    return None
+
+
+def _app_runtime_errors(app: dict[str, Any], environment: dict[str, Any]) -> list[str]:
+    """Check what the app container needs to be safe and usable in production.
+
+    Covers the single replica (the rate limiter is process-local), the manager
+    allow-list, the CORS allow-list, the two billed-endpoint secrets (S-04), and
+    ``TEST_MODE`` (S-27). Each is a setting that fails open or silently
+    degrades when an operator leaves it unset.
+    """
+    errors: list[str] = []
+    deploy = app.get("deploy")
+    replicas = deploy.get("replicas", 1) if isinstance(deploy, dict) else 1
+    if str(replicas).strip() != "1":
+        errors.append(
+            "app must run a single replica: its rate limiter is process-local, "
+            "so more replicas multiply the effective limit"
+        )
+    errors.extend(_admin_errors(environment.get("CALIBRATION_ADMIN_USERNAMES")))
+    errors.extend(_cors_errors(environment.get("CORS_ALLOWED_ORIGINS")))
+    for name in _REQUIRED_SECRETS:
+        value = str(environment.get(name) or "").strip()
+        if not value:
+            errors.append(f"app must set {name}")
+        elif _PLACEHOLDER.search(value):
+            errors.append(f"app {name} is a placeholder, not a secret")
+    if str(environment.get("TEST_MODE", "")).strip().lower() in _TRUTHY:
+        errors.append("app must not set TEST_MODE in production")
+    return errors
+
+
+def _split_list(value: object) -> list[str] | None:
+    """Parse a JSON array or comma list the way the settings model does."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text.startswith("["):
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(parsed, list):
+            return None
+        if not all(isinstance(item, str) for item in parsed):
+            # The settings model is ``list[str]``: a number is not coerced.
+            return None
+        return [item.strip() for item in parsed]
+    return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _admin_errors(value: object) -> list[str]:
+    """The manager allow-list must name specific, verified users."""
+    names = _split_list(value)
+    if names is None:
+        return ["CALIBRATION_ADMIN_USERNAMES must be a JSON array or comma list"]
+    if not names or any(not name for name in names):
+        return ["CALIBRATION_ADMIN_USERNAMES must name at least one manager"]
+    if "*" in names:
+        return ["CALIBRATION_ADMIN_USERNAMES must not contain a wildcard"]
+    return []
+
+
+def _cors_errors(value: object) -> list[str]:
+    """CORS may be unset (production defaults to none) but never wide open."""
+    if value is None or not str(value).strip():
+        return []
+    origins = _split_list(value)
+    if origins is None:
+        return ["CORS_ALLOWED_ORIGINS must be a JSON array or comma list"]
+    errors: list[str] = []
+    if "*" in origins:
+        errors.append("CORS_ALLOWED_ORIGINS must not contain a wildcard")
+    errors.extend(
+        f"CORS_ALLOWED_ORIGINS entry {origin!r} must be an https origin"
+        for origin in origins
+        if origin != "*" and not origin.startswith("https://")
+    )
     return errors
 
 
@@ -137,20 +294,35 @@ def _edge_subnet_mismatch(cidr: str, edge_subnet: str) -> list[str]:
 def main() -> int:
     """Validate a ``docker compose config --format json`` render.
 
-    The second argument is the live subnet of ``FRAGRANCE_TRAEFIK_NETWORK``,
-    so a stale or mistyped ``FRAGRANCE_TRAEFIK_CIDR`` fails here rather than
-    in production.
+    ``EDGE_SUBNET`` is the live subnet of ``FRAGRANCE_TRAEFIK_NETWORK``, so a
+    stale or mistyped ``FRAGRANCE_TRAEFIK_CIDR`` fails here rather than in
+    production. ``--authentik-middleware`` is the middleware name the
+    deployment uses; it defaults to ``$AUTHENTIK_MIDDLEWARE``, then to
+    ``authentik@file``.
     """
-    if len(sys.argv) != 3:
-        name = Path(sys.argv[0]).name
-        print(f"usage: {name} RENDERED_CONFIG.json EDGE_SUBNET", file=sys.stderr)
-        return 2
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument("rendered_config", type=Path, metavar="RENDERED_CONFIG.json")
+    parser.add_argument("edge_subnet", metavar="EDGE_SUBNET")
+    parser.add_argument(
+        "--authentik-middleware",
+        default=os.environ.get("AUTHENTIK_MIDDLEWARE") or DEFAULT_AUTHENTIK_MIDDLEWARE,
+    )
     try:
-        config = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+        args = parser.parse_args()
+    except SystemExit as exit_request:
+        # argparse exits 2 on a usage error and 0 for --help; report it as the
+        # return value so callers (and tests) see the same contract as before.
+        return int(exit_request.code or 0)
+    try:
+        config = json.loads(args.rendered_config.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         print(f"config could not be read: {exc}", file=sys.stderr)
         return 2
-    errors = validate_topology(config, edge_subnet=sys.argv[2])
+    errors = validate_topology(
+        config,
+        edge_subnet=args.edge_subnet,
+        authentik_middleware=args.authentik_middleware,
+    )
     if errors:
         for error in errors:
             print(error, file=sys.stderr)

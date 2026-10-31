@@ -149,10 +149,33 @@ Render the exact deployment configuration and save it to the private evidence di
 validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json
+# The render contains both API keys in plaintext: write it straight to a
+# private file (never to the terminal or CI output) and delete it afterwards.
+umask 077
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config --format json \
+  > /secure/path/compose.json
 uv run python scripts/validate_production_topology.py /secure/path/compose.json \
-  "$(docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" --format '{{(index .IPAM.Config 0).Subnet}}')"
+  "$(docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" --format '{{(index .IPAM.Config 0).Subnet}}')" \
+  ${AUTHENTIK_MIDDLEWARE:+--authentik-middleware "$AUTHENTIK_MIDDLEWARE"}
 ```
+
+The middleware name defaults to `$AUTHENTIK_MIDDLEWARE`, then to `authentik@file`; the flag is passed
+only when the variable is set, because an empty name would override the default. Pass the name the
+Traefik router label actually carries. Besides the network and proxy checks above, the validator
+also rejects a render in which:
+
+- the app runs more than one replica (its rate limiter is process-local, so more replicas multiply
+  the effective limit on the billed endpoint);
+- `CALIBRATION_ADMIN_USERNAMES` is missing, empty, malformed, or contains a wildcard;
+- `CORS_ALLOWED_ORIGINS` is set to a wildcard or to a non-`https` origin (unset is fine: production
+  defaults to none);
+- `FRAGRANCE_RATER_API_KEY` or `OPENROUTER_API_KEY` is missing, blank, or a placeholder copied from
+  an example. The production override requires both, and neither compose file has an `env_file`, so
+  a value that is not named there never reaches the container and every billed endpoint answers 503;
+- `TEST_MODE` is enabled (the app also refuses to start with it in production).
+- the `backup` service is missing, has no healthcheck, keeps its dumps anywhere other than a volume
+  mounted at `/backups`, publishes a host port, or joins the authenticated edge (see
+  [Backup and restore](backup-and-restore.md); a deployment with no backup job has no recovery point).
 
 From every reachable network, verify that only Traefik's TLS entry point is open. Requests
 without an Authentik session must be challenged. Requests sent directly to the app container IP

@@ -68,10 +68,12 @@ test.describe('Blind calibration, end to end', () => {
     await page.getByRole('button', { name: 'Confirm reveal' }).click()
     expect((await revealed).ok()).toBe(true)
 
-    // The page does not hold the revealed identities on screen: once the app
-    // data reloads it moves on to "Nothing new is assigned", so asserting the
-    // name in the UI would race that reload. What must hold is that the server
-    // now discloses the identity to this recorder, and only now.
+    // The revealed identities stay on screen: the reload that follows the reveal
+    // must not swap them for the choice screen.
+    await expect(page.getByText(/Reveal complete\./)).toBeVisible()
+    await expect(page.getByText(new RegExp(seeded.fragranceName))).toBeVisible()
+
+    // And the server now discloses the identity to this recorder, and only now.
     const recorder = await apiAs(seeded.recorder)
     const enrollment = await recorder.get(`/api/v1/calibration/enrollments/${seeded.enrollmentId}`)
     expect(enrollment.ok()).toBe(true)
