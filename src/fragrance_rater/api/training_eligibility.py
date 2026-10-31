@@ -27,7 +27,7 @@ from fragrance_rater.utils.logging import get_logger, log_audit_event
 router = APIRouter(tags=["training-eligibility"])
 logger = get_logger(__name__)
 
-DB = Annotated[AsyncSession, Depends(get_db)]
+DB = Annotated[AsyncSession, Depends(get_db, scope="function")]
 Identity = VerifiedIdentity
 TargetType = Literal["evaluation", "observation"]
 
