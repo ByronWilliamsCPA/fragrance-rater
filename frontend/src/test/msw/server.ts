@@ -21,10 +21,6 @@ export const server = setupServer()
 export const getJson = (path: string, body: unknown, status = 200): RequestHandler =>
   http.get(apiUrl(path), () => HttpResponse.json(body as never, { status }))
 
-/** A JSON POST reply. */
-export const postJson = (path: string, body: unknown, status = 201): RequestHandler =>
-  http.post(apiUrl(path), () => HttpResponse.json(body as never, { status }))
-
 /** What every page loads on mount: the household (non-house) experience. */
 export function bootstrapHandlers(
   access: { username: string; manager: boolean } = { username: 'family-member', manager: false },
