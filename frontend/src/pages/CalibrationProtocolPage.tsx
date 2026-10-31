@@ -30,8 +30,8 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
       <section>
         <h3>Find your sample by its code</h3>
         <p>
-          Every sample is labeled with a code, not a name. The code is what ties your responses to a
-          specific presentation; it never tells you, or anyone recording on your behalf, what the
+          Every sample is labeled with a code, not a name. The code is what ties your responses to
+          a specific presentation; it never tells you, or anyone recording on your behalf, what the
           fragrance is. On the Calibration screen, choose your assignment, then work through the
           sessions shown for it.
         </p>
@@ -62,8 +62,8 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
           <div className="flow-step">
             <strong>Lock</strong>
             <p>
-              Once a stage is locked, that stage's blind entry is closed. Locking is what starts the
-              countdown toward reveal, not a deadline you have to beat.
+              Once a stage is locked, that stage's blind entry is closed. Locking is what starts
+              the countdown toward reveal, not a deadline you have to beat.
             </p>
           </div>
         </div>
@@ -76,14 +76,12 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
       <section>
         <h3>What each observation records</h3>
         <ul className="data-list">
-          <li>
-            Independent 0–5 perceptual dimensions (how it presents, not how much you like it).
-          </li>
+          <li>Independent 0–5 perceptual dimensions (how it presents, not how much you like it).</li>
           <li>0–10 liking, wear, buy, and appreciation scales.</li>
           <li>Perceived notes and any free-text impressions you want to add.</li>
           <li>
-            Elapsed time since application, so a dry-down observation isn't mistaken for an opening
-            one.
+            Elapsed time since application, so a dry-down observation isn't mistaken for an
+            opening one.
           </li>
         </ul>
       </section>
@@ -100,8 +98,8 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
             finalized as empty if no samples were selected to continue to skin.
           </li>
           <li>
-            Holdout samples stay hidden separately, on their own timeline: each one clears only once
-            its own blotter stage is locked.
+            Holdout samples stay hidden separately, on their own timeline: each one clears only
+            once its own blotter stage is locked.
           </li>
         </ul>
         <p>
@@ -134,14 +132,14 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
           your reaction to it: the prediction, the exact model version, and the data it was built
           from are all written down and locked first, then compared against your blind response
           afterward. Freezing a checkpoint is a deliberate action a manager takes, not something
-          that happens automatically for every holdout; a holdout without a frozen checkpoint has no
-          prospective prediction attached to validate.
+          that happens automatically for every holdout; a holdout without a frozen checkpoint has
+          no prospective prediction attached to validate.
         </p>
         <p>
           Whether or not a checkpoint was frozen, holdout ratings are never fed back into training
           the model version being scored, and they stay excluded from ordinary training data
-          indefinitely afterward. This version has no mechanism that later releases a holdout rating
-          into training.
+          indefinitely afterward. This version has no mechanism that later releases a holdout
+          rating into training.
         </p>
       </section>
       <section>
@@ -149,8 +147,8 @@ export function CalibrationProtocolPage({ navigate }: CalibrationProtocolPagePro
           <summary>Access and verification details</summary>
           <ul className="data-list">
             <li>
-              The code-to-fragrance mapping used to label physical samples is only ever available to
-              managers, through a route participants can't reach.
+              The code-to-fragrance mapping used to label physical samples is only ever available
+              to managers, through a route participants can't reach.
             </li>
             <li>
               Skin-selection reasons and other pre-reveal experimental metadata are withheld from

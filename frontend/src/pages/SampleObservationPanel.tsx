@@ -385,7 +385,20 @@ export function SampleObservationPanel({
          * way, and an unordered list of prose lines made a sequence of
          * observations read as unrelated entries.
          */
-        <div className="log-scroll">
+        /*
+         * A region that can scroll sideways must be reachable by keyboard
+         * (WCAG 2.1.1), so it is focusable and named.
+         */
+        <div
+          className="log-scroll"
+          // The rule assumes a non-interactive element needs no focus. A region that
+          // scrolls sideways does: without it a keyboard user cannot reach the
+          // hidden columns (WCAG 2.1.1; axe: scrollable-region-focusable).
+          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+          tabIndex={0}
+          role="region"
+          aria-label="Saved observations, scrolls sideways on a narrow screen"
+        >
           <table className="log">
             <caption className="visually-hidden">
               Saved observations for this sample, earliest first
