@@ -1115,6 +1115,10 @@ class QualityFlag(Base):
         severity: ``info``, ``minor``, or ``major``.
         source: Who or what raised it.
         disposition: ``review`` (undecided), ``include``, or ``exclude``.
+        training_outcome: On a ``resolved`` row, the manager's decision for the
+            rows the flag made ``questionable`` (``eligible``, ``withheld`` or
+            ``invalidated``); NULL when the resolution left them for a manager
+            to decide, and on every row that is not a resolution.
         rule_version: The validation rule and version that raised an
             automatic flag; required when ``source`` is
             ``automatic_validation``.
@@ -1151,6 +1155,10 @@ class QualityFlag(Base):
         CheckConstraint(
             in_check("disposition", QUALITY_FLAG_DISPOSITIONS, nullable=False),
             name="disposition_valid",
+        ),
+        CheckConstraint(
+            in_check("training_outcome", ("eligible", "withheld", "invalidated")),
+            name="training_outcome_valid",
         ),
         CheckConstraint(_ONE_FLAG_TARGET, name="one_target"),
         CheckConstraint(
@@ -1194,6 +1202,7 @@ class QualityFlag(Base):
     disposition: Mapped[str] = mapped_column(String(10))
     rule_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    training_outcome: Mapped[str | None] = mapped_column(String(20), nullable=True)
     occurred_at: Mapped[datetime | None] = mapped_column(nullable=True)
     recorded_by: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)

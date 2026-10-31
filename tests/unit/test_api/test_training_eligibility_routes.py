@@ -479,6 +479,67 @@ async def test_a_resolution_without_an_outcome_leaves_rows_questionable(
 
 
 @pytest.mark.asyncio
+async def test_an_invalidated_flag_cannot_release_a_row_held_for_a_manager(
+    test_app: AsyncClient, world: dict[str, Any]
+) -> None:
+    """A recorder must not be able to promote evidence a resolution left held."""
+    presentation = world["presentation_ids"][0]
+    row = await _observe(test_app, presentation)
+    await _lock(test_app, presentation)
+    first = await _flag(test_app, "presentation", presentation)
+    resolved = await _close(test_app, first["id"], headers=RECORDER)
+    assert resolved.status_code == 201, resolved.text
+    assert (await _codes(test_app, world))[row] == "questionable"
+
+    second = await _flag(test_app, "presentation", presentation)
+    invalidated = await _close(
+        test_app, second["id"], action="invalidated", headers=RECORDER
+    )
+
+    assert invalidated.status_code == 201, invalidated.text
+    assert (await _codes(test_app, world))[row] == "questionable"
+
+
+@pytest.mark.asyncio
+async def test_a_second_resolution_cannot_release_a_row_held_by_the_first(
+    test_app: AsyncClient, world: dict[str, Any]
+) -> None:
+    presentation = world["presentation_ids"][0]
+    row = await _observe(test_app, presentation)
+    await _lock(test_app, presentation)
+    first = await _flag(test_app, "presentation", presentation)
+    await _close(test_app, first["id"], headers=RECORDER)
+
+    second = await _flag(test_app, "presentation", presentation)
+    decided = await _close(
+        test_app,
+        second["id"],
+        training_outcome="eligible",
+        explanation="Second flag was a false alarm",
+    )
+
+    assert decided.status_code == 201, decided.text
+    assert (await _codes(test_app, world))[row] == "questionable"
+
+
+@pytest.mark.asyncio
+async def test_a_manager_decision_still_releases_a_held_row(
+    test_app: AsyncClient, world: dict[str, Any]
+) -> None:
+    presentation = world["presentation_ids"][0]
+    row = await _observe(test_app, presentation)
+    await _lock(test_app, presentation)
+    flag = await _flag(test_app, "presentation", presentation)
+    await _close(test_app, flag["id"], headers=RECORDER)
+    assert (await _codes(test_app, world))[row] == "questionable"
+
+    decision = await _decide(test_app, "observation", row, "eligible")
+
+    assert decision.status_code == 200, decision.text
+    assert (await _codes(test_app, world))[row] == "eligible"
+
+
+@pytest.mark.asyncio
 async def test_only_a_manager_chooses_a_training_outcome(
     test_app: AsyncClient, world: dict[str, Any]
 ) -> None:

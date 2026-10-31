@@ -201,6 +201,37 @@ class TrainingEligibilityService:
             )
         )
 
+    async def _covering_pending_resolutions(
+        self, observation: Observation
+    ) -> list[str]:
+        """Return the ids of resolutions that left ``observation`` for a manager.
+
+        A ``resolved`` closing row with no ``training_outcome`` decided nothing:
+        the rows it covered stay ``questionable`` until a manager decides. Only
+        the stored outcome can tell that apart, which is why the column exists.
+        Rows written before it existed read NULL, the safe reading.
+
+        Args:
+            observation (Observation): The observation.
+
+        Returns:
+            list[str]: Ids of covering ``resolved`` rows with no outcome.
+        """
+        presentation = await self._presentation_of(observation)
+        return list(
+            await self.db.scalars(
+                select(QualityFlag.id).where(
+                    QualityFlag.action == "resolved",
+                    QualityFlag.training_outcome.is_(None),
+                    or_(
+                        QualityFlag.observation_id == observation.id,
+                        QualityFlag.presentation_id == presentation.id,
+                        QualityFlag.session_id == presentation.session_id,
+                    ),
+                )
+            )
+        )
+
     async def _rule_state(self, observation: Observation) -> str:
         """What option C says an observation's code is, ignoring manager codes."""
         if await self._covering_open_flags(observation):
@@ -325,7 +356,9 @@ class TrainingEligibilityService:
 
         * ``invalidated`` closing row (raised in error), or a resolution with
           outcome ``eligible``: each row goes back to what the rule says now
-          (``eligible`` when its stage is locked and no other flag covers it).
+          (``eligible`` when its stage is locked and no other flag covers it),
+          except a row an earlier resolution left for a manager, which stays
+          ``questionable``.
         * A resolution with outcome ``withheld`` or ``invalidated``: each row
           takes the outcome.
         * A resolution without an outcome: nothing changes; the rows stay
@@ -353,7 +386,15 @@ class TrainingEligibilityService:
             if row.training_eligibility != QUESTIONABLE:
                 continue
             if closing.action == "invalidated" or outcome == "eligible":
-                target = await self._rule_state(row)
+                # #CRITICAL: security: a row that an earlier resolution left
+                # for a manager must not be released by this closing row.
+                # #VERIFY: test_training_eligibility_routes.py proves an
+                # invalidated flag cannot release a held row.
+                target = (
+                    QUESTIONABLE
+                    if await self._covering_pending_resolutions(row)
+                    else await self._rule_state(row)
+                )
             elif outcome is None:
                 # Unreachable: a "resolved" closing without an outcome returned
                 # above. Fail loudly, not silently, if that guard ever changes.
