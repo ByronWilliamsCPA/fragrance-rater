@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, CheckConstraint, ForeignKey, Index, String, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, portable_json
 from fragrance_rater.models.calibration import identifier
 from fragrance_rater.utils.timestamps import now_naive_utc
 
@@ -108,7 +108,7 @@ class HouseSubmission(Base):
         nullable=True,
         unique=True,
     )
-    payload: Mapped[dict[str, object]] = mapped_column(JSON)
+    payload: Mapped[dict[str, object]] = mapped_column(portable_json())
 
     # Review (manager). An adopted row is linked to the catalog version and
     # the evidence row it produced; both FKs are RESTRICT so evidence cannot

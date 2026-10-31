@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { api } from '../api/client'
 import type { Enrollment, Sample } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -17,6 +18,7 @@ import {
   unansweredReasons,
   type ScaleGroup,
 } from '../content/calibrationScales'
+import { submissionFor, type PendingSubmission } from '../content/submissionKey'
 import type { useTask } from '../hooks/useTask'
 
 /**
@@ -102,17 +104,19 @@ export function SampleObservationPanel({
   refresh,
   stageFixed = false,
 }: SampleObservationPanelProps) {
+  // The submission a failed save left behind, so pressing Save again on the
+  // same answers retries it under the same idempotency key (D-22).
+  const pending = useRef<PendingSubmission | null>(null)
+
   async function save(form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
     const data: Record<string, unknown> = {
       stage,
       elapsed_minutes: Number(values.elapsed_minutes || 0),
       detected: detected === '' ? null : detected === 'yes',
-      // The client clock at submit, unless a recorder is transcribing a
-      // paper sheet and names the real time of the observation.
-      observed_at: values.observed_at
-        ? new Date(String(values.observed_at)).toISOString()
-        : new Date().toISOString(),
+      // A recorder transcribing a paper sheet names the real time of the
+      // observation; otherwise the client clock at the first attempt is used.
+      observed_at: values.observed_at ? new Date(String(values.observed_at)).toISOString() : null,
     }
     const reason = String(values.unanswered_reason || '')
     if (reason) data.response_status = reason
@@ -141,10 +145,13 @@ export function SampleObservationPanel({
           .map((value) => value.trim())
           .filter(Boolean)
       : null
-    await api.post(
-      `/calibration/presentations/${sample.id}/${sample.post_reveal_entry ? 'post-reveal' : 'observations'}`,
-      data
-    )
+    const path = `/calibration/presentations/${sample.id}/${sample.post_reveal_entry ? 'post-reveal' : 'observations'}`
+    const submission = submissionFor(pending.current, JSON.stringify({ path, data }))
+    pending.current = submission
+    data.observed_at ??= submission.observedAt
+    data.idempotency_key = submission.key
+    await api.post(path, data)
+    pending.current = null
     form.reset()
     setDetected('')
     await refresh()

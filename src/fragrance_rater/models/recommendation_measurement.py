@@ -6,7 +6,6 @@ from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import (
-    JSON,
     Boolean,
     CheckConstraint,
     Float,
@@ -18,7 +17,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, portable_json
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 
@@ -37,9 +36,11 @@ class RecommendationRun(Base):
     )
     algorithm_version: Mapped[str] = mapped_column(String(100))
     candidate_strategy: Mapped[str] = mapped_column(String(100))
-    filters: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
-    input_manifest: Mapped[list[dict[str, object]]] = mapped_column(JSON)
-    source_snapshot: Mapped[dict[str, object]] = mapped_column(JSON, default=dict)
+    filters: Mapped[dict[str, object]] = mapped_column(portable_json(), default=dict)
+    input_manifest: Mapped[list[dict[str, object]]] = mapped_column(portable_json())
+    source_snapshot: Mapped[dict[str, object]] = mapped_column(
+        portable_json(), default=dict
+    )
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc, index=True)
     recorded_by: Mapped[str | None] = mapped_column(String(255), nullable=True)
 

@@ -29,6 +29,7 @@ from fragrance_rater.core.database import get_db
 from fragrance_rater.middleware import RATINGS_RATE_LIMIT, limiter, require_api_key
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
 from fragrance_rater.models.recommendation_measurement import LLMInvocation
+from fragrance_rater.models.soft_delete import live
 from fragrance_rater.services.llm_service import (
     PROFILE_SUMMARY_PROMPT_VERSION,
     RECOMMENDATION_PROMPT_VERSION,
@@ -341,7 +342,7 @@ async def build_recommendation_explanation(
     # Critical finding 2: soft-delete filter.
     stmt = (
         select(Fragrance)
-        .where(Fragrance.id == fragrance_id, Fragrance.deleted_at.is_(None))
+        .where(Fragrance.id == fragrance_id, live(Fragrance))
         .options(
             selectinload(Fragrance.notes).selectinload(FragranceNote.note),
             selectinload(Fragrance.accords),

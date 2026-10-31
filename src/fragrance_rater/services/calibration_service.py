@@ -25,8 +25,10 @@ from fragrance_rater.models.calibration import (
 )
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
+from fragrance_rater.models.soft_delete import is_live
 from fragrance_rater.services.consent import ConsentService
 from fragrance_rater.services.llm_service import get_llm_service
+from fragrance_rater.services.training_eligibility import TrainingEligibilityService
 from fragrance_rater.utils.gtin import normalize_gtin
 from fragrance_rater.utils.timestamps import now_naive_utc
 
@@ -50,6 +52,8 @@ def reject(message: str, status: int = 409) -> NoReturn:
 
 
 UNPINNED_INSTRUMENT_PREFIX = "unpinned-app-"
+
+_KEY_REUSED = "This idempotency key was already used for a different submission"
 
 # What enroll() actually does: a system-entropy shuffle of the baseline block,
 # concealed repeats inserted with at least one session of separation, then a
@@ -241,7 +245,7 @@ class CalibrationService:
         fragrance = await self.db.scalar(
             select(Fragrance).where(Fragrance.id == data.fragrance_id).with_for_update()
         )
-        if fragrance is None or fragrance.deleted_at is not None:
+        if not is_live(fragrance):
             reject("Catalog version not found", 404)
         assert fragrance is not None
         if fragrance.concentration in {"", "Unknown"}:
@@ -303,7 +307,7 @@ class CalibrationService:
         if program.status != "active":
             reject("Activate the definition before enrollment")
         reviewer = await self.db.get(Reviewer, data.reviewer_id)
-        if reviewer is None or reviewer.deleted_at is not None:
+        if not is_live(reviewer):
             reject("Reviewer not found", 404)
         if await self.db.scalar(
             select(Enrollment.id).where(
@@ -463,8 +467,115 @@ class CalibrationService:
         admin: bool,
         post_reveal: bool = False,
     ) -> Observation:
-        """Append responses only; no update route exists for submitted observations."""
+        """Append responses only; no update route exists for submitted observations.
+
+        Args:
+            presentation_id (str): The presentation answered.
+            data (ResponseInput): The submitted answers.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+            post_reveal (bool): Whether this is an informed post-reveal entry.
+
+        Returns:
+            Observation: The appended row, or the earlier row a same-key replay
+                names.
+        """
+        observation, _ = await self.observe_once(
+            presentation_id, data, username, admin, post_reveal=post_reveal
+        )
+        return observation
+
+    async def _replayed(
+        self,
+        presentation: Presentation,
+        data: ResponseInput,
+        post_reveal: bool,
+    ) -> Observation | None:
+        """Return the row an idempotency key already names, or ``None``.
+
+        D-22/Q18: a retried POST (a flaky phone connection, a double tap)
+        carries the same key and must not append a second row. The same key
+        with a different payload is not a retry: it is refused with 409 rather
+        than silently answered with a row that does not match the request.
+
+        Args:
+            presentation (Presentation): The presentation, already authorized.
+            data (ResponseInput): The submitted answers.
+            post_reveal (bool): Which endpoint the request came through.
+
+        Returns:
+            Observation | None: The earlier row, when this is a faithful replay.
+        """
+        if data.idempotency_key is None:
+            return None
+        existing = await self.db.scalar(
+            select(Observation).where(
+                Observation.presentation_id == presentation.id,
+                Observation.idempotency_key == data.idempotency_key,
+            )
+        )
+        if existing is None:
+            return None
+        submitted = cast(
+            "dict[str, object]",
+            data.model_dump(
+                exclude={"idempotency_key", "observed_at", "season_fit", "setting_fit"}
+            ),
+        )
+        same = all(
+            cast("object", getattr(existing, name)) == value
+            for name, value in submitted.items()
+        )
+        # A request without observed_at was stamped with the server's receipt
+        # time on first write, so only an explicit time must match.
+        same = same and (
+            data.observed_at is None or data.observed_at == existing.observed_at
+        )
+        same = same and (existing.phase == "POST_REVEAL") == post_reveal
+        fit = {
+            (choice.dimension, choice.code)
+            for choice in await self.db.scalars(
+                select(FitChoice).where(FitChoice.observation_id == existing.id)
+            )
+        }
+        sent = {("season", code) for code in data.season_fit or []} | {
+            ("setting", code) for code in data.setting_fit or []
+        }
+        if not same or fit != sent:
+            reject(_KEY_REUSED, 409)
+        return existing
+
+    async def observe_once(
+        self,
+        presentation_id: str,
+        data: ResponseInput,
+        username: str,
+        admin: bool,
+        post_reveal: bool = False,
+    ) -> tuple[Observation, bool]:
+        """Append one observation, or answer a same-key replay with the original.
+
+        Args:
+            presentation_id (str): The presentation answered.
+            data (ResponseInput): The submitted answers.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+            post_reveal (bool): Whether this is an informed post-reveal entry.
+
+        Returns:
+            tuple[Observation, bool]: The row, and ``True`` when it already
+                existed (a replay; nothing was written).
+        """
         obj, enrollment = await self.target(presentation_id, username, admin)
+        # #ASSUME: concurrency: target() holds the enrollment row lock, so two
+        # concurrent requests with one key run this check one after the other
+        # and the second sees the first's committed row.
+        # #VERIFY: the unique constraint (presentation_id, idempotency_key)
+        # is the backstop; tests/integration/test_r8_hardening_postgres.py
+        # proves PostgreSQL rejects a second row with the same key.
+        replay = await self._replayed(obj, data, post_reveal)
+        if replay is not None:
+            return replay, True
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
         identity_visible = post_reveal_entry(enrollment, member, obj)
@@ -547,7 +658,12 @@ class CalibrationService:
                     )
                 )
         await self.db.flush()
-        return observation
+        # R8 option C: eligible once its stage is locked and no flag covers it.
+        await TrainingEligibilityService(self.db).observation_written(
+            observation, actor=username
+        )
+        await self.db.flush()
+        return observation, False
 
     async def session_target(
         self, session_id: str, username: str, admin: bool
@@ -750,6 +866,11 @@ class CalibrationService:
             obj.blotter_locked_at = obj.blotter_locked_at or now_naive_utc()
         else:
             obj.skin_locked_at = obj.skin_locked_at or now_naive_utc()
+        await self.db.flush()
+        # R8 option C: a locked stage's unflagged observations become eligible.
+        await TrainingEligibilityService(self.db).stage_locked(
+            obj, stage, actor=username
+        )
         await self.db.flush()
 
     async def reveal(self, enrollment_id: str, username: str, admin: bool) -> None:

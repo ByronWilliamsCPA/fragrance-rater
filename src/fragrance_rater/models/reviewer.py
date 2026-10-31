@@ -10,10 +10,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Index, String, func, text
+from sqlalchemy import Index, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, utc_now
 
 if TYPE_CHECKING:
     from fragrance_rater.models.evaluation import Evaluation
@@ -60,7 +60,7 @@ class Reviewer(Base):
     )
     name: Mapped[str] = mapped_column(String(100), index=True)
     created_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now()
+        default=utc_now(), server_default=utc_now()
     )
     # Critical finding 2: soft-delete, mirroring Fragrance.deleted_at. Every
     # read query against this table must filter WHERE deleted_at IS NULL;

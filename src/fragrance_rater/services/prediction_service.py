@@ -27,6 +27,7 @@ from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.prediction import PredictionSnapshot
 from fragrance_rater.models.reviewer import Reviewer
+from fragrance_rater.models.soft_delete import is_live
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -61,13 +62,13 @@ class PredictionService:
     ) -> PredictionSnapshot:
         """Freeze a predicted rating for one evaluator/fragrance pair."""
         reviewer = await self.db.get(Reviewer, data.reviewer_id)
-        if reviewer is None or reviewer.deleted_at is not None:
+        if not is_live(reviewer):
             message = "reviewer not found"
             raise ResourceNotFoundError(
                 message, resource_type="Reviewer", resource_id=data.reviewer_id
             )
         fragrance = await self.db.get(Fragrance, data.fragrance_id)
-        if fragrance is None or fragrance.deleted_at is not None:
+        if not is_live(fragrance):
             message = "fragrance not found"
             raise ResourceNotFoundError(
                 message, resource_type="Fragrance", resource_id=data.fragrance_id
@@ -183,8 +184,7 @@ class PredictionService:
         """Reject an ordinary outcome that cannot honestly test this prediction."""
         evaluation = await self.db.get(Evaluation, evaluation_id)
         if (
-            evaluation is None
-            or evaluation.deleted_at is not None
+            not is_live(evaluation)
             or evaluation.reviewer_id != prediction.reviewer_id
             or evaluation.fragrance_id != prediction.fragrance_id
             or self._naive_utc(evaluation.evaluated_at) < prediction.created_at
@@ -241,10 +241,8 @@ class PredictionService:
             or membership.fragrance_id != prediction.fragrance_id
             or enrollment.reviewer_id != prediction.reviewer_id
             or observation.created_at < prediction.created_at
-            or reviewer is None
-            or reviewer.deleted_at is not None
-            or fragrance is None
-            or fragrance.deleted_at is not None
+            or not is_live(reviewer)
+            or not is_live(fragrance)
             or prediction.predicted_scale != _CONTROLLED_OUTCOME_SCALE
         ):
             message = (

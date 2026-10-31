@@ -47,7 +47,11 @@ from fragrance_rater.api.calibration import router as calibration_router
 from fragrance_rater.api.capture import router as capture_router
 from fragrance_rater.api.house_intake import router as house_intake_router
 from fragrance_rater.api.predictions import router as predictions_router
+from fragrance_rater.api.training_eligibility import (
+    router as training_eligibility_router,
+)
 from fragrance_rater.core.config import settings
+from fragrance_rater.core.database import assert_database_timezone_is_utc, engine
 from fragrance_rater.middleware import (
     CorrelationMiddleware,
     DefaultRateLimitMiddleware,
@@ -84,6 +88,9 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         json_logs=settings.json_logs,
         include_correlation=True,
     )
+    # D-16/Q16: refuse to serve on a non-UTC PostgreSQL session (raises
+    # ConfigurationError); a no-op on SQLite.
+    await assert_database_timezone_is_utc(engine)
     yield
     # Shutdown: nothing to clean up yet (e.g., close connections)
 
@@ -216,4 +223,5 @@ async def root() -> dict[str, str]:
 app.include_router(calibration_router, prefix=settings.api_v1_prefix)
 app.include_router(capture_router, prefix=settings.api_v1_prefix)
 app.include_router(predictions_router, prefix=settings.api_v1_prefix)
+app.include_router(training_eligibility_router, prefix=settings.api_v1_prefix)
 app.include_router(house_intake_router, prefix=settings.api_v1_prefix)

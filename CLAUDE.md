@@ -375,8 +375,9 @@ END BASELINE DEVELOPMENT STANDARDS
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
 > As of 2026-10-30, R1-R5 are done (R4 merged as #149) and R6 PRs 1 and 2 are merged (#151, #157); the 43-version
 > alias decisions wait for the verified manifest. R7a is merged (#160, #161); R7b is merged (#165, #167; consent
-> wording awaits owner approval). R8 PR 1 (schema) is in review, PR 2 not started. The project plan owns milestone
-> status.
+> wording awaits owner approval). R8 PR 1 (schema) is merged (#172); R8 PR 2 (readers on `v_training_rows`,
+> eligibility promotion, triggers, jsonb, UTC, idempotency, checkpoint reproduction) is implemented on
+> `feat/r8-readers-and-hardening` and not yet reviewed. The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 

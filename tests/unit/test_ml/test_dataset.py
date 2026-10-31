@@ -94,6 +94,7 @@ class TestBuildExamples:
         session.add(observation_factory(program["presentations"]["UNIVERSAL_BASELINE"]))
         session.add(
             Evaluation(
+                training_eligibility="eligible",
                 id="ord-1",
                 fragrance_id="extra",
                 reviewer_id="owner",
@@ -122,7 +123,13 @@ class TestBuildExamples:
     ):
         session = program["session"]
         session.add(
-            Evaluation(fragrance_id="extra", reviewer_id="owner", rating=4, notes="hm")
+            Evaluation(
+                training_eligibility="eligible",
+                fragrance_id="extra",
+                reviewer_id="owner",
+                rating=4,
+                notes="hm",
+            )
         )
         await session.flush()
 
@@ -137,7 +144,14 @@ class TestBuildExamples:
     @pytest.mark.asyncio
     async def test_ordinary_row_has_no_controlled_target(self, program):
         session = program["session"]
-        session.add(Evaluation(fragrance_id="extra", reviewer_id="owner", rating=4))
+        session.add(
+            Evaluation(
+                training_eligibility="eligible",
+                fragrance_id="extra",
+                reviewer_id="owner",
+                rating=4,
+            )
+        )
         await session.flush()
 
         (row,) = await build_examples(session, "owner", target="would_buy")
@@ -209,7 +223,10 @@ class TestBuildExamples:
 
         (blind,) = await build_examples(session, "owner")
         assert blind.contributed_to_affinity_v1 is False
-        assert blind.program_id == program["program"].id
+        # R8 (X-06): v_training_rows withholds the program, so a trainer row
+        # built from it carries none; only a pre-R8 frozen manifest's
+        # program_id is replayed (test_pre_r8_manifest_keeps_its_program).
+        assert blind.program_id is None
         assert blind.phase == "PRE_REVEAL"
         assert blind.stage == "BLOTTER"
 
@@ -222,7 +239,14 @@ class TestBuildExamples:
     async def test_include_flags_select_workflows(self, program, observation_factory):
         session = program["session"]
         session.add(observation_factory(program["presentations"]["UNIVERSAL_BASELINE"]))
-        session.add(Evaluation(fragrance_id="extra", reviewer_id="owner", rating=4))
+        session.add(
+            Evaluation(
+                training_eligibility="eligible",
+                fragrance_id="extra",
+                reviewer_id="owner",
+                rating=4,
+            )
+        )
         await session.flush()
 
         ordinary_only = await build_examples(session, "owner", include_controlled=False)
@@ -243,7 +267,14 @@ class TestBuildExamples:
         session = program["session"]
         session.add(observation_factory(program["presentations"]["HOLDOUT"]))
         session.add(observation_factory(program["presentations"]["HIDDEN_REPEAT"]))
-        session.add(Evaluation(fragrance_id="holdout", reviewer_id="owner", rating=5))
+        session.add(
+            Evaluation(
+                training_eligibility="eligible",
+                fragrance_id="holdout",
+                reviewer_id="owner",
+                rating=5,
+            )
+        )
         await session.flush()
 
         assert await build_examples(session, "owner") == []
@@ -251,7 +282,14 @@ class TestBuildExamples:
     @pytest.mark.asyncio
     async def test_unknown_target_rejected_by_builder(self, program):
         session = program["session"]
-        session.add(Evaluation(fragrance_id="extra", reviewer_id="owner", rating=4))
+        session.add(
+            Evaluation(
+                training_eligibility="eligible",
+                fragrance_id="extra",
+                reviewer_id="owner",
+                rating=4,
+            )
+        )
         await session.flush()
         with pytest.raises(ValueError, match="unsupported target"):
             await build_examples(session, "owner", target="vibes")
@@ -280,6 +318,39 @@ class TestRowsFromManifest:
         assert (row.scale, row.observed_at, row.label) == ("0-10", "", 8.0)
         assert row.features.feature_space_version == "fs-v0"
         assert row.contributed_to_affinity_v1 is False
+
+    def test_pre_r8_manifest_keeps_its_program(self):
+        """A frozen pre-R8 manifest replays with its program and reveal gate."""
+        manifest = [
+            {
+                "workflow": "CONTROLLED",
+                "id": "o1",
+                "fragrance_id": "f1",
+                "rating": 8,
+                "program_id": "p1",
+                "source_features": {},
+            }
+        ]
+        (revealed,) = rows_from_manifest("owner", manifest, revealed_program_ids={"p1"})
+        (blind,) = rows_from_manifest("owner", manifest)
+        assert revealed.program_id == "p1"
+        assert revealed.contributed_to_affinity_v1 is True
+        assert blind.contributed_to_affinity_v1 is False
+
+    def test_view_manifest_reveal_flag_drives_the_contribution(self):
+        """A view-built row has no program; its ``revealed`` flag decides."""
+        row = {
+            "workflow": "CONTROLLED",
+            "id": "o1",
+            "fragrance_id": "f1",
+            "rating": 8,
+            "source_features": {},
+        }
+        (revealed,) = rows_from_manifest("owner", [{**row, "revealed": True}])
+        (blind,) = rows_from_manifest("owner", [{**row, "revealed": False}])
+        assert revealed.program_id is None
+        assert revealed.contributed_to_affinity_v1 is True
+        assert blind.contributed_to_affinity_v1 is False
 
 
 class TestToArrays:

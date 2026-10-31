@@ -22,6 +22,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # The API refuses to start against a PostgreSQL session that is not UTC
+    # (R8: assert_database_timezone_is_utc runs in the lifespan), so it needs
+    # a reachable database even though the collection only asserts structure.
+    services:
+      postgres:
+        image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+        env:
+          POSTGRES_USER: fragrance_rater
+          POSTGRES_PASSWORD: fragrance_rater_ci
+          POSTGRES_DB: fragrance_rater
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     # --------------------------------------------------------------------
     # Required GitHub Actions secrets (configure under
     # Settings -> Secrets and variables -> Actions):
@@ -48,6 +66,8 @@ jobs:
       # match it so the "happy path" and "validation error" requests pass
       # the auth check and the "missing API key" request still gets 401.
       FRAGRANCE_RATER_API_KEY: "ci-fixture-key-not-a-secret"
+      # CI-only fixture credentials for the throwaway service container above.
+      DATABASE_URL: postgresql+asyncpg://fragrance_rater:fragrance_rater_ci@localhost:5432/fragrance_rater
 
     steps:
       - name: Harden runner
@@ -80,6 +100,9 @@ jobs:
 
       - name: Install Newman
         run: npm install -g newman@6
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
 
       - name: Start API in background (TEST_MODE stub)
         run: |

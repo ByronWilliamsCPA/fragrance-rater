@@ -9,7 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from fragrance_rater.models.evaluation import Evaluation
+from fragrance_rater.models.soft_delete import live
 from fragrance_rater.services.llm_service import get_llm_service
+from fragrance_rater.services.training_eligibility import TrainingEligibilityService
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -54,7 +56,7 @@ class EvaluationService:
         """
         stmt = (
             select(Evaluation)
-            .where(Evaluation.id == evaluation_id, Evaluation.deleted_at.is_(None))
+            .where(Evaluation.id == evaluation_id, live(Evaluation))
             .options(
                 selectinload(Evaluation.fragrance),
                 selectinload(Evaluation.reviewer),
@@ -74,9 +76,7 @@ class EvaluationService:
         """
         stmt = (
             select(Evaluation)
-            .where(
-                Evaluation.reviewer_id == reviewer_id, Evaluation.deleted_at.is_(None)
-            )
+            .where(Evaluation.reviewer_id == reviewer_id, live(Evaluation))
             .options(selectinload(Evaluation.fragrance))
             .order_by(
                 Evaluation.evaluated_at.desc(),
@@ -98,9 +98,7 @@ class EvaluationService:
         """
         stmt = (
             select(Evaluation)
-            .where(
-                Evaluation.fragrance_id == fragrance_id, Evaluation.deleted_at.is_(None)
-            )
+            .where(Evaluation.fragrance_id == fragrance_id, live(Evaluation))
             .options(selectinload(Evaluation.reviewer))
             .order_by(
                 Evaluation.evaluated_at.desc(),
@@ -128,7 +126,7 @@ class EvaluationService:
             .where(
                 Evaluation.reviewer_id == reviewer_id,
                 Evaluation.fragrance_id == fragrance_id,
-                Evaluation.deleted_at.is_(None),
+                live(Evaluation),
             )
             .order_by(
                 Evaluation.evaluated_at.desc(),
@@ -168,6 +166,11 @@ class EvaluationService:
             evaluated_at=data.evaluated_at or now_naive_utc(),
         )
         self.session.add(evaluation)
+        await self.session.flush()
+        # R8 option C: an encounter saved complete through this service is
+        # trainable; the view screens worn-by, holdout, deletion, and ADR-014
+        # cases. Rows written anywhere else keep the `unreviewed` default.
+        TrainingEligibilityService.evaluation_saved(evaluation, actor=recorded_by)
         await self.session.flush()
         self._llm_service.invalidate_reviewer_cache(evaluation.reviewer_id)
         return evaluation

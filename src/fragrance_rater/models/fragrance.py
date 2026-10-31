@@ -22,12 +22,11 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
-    func,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, utc_now
 from fragrance_rater.utils.labels import NOTE_KEY_MAX_LENGTH, normalize_note_key
 
 if TYPE_CHECKING:
@@ -189,10 +188,10 @@ class Fragrance(Base):
 
     # Timestamps
     created_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now()
+        default=utc_now(), server_default=utc_now()
     )
     updated_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now(), onupdate=func.now()
+        default=utc_now(), server_default=utc_now(), onupdate=utc_now()
     )
 
     # Critical finding 2: soft-delete. DELETE routes set this timestamp
@@ -355,7 +354,7 @@ class NoteAlias(Base):
         String(10), default="curated", server_default="curated"
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now()
+        default=utc_now(), server_default=utc_now()
     )
 
     canonical_note: Mapped[Note] = relationship(back_populates="aliases")
@@ -430,7 +429,7 @@ class AccordType(Base):
     code: Mapped[str] = mapped_column(String(50), primary_key=True)
     label: Mapped[str] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now()
+        default=utc_now(), server_default=utc_now()
     )
 
 
@@ -506,5 +505,5 @@ class FragranceGtin(Base):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now()
+        default=utc_now(), server_default=utc_now()
     )

@@ -17,6 +17,7 @@ from fragrance_rater.models.calibration import (
 )
 from fragrance_rater.models.evaluation import Evaluation
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
+from fragrance_rater.models.soft_delete import live
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -100,7 +101,7 @@ class PreferenceHistoryService:
                 .where(
                     Evaluation.reviewer_id == reviewer_id,
                     Evaluation.worn_by_reviewer_id.is_(None),
-                    Evaluation.deleted_at.is_(None),
+                    live(Evaluation),
                 )
                 .order_by(
                     Evaluation.evaluated_at.desc(),
@@ -239,7 +240,7 @@ class PreferenceHistoryService:
             fragrance.id: fragrance
             for fragrance in await self.db.scalars(
                 select(Fragrance)
-                .where(Fragrance.id.in_(fragrance_ids), Fragrance.deleted_at.is_(None))
+                .where(Fragrance.id.in_(fragrance_ids), live(Fragrance))
                 .options(
                     selectinload(Fragrance.notes).selectinload(FragranceNote.note),
                     selectinload(Fragrance.accords),

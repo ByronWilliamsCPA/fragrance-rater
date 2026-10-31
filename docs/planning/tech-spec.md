@@ -267,6 +267,17 @@ D2 and D3 must define artifact-size and visualization budgets before implementat
 - Backfills are idempotent, support dry-run collision reports, and record mapping/source versions.
 - Frozen programs, source snapshots, checkpoints, and outcome records are immutable except through
   explicit revision workflows.
+- Enforcement (R8 PR 2, architecture review D-08/Q14): on PostgreSQL, `BEFORE` triggers refuse an
+  update or delete of a controlled observation (except its `training_eligibility`), a checkpoint, its
+  typed predictions, a feature snapshot, a prediction snapshot (except setting its outcome link once),
+  any membership of an active program, and the identity columns of a fragrance a membership
+  references. Programs and source snapshots remain service-enforced only. SQLite (unit tests only)
+  has no triggers.
+- Time (D-16/Q16): timestamps are naive UTC; server defaults are `timezone('utc', now())`, and the
+  API refuses to start when the PostgreSQL session `TimeZone` is not UTC (`ConfigurationError`).
+- Training input (X-05/X-06): trainers and checkpoint manifests read `v_training_rows` only; the
+  role, repeat, and blind linkage it omits is readable only through the manager-only
+  `GET /api/v1/calibration/enrollments/{id}/linkage` (backed by `v_manager_linkage`).
 
 ## Testing strategy
 

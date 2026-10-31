@@ -27,6 +27,7 @@ from fragrance_rater.models.recommendation_measurement import (
     RecommendationRun,
 )
 from fragrance_rater.models.reviewer import Reviewer
+from fragrance_rater.models.soft_delete import is_live, live
 from fragrance_rater.schemas.recommendation_measurement import (
     LinkableOutcome,
     MetricsView,
@@ -68,9 +69,7 @@ class RecommendationMeasurementService:
     ) -> RecommendationRun:
         """Generate candidates and persist the run and impressions atomically."""
         reviewer = await self.db.scalar(
-            select(Reviewer).where(
-                Reviewer.id == data.reviewer_id, Reviewer.deleted_at.is_(None)
-            )
+            select(Reviewer).where(Reviewer.id == data.reviewer_id, live(Reviewer))
         )
         if reviewer is None:
             message = "reviewer not found"
@@ -262,7 +261,7 @@ class RecommendationMeasurementService:
             select(Evaluation).where(
                 Evaluation.reviewer_id == run.reviewer_id,
                 Evaluation.fragrance_id == impression.fragrance_id,
-                Evaluation.deleted_at.is_(None),
+                live(Evaluation),
                 Evaluation.worn_by_reviewer_id.is_(None),
             )
         )
@@ -313,8 +312,7 @@ class RecommendationMeasurementService:
         if data.outcome_evaluation_id:
             evaluation = await self.db.get(Evaluation, data.outcome_evaluation_id)
             if (
-                evaluation is None
-                or evaluation.deleted_at is not None
+                not is_live(evaluation)
                 or evaluation.reviewer_id != run.reviewer_id
                 or evaluation.fragrance_id != impression.fragrance_id
                 or self._naive_utc(evaluation.evaluated_at) < impression.shown_at
@@ -545,7 +543,7 @@ class RecommendationMeasurementService:
         """Persist a pilot failure or recovery event."""
         reviewer = await self.db.scalar(
             select(Reviewer)
-            .where(Reviewer.id == reviewer_id, Reviewer.deleted_at.is_(None))
+            .where(Reviewer.id == reviewer_id, live(Reviewer))
             .with_for_update()
         )
         if reviewer is None:

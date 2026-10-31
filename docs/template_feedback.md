@@ -644,6 +644,48 @@ nox session, and a `GOOGLE_CLOUD_PROJECT=assured-oss-...` line in `.env.example`
 
 ---
 
+### Ruff ISC003 and BasedPyright implicit-concatenation rules conflict
+
+**Priority**: Low
+
+**Issue**: Ruff's ISC rules (selected in the PyStrict group) flag an explicitly concatenated string
+(`"a " + "b"`, ISC003) and ask for implicit concatenation, while BasedPyright strict mode reports
+`reportImplicitStringConcatenation` on implicit concatenation (`"a " "b"`). A long literal that must
+wrap therefore fails one tool or the other; the only clean forms are one over-long line or a
+`str.join`, and the warning baseline silently absorbs the BasedPyright side.
+
+**Context**: R8 PR 2 (2026-10-31): a long CHECK body and a filter description could not be wrapped
+without adding a BasedPyright warning above the 132-warning baseline.
+
+**Suggested Fix**: Pick one side in the template: either disable `reportImplicitStringConcatenation`
+(and keep ISC) or ignore ISC003 and document `" ".join((...))` as the house pattern.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/pyproject.toml` (`[tool.ruff.lint]`, `[tool.basedpyright]`)
+
+---
+
+### Worktree guidance covers the Python environment but not the frontend
+
+**Priority**: Low
+
+**Issue**: The generated CLAUDE.md "Git Worktree Workflow" says each worktree needs
+`uv sync --all-extras`, but a project with a `frontend/` also needs `npm ci` there. Without it,
+`npx tsc -b` resolves a global TypeScript and reports missing `@playwright/test` and Node types, and
+`npx eslint` fails to load `@eslint/js`, which reads like a code problem rather than a missing install.
+
+**Context**: R8 PR 2 (2026-10-31), run in a fresh agent worktree.
+
+**Suggested Fix**: When the template generates a frontend, add `cd frontend && npm ci` to the worktree
+checklist (and to any session-start hook it ships).
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/CLAUDE.md` (Git Worktree Workflow)
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:

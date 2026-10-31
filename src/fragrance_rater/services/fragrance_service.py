@@ -17,6 +17,7 @@ from fragrance_rater.models.fragrance import (
     FragranceNote,
     TrainingEligibility,
 )
+from fragrance_rater.models.soft_delete import is_live, live
 from fragrance_rater.services.vocabulary import VocabularyResolver
 from fragrance_rater.utils.timestamps import now_naive_utc
 
@@ -54,7 +55,7 @@ class FragranceService:
         """
         stmt = (
             select(Fragrance)
-            .where(Fragrance.id == fragrance_id, Fragrance.deleted_at.is_(None))
+            .where(Fragrance.id == fragrance_id, live(Fragrance))
             .options(selectinload(Fragrance.notes).selectinload(FragranceNote.note))
             .options(selectinload(Fragrance.accords))
             .options(selectinload(Fragrance.perfumers))
@@ -75,7 +76,7 @@ class FragranceService:
         # fragrances/evaluations/reviewers must exclude deleted_at IS NOT NULL.
         stmt = (
             select(Fragrance)
-            .where(Fragrance.deleted_at.is_(None))
+            .where(live(Fragrance))
             .options(
                 selectinload(Fragrance.notes).selectinload(FragranceNote.note),
                 selectinload(Fragrance.accords),
@@ -255,7 +256,7 @@ class FragranceService:
                 .with_for_update()
             )
             await self.session.refresh(fragrance)
-            if fragrance.deleted_at is not None:
+            if not is_live(fragrance):
                 return None
             identity_changed = any(
                 getattr(fragrance, field) != update_data[field]

@@ -10,10 +10,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from fragrance_rater.core.database import Base
+from fragrance_rater.core.database import Base, utc_now
 from fragrance_rater.core.vocabulary import DEFAULT_EVIDENCE_TRAINING_ELIGIBILITY
 from fragrance_rater.models.calibration import (
     OWNED_OR_WORN_CODES,
@@ -132,10 +132,10 @@ class Evaluation(Base):
     sillage_rating: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     evaluated_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now()
+        default=utc_now(), server_default=utc_now()
     )
     created_at: Mapped[datetime] = mapped_column(
-        default=func.now(), server_default=func.now()
+        default=utc_now(), server_default=utc_now()
     )
 
     # Critical finding 2: soft-delete, mirroring Fragrance.deleted_at. Every

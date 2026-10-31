@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,11 +44,11 @@ from fragrance_rater.services.calibration_service import (
     activation_instrument_version,
     reject,
 )
+from fragrance_rater.services.checkpoint_service import CheckpointService
 from fragrance_rater.services.consent import ConsentService, load_consent_text
 from fragrance_rater.services.evaluation_service import EvaluationService
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
-from fragrance_rater.services.preference_history import PreferenceHistoryService
 from fragrance_rater.utils.logging import get_logger, log_audit_event
 from fragrance_rater.utils.timestamps import now_naive_utc
 
@@ -403,22 +403,36 @@ async def enrollment(
 
 @router.post("/presentations/{presentation_id}/observations", status_code=201)
 async def observe(
-    presentation_id: str, data: ResponseInput, db: DB, identity: Identity
-) -> dict[str, str]:
-    """Append a blind timepoint."""
-    obj = await CalibrationService(db).observe(presentation_id, data, *actor(identity))
-    return {"id": obj.id}
+    presentation_id: str,
+    data: ResponseInput,
+    db: DB,
+    identity: Identity,
+    response: Response,
+) -> dict[str, object]:
+    """Append a blind timepoint; a same-key retry answers 200 with the original."""
+    obj, replayed = await CalibrationService(db).observe_once(
+        presentation_id, data, *actor(identity)
+    )
+    if replayed:
+        response.status_code = 200
+    return {"id": obj.id, "replayed": replayed}
 
 
 @router.post("/presentations/{presentation_id}/post-reveal", status_code=201)
 async def post_reveal(
-    presentation_id: str, data: ResponseInput, db: DB, identity: Identity
-) -> dict[str, str]:
+    presentation_id: str,
+    data: ResponseInput,
+    db: DB,
+    identity: Identity,
+    response: Response,
+) -> dict[str, object]:
     """Append an informed observation without changing blind responses."""
-    obj = await CalibrationService(db).observe(
+    obj, replayed = await CalibrationService(db).observe_once(
         presentation_id, data, *actor(identity), post_reveal=True
     )
-    return {"id": obj.id}
+    if replayed:
+        response.status_code = 200
+    return {"id": obj.id, "replayed": replayed}
 
 
 @router.post("/presentations/{presentation_id}/exposure")
@@ -682,15 +696,11 @@ async def checkpoint(
     )
     if seen:
         reject("Holdout observations already exist; prospective checkpoint closed")
-    manifest = await PreferenceHistoryService(db).training_manifest(obj.reviewer_id)
-    run = ModelCheckpoint(
-        enrollment_id=obj.id,
-        algorithm_version=data.algorithm_version,
-        manifest=manifest,
-        predictions=data.predictions,
+    # R8 (M-07, M-08, X-17): manifest and digest from v_training_rows, every
+    # reproduction column, a feature snapshot, and typed predictions.
+    run = await CheckpointService(db).create(
+        obj, data.algorithm_version, data.predictions, username
     )
-    db.add(run)
-    await db.flush()
     log_audit_event(
         logger,
         action="checkpoint_create",
@@ -699,6 +709,8 @@ async def checkpoint(
         target_id=run.id,
         enrollment_id=obj.id,
         algorithm_version=data.algorithm_version,
+        input_digest=run.input_digest,
+        feature_snapshot_id=run.feature_snapshot_id,
     )
     return {"id": run.id}
 
@@ -757,6 +769,13 @@ async def checkpoints(
             "created_at": r.created_at.isoformat(),
             "manifest": r.manifest,
             "predictions": r.predictions,
+            "exclusions": r.exclusions,
+            "filters": r.filters,
+            "feature_space_version": r.feature_space_version,
+            "taxonomy_version": r.taxonomy_version,
+            "model_params": r.model_params,
+            "input_digest": r.input_digest,
+            "feature_snapshot_id": r.feature_snapshot_id,
         }
         for r in await db.scalars(
             select(ModelCheckpoint).where(

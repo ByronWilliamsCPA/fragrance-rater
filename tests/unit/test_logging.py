@@ -226,6 +226,14 @@ async def test_lifespan_configures_logging_from_settings(
 
     calls: list[dict[str, object]] = []
     monkeypatch.setattr(main, "setup_logging", lambda **kwargs: calls.append(kwargs))
+    checked: list[object] = []
+
+    async def record_timezone_check(engine: object) -> None:
+        checked.append(engine)
+
+    # The placeholder DATABASE_URL is not a reachable server; the timezone
+    # assertion itself is covered in tests/unit/test_core/test_database.py.
+    monkeypatch.setattr(main, "assert_database_timezone_is_utc", record_timezone_check)
     monkeypatch.setattr(settings, "log_level", "WARNING")
     monkeypatch.setattr(settings, "json_logs", True)
 
@@ -235,3 +243,4 @@ async def test_lifespan_configures_logging_from_settings(
     assert calls == [
         {"level": "WARNING", "json_logs": True, "include_correlation": True}
     ]
+    assert checked == [main.engine]

@@ -171,6 +171,13 @@ class ResponseInput(StrictInput):
     # at skin stage only. Each ticked option becomes one ``FitChoice`` row.
     season_fit: list[SeasonFit] | None = Field(default=None, max_length=7)
     setting_fit: list[SettingFit] | None = Field(default=None, max_length=8)
+    # R8 PR 2 (D-22, Q18): the client's key for this one submission, the same
+    # on every retry of it and fresh for the next. A repeat with the same key
+    # returns the original row; the same key with different answers is a 409.
+    # Optional so older clients keep working; the released form always sends it.
+    idempotency_key: str | None = Field(
+        default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"
+    )
 
     @field_validator("observed_at")
     @classmethod

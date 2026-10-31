@@ -11,6 +11,10 @@ them would destroy encounter, outcome, or frozen-prediction history:
     9ded7f54996c  typed calibration observations (retires the responses blob)
     72fe56efd128  prediction_snapshots
 
+4edb5c967539 (R8 PR 2) downgrades for real (drops its triggers and views,
+converts jsonb back to json, restores the now() defaults) but refuses while
+any observation carries an idempotency key.
+
 Nothing can be downgraded past c731b42e9a01. To roll a production database
 back, restore a verified pre-upgrade backup (docs/deployment/
 p1-release-readiness.md). tests/unit/test_models/test_naming_convention.py
@@ -76,13 +80,29 @@ VIEWS
 -----
 620c8c861268 creates v_training_rows (R8, X-05) over evaluations,
 calibration_observations, calibration_presentations, calibration_memberships,
-calibration_sessions, calibration_enrollments, and fragrances. The models do
-not declare it, so autogenerate and `alembic check` never see it. PostgreSQL
-refuses to drop or retype a column the view reads, and SQLite batch mode
-cannot rebuild a table the view names, so a later migration that alters one
-of those columns runs `DROP VIEW v_training_rows` first and recreates it,
-with the same column list, last. tests/unit/test_models/
-test_training_eligibility.py runs the migration's own view SQL.
+calibration_sessions, calibration_enrollments, and fragrances. 4edb5c967539
+(R8 PR 2) redefines it (adds `revealed` and the latest-answer rule) and adds
+v_manager_linkage (X-06) over the same calibration tables. The models do
+not declare either, so autogenerate and `alembic check` never see them.
+PostgreSQL refuses to drop or retype a column a view reads, and SQLite batch
+mode cannot rebuild a table a view names, so a later migration that alters
+one of those columns drops both views first (`DROP VIEW IF EXISTS
+v_manager_linkage`, then `v_training_rows`) and recreates them last. The
+newest definition is the one the unit suite builds: tests/conftest.py runs
+4edb5c967539's V_TRAINING_ROWS_SQL and V_MANAGER_LINKAGE_SQL after
+create_all(); move that pointer when a later migration redefines a view.
+
+TRIGGERS
+--------
+4edb5c967539 adds BEFORE triggers on PostgreSQL only (D-08, Q14): append-only
+calibration_observations (only training_eligibility may change), frozen
+calibration_checkpoints, calibration_checkpoint_predictions and
+feature_snapshots, frozen prediction_snapshots (only the outcome link may be
+set, once), immutable memberships of an active program, and immutable
+identity columns of a fragrance any membership references. They raise
+SQLSTATE 23001 (an IntegrityError). A test that needs to clean up rows in
+those tables must run inside a transaction it rolls back (see
+tests/integration/test_r8_hardening_postgres.py), not DELETE them.
 
 WRITING A MIGRATION
 -------------------

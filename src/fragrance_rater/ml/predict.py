@@ -17,6 +17,13 @@ manifest for leakage, and writes one ``PredictionSnapshot`` per eligible
 fragrance with the server-built manifest, the model's serialized parameter
 digest, and the digest of the inputs it scored from.
 
+Since R8 (X-05, X-06) the manifest is read from ``v_training_rows``
+(``ml.training_view``) and the profile is built from that same manifest, so
+only ``eligible`` evidence is scored from and frozen, and no training read
+joins the blind mapping. The holdout set is still read from memberships, but
+only to choose prediction *targets* and to audit the manifest, never as
+training input.
+
 What the frozen number is *not*: a calibrated liking prediction. affinity-v1
 returns a bounded, uncalibrated affinity in ``[0, 1]`` (ADR-007), and this
 module maps it onto the declared outcome scale with a fixed, monotone
@@ -38,6 +45,7 @@ from sqlalchemy.orm import selectinload
 
 from fragrance_rater.ml.feature_space import vectorize
 from fragrance_rater.ml.registry import resolve
+from fragrance_rater.ml.training_view import read_training
 from fragrance_rater.models.calibration import (
     CalibrationSession,
     Enrollment,
@@ -47,6 +55,7 @@ from fragrance_rater.models.calibration import (
 )
 from fragrance_rater.models.fragrance import Fragrance, FragranceNote
 from fragrance_rater.models.prediction import PredictionSnapshot
+from fragrance_rater.models.soft_delete import live
 from fragrance_rater.schemas.prediction import PredictionCreate
 from fragrance_rater.services.prediction_service import PredictionService
 from fragrance_rater.services.preference_history import PreferenceHistoryService
@@ -145,22 +154,23 @@ def leakage_check(
     """Return manifest row ids whose fragrance is an assigned holdout.
 
     Cheap insurance for ML structure review X-18: the manifest this module
-    freezes is server-built and ``PreferenceHistoryService`` already filters
+    freezes is server-built and ``v_training_rows`` already filters
     holdouts, so a non-empty result means the exclusion rule regressed or a
     caller substituted a manifest. Either way the run must not proceed.
 
-    # #CRITICAL: data integrity: ``excluded`` must be the exact set the
-    # manifest was built from, not a fresh re-query. A separate query run in
-    # the same transaction should return identical rows, but re-deriving it
-    # here would check the manifest against a set that only coincidentally
-    # matches the one it was actually built from, and would reopen a narrow
-    # TOCTOU window if exclusion state changes mid-transaction.
-    # #VERIFY: callers must pass the same ``excluded`` set used to build
-    # ``manifest`` (see ``predict_and_freeze``); do not reintroduce an
-    # internal re-query of ``excluded_versions``.
+    # #CRITICAL: data integrity: since R8 the manifest comes from
+    # ``v_training_rows``, which applies its own holdout rule in SQL, so
+    # ``excluded`` is an independent read of the same rule in the same
+    # transaction. That independence is the point of the audit: a view or
+    # reader regression shows up here as a mismatch. A membership written
+    # between the two reads in another transaction is not visible to either
+    # under READ COMMITTED once both reads have run in this one.
+    # #VERIFY: callers pass the ``excluded`` set they also use for targets
+    # (see ``predict_and_freeze``); tests/unit/test_ml/test_predict.py's
+    # leaky-manifest test proves a holdout row in the manifest is refused.
 
     Args:
-        excluded (set[str]): The exclusion set the manifest was built from.
+        excluded (set[str]): The holdout set the manifest must not touch.
         manifest (Sequence[dict[str, object]]): Rows to audit.
 
     Returns:
@@ -283,7 +293,7 @@ async def _load_fragrances(
         fragrance.id: fragrance
         for fragrance in await session.scalars(
             select(Fragrance)
-            .where(Fragrance.id.in_(targets), Fragrance.deleted_at.is_(None))
+            .where(Fragrance.id.in_(targets), live(Fragrance))
             .options(
                 selectinload(Fragrance.notes).selectinload(FragranceNote.note),
                 selectinload(Fragrance.accords),
@@ -372,10 +382,11 @@ async def predict_and_freeze(
     spec = scorer.spec
 
     history = PreferenceHistoryService(session)
+    # Targets and the leakage audit only; never training input.
     excluded = await history.excluded_versions(reviewer_id)
-    manifest = await history.training_manifest(reviewer_id, excluded=excluded)
-    # #CRITICAL: data integrity: the manifest is server-built from `excluded`
-    # immediately above, so this should never fire in normal operation. It
+    manifest = (await read_training(session, reviewer_id)).manifest
+    # #CRITICAL: data integrity: the view excludes every holdout in
+    # `excluded`, so this should never fire in normal operation. It
     # exists as insurance against the exclusion rule regressing or a future
     # caller substituting a manifest (ML structure review X-18); a non-empty
     # result means that guarantee already broke somewhere upstream.
@@ -390,9 +401,10 @@ async def predict_and_freeze(
             f"evidence in rows {leaked}; refusing to freeze a prediction"
         )
         raise ValueError(message)
-    profile = await RecommendationService(
-        session, model=scorer
-    ).build_preference_profile(reviewer_id, excluded=excluded)
+    # The profile comes from the very manifest frozen below (M-05).
+    profile = RecommendationService(session, model=scorer).profile_from_manifest(
+        reviewer_id, manifest
+    )
     input_digest = _manifest_digest(manifest)
 
     result = PredictionRunResult(

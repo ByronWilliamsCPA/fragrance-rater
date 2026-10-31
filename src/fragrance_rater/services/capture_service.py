@@ -20,6 +20,10 @@ from fragrance_rater.models.calibration import (
     RankEvent,
 )
 from fragrance_rater.services.calibration_service import CalibrationService, reject
+from fragrance_rater.services.training_eligibility import (
+    TrainingEligibilityService,
+    Transition,
+)
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -249,11 +253,6 @@ class CaptureService:
     ) -> QualityFlag:
         """Raise a quality flag, or close one with a later row.
 
-        Flags describe evidence; they never change or hide it. The ``manager``
-        source needs a manager, and a closing row inherits its target and code
-        from the raised flag it names. Refuses with HTTP 409 when the named flag
-        is not a raised flag, or is already closed.
-
         Args:
             data (QualityFlagInput): The flag to raise or the closing row.
             username (str): The verified caller.
@@ -262,8 +261,37 @@ class CaptureService:
         Returns:
             QualityFlag: The stored row.
         """
+        flag, _ = await self.record_flag_with_eligibility(data, username, admin)
+        return flag
+
+    async def record_flag_with_eligibility(
+        self, data: QualityFlagInput, username: str, admin: bool
+    ) -> tuple[QualityFlag, list[Transition]]:
+        """Raise or close a flag and apply R8's eligibility rules to its rows.
+
+        Flags describe evidence; they never change or hide it. The ``manager``
+        source needs a manager, and a closing row inherits its target and code
+        from the raised flag it names. Refuses with HTTP 409 when the named flag
+        is not a raised flag, or is already closed, and with 403 when a
+        non-manager sends a ``training_outcome``.
+
+        Raising demotes the covered ``unreviewed``/``eligible`` observations to
+        ``questionable``; closing settles the ``questionable`` ones (see
+        ``TrainingEligibilityService.flag_closed``).
+
+        Args:
+            data (QualityFlagInput): The flag to raise or the closing row.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            tuple[QualityFlag, list[Transition]]: The stored row and the
+                eligibility changes it caused.
+        """
         if data.source == "manager" and not admin:
             reject("Only a manager can raise a flag as the manager", 403)
+        if data.training_outcome is not None and not admin:
+            reject("Only a manager can decide training eligibility", 403)
         if data.action == "raised":
             assert data.target_type is not None
             assert data.target_id is not None
@@ -319,7 +347,15 @@ class CaptureService:
         )
         self.db.add(flag)
         await self.db.flush()
-        return flag
+        eligibility = TrainingEligibilityService(self.db)
+        if flag.action == "raised":
+            changes = await eligibility.flag_raised(flag, actor=username)
+        else:
+            changes = await eligibility.flag_closed(
+                flag, outcome=data.training_outcome, actor=username
+            )
+        await self.db.flush()
+        return flag, changes
 
     async def flags(
         self, session_id: str, username: str, admin: bool
