@@ -1,7 +1,7 @@
 ---
 title: "P6 product quality report"
 schema_type: common
-status: published
+status: draft
 owner: core-maintainer
 purpose: "Retain accessibility, responsive, performance, disclosure, and recovery results for P6."
 tags:

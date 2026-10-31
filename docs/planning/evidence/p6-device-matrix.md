@@ -1,7 +1,7 @@
 ---
 title: "P6 authenticated device matrix"
 schema_type: common
-status: published
+status: draft
 owner: core-maintainer
 purpose: "Retain the supported-device and role-journey results for P6."
 tags:
