@@ -48,6 +48,10 @@ program membership is locked. Retain the report and manifest hash.
 
 ## Restore and pre-upgrade inventory
 
+The production render runs a scheduled backup job; see [Backup and Restore](backup-and-restore.md)
+for how it works and for `scripts/verify_restore.py`, which automates the restore-and-compare steps
+below.
+
 1. Take a native PostgreSQL custom-format backup and verify that the command exits successfully.
 2. Restore it into a new PostgreSQL 16 database with no route from application clients.
 3. Record `alembic_version`, PostgreSQL version, table row counts, minimum and maximum
