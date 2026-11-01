@@ -1,12 +1,7 @@
 Version: family-consent-v1
-Status: DRAFT
+Status: APPROVED
 
 # Fragrance pilot: what we record and how it is used
-
-> **DRAFT FOR OWNER APPROVAL.** This text has not been approved. The system refuses to record anyone's
-> consent against a draft. Items marked **[OWNER DECISION]** are policy choices the project has not
-> made yet (capture assessment section 13.11); each must be settled and this notice removed before
-> the status line above is changed to `APPROVED`.
 
 You are being asked to take part in a family fragrance evaluation. You will smell samples without
 being told what they are, and a recorder will write down what you say. This page explains what is
@@ -28,12 +23,14 @@ and humidity of the room. We can also ask one optional question about hormonal c
 
 - Every question has **"I'd rather not say"**. You can skip any or all of them.
 - These answers are more personal than a rating, so they are kept apart from your ratings.
-- **[OWNER DECISION]** Who can see these raw answers, as opposed to a plain "this session may be
-  affected" marker that does not show the details.
+- The detailed answers can be seen by the manager and by the recorder assigned to your sessions. No
+  one else in the household can see them, and other people see your results only as part of the
+  summaries described below.
 
 ## Optional: how your answers may be used
 
-You can say yes or no to each of these on its own.
+You can say yes or no to each of these on its own. Tell the manager your choices and the manager
+records them. The manager will not use your answers for anything you said no to.
 
 - **Household research (`household_research`):** using your answers within our household to compare
   fragrances and understand family preferences.
@@ -41,24 +38,26 @@ You can say yes or no to each of these on its own.
   people, never as your individual answers.
 - **Improving recommendations (`model_training`):** using your answers to teach the recommendation
   system what you and others like.
-- **Sharing outside the household (`research_export`):** sharing your answers outside the household.
-  **[OWNER DECISION]** Whether this is offered at all, to whom, and how names and identifying details
-  are removed first.
+
+Your answers are not shared outside the household, with one exception: short summaries of your
+preferences, with your name, may be processed by an outside AI service (OpenRouter) to write
+recommendation text. That service is set up not to keep what it receives.
 
 ## Changing your mind
 
 You can withdraw any choice at any time by telling the manager. Withdrawing stops that use of your
 answers from then on.
 
-- **[OWNER DECISION]** What happens to answers already recorded: whether they are kept, excluded from
-  future analyses and training, or deleted, and how a deletion reaches backups and audit logs.
-- **[OWNER DECISION]** What happens to summary reports that were already produced before you withdrew.
+- Answers already recorded are kept, not deleted, but they are left out of every future analysis and
+  of training the recommendation system.
+- Summary reports that were already produced before you withdrew stay as they are. Reports made
+  after you withdraw leave your answers out.
 
 ## How long answers are kept
 
-**[OWNER DECISION]** The retention period, and what is done when it ends.
+Answers are kept while the evaluation runs and for 12 months after it ends. After that the
+evaluation database is deleted. When it is deleted, the manager also deletes every backup copy of it.
 
 ## Who to ask
 
-**[OWNER DECISION]** The name of the person who answers questions about this page and handles
-withdrawals.
+Byron Williams, the manager, answers questions about this page and handles withdrawals.
