@@ -18,7 +18,7 @@ from fragrance_rater.models.calibration import (
     SourceSnapshot,
     VersionPerfumer,
 )
-from fragrance_rater.models.fragrance import Fragrance
+from fragrance_rater.models.fragrance import Fragrance, FragranceGtin
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.calibration import (
     EnrollmentInput,
@@ -282,6 +282,44 @@ async def test_a_mismatch_on_an_excluded_legacy_snapshot_does_not_block(protocol
     )
 
     assert member.fragrance_id == "secret-version-2"
+
+
+@pytest.mark.asyncio
+async def test_a_barcode_linked_to_another_version_is_rejected(protocol):
+    """A GTIN names one SKU: adopting it for a different version is refused,
+    even when the only scraped snapshot is excluded legacy evidence."""
+    service, program, *_ = protocol
+    snapshot = SourceSnapshot(
+        fragrance_id="secret-version-1",
+        source_type="manufacturer_provided",
+        permission_state="retain_and_train",
+        fields=["gtin"],
+        source_url="https://example.test/brand",
+        payload={},
+    )
+    service.db.add(snapshot)
+    await service.db.flush()
+    service.db.add(
+        FragranceGtin(
+            gtin="00036000291452",
+            fragrance_id="secret-version-1",
+            source_snapshot_id=snapshot.id,
+        )
+    )
+    await service.db.flush()
+
+    with pytest.raises(HTTPException) as caught:
+        await service.add_member(
+            program.id,
+            MembershipInput(
+                fragrance_id="secret-version-2",
+                role="UNIVERSAL_BASELINE",
+                identity_evidence="Barcode from the bottle",
+                gtin="036000291452",
+            ),
+        )
+
+    assert "already linked to a different catalog version" in str(caught.value.detail)
 
 
 @pytest.mark.asyncio

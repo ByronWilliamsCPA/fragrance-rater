@@ -263,6 +263,8 @@ class TestSourceEvidence:
             "who | | scope",
             "who | 20-09-2026 | scope",
             "who | 2026-13-40 | scope",
+            "who | 20260920 | scope",
+            "who | 2026-W38-7 | scope",
             "a | 2026-09-20 | b | c",
         ],
     )

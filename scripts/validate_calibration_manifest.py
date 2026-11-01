@@ -124,9 +124,13 @@ def validate_manifest(document: object) -> list[str]:
                     "evidence or scope'"
                 )
             else:
+                # fromisoformat also accepts 20260920 and 2026-W38-7 on
+                # Python 3.12, so the round trip pins the YYYY-MM-DD form.
                 try:
-                    date.fromisoformat(parts[1])
+                    canonical = date.fromisoformat(parts[1]).isoformat()
                 except ValueError:
+                    canonical = None
+                if canonical != parts[1]:
                     errors.append(f"{prefix}.source_reference date must be YYYY-MM-DD")
         if has_url:
             try:
