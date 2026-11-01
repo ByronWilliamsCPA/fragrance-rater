@@ -229,10 +229,12 @@ calibration migration has no downgrade path and must never be bypassed with `ale
 
 Confirm liveness and readiness probes, structured-log ingestion, disk and database growth
 alerts, backup schedule and retention, restore ownership, secret rotation for PostgreSQL and
-external services, and the upgrade rollback decision point. The consent text states that OpenRouter does not retain what it receives; the owner confirmed on 2026-11-01 that zero data
-retention is enforced at the API-key level, so confirm it on the production key. OpenRouter or LLM failure must leave
-capture, history, and deterministic recommendation scoring operational. Record who receives an
-alert and the manual/offline capture procedure during a home-connectivity outage.
+external services, and the upgrade rollback decision point. The consent text states that
+OpenRouter does not retain what it receives; the owner confirmed on 2026-11-01 that zero data
+retention is enforced at the API-key level, so confirm it on the production key. OpenRouter or
+LLM failure must leave capture, history, and deterministic recommendation scoring operational.
+Record who receives an alert and the manual/offline capture procedure during a
+home-connectivity outage.
 
 P1 closes only after the core maintainer reviews the manifest, restore logs, before/after
 assertions, concurrency output, disclosure matrix, topology tests, target-environment CI, parser
