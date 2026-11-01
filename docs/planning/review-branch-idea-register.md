@@ -82,9 +82,10 @@ counts and denominators and make no beyond-chance claims. Touches D2 and tech-sp
 
 ## Open question for the owner (undecided)
 
-> **Owner decision, not recommended here.** Most vendor data-licensing outreach was declined on 2026-09-23, with
-> Fragella retained under a paid plan and not as training data. (Owner update 2026-11-01: vendor outreach is
-> complete and no vendor replied; see the ADR-012 amendment of the same date.) Do D2 and D4 survive as currently scoped?
+> **Owner decision, not recommended here.** Fragella is retained under a paid plan and not as training data. The
+> owner recorded on 2026-11-01 that vendor data-licensing outreach is complete and no vendor replied (see the ADR-012
+> amendment of the same date); this supersedes the earlier note that most outreach was declined on 2026-09-23. Do D2
+> and D4 survive as currently scoped?
 
 Options, named without a recommendation: keep D2 and D4 as written; re-scope them to the data actually available
 (descriptive baseline-scale statistics for D2, nominate-verify-score of user-selected candidates for D4); defer

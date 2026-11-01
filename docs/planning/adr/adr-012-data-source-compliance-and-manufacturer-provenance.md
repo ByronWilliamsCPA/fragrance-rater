@@ -208,7 +208,9 @@ Consequences for this ADR:
 - The `vendor_licensed` tier of the 2026-09-21 amendment stays unimplemented, as that amendment already allows.
 - `bounded_lookup` is removed from `SourceSnapshot.source_type` and its CHECK constraints (migration `736b7db082fb`,
   PR #187), because no code path or data uses it.
-- A `source_reference` follows `who | YYYY-MM-DD | evidence or scope`, enforced by the manifest validator (#187).
+- In P1.1 manifest entries only, a `source_reference` follows `who | YYYY-MM-DD | evidence or scope`, enforced by the
+  manifest validator (#187). The persisted `SourceSnapshot.source_reference` column stays free-form text; applying the
+  format there would need a model, migration, and test change and is not decided here.
 - Whether to start a second outreach wave is decided separately and is not part of this amendment.
 
 ## Context

@@ -25,7 +25,7 @@ personal notes, blind codes, mappings, or source payloads.
 
 Copy `data/calibration/baseline-manifest.template.json` to the private evidence directory. One
 entry is required for each program membership. Record a stable membership key, the existing
-fragrance UUID, exact display name, brand, concentration/version key, HTTPS source,
+fragrance UUID, exact display name, brand, concentration/version key, HTTPS `source_url` or a `source_reference`,
 human-readable verification evidence, physical-sample confirmation, role, and repeat membership
 relationship. A hidden repeat uses the exact fragrance UUID and version key of its referenced
 original. An unresolved version is left out of the program rather than guessed.
@@ -58,7 +58,7 @@ no manufacturer packaging to read a barcode or batch from. Identity therefore re
 provenance. For each entry, retain in the private evidence directory: the split organizer's or source's record of the
 parent product (brand, name, concentration), the parent bottle's batch code when the source gives one, the decant
 date, and a two-person check of the decant label against that record. Set the presentation's
-`sample_source_type` to `decant` and fill `sample_decanted_on` when known. Leave `gtin` empty.
+`sample_source_type` to `decant` and fill `sample_decanted_on` when known. Omit `gtin` or set it to `null` (an empty string is rejected).
 
 ## Restore and pre-upgrade inventory
 
