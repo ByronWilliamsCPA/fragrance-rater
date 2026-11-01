@@ -224,10 +224,21 @@ async def test_a_grant_cannot_be_repeated_or_withdrawn_before_it_exists(
     test_app: Any, world: dict[str, str]
 ) -> None:
     assert (
-        await _consent(test_app, world, "research_export", "withdrawn")
+        await _consent(test_app, world, "model_training", "withdrawn")
     ).status_code == 409
 
-    await _consent(test_app, world, "research_export", "granted")
+    await _consent(test_app, world, "model_training", "granted")
+    assert (
+        await _consent(test_app, world, "model_training", "granted")
+    ).status_code == 409
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("approved_consent")
+async def test_research_export_cannot_be_granted_under_this_text(
+    test_app: Any, world: dict[str, str]
+) -> None:
+    """The text forbids outside sharing, so no grant may be stamped with it."""
     assert (
         await _consent(test_app, world, "research_export", "granted")
     ).status_code == 409

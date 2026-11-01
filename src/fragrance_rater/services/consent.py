@@ -96,6 +96,9 @@ def load_consent_text(path: Path = CONSENT_TEXT_PATH) -> ConsentText:
     )
 
 
+UNOFFERED_SCOPES = frozenset({"research_export"})
+
+
 class ConsentService:
     """Record and read consent events for one database session."""
 
@@ -164,7 +167,8 @@ class ConsentService:
     ) -> ConsentEvent:
         """Append a grant or withdrawal, stamped with the shown text.
 
-        Refuses with HTTP 409 for a grant against draft wording, or for a change
+        Refuses with HTTP 409 for a grant against draft wording, a grant of a scope the
+        text does not offer, or for a change
         that would not change the scope's current state.
 
         Args:
@@ -185,6 +189,13 @@ class ConsentService:
                 reject(
                     "The consent text has not been approved; consent cannot be recorded"
                 )
+            # #CRITICAL: security: the shipped text promises answers are never
+            # shared outside the household, so a research_export grant would
+            # be stamped with wording that forbids it. Withdrawals of an
+            # earlier grant stay allowed.
+            # #VERIFY: covered by test_r7b_session_routes.py (research_export grant).
+            if scope in UNOFFERED_SCOPES:
+                reject(f"Consent for {scope} is not offered under this text")
             if current == "granted":
                 reject(f"Consent for {scope} is already granted")
         elif current != "granted":
