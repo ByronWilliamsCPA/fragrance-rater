@@ -375,7 +375,7 @@ END BASELINE DEVELOPMENT STANDARDS
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
 > As of 2026-10-31, R1-R5 are done (R4 merged as #149) and R6 PRs 1 and 2 are merged (#151, #157); the 43-version
 > alias decisions wait for the verified manifest. R7a is merged (#160, #161); R7b's code is merged (#165, #167), its
-> P6.3 acceptance export is still owed, and the consent wording awaits owner approval. R8 PR 1 (schema) is merged
+> P6.3 acceptance export is still owed, and the consent wording was approved on 2026-11-01. R8 PR 1 (schema) is merged
 > (#172); R8 PR 2 (readers on `v_training_rows`, eligibility promotion, triggers, jsonb, UTC, idempotency, checkpoint
 > reproduction) is merged (#181), as is its review follow-up (#182: flag-resolution outcome stored, snapshot race),
 > so R8 is done. R13 is done (#168, #173-#175); R14's P6-gating items are merged (#170, #171, #179) and its
