@@ -14,6 +14,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 import sqlalchemy as sa
+from sqlalchemy import CheckConstraint
+
+from fragrance_rater.models import Base
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -82,6 +85,17 @@ def test_it_follows_the_view_migration() -> None:
 
 def test_the_previous_pair_check_is_the_one_620c8c861268_created() -> None:
     assert MIGRATION.PREVIOUS_PAIR_SQL == R8_PR1._PAIR_CHECK
+
+
+def test_the_migration_checks_equal_the_model_checks() -> None:
+    constraints = {
+        c.name: str(c.sqltext)
+        for c in Base.metadata.tables[MIGRATION.TABLE].constraints
+        if isinstance(c, CheckConstraint)
+    }
+
+    assert constraints[MIGRATION.PAIR_CHECK] == MIGRATION.PAIR_SQL
+    assert constraints[MIGRATION.TYPE_CHECK] == MIGRATION.TYPE_SQL
 
 
 def test_the_new_checks_no_longer_name_the_value() -> None:
