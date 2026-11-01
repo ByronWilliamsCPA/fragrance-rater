@@ -58,7 +58,11 @@ manifest entry additionally requires a `fragrance_id` resolved to a canonical ca
   Authors A City on Fire); every other physical sample is still on order, so
   `physical_sample_confirmed` cannot honestly be `true` for it yet.
 
-P1.1 (`docs/planning/gates/p1.md`) therefore remains **blocked on inventory** even with this
+**Update 2026-11-01:** all 43 fragrances have since been procured, as decants from an initial split between sources
+(no manufacturer packaging); see the decant verification evidence in the
+[P1 runbook](../../deployment/p1-release-readiness.md). The "on order" statements above describe the 2026-09 state.
+
+P1.1 (`docs/planning/gates/p1.md`) therefore remained **blocked on inventory** even with this
 document in place. It is the verified *design* input P1.1 needs once physical samples and source
 verification are complete - see the [P1 gate](../gates/p1.md) for current status. Per-entry
 Parfumo `source_url` resolution (with two open items needing product-owner confirmation) is in

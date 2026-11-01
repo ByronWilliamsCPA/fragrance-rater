@@ -22,7 +22,9 @@ the missing information does not exist. The repository contains an empty
 `data/calibration/baseline-manifest.template.json`, and the
 [P1.1 gate](../gates/p1.md#p11-evidence-2026-09-12) records no catalog-resolved or physically
 confirmed entries. Inventory arrival and brand replies may have changed since those records were
-written; neither is evidenced in this repository as of this check.
+written; neither is evidenced in this repository as of this check. **Update 2026-11-01:** all 43 fragrances are now
+procured, as decants from an initial split between sources, and the brand and vendor outreach closed with no replies
+(see the ADR-012 amendment of 2026-11-01); the counts below are unchanged.
 
 | Coverage measure | Documented count | Interpretation |
 | :--- | ---: | :--- |

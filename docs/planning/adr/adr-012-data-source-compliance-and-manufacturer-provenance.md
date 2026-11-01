@@ -196,6 +196,21 @@ Follow-up (implementation, not part of this decision):
   packet, not in this ADR; this ADR records the durable request-shape and hierarchy decision
   only.
 
+## 2026-11-01 amendment: outreach outcome and source vocabulary
+
+**Decision.** Both outreach paths are complete with no replies: brand outreach (manufacturer confirmations) and
+vendor outreach (licensed data), recorded by the owner on 2026-11-01. No correspondence details are kept here.
+Consequences for this ADR:
+
+- No manufacturer or vendor confirmation exists for any of the 43 baseline and holdout fragrances. Identity evidence
+  rests on the decant source's provenance (all 43 are decants from an initial split between sources) and a
+  two-person label check; see the [P1 runbook](../../deployment/p1-release-readiness.md).
+- The `vendor_licensed` tier of the 2026-09-21 amendment stays unimplemented, as that amendment already allows.
+- `bounded_lookup` is removed from `SourceSnapshot.source_type` and its CHECK constraints (migration `736b7db082fb`,
+  PR #187), because no code path or data uses it.
+- A `source_reference` follows `who | YYYY-MM-DD | evidence or scope`, enforced by the manifest validator (#187).
+- Whether to start a second outreach wave is decided separately and is not part of this amendment.
+
 ## Context
 
 ### The gap
