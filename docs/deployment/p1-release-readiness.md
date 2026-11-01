@@ -46,6 +46,20 @@ uv run python scripts/validate_calibration_manifest.py /secure/path/baseline-man
 Two people should compare the validated manifest with bottle, decant, or retailer labels before
 program membership is locked. Retain the report and manifest hash.
 
+### Source reference format and decant verification (owner decision, 2026-11-01)
+
+An entry needs a `source_url` or a `source_reference`. A `source_reference` is three parts separated by
+`|`: `who | YYYY-MM-DD | evidence or scope`, for example
+`B. Williams | 2026-11-02 | decant label and split record checked against the parent bottle`. The validator
+rejects anything else.
+
+All 43 baseline and holdout fragrances were obtained as decants from an initial split between sources, so there is
+no manufacturer packaging to read a barcode or batch from. Identity therefore rests on the decant source's own
+provenance. For each entry, retain in the private evidence directory: the split organizer's or source's record of the
+parent product (brand, name, concentration), the parent bottle's batch code when the source gives one, the decant
+date, and a two-person check of the decant label against that record. Set the presentation's
+`sample_source_type` to `decant` and fill `sample_decanted_on` when known. Leave `gtin` empty.
+
 ## Restore and pre-upgrade inventory
 
 The production render runs a scheduled backup job; see [Backup and Restore](backup-and-restore.md)
