@@ -21,8 +21,8 @@ for people to read; the digest is what Docker resolves, so a tag that is re-poin
 change what gets built or run.
 
 `renovate.json` keeps the pins current. A package rule enables `pinDigests` for the `dockerfile` and
-`docker-compose` managers, never auto-merges, and holds major-version bumps (Python 3.12, PostgreSQL 16
-and Node 22 change deliberately, not through Renovate). A base-image update arrives as a pull request
+`docker-compose` managers, never auto-merges, and holds major-version bumps (PostgreSQL 16 and Node 22 change
+deliberately, not through Renovate) and restricts the Python image to the 3.12 line. A base-image update arrives as a pull request
 that moves the tag and digest together.
 
 To resolve a digest by hand, read the top-level `Digest:` line, which is the multi-platform index:
@@ -55,7 +55,8 @@ beside the image; there is no key to store or rotate.
 ## Verifying an image before you run it
 
 Run this on the deployment host, or on any machine that can read the registry, before the image is
-started. It needs [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) v2 or later.
+started. It needs [cosign](https://docs.sigstore.dev/cosign/system_config/installation/) v3; the workflow signs
+with v3.0.6, which writes the newer bundle format, and no older client has been shown to verify it.
 Use the digest you intend to deploy, not a tag:
 
 ```bash
@@ -63,7 +64,7 @@ IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater
 DIGEST=sha256:<digest-recorded-for-the-release>
 
 cosign verify \
-  --certificate-identity-regexp '^https://github\.com/ByronWilliamsCPA/fragrance-rater/\.github/workflows/docker-publish\.yml@refs/heads/(main|master)$' \
+  --certificate-identity-regexp '^https://github\.com/ByronWilliamsCPA/fragrance-rater/\.github/workflows/docker-publish\.yml@refs/heads/main$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   "${IMAGE}@${DIGEST}"
 ```
@@ -96,8 +97,11 @@ For the P6 rehearsal and F1, record each verified digest with the other release 
 - **The signing identity is the workflow file path and branch.** Renaming `docker-publish.yml`, or
   publishing from another branch, changes the identity; update the regexp here and in
   `tests/unit/test_image_pinning.py` in the same change.
-- **Only the first run on `main` proves the live path.** The workflow and the verify command are
-  checked locally for syntax, and the sign and verify mechanics are exercised against a throwaway
-  local registry with a key. Keyless signing needs a real GitHub OIDC token and Sigstore's public
-  services, so it cannot be reproduced off GitHub. The first `main` publish after this merges is the
-  evidence; if the in-workflow verify step passes there, the command above passes for a deployer too.
+- **Only the first run on `main` proves the live path.** The workflow is checked with `actionlint`
+  and YAML parsing, and `tests/unit/test_image_pinning.py` guards its shape. Separately, the sign and
+  verify mechanics were run once by hand against a throwaway local registry with a key; that transcript
+  is in the pull request description, not in the repository. That run signs with a key, so it never
+  exercised the keyless identity regexp against a real Fulcio certificate, which is the risky part.
+  Keyless signing needs a real GitHub OIDC token and Sigstore's public services and cannot be
+  reproduced off GitHub. The first `main` publish after this merges is the evidence; if the in-workflow
+  verify step passes there, the command above passes for a deployer too.

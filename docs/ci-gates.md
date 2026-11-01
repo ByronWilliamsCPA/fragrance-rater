@@ -120,9 +120,11 @@ scope for the R1 alignment sweep; see "Known residual gaps" below.
   `python-docker.yml` supports scoping `packages: write` to only the jobs that actually
   push.
 - **Image signing is unproven until the first `main` publish.** `sign-backend` and `sign-frontend`
-  were checked with `actionlint`, YAML parsing, `tests/unit/test_image_pinning.py`, and a sign and
-  verify dry run against a throwaway local registry with a key. Keyless signing needs a real GitHub
-  OIDC token and Sigstore's public services, so the first publish after merge is the evidence. The
+  were checked with `actionlint`, YAML parsing and `tests/unit/test_image_pinning.py`. A one-off
+  key-based sign and verify run against a local registry exercised the mechanics only (its transcript
+  is in the pull request, not the repo), and the keyless identity regexp has never been run against a
+  real Fulcio certificate. Keyless signing needs a real GitHub OIDC token and Sigstore's public
+  services, so the first publish after merge is the evidence. The
   signing identity is the workflow path and branch, and the committed compose files build from source
   rather than pulling the signed images (see [image signing](deployment/image-signing.md)).
 - **Coverage measurement undercounts code reached only through the FastAPI/ASGI test
