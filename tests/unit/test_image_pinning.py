@@ -13,8 +13,16 @@ pytestmark = pytest.mark.unit
 
 ROOT = Path(__file__).resolve().parents[2]
 
-DOCKERFILES = ("Dockerfile", "frontend/Dockerfile")
-COMPOSE_FILES = ("docker-compose.yml", "docker-compose.prod.yml")
+# Globbed, so a Dockerfile or compose file added later is checked without edits here.
+# Top level and one directory down, skipping dot directories (.venv, .worktrees).
+DOCKERFILES = tuple(
+    sorted(
+        str(p.relative_to(ROOT))
+        for p in [*ROOT.glob("Dockerfile*"), *ROOT.glob("*/Dockerfile*")]
+        if not p.relative_to(ROOT).parts[0].startswith(".")
+    )
+)
+COMPOSE_FILES = tuple(sorted(p.name for p in ROOT.glob("docker-compose*.yml")))
 SIGN_JOBS = {"sign-backend": "backend", "sign-frontend": "frontend"}
 
 _DIGEST = r"@sha256:[0-9a-f]{64}"
@@ -22,7 +30,7 @@ _PINNED = re.compile(rf"^[^\s@]+:[^\s@:]+{_DIGEST}$")
 _FULL_SHA = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
 
 # The identity a deployer verifies against, as documented in image-signing.md.
-_IDENTITY_FRAGMENT = r"\.github/workflows/docker-publish\.yml@refs/heads/(main|master)"
+_IDENTITY_FRAGMENT = r"\.github/workflows/docker-publish\.yml@refs/heads/main$"
 _OIDC_ISSUER = "https://token.actions.githubusercontent.com"
 
 
@@ -62,20 +70,37 @@ def unpinned_from_references(dockerfile_text: str) -> list[str]:
         )
         if not match:
             continue
-        image, stage = match.group(1), match.group(2)
-        if image not in stages and image.lower() != "scratch" and not is_pinned(image):
+        image, stage = match.group(1), (match.group(2) or "").lower()
+        if (
+            image.lower() not in stages
+            and image.lower() != "scratch"
+            and not is_pinned(image)
+        ):
             bad.append(image)
         if stage:
             stages.add(stage)
     return bad
 
 
+def from_lines(dockerfile_text: str) -> list[str]:
+    """Return every line that starts a build stage, matched or not."""
+    return [
+        line
+        for line in dockerfile_text.splitlines()
+        if re.match(r"^\s*FROM\s", line, re.IGNORECASE)
+    ]
+
+
 def unpinned_copy_sources(dockerfile_text: str) -> list[str]:
     """Return ``COPY --from=<image>`` sources that name an image without a digest."""
-    stages = set(re.findall(r"\bAS\s+(\S+)", dockerfile_text, re.IGNORECASE))
+    stages = {
+        s.lower() for s in re.findall(r"\bAS\s+(\S+)", dockerfile_text, re.IGNORECASE)
+    }
     sources = re.findall(r"^\s*COPY\s+--from=(\S+)", dockerfile_text, re.MULTILINE)
     return [
-        s for s in sources if s not in stages and not s.isdigit() and not is_pinned(s)
+        s
+        for s in sources
+        if s.lower() not in stages and not s.isdigit() and not is_pinned(s)
     ]
 
 
@@ -92,7 +117,21 @@ def _workflow() -> dict:
 
 @pytest.mark.parametrize("dockerfile", DOCKERFILES)
 def test_every_dockerfile_base_image_is_pinned_by_digest(dockerfile: str) -> None:
-    assert unpinned_from_references(_read(dockerfile)) == []
+    text = _read(dockerfile)
+    assert unpinned_from_references(text) == []
+    # Every FROM line must have been understood by the parser; a line it skipped
+    # (trailing comment, odd flag order) would otherwise pass unchecked.
+    for line in from_lines(text):
+        assert re.match(
+            r"^\s*FROM\s+(?:--\S+\s+)*\S+(?:\s+AS\s+\S+)?\s*$", line, re.IGNORECASE
+        ), f"unparsed FROM line: {line!r}"
+
+
+def test_the_expected_dockerfiles_were_found_and_have_stages() -> None:
+    """Guard against the glob or the parser silently matching nothing."""
+    assert {"Dockerfile", "frontend/Dockerfile"} <= set(DOCKERFILES)
+    assert len(from_lines(_read("Dockerfile"))) >= 2
+    assert len(from_lines(_read("frontend/Dockerfile"))) >= 4
 
 
 @pytest.mark.parametrize("dockerfile", DOCKERFILES)
@@ -188,6 +227,17 @@ def test_renovate_keeps_container_digests_current_without_automerge() -> None:
         rule.get("enabled") is False and rule.get("matchUpdateTypes") == ["major"]
         for rule in rules
     ), "container image major bumps are not held"
+    # python:3.12 to python:3.13 is a minor update, so it needs its own hold.
+    python_hold = [
+        rule
+        for rule in config["packageRules"]
+        if "python" in rule.get("matchPackageNames", [])
+        and "dockerfile" in rule.get("matchManagers", [])
+    ]
+    assert python_hold, "the Python base image is not held to 3.12"
+    allowed = python_hold[0]["allowedVersions"].strip("/")
+    assert re.search(allowed, "3.12-slim")
+    assert not re.search(allowed, "3.13-slim")
 
 
 # ---- Signing workflow -------------------------------------------------------
@@ -227,10 +277,19 @@ def test_signing_is_keyless_by_digest_and_self_verified(sign: str) -> None:
     assert "--key" not in signing[0], "keyless signing takes no key"
 
     assert len(verifying) == 1, "the job must verify what it just signed"
-    assert _IDENTITY_FRAGMENT.replace("\\.", r"\.") in verifying[0]
+    assert _IDENTITY_FRAGMENT in verifying[0]
     assert _OIDC_ISSUER in verifying[0]
     assert '"${IMAGE}@${DIGEST}"' in verifying[0]
-    assert job["env"]["DIGEST"].startswith("${{ needs.")
+
+    # Exact wiring: a sign job that read another job's digest would sign the
+    # wrong image and still verify it, so compare against its own build job.
+    build = SIGN_JOBS[sign]
+    jobs = _workflow()["jobs"]
+    assert job["env"]["DIGEST"] == f"${{{{ needs.{build}.outputs.image-digest }}}}"
+    assert job["env"]["IMAGE"] == "ghcr.io/" + jobs[build]["with"]["image-name"]
+    # The identity is built from the repository, never hard-coded in the step.
+    assert "${REPO}" in verifying[0]
+    assert job["steps"][-1]["env"]["REPO"] == "${{ github.repository }}"
 
 
 @pytest.mark.parametrize("sign", SIGN_JOBS)
@@ -240,12 +299,21 @@ def test_signing_job_actions_are_pinned_to_a_full_commit_sha(sign: str) -> None:
             assert _FULL_SHA.match(step["uses"]), step["uses"]
 
 
-def test_signing_job_installs_cosign_before_it_is_used() -> None:
-    steps = _workflow()["jobs"]["sign-backend"]["steps"]
+@pytest.mark.parametrize("sign", SIGN_JOBS)
+def test_signing_job_installs_a_pinned_cosign_before_it_is_used(sign: str) -> None:
+    steps = _workflow()["jobs"][sign]["steps"]
     uses = [step.get("uses", "") for step in steps]
     install = next(i for i, u in enumerate(uses) if "cosign-installer" in u)
-    sign = next(i for i, s in enumerate(steps) if "cosign sign" in s.get("run", ""))
-    assert install < sign
+    signing = next(i for i, s in enumerate(steps) if "cosign sign" in s.get("run", ""))
+    assert install < signing
+    # An unpinned signer floats with installer bumps; the docs name v3.
+    assert re.fullmatch(r"v3\.\d+\.\d+", steps[install]["with"]["cosign-release"])
+
+
+def test_publish_runs_are_never_cancelled_between_push_and_signing() -> None:
+    """Only pull requests may cancel in progress, or a pushed image can go unsigned."""
+    cancel = _workflow()["concurrency"]["cancel-in-progress"]
+    assert cancel == "${{ github.event_name == 'pull_request' }}"
 
 
 # ---- Documentation ----------------------------------------------------------
