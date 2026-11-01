@@ -120,7 +120,9 @@ services:
     # paths, measured with `docker diff` after serving traffic: the proxy/body temp
     # directories, the pid file, and the conf.d render of default.conf.template
     # (the image's envsubst step writes it at start). The tmpfs mounts are owned by
-    # 1001 so the non-root worker can write them.
+    # 1001 so the non-root worker can write them. tmpfs is charged to this service's
+    # memory limit, so the cache directory is capped well below it: nginx sets no
+    # client_max_body_size, so request bodies stop at its 1m default.
     #
     # nginx listens on port 80 as a non-root user. That needs no NET_BIND_SERVICE
     # capability: this namespaced sysctl lowers the unprivileged-port floor for the
@@ -129,7 +131,7 @@ services:
     sysctls:
       net.ipv4.ip_unprivileged_port_start: 0
     tmpfs:
-      - /var/cache/nginx:uid=1001,gid=1001,mode=0755,size=64m,noexec,nosuid,nodev
+      - /var/cache/nginx:uid=1001,gid=1001,mode=0755,size=16m,noexec,nosuid,nodev
       - /run:uid=1001,gid=1001,mode=0755,size=1m,noexec,nosuid,nodev
       - /etc/nginx/conf.d:uid=1001,gid=1001,mode=0755,size=1m,noexec,nosuid,nodev
     volumes: !reset []
@@ -184,6 +186,14 @@ services:
     # it creates and prunes only its own root-owned dumps. Running as 70:70 would
     # need a root-owned init step to chown the volume first, which is a larger
     # privileged surface than this; revisit if the volume is ever pre-provisioned.
+    #
+    # #ASSUME: external resources: root with no DAC_OVERRIDE is "other" to a file it
+    # does not own, so the bind-mounted scripts/backup_database.sh must be readable
+    # and executable by everyone on the deploy host (mode 755, which is what git
+    # checks out unless the umask is tighter than 022).
+    # #VERIFY: `ls -l scripts/backup_database.sh` shows r-x for other, and
+    # `backup_database.sh check` is healthy after the first backup (see
+    # docs/deployment/backup-and-restore.md).
     <<: *hardened
     image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     entrypoint: ["/bin/sh", "-c"]
