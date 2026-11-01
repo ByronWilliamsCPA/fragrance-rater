@@ -135,7 +135,22 @@
       ]
     },
     {
-      "description": "Container base image major holds: Python is pinned to 3.12 (R1), PostgreSQL to 16 (a major bump needs a dump and restore, not an image swap), Node to 22. Digest and minor/patch refreshes still flow through the rule above; change a major deliberately, not through Renovate.",
+      "description": "Python base image hold: python:3.12-slim to python:3.13-slim is a minor update under Renovate's docker versioning, so the major hold below never sees it. Restrict the image to the 3.12 line (R1 decision, requires-python ==3.12.*); digest refreshes within 3.12 still flow.",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "python"
+      ],
+      "allowedVersions": "/^3\\.12(?:[.-]|$)/",
+      "labels": [
+        "dependencies",
+        "docker",
+        "python-version"
+      ]
+    },
+    {
+      "description": "Container base image major holds: PostgreSQL is pinned to 16 (a major bump needs a dump and restore, not an image swap) and Node to 22. Python is held by the rule above. Digest and minor/patch refreshes still flow through the pin rule; change a major deliberately, not through Renovate.",
       "matchManagers": [
         "dockerfile",
         "docker-compose"
