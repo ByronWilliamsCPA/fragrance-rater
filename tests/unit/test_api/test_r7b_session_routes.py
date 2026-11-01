@@ -118,7 +118,8 @@ def test_the_shipped_text_names_the_manager_and_makes_no_outside_sharing_offer()
 
     assert "Byron Williams" in body
     assert "research_export" not in body
-    assert "never shared outside the household" in body
+    assert "not shared outside the household" in body
+    assert "OpenRouter" in body
 
 
 @pytest.mark.asyncio

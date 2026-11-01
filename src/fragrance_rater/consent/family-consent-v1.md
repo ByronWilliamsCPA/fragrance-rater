@@ -39,7 +39,9 @@ records them. The manager will not use your answers for anything you said no to.
 - **Improving recommendations (`model_training`):** using your answers to teach the recommendation
   system what you and others like.
 
-Your answers are never shared outside the household.
+Your answers are not shared outside the household, with one exception: short summaries of your
+preferences, with your name, may be processed by an outside AI service (OpenRouter) to write
+recommendation text. That service is set up not to keep what it receives.
 
 ## Changing your mind
 
@@ -54,8 +56,7 @@ answers from then on.
 ## How long answers are kept
 
 Answers are kept while the evaluation runs and for 12 months after it ends. After that the
-evaluation database is deleted. Backups made before then are removed as they age out, which is 14
-days by default.
+evaluation database is deleted. When it is deleted, the manager also deletes every backup copy of it.
 
 ## Who to ask
 
