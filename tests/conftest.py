@@ -263,13 +263,22 @@ def _head_view_sql() -> tuple[str, str]:
     """
     import importlib.util
 
-    path = next((PROJECT_ROOT / "alembic" / "versions").glob("4edb5c967539_*.py"))
-    spec = importlib.util.spec_from_file_location("r8_pr2_migration", path)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return str(module.V_TRAINING_ROWS_SQL), str(module.V_MANAGER_LINKAGE_SQL)
+    versions = PROJECT_ROOT / "alembic" / "versions"
+
+    def load(prefix: str, name: str):
+        path = next(versions.glob(f"{prefix}_*.py"))
+        spec = importlib.util.spec_from_file_location(name, path)
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    # 52e22be935d3 last redefined v_training_rows; v_manager_linkage is still
+    # 4edb5c967539's.
+    training = load("52e22be935d3", "r8_training_view_migration")
+    linkage = load("4edb5c967539", "r8_pr2_migration")
+    return str(training.V_TRAINING_ROWS_SQL), str(linkage.V_MANAGER_LINKAGE_SQL)
 
 
 V_TRAINING_ROWS_SQL, V_MANAGER_LINKAGE_SQL = _head_view_sql()

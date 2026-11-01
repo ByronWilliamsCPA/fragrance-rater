@@ -82,15 +82,17 @@ VIEWS
 calibration_observations, calibration_presentations, calibration_memberships,
 calibration_sessions, calibration_enrollments, and fragrances. 4edb5c967539
 (R8 PR 2) redefines it (adds `revealed` and the latest-answer rule) and adds
-v_manager_linkage (X-06) over the same calibration tables. The models do
+v_manager_linkage (X-06) over the same calibration tables. 52e22be935d3
+redefines v_training_rows once more (an `invalidated` later answer no longer
+supersedes an earlier one); v_manager_linkage is unchanged. The models do
 not declare either, so autogenerate and `alembic check` never see them.
 PostgreSQL refuses to drop or retype a column a view reads, and SQLite batch
 mode cannot rebuild a table a view names, so a later migration that alters
 one of those columns drops both views first (`DROP VIEW IF EXISTS
 v_manager_linkage`, then `v_training_rows`) and recreates them last. The
 newest definition is the one the unit suite builds: tests/conftest.py runs
-4edb5c967539's V_TRAINING_ROWS_SQL and V_MANAGER_LINKAGE_SQL after
-create_all(); move that pointer when a later migration redefines a view.
+52e22be935d3's V_TRAINING_ROWS_SQL and 4edb5c967539's V_MANAGER_LINKAGE_SQL
+after create_all(); move that pointer when a later migration redefines a view.
 
 TRIGGERS
 --------

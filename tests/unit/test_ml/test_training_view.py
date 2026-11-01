@@ -203,6 +203,82 @@ async def test_a_later_answer_of_any_code_supersedes_a_controlled_row(
 
 
 @pytest.mark.asyncio
+async def test_an_invalidated_later_answer_does_not_supersede(
+    program, observation_factory
+):
+    """A mistaken duplicate that a manager voided must not cost the good answer."""
+    session = program["session"]
+    presentation = program["presentations"]["UNIVERSAL_BASELINE"]
+    start = now_naive_utc() - timedelta(hours=1)
+    session.add(observation_factory(presentation, liking=3, created_at=start))
+    session.add(
+        observation_factory(
+            presentation,
+            liking=9,
+            created_at=start + timedelta(minutes=5),
+            training_eligibility="invalidated",
+        )
+    )
+    await session.flush()
+
+    manifest = await training_manifest(session, "owner")
+
+    assert [row["rating"] for row in manifest] == [3]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", ["unreviewed", "questionable", "withheld"])
+async def test_only_an_invalidated_later_answer_is_ignored(
+    program, observation_factory, code
+):
+    """Every other code still supersedes: nothing older trains while a newer
+    answer is under review or has been held out."""
+    session = program["session"]
+    presentation = program["presentations"]["UNIVERSAL_BASELINE"]
+    start = now_naive_utc() - timedelta(hours=1)
+    session.add(observation_factory(presentation, liking=3, created_at=start))
+    session.add(
+        observation_factory(
+            presentation,
+            liking=9,
+            created_at=start + timedelta(minutes=5),
+            training_eligibility=code,
+        )
+    )
+    await session.flush()
+
+    assert await training_manifest(session, "owner") == []
+
+
+@pytest.mark.asyncio
+async def test_the_latest_answer_still_wins_past_an_invalidated_one(
+    program, observation_factory
+):
+    session = program["session"]
+    presentation = program["presentations"]["UNIVERSAL_BASELINE"]
+    start = now_naive_utc() - timedelta(hours=1)
+    session.add(observation_factory(presentation, liking=3, created_at=start))
+    session.add(
+        observation_factory(
+            presentation,
+            liking=9,
+            created_at=start + timedelta(minutes=5),
+            training_eligibility="invalidated",
+        )
+    )
+    session.add(
+        observation_factory(
+            presentation, liking=7, created_at=start + timedelta(minutes=10)
+        )
+    )
+    await session.flush()
+
+    manifest = await training_manifest(session, "owner")
+
+    assert [row["rating"] for row in manifest] == [7]
+
+
+@pytest.mark.asyncio
 async def test_the_digest_is_deterministic_and_tracks_every_row(
     program, observation_factory
 ):
