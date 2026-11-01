@@ -255,6 +255,36 @@ async def test_add_member_rejects_gtin_mismatching_source_evidence(protocol):
 
 
 @pytest.mark.asyncio
+async def test_a_mismatch_on_an_excluded_legacy_snapshot_does_not_block(protocol):
+    """Legacy Parfumo rows are excluded evidence (ADR-012): they cannot veto a
+    barcode read off the physical bottle, while a permitted snapshot still can."""
+    service, program, *_ = protocol
+    service.db.add(
+        SourceSnapshot(
+            fragrance_id="secret-version-2",
+            source_type="excluded_legacy",
+            permission_state="excluded_no_new_writes",
+            fields=["gtin"],
+            source_url="https://example.test/legacy-scrape",
+            payload={"gtin": "3508440005953"},
+        )
+    )
+    await service.db.flush()
+
+    member = await service.add_member(
+        program.id,
+        MembershipInput(
+            fragrance_id="secret-version-2",
+            role="UNIVERSAL_BASELINE",
+            identity_evidence="Barcode from the bottle",
+            gtin="036000291452",
+        ),
+    )
+
+    assert member.fragrance_id == "secret-version-2"
+
+
+@pytest.mark.asyncio
 async def test_add_member_ignores_a_raw_gtin_smuggled_via_selection(protocol):
     """`selection` is a client-controlled free-form dict; a raw "gtin" key
     placed there (with the validated top-level `gtin` field omitted) must

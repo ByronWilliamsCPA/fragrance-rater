@@ -208,8 +208,14 @@ class CalibrationService:
             fragrance_id (str): Catalog version being assigned.
             gtin (str): The operator-entered, already check-digit-valid GTIN.
         """
+        # A snapshot whose permission is ``excluded_no_new_writes`` (the legacy
+        # Parfumo rows, ADR-012) is not evidence this project may act on, so it
+        # cannot veto an operator-entered GTIN; the physical bottle is the check.
         snapshots = await self.db.scalars(
-            select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
+            select(SourceSnapshot).where(
+                SourceSnapshot.fragrance_id == fragrance_id,
+                SourceSnapshot.permission_state != "excluded_no_new_writes",
+            )
         )
         normalized_gtin = normalize_gtin(gtin)
         for snapshot in snapshots:
