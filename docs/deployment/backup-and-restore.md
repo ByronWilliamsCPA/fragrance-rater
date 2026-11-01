@@ -103,3 +103,15 @@ pg_restore --no-owner --no-privileges --exit-on-error --dbname <new-database> \
 Stop the application first, restore into a **new** database, check it with
 `scripts/p1_migration_inventory.py`, and only then point the application at it. Never restore over
 the only copy of the data you have.
+
+## Retiring the evaluation database
+
+The participant consent text promises that the manager deletes every backup copy when the evaluation
+database is deleted (12 months after the evaluation ends). The backup job keeps its newest
+`BACKUP_KEEP_MIN` dumps whatever their age and prunes only after a successful backup, so it does not
+do this on its own. At retirement:
+
+1. Stop the backup job so it cannot write a new dump.
+2. Delete every `fragrance_rater-*.dump` file with its `.sha256` and `.json` sidecars from the backup
+   directory, and from any off-host copy (see "Getting backups off the host").
+3. Record the date and who did it in the release records.

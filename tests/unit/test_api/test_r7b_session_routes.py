@@ -92,33 +92,46 @@ async def world(test_app: Any) -> dict[str, str]:
 # --- the consent text ------------------------------------------------------
 
 
-def test_the_shipped_consent_text_is_a_draft() -> None:
-    """Until a person approves the wording, no consent can be recorded."""
+def test_the_shipped_consent_text_is_approved() -> None:
+    """The owner approved this wording on 2026-11-01; its hash is what consent events store."""
     text = load_consent_text()
 
-    assert text.status == "DRAFT"
-    assert text.approved is False
+    assert text.status == "APPROVED"
+    assert text.approved is True
     assert text.version == "family-consent-v1"
     assert len(text.sha256) == 64
 
 
-def test_the_shipped_text_marks_every_open_policy_decision() -> None:
+def test_the_shipped_text_has_no_open_decisions_or_draft_notice() -> None:
+    """An approved text must never carry placeholders into a participant's consent."""
     body = load_consent_text().body
 
-    assert body.count("[OWNER DECISION]") >= 5
+    assert "[OWNER DECISION]" not in body
+    assert "DRAFT" not in body
     assert "never depends on saying yes" in body
 
 
+def test_the_shipped_text_names_the_manager_and_makes_no_outside_sharing_offer() -> (
+    None
+):
+    body = load_consent_text().body
+
+    assert "Byron Williams" in body
+    assert "research_export" not in body
+    assert "not shared outside the household" in body
+    assert "OpenRouter" in body
+
+
 @pytest.mark.asyncio
-async def test_the_consent_text_route_reports_the_draft(test_app: Any) -> None:
+async def test_the_consent_text_route_reports_the_approved_text(test_app: Any) -> None:
     response = await test_app.get(f"{PREFIX}/consent/text", headers=RECORDER)
 
     assert response.status_code == 200
     body = response.json()
-    assert body["approved"] is False
+    assert body["approved"] is True
     assert body["version"] == "family-consent-v1"
     assert body["sha256"] == load_consent_text().sha256
-    assert "DRAFT FOR OWNER APPROVAL" in body["text"]
+    assert "DRAFT" not in body["text"]
 
 
 # --- consent events --------------------------------------------------------
@@ -126,8 +139,17 @@ async def test_the_consent_text_route_reports_the_draft(test_app: Any) -> None:
 
 @pytest.mark.asyncio
 async def test_consent_cannot_be_recorded_against_draft_wording(
-    test_app: Any, world: dict[str, str]
+    test_app: Any, world: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The guard still holds for any text that is not approved (the shipped one is)."""
+    draft = ConsentText(
+        version="family-consent-v1",
+        status="DRAFT",
+        sha256="c" * 64,
+        body="Version: family-consent-v1\nStatus: DRAFT\n\nDraft test wording.\n",
+    )
+    monkeypatch.setattr(consent_module, "load_consent_text", lambda: draft)
+    monkeypatch.setattr(calibration_api, "load_consent_text", lambda: draft)
     response = await test_app.post(
         f"{PREFIX}/reviewers/{world['reviewer_id']}/consent",
         json={"scope": "session_context", "event_type": "granted"},
@@ -203,10 +225,21 @@ async def test_a_grant_cannot_be_repeated_or_withdrawn_before_it_exists(
     test_app: Any, world: dict[str, str]
 ) -> None:
     assert (
-        await _consent(test_app, world, "research_export", "withdrawn")
+        await _consent(test_app, world, "model_training", "withdrawn")
     ).status_code == 409
 
-    await _consent(test_app, world, "research_export", "granted")
+    await _consent(test_app, world, "model_training", "granted")
+    assert (
+        await _consent(test_app, world, "model_training", "granted")
+    ).status_code == 409
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures("approved_consent")
+async def test_research_export_cannot_be_granted_under_this_text(
+    test_app: Any, world: dict[str, str]
+) -> None:
+    """The text forbids outside sharing, so no grant may be stamped with it."""
     assert (
         await _consent(test_app, world, "research_export", "granted")
     ).status_code == 409

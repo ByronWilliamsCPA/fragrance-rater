@@ -23,7 +23,7 @@ from fragrance_rater.models.calibration import (
     SessionContext,
     SourceSnapshot,
 )
-from fragrance_rater.models.fragrance import Fragrance
+from fragrance_rater.models.fragrance import Fragrance, FragranceGtin
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.models.soft_delete import is_live
 from fragrance_rater.services.consent import ConsentService
@@ -208,10 +208,24 @@ class CalibrationService:
             fragrance_id (str): Catalog version being assigned.
             gtin (str): The operator-entered, already check-digit-valid GTIN.
         """
+        # A snapshot whose permission is ``excluded_no_new_writes`` (the legacy
+        # Parfumo rows, ADR-012) is not evidence this project may act on, so it
+        # cannot veto an operator-entered GTIN; the physical bottle is the check.
         snapshots = await self.db.scalars(
-            select(SourceSnapshot).where(SourceSnapshot.fragrance_id == fragrance_id)
+            select(SourceSnapshot).where(
+                SourceSnapshot.fragrance_id == fragrance_id,
+                SourceSnapshot.permission_state != "excluded_no_new_writes",
+            )
         )
         normalized_gtin = normalize_gtin(gtin)
+        # #ASSUME: data-integrity: a GTIN names exactly one SKU, so a barcode
+        # already linked (FragranceGtin, written by manufacturer adoption) to a
+        # different version means the wrong version is about to be assigned. This
+        # holds even when the only snapshot that would have said so is excluded.
+        # #VERIFY: test_a_barcode_linked_to_another_version_is_rejected.
+        holder = await self.db.get(FragranceGtin, normalized_gtin)
+        if holder is not None and holder.fragrance_id != fragrance_id:
+            reject("Entered GTIN is already linked to a different catalog version")
         for snapshot in snapshots:
             source_gtin = snapshot.payload.get("gtin")
             if not isinstance(source_gtin, str) or not source_gtin:
