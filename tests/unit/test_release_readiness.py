@@ -209,7 +209,9 @@ class TestSourceEvidence:
 
     def test_source_reference_only_is_sufficient(self) -> None:
         validator = load_script("validate_calibration_manifest")
-        entry = valid_entry(source_reference="Email from brand rep, 2026-09-20")
+        entry = valid_entry(
+            source_reference="B. Williams | 2026-09-20 | decant label check"
+        )
         del entry["source_url"]
         assert validator.validate_manifest(_document_with_entry(entry)) == []
 
@@ -217,7 +219,7 @@ class TestSourceEvidence:
         validator = load_script("validate_calibration_manifest")
         entry = valid_entry(
             source_url="https://example.test/scent",
-            source_reference="Email from brand rep, 2026-09-20",
+            source_reference="B. Williams | 2026-09-20 | decant label check",
         )
         assert validator.validate_manifest(_document_with_entry(entry)) == []
 
@@ -252,6 +254,29 @@ class TestSourceEvidence:
         assert any(
             "source_reference must be a non-empty string" in error for error in errors
         )
+
+    @pytest.mark.parametrize(
+        "bad_value",
+        [
+            "Email from brand rep, 2026-09-20",
+            "who | 2026-09-20",
+            "who | | scope",
+            "who | 20-09-2026 | scope",
+            "who | 2026-13-40 | scope",
+            "a | 2026-09-20 | b | c",
+        ],
+    )
+    def test_source_reference_must_follow_the_minimal_format(
+        self, bad_value: str
+    ) -> None:
+        """Reference is who | ISO date | evidence or scope."""
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(source_reference=bad_value)
+        del entry["source_url"]
+
+        errors = validator.validate_manifest(_document_with_entry(entry))
+
+        assert any("source_reference" in error for error in errors)
 
     def test_source_reference_blank_string_is_rejected(self) -> None:
         validator = load_script("validate_calibration_manifest")

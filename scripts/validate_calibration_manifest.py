@@ -6,12 +6,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from fragrance_rater.utils.gtin import is_valid_gtin
 
+SOURCE_REFERENCE_PARTS = 3
 REQUIRED_TEXT = (
     "membership_key",
     "fragrance_id",
@@ -112,6 +114,20 @@ def validate_manifest(document: object) -> list[str]:
             errors.append(
                 f"{prefix} must have a non-empty source_url or source_reference"
             )
+        if has_reference:
+            # A reference is "who | ISO date | evidence or scope", the minimal
+            # record for a physical or decant verification (issue #130).
+            parts = [part.strip() for part in str(source_reference).split("|")]
+            if len(parts) != SOURCE_REFERENCE_PARTS or not all(parts):
+                errors.append(
+                    f"{prefix}.source_reference must be 'who | YYYY-MM-DD | "
+                    "evidence or scope'"
+                )
+            else:
+                try:
+                    date.fromisoformat(parts[1])
+                except ValueError:
+                    errors.append(f"{prefix}.source_reference date must be YYYY-MM-DD")
         if has_url:
             try:
                 parsed = urlparse(source_url)
