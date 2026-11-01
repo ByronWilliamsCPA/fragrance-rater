@@ -146,7 +146,7 @@ and reviewed as P6.1 before P6 can close.
 
 | ID | Work | Acceptance criteria | Retained evidence |
 | :--- | :--- | :--- | :--- |
-| P1.1 | Exact baseline manifest | Every program member has verified brand, name, concentration/version key, source URL or source reference, verification evidence, and physical-sample confirmation; unresolved identities remain unassigned | Versioned manifest and verification report |
+| P1.1 | Exact baseline manifest | Every program member has verified brand, name, concentration/version key, source URL or source reference, verification evidence, and physical-sample confirmation; for decant samples the evidence is the decant source's record of the parent product plus a two-person label check, and physical-sample confirmation means the labelled decant is in hand and checked, with no manufacturer or packaging confirmation required (owner decision, 2026-11-01); unresolved identities remain unassigned | Versioned manifest and verification report |
 | P1.2 | Production backup clone | Record current Alembic revision and row counts; restore a production backup to an isolated PostgreSQL instance | Redacted restore log and pre-upgrade inventory |
 | P1.3 | Live migration | Upgrade the clone through the declared Alembic head; preserve IDs, encounter counts, ratings, and timestamps; validate constraints and query plans | Migration log, before/after assertions, schema dump/hash |
 | P1.4 | Concurrency | Concurrent ordinary encounter writes and controlled observation/lock attempts preserve all valid records and reject invalid state transitions deterministically | Automated PostgreSQL concurrency results at representative production cardinality; see the P1.4/P1.8 evidence note below for a first automated pass at non-representative scale |
@@ -707,8 +707,11 @@ State only. No deletion has been performed or approved.
   manager-mediated.
 - **Procurement:** all 43 fragrances are procured, as decants from an initial split between sources. There is no
   manufacturer packaging, so identity evidence rests on the decant source's provenance plus a two-person label check
-  (P1 runbook, "Source reference format and decant verification"). P1.1 stays blocked on the verified manifest, not on
-  inventory.
+  (P1 runbook, "Source reference format and decant verification"). The owner accepted that lighter proof for P1.1 on
+  2026-11-01 (decants need no manufacturer or packaging confirmation); P1.1 stays open until the manifest is authored
+  and reviewed to that standard, not for inventory.
+- **OpenRouter:** zero data retention is enforced at the API-key level (owner, 2026-11-01). The consent text relies on
+  it, so P1.10 confirms it on the production key.
 - **Outreach:** brand outreach and vendor outreach are both complete with no replies. A second wave is a separate
   decision.
 - **#129:** the P1.1 criterion now reads "source URL or source reference" (table above); the early R8 delivery is
