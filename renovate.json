@@ -122,6 +122,35 @@
       "pinDigests": true
     },
     {
+      "description": "Keep container base images digest-pinned (R14 PR 3b, review finding S-12). Every FROM, the uv COPY source and the compose postgres images carry name:tag@sha256:...; this rule lets Renovate refresh the digest and the tag together. No automerge: a base-image bump changes what runs in production, so a person reviews it. Major bumps stay with the existing hold rules and manual review.",
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose"
+      ],
+      "pinDigests": true,
+      "automerge": false,
+      "labels": [
+        "dependencies",
+        "docker"
+      ]
+    },
+    {
+      "description": "Container base image major holds: Python is pinned to 3.12 (R1), PostgreSQL to 16 (a major bump needs a dump and restore, not an image swap), Node to 22. Digest and minor/patch refreshes still flow through the rule above; change a major deliberately, not through Renovate.",
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": false,
+      "labels": [
+        "dependencies",
+        "docker",
+        "breaking-change"
+      ]
+    },
+    {
       "description": "Pydantic v2 - maintain major version",
       "matchPackageNames": [
         "pydantic",
