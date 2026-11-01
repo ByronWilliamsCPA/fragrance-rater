@@ -207,6 +207,7 @@ nav:
   - Deployment:
       - P1 Release Readiness: deployment/p1-release-readiness.md
       - Backup and Restore: deployment/backup-and-restore.md
+      - Image Pinning and Signing: deployment/image-signing.md
       - P6 Pilot Readiness: deployment/p6-pilot-readiness.md
 
   - Measurement:
