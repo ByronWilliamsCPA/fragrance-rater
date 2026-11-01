@@ -25,6 +25,10 @@ _PLACEHOLDER = re.compile(
 # start on is rejected here too.
 _TRUTHY = {"1", "true", "t", "yes", "y", "on"}
 _REQUIRED_SECRETS = ("FRAGRANCE_RATER_API_KEY", "OPENROUTER_API_KEY")
+# The services the runtime-hardening baseline (S-13) applies to.
+_HARDENED_SERVICES = ("app", "frontend", "db", "backup")
+# Capabilities that undo the point of cap_drop; adding one back is refused.
+_BROAD_CAPABILITIES = frozenset({"ALL", "SYS_ADMIN"})
 
 
 def validate_topology(
@@ -117,6 +121,50 @@ def validate_topology(
     if not isinstance(edge, dict) or not edge.get("external"):
         errors.append("authenticated-edge must be a dedicated external network")
     errors.extend(_backup_errors(services.get("backup")))
+    errors.extend(_hardening_errors(services))
+    return errors
+
+
+def _hardening_errors(services: dict[str, Any]) -> list[str]:
+    """Return violations of the container runtime-hardening baseline (S-13).
+
+    Every long-running production service must start from a read-only root
+    filesystem, drop all Linux capabilities (adding back only what it needs),
+    and refuse privilege escalation through setuid binaries. A regression here
+    is silent: the stack still runs, only with a larger blast radius when one
+    container is compromised.
+
+    Args:
+        services (dict[str, Any]): The rendered ``services`` mapping.
+
+    Returns:
+        list[str]: Human-readable violations; empty when every service complies.
+    """
+    errors: list[str] = []
+    for name in _HARDENED_SERVICES:
+        service = services.get(name)
+        if not isinstance(service, dict):
+            # A missing service is reported by the checks that require it.
+            continue
+        if service.get("read_only") is not True:
+            errors.append(f"service {name} must set read_only: true")
+        cap_drop = {str(cap).upper() for cap in service.get("cap_drop") or []}
+        if "ALL" not in cap_drop:
+            errors.append(f"service {name} must set cap_drop: [ALL]")
+        cap_add = {str(cap).upper() for cap in service.get("cap_add") or []}
+        if cap_add & _BROAD_CAPABILITIES:
+            errors.append(
+                f"service {name} adds a broad capability "
+                f"({', '.join(sorted(cap_add & _BROAD_CAPABILITIES))})"
+            )
+        security_opt = {
+            str(option).strip().lower().replace("=", ":")
+            for option in service.get("security_opt") or []
+        }
+        if "no-new-privileges:true" not in security_opt:
+            errors.append(f"service {name} must set no-new-privileges:true")
+        if service.get("privileged"):
+            errors.append(f"service {name} must not run privileged")
     return errors
 
 
