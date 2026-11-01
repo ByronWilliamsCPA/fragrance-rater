@@ -60,6 +60,10 @@ parent product (brand, name, concentration), the parent bottle's batch code when
 date, and a two-person check of the decant label against that record. Set the presentation's
 `sample_source_type` to `decant` and fill `sample_decanted_on` when known. Omit `gtin` or set it to `null` (an empty string is rejected).
 
+The owner accepted this as sufficient proof for P1.1 on 2026-11-01. For a decant entry, `verification_evidence`
+is a statement of that record and label check, and `physical_sample_confirmed: true` means the labelled decant is in
+hand and was checked by two people. Manufacturer or packaging confirmation is not required.
+
 ## Restore and pre-upgrade inventory
 
 The production render runs a scheduled backup job; see [Backup and Restore](backup-and-restore.md)
@@ -225,9 +229,12 @@ calibration migration has no downgrade path and must never be bypassed with `ale
 
 Confirm liveness and readiness probes, structured-log ingestion, disk and database growth
 alerts, backup schedule and retention, restore ownership, secret rotation for PostgreSQL and
-external services, and the upgrade rollback decision point. OpenRouter or LLM failure must leave
-capture, history, and deterministic recommendation scoring operational. Record who receives an
-alert and the manual/offline capture procedure during a home-connectivity outage.
+external services, and the upgrade rollback decision point. The consent text states that
+OpenRouter does not retain what it receives; the owner confirmed on 2026-11-01 that zero data
+retention is enforced at the API-key level, so confirm it on the production key. OpenRouter or
+LLM failure must leave capture, history, and deterministic recommendation scoring operational.
+Record who receives an alert and the manual/offline capture procedure during a
+home-connectivity outage.
 
 P1 closes only after the core maintainer reviews the manifest, restore logs, before/after
 assertions, concurrency output, disclosure matrix, topology tests, target-environment CI, parser
