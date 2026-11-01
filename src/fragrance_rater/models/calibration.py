@@ -191,11 +191,13 @@ TRAINING_ELIGIBILITY_CHECK = in_check(
 
 # ADR-012 2026-09-15 amendment and issue #130. The ``source_type`` and
 # ``permission_state`` vocabularies are the amendment's own lists.
+# ``bounded_lookup`` (Fragella) was dropped on 2026-11-01: ADR-012 says capped
+# enrichment citations are never written to a SourceSnapshot, and nothing ever
+# wrote one (issue #130).
 SOURCE_TYPES: tuple[str, ...] = (
     "project_owned",
     "manufacturer_provided",
     "open_licensed",
-    "bounded_lookup",
     "excluded_legacy",
 )
 PERMISSION_STATES: tuple[str, ...] = (
@@ -205,8 +207,8 @@ PERMISSION_STATES: tuple[str, ...] = (
 )
 # #ASSUME: data-integrity: the amendment maps each source type to the widest
 # permission it may carry: project-owned, manufacturer-provided, and
-# open-licensed facts may be retained and trained on; a bounded lookup is
-# QC-only; a legacy Parfumo row is excluded. A narrower grant is always
+# open-licensed facts may be retained and trained on; a legacy Parfumo row is
+# excluded. A narrower grant is always
 # allowed (an unattributed or scope-limited manufacturer reply "should not"
 # default to retain_and_train, per ADR-012's Context), a wider one never is.
 # #VERIFY: test_r8_provenance.py asserts every pair outside this
@@ -215,7 +217,6 @@ SOURCE_PERMISSION_PAIRS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("project_owned", ("retain_and_train", "retain_for_qc_only")),
     ("manufacturer_provided", ("retain_and_train", "retain_for_qc_only")),
     ("open_licensed", ("retain_and_train", "retain_for_qc_only")),
-    ("bounded_lookup", ("retain_for_qc_only",)),
     ("excluded_legacy", ("excluded_no_new_writes",)),
 )
 SOURCE_PERMISSION_PAIR_CHECK = " OR ".join(
@@ -1354,8 +1355,7 @@ class SourceSnapshot(Base):
     # schema rejects the same rows.
     __table_args__ = (
         CheckConstraint(
-            "source_type IN ('project_owned', 'manufacturer_provided', "
-            "'open_licensed', 'bounded_lookup', 'excluded_legacy')",
+            in_check("source_type", SOURCE_TYPES, nullable=False),
             name="source_type",
         ),
         CheckConstraint(

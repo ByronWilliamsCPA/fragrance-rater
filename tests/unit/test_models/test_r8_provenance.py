@@ -184,7 +184,24 @@ def test_the_unsanctioned_pairs_include_the_ones_issue_130_names() -> None:
     allowed = dict(SOURCE_PERMISSION_PAIRS)
     assert "retain_and_train" not in allowed["excluded_legacy"]
     assert "excluded_no_new_writes" not in allowed["manufacturer_provided"]
-    assert "retain_and_train" not in allowed["bounded_lookup"]
+
+
+@pytest.mark.asyncio
+async def test_bounded_lookup_is_no_longer_a_source_type(
+    async_session: AsyncSession,
+) -> None:
+    """ADR-012: Fragella citations are never written to a SourceSnapshot."""
+    assert "bounded_lookup" not in SOURCE_TYPES
+    assert "bounded_lookup" not in dict(SOURCE_PERMISSION_PAIRS)
+    fragrance = await _fragrance(async_session)
+    await _rejects(
+        async_session,
+        _snapshot(
+            fragrance.id,
+            source_type="bounded_lookup",
+            permission_state="retain_for_qc_only",
+        ),
+    )
 
 
 @pytest.mark.asyncio

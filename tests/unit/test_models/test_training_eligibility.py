@@ -660,8 +660,10 @@ def _model_checks() -> dict[str, str]:
     rules = {
         "evaluations": ["training_eligibility_valid"],
         "calibration_observations": ["training_eligibility_valid"],
+        # source_permission_pair is rewritten by 736b7db082fb (bounded_lookup
+        # dropped); its parity with the models is asserted in
+        # test_r8_bounded_lookup_migration.py.
         "calibration_source_snapshots": [
-            "source_permission_pair",
             "fields_allowed",
             "content_hash_sha256",
         ],
@@ -691,7 +693,12 @@ def test_the_migration_writes_every_r8_check_exactly_as_the_models_do(
     """Exact text, not just the quoted values: the parity test only compares names."""
     recorder = _recorded_upgrade(monkeypatch)
 
-    assert recorder.checks == _model_checks()
+    written = {
+        name: text
+        for name, text in recorder.checks.items()
+        if name != "ck_calibration_source_snapshots_source_permission_pair"
+    }
+    assert written == _model_checks()
 
 
 def test_the_migration_adds_the_columns_the_models_declare(
