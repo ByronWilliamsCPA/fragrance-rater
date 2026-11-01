@@ -113,6 +113,19 @@ async def test_the_view_has_only_the_declared_columns(session: AsyncSession) -> 
 
 
 @pytest.mark.asyncio
+async def test_the_view_ignores_an_invalidated_later_answer(
+    session: AsyncSession,
+) -> None:
+    """52e22be935d3 reached PostgreSQL: the supersession check exempts ``invalidated``."""
+    definition = await session.scalar(
+        text("SELECT pg_get_viewdef('v_training_rows'::regclass)")
+    )
+
+    assert definition is not None
+    assert "invalidated" in definition
+
+
+@pytest.mark.asyncio
 async def test_existing_rows_default_to_unreviewed(session: AsyncSession) -> None:
     default = await session.scalar(
         text(

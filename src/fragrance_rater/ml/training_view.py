@@ -71,7 +71,10 @@ FILTERS: dict[str, object] = {
     "source": SOURCE,
     "training_eligibility": "eligible",
     "controlled_phase": "PRE_REVEAL",
-    "controlled_selection": "latest locked pre-reveal answer per sample and stage",
+    "controlled_selection": (
+        "latest locked pre-reveal answer per sample and stage; "
+        "an invalidated later answer does not supersede"
+    ),
     "controlled_rating": "liking present; status completed or unrecorded",
     "ordinary_selection": "latest eligible encounter per version, own wear only",
     "excluded_roles": ["HOLDOUT", "HIDDEN_REPEAT"],
