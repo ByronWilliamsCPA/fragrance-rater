@@ -33,6 +33,18 @@ The production override (`docker-compose.prod.yml`) includes a `backup` service 
 A failed run leaves no dump, no partial file, and does not move the marker, so the failure cannot
 be mistaken for a backup.
 
+### How the service is confined
+
+The service runs with a read-only root filesystem, every Linux capability dropped, and
+`no-new-privileges` (architecture review S-13; the shared `x-hardened` block in
+`docker-compose.prod.yml`). It writes only to the `backups` volume. It still runs as root, because
+Docker creates a new named volume root-owned and a non-root user could not write to it; with every
+capability dropped, that root can touch only the files it owns, which are the dumps it created.
+Pruning, the checksum and manifest writes, and the healthcheck were exercised under these controls.
+
+If you copy dumps off the host with a non-root account, they are mode `600` and owned by root, so
+read them with `sudo` or from inside the volume (`docker compose cp backup:/backups/<file> .`).
+
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
 | `BACKUP_INTERVAL_HOURS` | 24 | Hours between backups |

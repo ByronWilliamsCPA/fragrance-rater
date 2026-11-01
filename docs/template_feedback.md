@@ -713,6 +713,36 @@ run on `main` is worth keeping.
 
 ---
 
+### Generated Dockerfile and compose files ship a no-op build arg and no runtime hardening
+
+**Priority**: Medium
+
+**Issue**: The generated compose files pass `BUILD_ENV` as a build arg (`${ENVIRONMENT:-development}` in the
+base file, `production` in the override), but the generated `Dockerfile` never declares `ARG BUILD_ENV`; the
+name appears only in a trailing comment. Development and production images are byte-identical, so the arg
+reads as an environment switch that does nothing. Separately, the generated production override sets no
+`read_only`, `cap_drop`, `security_opt` or `tmpfs` on any service, and base images are floating tags
+(`python:3.12-slim`, `nginx:alpine`, `ghcr.io/astral-sh/uv:latest`) rather than digest pins.
+
+**Context**: Architecture review findings S-12, S-13 and S-20, fixed in R14 PR 3b (2026-11-01). Measuring the
+real write paths showed the template's own app needs `/tmp` (the generated import endpoint writes a temp
+file), which a bare `read_only: true` would have broken silently.
+
+**Suggested Fix**: Drop the `BUILD_ENV` build arg and the commented-out `ARG` block. Generate the production
+override with a shared `x-hardened` block (`read_only`, `cap_drop: [ALL]`, `no-new-privileges:true`) and a
+`tmpfs: /tmp` on the app service, run the database as its image's non-root user, and pin every `FROM` and
+the `uv` copy source as `name:tag@sha256:...` with a Renovate `pinDigests` rule for the `dockerfile` and
+`docker-compose` managers.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/Dockerfile`
+- `{{cookiecutter.project_slug}}/docker-compose.yml`
+- `{{cookiecutter.project_slug}}/docker-compose.prod.yml`
+- `{{cookiecutter.project_slug}}/renovate.json`
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:
