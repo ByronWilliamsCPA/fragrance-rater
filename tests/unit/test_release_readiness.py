@@ -704,16 +704,61 @@ def test_production_topology_accepts_a_narrow_capability_added_back(
 
 
 @pytest.mark.parametrize("service", HARDENED_SERVICES)
-@pytest.mark.parametrize("capability", ["ALL", "all", "SYS_ADMIN"])
+@pytest.mark.parametrize(
+    "capability",
+    [
+        "ALL",
+        "all",
+        "SYS_ADMIN",
+        "CAP_SYS_ADMIN",
+        "cap_sys_admin",
+        "SYS_MODULE",
+        "SYS_PTRACE",
+        "SYS_RAWIO",
+        "DAC_READ_SEARCH",
+        "NET_ADMIN",
+        "BPF",
+    ],
+)
 def test_production_topology_rejects_a_broad_capability_added_back(
     service: str, capability: str
 ) -> None:
+    """Docker reads ``CAP_SYS_ADMIN`` and ``sys_admin`` as the same capability."""
     validator = load_script("validate_production_topology")
     config = valid_topology()
     config["services"][service]["cap_add"] = ["CHOWN", capability]
+    named = capability.upper().removeprefix("CAP_")
 
     assert validator.validate_topology(config) == [
-        f"service {service} adds a broad capability ({capability.upper()})"
+        f"service {service} adds a broad capability ({named})"
+    ]
+
+
+@pytest.mark.parametrize("cap_drop", [["CAP_ALL"], ["cap_all"]])
+def test_production_topology_accepts_a_prefixed_cap_drop_all(
+    cap_drop: list[str],
+) -> None:
+    """Docker normalises the ``CAP_`` prefix away, so this spelling drops everything."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["app"]["cap_drop"] = cap_drop
+
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+def test_production_topology_rejects_a_contradictory_no_new_privileges(
+    service: str,
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"][service]["security_opt"] = [
+        "no-new-privileges:true",
+        "no-new-privileges:false",
+    ]
+
+    assert validator.validate_topology(config) == [
+        f"service {service} must set no-new-privileges:true"
     ]
 
 

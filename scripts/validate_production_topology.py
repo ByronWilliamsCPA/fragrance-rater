@@ -27,8 +27,33 @@ _TRUTHY = {"1", "true", "t", "yes", "y", "on"}
 _REQUIRED_SECRETS = ("FRAGRANCE_RATER_API_KEY", "OPENROUTER_API_KEY")
 # The services the runtime-hardening baseline (S-13) applies to.
 _HARDENED_SERVICES = ("app", "frontend", "db", "backup")
-# Capabilities that undo the point of cap_drop; adding one back is refused.
-_BROAD_CAPABILITIES = frozenset({"ALL", "SYS_ADMIN"})
+# Capabilities that undo the point of cap_drop; adding one back is refused. Each
+# one is, on its own, enough to escape or subvert the container boundary.
+_BROAD_CAPABILITIES = frozenset(
+    {
+        "ALL",
+        "SYS_ADMIN",
+        "SYS_MODULE",
+        "SYS_PTRACE",
+        "SYS_RAWIO",
+        "DAC_READ_SEARCH",
+        "NET_ADMIN",
+        "BPF",
+    }
+)
+
+
+def _capability_names(values: object) -> set[str]:
+    """Normalise capability names the way Docker reads them.
+
+    Docker accepts any case and an optional ``CAP_`` prefix, so ``cap_sys_admin``
+    and ``SYS_ADMIN`` name the same capability.
+    """
+    names: set[str] = set()
+    for value in values if isinstance(values, list) else []:
+        name = str(value).strip().upper()
+        names.add(name.removeprefix("CAP_"))
+    return names
 
 
 def validate_topology(
@@ -148,20 +173,22 @@ def _hardening_errors(services: dict[str, Any]) -> list[str]:
             continue
         if service.get("read_only") is not True:
             errors.append(f"service {name} must set read_only: true")
-        cap_drop = {str(cap).upper() for cap in service.get("cap_drop") or []}
-        if "ALL" not in cap_drop:
+        if "ALL" not in _capability_names(service.get("cap_drop")):
             errors.append(f"service {name} must set cap_drop: [ALL]")
-        cap_add = {str(cap).upper() for cap in service.get("cap_add") or []}
-        if cap_add & _BROAD_CAPABILITIES:
+        broad = _capability_names(service.get("cap_add")) & _BROAD_CAPABILITIES
+        if broad:
             errors.append(
-                f"service {name} adds a broad capability "
-                f"({', '.join(sorted(cap_add & _BROAD_CAPABILITIES))})"
+                f"service {name} adds a broad capability ({', '.join(sorted(broad))})"
             )
         security_opt = {
             str(option).strip().lower().replace("=", ":")
             for option in service.get("security_opt") or []
         }
-        if "no-new-privileges:true" not in security_opt:
+        # A list that also says no-new-privileges:false is ambiguous, so it fails.
+        if (
+            "no-new-privileges:true" not in security_opt
+            or "no-new-privileges:false" in security_opt
+        ):
             errors.append(f"service {name} must set no-new-privileges:true")
         if service.get("privileged"):
             errors.append(f"service {name} must not run privileged")
