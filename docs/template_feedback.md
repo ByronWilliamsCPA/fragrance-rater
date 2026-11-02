@@ -724,15 +724,16 @@ reads as an environment switch that does nothing. Separately, the generated prod
 `read_only`, `cap_drop`, `security_opt` or `tmpfs` on any service, and base images are floating tags
 (`python:3.12-slim`, `nginx:alpine`, `ghcr.io/astral-sh/uv:latest`) rather than digest pins.
 
-**Context**: Architecture review findings S-12, S-13 and S-20, fixed in R14 PR 3b (2026-11-01). Measuring the
-real write paths showed the template's own app needs `/tmp` (the generated import endpoint writes a temp
-file), which a bare `read_only: true` would have broken silently.
+**Context**: Architecture review findings S-13 and S-20, fixed in R14 PR 3b (2026-11-01); the digest-pinning
+half (S-12) ships in the companion pull request. Measuring the real write paths showed the template's own
+app needs `/tmp` (the generated import endpoint writes a temp file), which a bare `read_only: true` would
+have broken silently.
 
 **Suggested Fix**: Drop the `BUILD_ENV` build arg and the commented-out `ARG` block. Generate the production
 override with a shared `x-hardened` block (`read_only`, `cap_drop: [ALL]`, `no-new-privileges:true`) and a
-`tmpfs: /tmp` on the app service, run the database as its image's non-root user, and pin every `FROM` and
-the `uv` copy source as `name:tag@sha256:...` with a Renovate `pinDigests` rule for the `dockerfile` and
-`docker-compose` managers.
+`tmpfs: /tmp` on the app service, and run the database as its image's non-root user. Also pin every `FROM`
+and the `uv` copy source as `name:tag@sha256:...` with a Renovate `pinDigests` rule for the `dockerfile` and
+`docker-compose` managers (not done on this branch; see the companion pull request).
 
 **Affected Files**:
 
