@@ -175,7 +175,13 @@ def _hardening_errors(services: dict[str, Any]) -> list[str]:
             errors.append(f"service {name} must set read_only: true")
         if "ALL" not in _capability_names(service.get("cap_drop")):
             errors.append(f"service {name} must set cap_drop: [ALL]")
-        broad = _capability_names(service.get("cap_add")) & _BROAD_CAPABILITIES
+        added = _capability_names(service.get("cap_add"))
+        broad = added & _BROAD_CAPABILITIES
+        if name == "backup":
+            # The backup script's bind-mount mode (host file modes, not
+            # DAC_OVERRIDE) is its access boundary, so adding it back is refused
+            # here. db may still add it for its documented ownership repair.
+            broad |= added & {"DAC_OVERRIDE"}
         if broad:
             errors.append(
                 f"service {name} adds a broad capability ({', '.join(sorted(broad))})"

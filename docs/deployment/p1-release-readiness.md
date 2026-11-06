@@ -197,8 +197,8 @@ also rejects a render in which:
 - any of `app`, `frontend`, `db` or `backup` lacks a read-only root filesystem (`read_only: true`),
   `cap_drop: [ALL]` or `no-new-privileges:true`, adds back `ALL`, `SYS_ADMIN`, `SYS_MODULE`,
   `SYS_PTRACE`, `SYS_RAWIO`, `DAC_READ_SEARCH`, `NET_ADMIN` or `BPF` (with or without the `CAP_`
-  prefix), or runs `privileged` (architecture review S-13). Writable scratch space is a `tmpfs:` entry, not a `volumes:` entry,
-  because the validator also refuses a source mount on `app` and `frontend`.
+  prefix), or runs `privileged` (architecture review S-13). Writable scratch space is a `tmpfs:` entry, not a
+  `volumes:` entry, because the validator also refuses a source mount on `app` and `frontend`.
 
 ### Runtime hardening of the production services
 
@@ -236,7 +236,8 @@ Verify a running stack (each container must report `true`, `[ALL]`, `[]` and `[n
 and an effective capability mask of zero in every service):
 
 ```bash
-docker inspect -f '{{.Name}} {{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.HostConfig.CapAdd}} {{.HostConfig.SecurityOpt}} user={{.Config.User}}' \
+docker inspect \
+  -f '{{.Name}} {{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.HostConfig.CapAdd}} {{.HostConfig.SecurityOpt}} user={{.Config.User}}' \
   $(docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -q)
 for service in app frontend db backup; do
   docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T "$service" \

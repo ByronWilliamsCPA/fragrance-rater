@@ -1206,3 +1206,18 @@ def test_main_still_requires_both_positional_arguments(
     validator = load_script("validate_production_topology")
 
     assert _run_main(validator, monkeypatch, "only-one.json") == 2
+
+
+@pytest.mark.parametrize("capability", ["DAC_OVERRIDE", "CAP_DAC_OVERRIDE"])
+def test_production_topology_rejects_dac_override_on_backup_only(
+    capability: str,
+) -> None:
+    """The backup script's file modes are its boundary; db may repair ownership."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["backup"]["cap_add"] = [capability]
+    config["services"]["db"]["cap_add"] = ["CHOWN", "DAC_OVERRIDE"]
+
+    assert validator.validate_topology(config) == [
+        "service backup adds a broad capability (DAC_OVERRIDE)"
+    ]
