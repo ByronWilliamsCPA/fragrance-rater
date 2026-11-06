@@ -97,3 +97,27 @@ def test_the_shipped_backup_service_satisfies_the_topology_validator() -> None:
     spec.loader.exec_module(validator)
 
     assert validator._backup_errors(_prod()["services"]["backup"]) == []
+
+
+def test_the_shipped_production_file_satisfies_the_hardening_baseline() -> None:
+    """S-13 is checked against the real file, not only a hand-built topology.
+
+    Deleting ``<<: *hardened`` from a service, or putting a conflicting key after
+    the merge, must fail here; the validator runs on a rendered config only at
+    deploy time, so this is the CI guard.
+    """
+    path = ROOT / "scripts" / "validate_production_topology.py"
+    spec = importlib.util.spec_from_file_location("validate_production_topology", path)
+    assert spec is not None
+    assert spec.loader is not None
+    validator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validator)
+
+    services = _prod()["services"]
+
+    assert validator._hardening_errors(services) == []
+    for name in validator._HARDENED_SERVICES:
+        service = services[name]
+        assert service["read_only"] is True, name
+        assert service["cap_drop"] == ["ALL"], name
+        assert service["security_opt"] == ["no-new-privileges:true"], name

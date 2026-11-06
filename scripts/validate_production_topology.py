@@ -25,6 +25,35 @@ _PLACEHOLDER = re.compile(
 # start on is rejected here too.
 _TRUTHY = {"1", "true", "t", "yes", "y", "on"}
 _REQUIRED_SECRETS = ("FRAGRANCE_RATER_API_KEY", "OPENROUTER_API_KEY")
+# The services the runtime-hardening baseline (S-13) applies to.
+_HARDENED_SERVICES = ("app", "frontend", "db", "backup")
+# Capabilities that undo the point of cap_drop; adding one back is refused. Each
+# one is, on its own, enough to escape or subvert the container boundary.
+_BROAD_CAPABILITIES = frozenset(
+    {
+        "ALL",
+        "SYS_ADMIN",
+        "SYS_MODULE",
+        "SYS_PTRACE",
+        "SYS_RAWIO",
+        "DAC_READ_SEARCH",
+        "NET_ADMIN",
+        "BPF",
+    }
+)
+
+
+def _capability_names(values: object) -> set[str]:
+    """Normalise capability names the way Docker reads them.
+
+    Docker accepts any case and an optional ``CAP_`` prefix, so ``cap_sys_admin``
+    and ``SYS_ADMIN`` name the same capability.
+    """
+    names: set[str] = set()
+    for value in values if isinstance(values, list) else []:
+        name = str(value).strip().upper()
+        names.add(name.removeprefix("CAP_"))
+    return names
 
 
 def validate_topology(
@@ -117,6 +146,58 @@ def validate_topology(
     if not isinstance(edge, dict) or not edge.get("external"):
         errors.append("authenticated-edge must be a dedicated external network")
     errors.extend(_backup_errors(services.get("backup")))
+    errors.extend(_hardening_errors(services))
+    return errors
+
+
+def _hardening_errors(services: dict[str, Any]) -> list[str]:
+    """Return violations of the container runtime-hardening baseline (S-13).
+
+    Every long-running production service must start from a read-only root
+    filesystem, drop all Linux capabilities (adding back only what it needs),
+    and refuse privilege escalation through setuid binaries. A regression here
+    is silent: the stack still runs, only with a larger blast radius when one
+    container is compromised.
+
+    Args:
+        services (dict[str, Any]): The rendered ``services`` mapping.
+
+    Returns:
+        list[str]: Human-readable violations; empty when every service complies.
+    """
+    errors: list[str] = []
+    for name in _HARDENED_SERVICES:
+        service = services.get(name)
+        if not isinstance(service, dict):
+            # A missing service is reported by the checks that require it.
+            continue
+        if service.get("read_only") is not True:
+            errors.append(f"service {name} must set read_only: true")
+        if "ALL" not in _capability_names(service.get("cap_drop")):
+            errors.append(f"service {name} must set cap_drop: [ALL]")
+        added = _capability_names(service.get("cap_add"))
+        broad = added & _BROAD_CAPABILITIES
+        if name == "backup":
+            # The backup script's bind-mount mode (host file modes, not
+            # DAC_OVERRIDE) is its access boundary, so adding it back is refused
+            # here. db may still add it for its documented ownership repair.
+            broad |= added & {"DAC_OVERRIDE"}
+        if broad:
+            errors.append(
+                f"service {name} adds a broad capability ({', '.join(sorted(broad))})"
+            )
+        security_opt = {
+            str(option).strip().lower().replace("=", ":")
+            for option in service.get("security_opt") or []
+        }
+        # A list that also says no-new-privileges:false is ambiguous, so it fails.
+        if (
+            "no-new-privileges:true" not in security_opt
+            or "no-new-privileges:false" in security_opt
+        ):
+            errors.append(f"service {name} must set no-new-privileges:true")
+        if service.get("privileged"):
+            errors.append(f"service {name} must not run privileged")
     return errors
 
 

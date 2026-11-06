@@ -92,13 +92,6 @@ ENTRYPOINT ["./docker-entrypoint.sh"]
 # Default command - run web server
 CMD ["uvicorn", "fragrance_rater.main:app", "--host", "0.0.0.0", "--port", "8000"]
 # =============================================================================
-# Build Arguments (optional, for build-time configuration)
-# =============================================================================
-# Example:
-# ARG BUILD_ENV=production
-# ENV ENVIRONMENT=${BUILD_ENV}
-
-# =============================================================================
 # Multi-architecture support
 # =============================================================================
 # Build for multiple platforms:

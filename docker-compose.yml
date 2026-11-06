@@ -9,8 +9,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        BUILD_ENV: ${ENVIRONMENT:-development}
     image: fragrance_rater:${VERSION:-latest}
     # No container_name: docker-compose.prod.yml scales this service via
     # deploy.replicas (default 1; the rate limiter is process-local, so more

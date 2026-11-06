@@ -503,11 +503,19 @@ def test_main_reports_exit_code_two_for_non_utf8_input(tmp_path: Path) -> None:
         assert validator.main() == 2
 
 
+HARDENING: dict[str, Any] = {
+    "read_only": True,
+    "cap_drop": ["ALL"],
+    "security_opt": ["no-new-privileges:true"],
+}
+
+
 def valid_topology() -> dict[str, Any]:
     """Return the minimum valid rendered production topology."""
     return {
         "services": {
             "app": {
+                **HARDENING,
                 "networks": {"fragrance_rater-network": None},
                 "environment": {
                     "AUTHENTIK_REQUIRED": "true",
@@ -521,6 +529,7 @@ def valid_topology() -> dict[str, Any]:
                 },
             },
             "frontend": {
+                **HARDENING,
                 "environment": {
                     "VITE_API_URL": "/api",
                     "FRAGRANCE_TRAEFIK_CIDR": "172.30.0.0/24",
@@ -536,8 +545,9 @@ def valid_topology() -> dict[str, Any]:
                     ),
                 },
             },
-            "db": {"networks": {"fragrance_rater-network": None}},
+            "db": {**HARDENING, "networks": {"fragrance_rater-network": None}},
             "backup": {
+                **HARDENING,
                 "networks": {"fragrance_rater-network": None},
                 "healthcheck": {
                     "test": ["CMD", "/scripts/backup_database.sh", "check"]
@@ -612,6 +622,167 @@ def test_production_topology_keeps_the_backup_service_off_the_edge_and_the_host(
     assert validator.validate_topology(config) == [
         "service backup publishes a host port",
         "service backup must not join the authenticated-edge network",
+    ]
+
+
+HARDENED_SERVICES = ("app", "frontend", "db", "backup")
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+@pytest.mark.parametrize("read_only", [None, False])
+def test_production_topology_requires_a_read_only_root_filesystem(
+    service: str, read_only: bool | None
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if read_only is None:
+        del config["services"][service]["read_only"]
+    else:
+        config["services"][service]["read_only"] = read_only
+
+    assert validator.validate_topology(config) == [
+        f"service {service} must set read_only: true"
+    ]
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+@pytest.mark.parametrize("cap_drop", [None, [], ["NET_RAW"]])
+def test_production_topology_requires_every_capability_dropped(
+    service: str, cap_drop: list[str] | None
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if cap_drop is None:
+        del config["services"][service]["cap_drop"]
+    else:
+        config["services"][service]["cap_drop"] = cap_drop
+
+    assert validator.validate_topology(config) == [
+        f"service {service} must set cap_drop: [ALL]"
+    ]
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+@pytest.mark.parametrize("security_opt", [None, [], ["seccomp=unconfined"]])
+def test_production_topology_requires_no_new_privileges(
+    service: str, security_opt: list[str] | None
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    if security_opt is None:
+        del config["services"][service]["security_opt"]
+    else:
+        config["services"][service]["security_opt"] = security_opt
+
+    assert validator.validate_topology(config) == [
+        f"service {service} must set no-new-privileges:true"
+    ]
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+@pytest.mark.parametrize("option", ["no-new-privileges:true", "no-new-privileges=true"])
+def test_production_topology_accepts_either_no_new_privileges_spelling(
+    service: str, option: str
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"][service]["security_opt"] = [option]
+
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+def test_production_topology_accepts_a_narrow_capability_added_back(
+    service: str,
+) -> None:
+    """The smallest working set is allowed; only the broad ones are refused."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"][service]["cap_add"] = ["CHOWN", "SETUID"]
+
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+@pytest.mark.parametrize(
+    "capability",
+    [
+        "ALL",
+        "all",
+        "SYS_ADMIN",
+        "CAP_SYS_ADMIN",
+        "cap_sys_admin",
+        "SYS_MODULE",
+        "SYS_PTRACE",
+        "SYS_RAWIO",
+        "DAC_READ_SEARCH",
+        "NET_ADMIN",
+        "BPF",
+    ],
+)
+def test_production_topology_rejects_a_broad_capability_added_back(
+    service: str, capability: str
+) -> None:
+    """Docker reads ``CAP_SYS_ADMIN`` and ``sys_admin`` as the same capability."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"][service]["cap_add"] = ["CHOWN", capability]
+    named = capability.upper().removeprefix("CAP_")
+
+    assert validator.validate_topology(config) == [
+        f"service {service} adds a broad capability ({named})"
+    ]
+
+
+@pytest.mark.parametrize("cap_drop", [["CAP_ALL"], ["cap_all"]])
+def test_production_topology_accepts_a_prefixed_cap_drop_all(
+    cap_drop: list[str],
+) -> None:
+    """Docker normalises the ``CAP_`` prefix away, so this spelling drops everything."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["app"]["cap_drop"] = cap_drop
+
+    assert validator.validate_topology(config) == []
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+def test_production_topology_rejects_a_contradictory_no_new_privileges(
+    service: str,
+) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"][service]["security_opt"] = [
+        "no-new-privileges:true",
+        "no-new-privileges:false",
+    ]
+
+    assert validator.validate_topology(config) == [
+        f"service {service} must set no-new-privileges:true"
+    ]
+
+
+@pytest.mark.parametrize("service", HARDENED_SERVICES)
+def test_production_topology_rejects_a_privileged_service(service: str) -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"][service]["privileged"] = True
+
+    assert validator.validate_topology(config) == [
+        f"service {service} must not run privileged"
+    ]
+
+
+def test_production_topology_reports_every_missing_control_on_a_bare_service() -> None:
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    for control in HARDENING:
+        del config["services"]["db"][control]
+
+    assert validator.validate_topology(config) == [
+        "service db must set read_only: true",
+        "service db must set cap_drop: [ALL]",
+        "service db must set no-new-privileges:true",
     ]
 
 
@@ -1035,3 +1206,18 @@ def test_main_still_requires_both_positional_arguments(
     validator = load_script("validate_production_topology")
 
     assert _run_main(validator, monkeypatch, "only-one.json") == 2
+
+
+@pytest.mark.parametrize("capability", ["DAC_OVERRIDE", "CAP_DAC_OVERRIDE"])
+def test_production_topology_rejects_dac_override_on_backup_only(
+    capability: str,
+) -> None:
+    """The backup script's file modes are its boundary; db may repair ownership."""
+    validator = load_script("validate_production_topology")
+    config = valid_topology()
+    config["services"]["backup"]["cap_add"] = [capability]
+    config["services"]["db"]["cap_add"] = ["CHOWN", "DAC_OVERRIDE"]
+
+    assert validator.validate_topology(config) == [
+        "service backup adds a broad capability (DAC_OVERRIDE)"
+    ]

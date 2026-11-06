@@ -193,7 +193,57 @@ also rejects a render in which:
 - `TEST_MODE` is enabled (the app also refuses to start with it in production).
 - the `backup` service is missing, has no healthcheck, keeps its dumps anywhere other than a volume
   mounted at `/backups`, publishes a host port, or joins the authenticated edge (see
-  [Backup and restore](backup-and-restore.md); a deployment with no backup job has no recovery point).
+  [Backup and restore](backup-and-restore.md); a deployment with no backup job has no recovery point);
+- any of `app`, `frontend`, `db` or `backup` lacks a read-only root filesystem (`read_only: true`),
+  `cap_drop: [ALL]` or `no-new-privileges:true`, adds back `ALL`, `SYS_ADMIN`, `SYS_MODULE`,
+  `SYS_PTRACE`, `SYS_RAWIO`, `DAC_READ_SEARCH`, `NET_ADMIN` or `BPF` (with or without the `CAP_`
+  prefix), or runs `privileged` (architecture review S-13). Writable scratch space is a `tmpfs:` entry, not a
+  `volumes:` entry, because the validator also refuses a source mount on `app` and `frontend`.
+
+### Runtime hardening of the production services
+
+`docker-compose.prod.yml` applies one `x-hardened` block (read-only root, all capabilities dropped,
+`no-new-privileges`) to `app`, `frontend`, `db` and `backup`. The development file is unchanged on
+purpose. The writable paths and the one non-default setting each service needs, as measured with
+`docker diff` on a running stack under traffic (the output is in the pull request that introduced them):
+
+| Service | Runs as | Writable (tmpfs unless noted) | Capabilities added back |
+| --- | --- | --- | --- |
+| `app` | 1000:1000 | `/tmp` (the Kaggle CSV import writes a temp file; Starlette spools uploads) | none |
+| `frontend` | 1001:1001 | `/var/cache/nginx`, `/run` (pid file), `/etc/nginx/conf.d` (rendered config) | none (see below) |
+| `db` | 70:70 (`postgres`) | `/run/postgresql` (socket), plus the `postgres-data` volume | none |
+| `backup` | root | the `backups` volume | none |
+
+Three decisions behind that table:
+
+- `db` runs as the image's `postgres` user instead of the image default of root-then-`gosu`. The
+  root path is what would otherwise need `CHOWN`, `SETUID`, `SETGID`, `FOWNER` and `DAC_OVERRIDE`.
+  The data volume is already `postgres`-owned: a fresh named volume copies the image's ownership,
+  and a volume first initialised by the root path was chowned to `postgres` by that entrypoint. Both
+  were run: a fresh volume under the production stack, and a throwaway volume first initialised by the
+  image default and then restarted as `70:70` with a read-only root and no capabilities, where the row
+  written beforehand was intact. The cost is that the container can no longer repair ownership
+  itself, so a file-level restore of the volume made as root must be followed by `chown -R 70:70` (see
+  [Backup and restore](backup-and-restore.md#restoring-for-real)).
+- `frontend` binds port 80 as a non-root user without `NET_BIND_SERVICE`. The service sets the
+  namespaced sysctl `net.ipv4.ip_unprivileged_port_start: 0` for its own network namespace, which is
+  also Docker's default, so the dependency is stated instead of inherited.
+- `backup` keeps root because the `backups` volume is created root-owned. With every capability
+  dropped it can touch only its own files. Running it as a non-root user would need a root-owned
+  init step to change the volume's owner, a larger privileged surface than the one it removes.
+
+Verify a running stack (each container must report `true`, `[ALL]`, `[]` and `[no-new-privileges:true]`,
+and an effective capability mask of zero in every service):
+
+```bash
+docker inspect \
+  -f '{{.Name}} {{.HostConfig.ReadonlyRootfs}} {{.HostConfig.CapDrop}} {{.HostConfig.CapAdd}} {{.HostConfig.SecurityOpt}} user={{.Config.User}}' \
+  $(docker compose -f docker-compose.yml -f docker-compose.prod.yml ps -q)
+for service in app frontend db backup; do
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T "$service" \
+    grep -E 'CapEff|NoNewPrivs' /proc/1/status
+done
+```
 
 From every reachable network, verify that only Traefik's TLS entry point is open. Requests
 without an Authentik session must be challenged. Requests sent directly to the app container IP

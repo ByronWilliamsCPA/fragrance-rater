@@ -33,6 +33,33 @@ The production override (`docker-compose.prod.yml`) includes a `backup` service 
 A failed run leaves no dump, no partial file, and does not move the marker, so the failure cannot
 be mistaken for a backup.
 
+### How the service is confined
+
+The service runs with a read-only root filesystem, every Linux capability dropped, and
+`no-new-privileges` (architecture review S-13; the shared `x-hardened` block in
+`docker-compose.prod.yml`). It writes only to the `backups` volume. It still runs as root, because
+Docker creates a new named volume root-owned and a non-root user could not write to it; with every
+capability dropped, that root can touch only the files it owns, which are the dumps it created.
+A backup cycle (the dump, its checksum and manifest, and restore verification) and the healthcheck
+ran cleanly under these controls; the evidence is in the pull request that introduced them. Pruning
+follows the same ownership argument but was not exercised separately.
+
+Dropping every capability also drops `DAC_OVERRIDE`, so root no longer reads files it does not own.
+`scripts/backup_database.sh` is bind-mounted from the host with the host file's owner and mode, so
+it must be readable and executable by everyone (mode `755`, which a normal checkout gives it). On a
+host with a tighter umask, or if the file is owned by another user with mode `700`, every cycle logs
+`backup failed` and the healthcheck goes unhealthy after its start period. After the first backup,
+confirm `ls -l scripts/backup_database.sh` shows `r-x` for other and that the `backup` service is
+healthy.
+
+If you copy dumps off the host with a non-root account, they are mode `600` and owned by root, so
+read them with `sudo` or from inside the volume. The `backup` service exists only in the production
+override, so name both files:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml cp backup:/backups/<file> .
+```
+
 | Setting | Default | Meaning |
 | :--- | :--- | :--- |
 | `BACKUP_INTERVAL_HOURS` | 24 | Hours between backups |
@@ -103,6 +130,23 @@ pg_restore --no-owner --no-privileges --exit-on-error --dbname <new-database> \
 Stop the application first, restore into a **new** database, check it with
 `scripts/p1_migration_inventory.py`, and only then point the application at it. Never restore over
 the only copy of the data you have.
+
+The database container runs as `postgres` (uid 70), not root, so it cannot repair ownership on start
+(architecture review S-13). A `pg_restore` into a running database is unaffected. A file-level
+restore of the `postgres-data` volume (a tar extract, `docker cp`, or a host-side copy made as
+root) leaves root-owned files, and the container then exits at start with
+`initdb: error: could not access directory "/var/lib/postgresql/data": Permission denied`, which the
+restart policy turns into a crash loop. After any file-level restore, change the owner before
+starting the stack:
+
+```bash
+docker run --rm -v <project>_postgres-data:/data alpine chown -R 70:70 /data
+```
+
+To go back to the image's own behaviour, where its root entrypoint repairs ownership and then drops
+to `postgres`, remove `user: "70:70"` from `db` in `docker-compose.prod.yml` and add back
+`cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]` (the entrypoint fails without them under
+`cap_drop: [ALL]`). The validator accepts those, because it refuses only the broad capabilities.
 
 ## Retiring the evaluation database
 

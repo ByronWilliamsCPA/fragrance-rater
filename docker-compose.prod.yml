@@ -1,13 +1,38 @@
 # Production overrides for docker-compose.yml
 # Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
+# Runtime hardening shared by every long-running production service (architecture
+# review S-13). A compromised container then cannot rewrite its own image
+# filesystem, holds no Linux capabilities, and cannot regain privilege through a
+# setuid binary. Anything a service must write goes in an explicit `tmpfs:` or
+# named volume below; anything it needs beyond zero capabilities is added back
+# with `cap_add:` and a comment saying why. Dev (docker-compose.yml) is unchanged
+# on purpose: it bind-mounts source and runs hot-reload servers.
+# scripts/validate_production_topology.py fails when a service loses any of these.
+x-hardened: &hardened
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - "no-new-privileges:true"
+
 services:
   app:
     # Production image (pre-built)
     # image: ghcr.io/ByronWilliamsCPA/fragrance_rater:${VERSION:-latest}
-    build:
-      args:
-        BUILD_ENV: production
+    #
+    # There is no build-time environment switch: the image is the same artifact
+    # in every environment, and ENVIRONMENT below is a runtime variable
+    # (asserted by scripts/validate_production_topology.py).
+
+    <<: *hardened
+
+    # The root filesystem is read-only. /tmp is the one scratch path: the Kaggle
+    # CSV import (api/imports.py) writes a NamedTemporaryFile and Starlette spools
+    # multipart uploads there. nginx caps request bodies at its 1m default, so 64m
+    # is generous. noexec/nosuid/nodev: nothing runs from scratch space.
+    tmpfs:
+      - /tmp:size=64m,mode=1777,noexec,nosuid,nodev
 
     # Don't mount source code in production
     volumes: !reset []
@@ -89,6 +114,26 @@ services:
       #   docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" \
       #     --format '{{(index .IPAM.Config 0).Subnet}}'
       FRAGRANCE_TRAEFIK_CIDR: ${FRAGRANCE_TRAEFIK_CIDR:?Set the authenticated-edge network subnet (CIDR)}
+    <<: *hardened
+
+    # nginx runs as uid 1001 (frontend/Dockerfile) on a read-only root. Its writable
+    # paths, measured with `docker diff` after serving traffic: the proxy/body temp
+    # directories, the pid file, and the conf.d render of default.conf.template
+    # (the image's envsubst step writes it at start). The tmpfs mounts are owned by
+    # 1001 so the non-root worker can write them. tmpfs is charged to this service's
+    # memory limit, so the cache directory is capped well below it: nginx sets no
+    # client_max_body_size, so request bodies stop at its 1m default.
+    #
+    # nginx listens on port 80 as a non-root user. That needs no NET_BIND_SERVICE
+    # capability: this namespaced sysctl lowers the unprivileged-port floor for the
+    # container's own network namespace only. Docker already defaults it to 0, so
+    # this states the dependency instead of relying on the engine default.
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    tmpfs:
+      - /var/cache/nginx:uid=1001,gid=1001,mode=0755,size=16m,noexec,nosuid,nodev
+      - /run:uid=1001,gid=1001,mode=0755,size=1m,noexec,nosuid,nodev
+      - /etc/nginx/conf.d:uid=1001,gid=1001,mode=0755,size=1m,noexec,nosuid,nodev
     volumes: !reset []
     # Do not retain the development host-port mapping. Traefik is the only
     # supported production entry point.
@@ -132,6 +177,24 @@ services:
     # docs/deployment/backup-and-restore.md), and prove them with
     # scripts/verify_restore.py, because a dump that was never restored is not
     # yet a backup.
+    #
+    # Hardened like the rest (see x-hardened). It still runs as root, on purpose:
+    # the `backups` named volume is created root-owned (/backups does not exist in
+    # the postgres image, so Docker has no postgres-owned directory to copy), and a
+    # non-root user could not write to it. Root with every capability dropped is
+    # confined to what it owns: it needs no CHOWN, DAC_OVERRIDE or FOWNER because
+    # it creates and prunes only its own root-owned dumps. Running as 70:70 would
+    # need a root-owned init step to chown the volume first, which is a larger
+    # privileged surface than this; revisit if the volume is ever pre-provisioned.
+    #
+    # #ASSUME: external resources: root with no DAC_OVERRIDE is "other" to a file it
+    # does not own, so the bind-mounted scripts/backup_database.sh must be readable
+    # and executable by everyone on the deploy host (mode 755, which is what git
+    # checks out unless the umask is tighter than 022).
+    # #VERIFY: `ls -l scripts/backup_database.sh` shows r-x for other, and
+    # `backup_database.sh check` is healthy after the first backup (see
+    # docs/deployment/backup-and-restore.md).
+    <<: *hardened
     image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -172,6 +235,22 @@ services:
           memory: 256M
 
   db:
+    <<: *hardened
+
+    # Run as the image's postgres user (70:70) instead of the image default of
+    # root-then-gosu. The entrypoint's root path is what would otherwise need
+    # CHOWN, SETUID, SETGID, FOWNER and DAC_OVERRIDE; as postgres it needs none, so
+    # cap_drop: ALL stands with nothing added back. The data volume is already
+    # postgres-owned: a fresh named volume copies the image's /var/lib/postgresql/data
+    # ownership, and a volume first initialised by the root path was chowned to
+    # postgres by that same entrypoint.
+    user: "70:70"
+
+    # The unix socket and its lock file live in /run/postgresql, which the image
+    # owns as postgres but which is not writable on a read-only root.
+    tmpfs:
+      - /run/postgresql:uid=70,gid=70,mode=2777,size=1m,noexec,nosuid,nodev
+
     # Production database settings
     environment:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in production}
