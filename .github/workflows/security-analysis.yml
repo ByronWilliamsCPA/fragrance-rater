@@ -19,10 +19,17 @@ on:
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
-# Cancel in-progress runs for same PR/branch
+# Cancel superseded runs for the same PR only. Runs for push, merge_group,
+# schedule, and workflow_dispatch finish: two merges landing seconds apart
+# otherwise cancel the first merge's post-merge scan on main and leave a red
+# mark on a commit whose tree already passed the merge queue.
+# #EDGE: merge_group runs never collide here (github.ref is unique per queue
+# entry), so this change does not touch merge-queue behaviour.
+# #VERIFY: after two merges land within a minute, both push runs on main
+# complete instead of the first showing "cancelled".
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
