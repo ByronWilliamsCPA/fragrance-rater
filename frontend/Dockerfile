@@ -4,7 +4,7 @@
 # =============================================================================
 # Stage 1: Dependencies
 # =============================================================================
-FROM node:22-alpine AS deps
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS deps
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN npm ci --only=production=false
 # =============================================================================
 # Stage 2: Builder
 # =============================================================================
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS builder
 
 WORKDIR /app
 
@@ -42,7 +42,7 @@ RUN npm run build
 # =============================================================================
 # Stage 3: Development (optional - for docker-compose dev)
 # =============================================================================
-FROM node:22-alpine AS development
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS development
 
 WORKDIR /app
 
@@ -72,7 +72,7 @@ CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
 # docker-compose.yml/docker-compose.prod.yml both pin target: by name.
 # #VERIFY before adding any stage after this one, confirm CI still ends up
 # publishing the production (nginx, port 80) image, not development.
-FROM nginx:alpine AS production
+FROM nginx:alpine@sha256:785835ea65db4bba6f021acc0f3be91b0fef76a53fe41f8588c6698d2aed0606 AS production
 
 # Metadata labels
 LABEL org.opencontainers.image.title="Fragrance Rater Frontend"
