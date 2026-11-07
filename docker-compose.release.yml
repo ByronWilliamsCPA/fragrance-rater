@@ -1,0 +1,33 @@
+# Release override: run exactly the signed images that were verified and recorded.
+#
+# The committed docker-compose.yml and docker-compose.prod.yml build `app` and
+# `frontend` from source on the host. A source build is not the artifact that
+# `docker-publish.yml` signed, so it cannot carry the immutable image digests the
+# P6 readiness record names. Layer this file last to pull and run the published
+# images by digest instead:
+#
+#   export APP_IMAGE_DIGEST=sha256:<digest cosign verified for the app image>
+#   export FRONTEND_IMAGE_DIGEST=sha256:<digest cosign verified for the frontend>
+#   export INSTRUMENT_VERSION=<the commit SHA those images were published from>
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#     -f docker-compose.release.yml up -d
+#
+# See docs/deployment/image-signing.md (verify each digest first) and
+# docs/deployment/p6-pilot-readiness.md. Compose refuses to render or start this
+# stack while either digest is unset, so a missing value cannot fall back to a
+# source build or a floating tag.
+#
+# INSTRUMENT_VERSION must be the commit the frontend image was published from:
+# docker-publish.yml bakes that SHA into the frontend at build time, while the app
+# records this runtime value on each program at activation. The topology validator
+# checks the app's value; compare the UI footer ("Instrument build <sha>") with
+# `program.instrument_version` in the evidence export for the frontend side.
+
+services:
+  app:
+    build: !reset null
+    image: "ghcr.io/byronwilliamscpa/fragrance_rater@${APP_IMAGE_DIGEST:?set APP_IMAGE_DIGEST to the verified sha256:<digest>}"
+
+  frontend:
+    build: !reset null
+    image: "ghcr.io/byronwilliamscpa/fragrance_rater-frontend@${FRONTEND_IMAGE_DIGEST:?set FRONTEND_IMAGE_DIGEST to the verified sha256:<digest>}"

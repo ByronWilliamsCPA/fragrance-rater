@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+import yaml
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -962,10 +963,18 @@ def valid_topology() -> dict[str, Any]:
                     "CALIBRATION_ADMIN_USERNAMES": '["manager"]',
                     "FRAGRANCE_RATER_API_KEY": "test-household-api-key-value",
                     "OPENROUTER_API_KEY": "test-openrouter-api-key-value",
+                    "INSTRUMENT_VERSION": "0123456789abcdef0123456789abcdef01234567",
                 },
             },
             "frontend": {
                 **HARDENING,
+                "build": {
+                    "args": {
+                        "VITE_INSTRUMENT_VERSION": (
+                            "0123456789abcdef0123456789abcdef01234567"
+                        )
+                    }
+                },
                 "environment": {
                     "VITE_API_URL": "/api",
                     "FRAGRANCE_TRAEFIK_CIDR": "172.30.0.0/24",
@@ -995,6 +1004,110 @@ def valid_topology() -> dict[str, Any]:
         },
         "networks": {"authenticated-edge": {"external": True}},
     }
+
+
+MISSING_BUILD = "app must set INSTRUMENT_VERSION to the build identifier"
+MISSING_BUILD += " (commit SHA or release tag)"
+BUILD_MISMATCH = "frontend build arg VITE_INSTRUMENT_VERSION must equal the app's"
+BUILD_MISMATCH += " INSTRUMENT_VERSION"
+
+
+class TestInstrumentVersionTopology:
+    """A production render must name the participant-instrument build."""
+
+    def _errors(self, config: dict[str, Any]) -> list[str]:
+        validator = load_script("validate_production_topology")
+        return validator.validate_topology(config)
+
+    def test_the_valid_topology_has_a_pinned_matching_build(self) -> None:
+        assert self._errors(valid_topology()) == []
+
+    @pytest.mark.parametrize("value", [None, "", "   "])
+    def test_a_blank_or_missing_value_is_rejected(self, value: object) -> None:
+        config = valid_topology()
+        environment = config["services"]["app"]["environment"]
+        if value is None:
+            del environment["INSTRUMENT_VERSION"]
+        else:
+            environment["INSTRUMENT_VERSION"] = value
+        config["services"]["frontend"]["build"]["args"]["VITE_INSTRUMENT_VERSION"] = (
+            str(value or "")
+        )
+        assert self._errors(config) == [MISSING_BUILD]
+
+    def test_the_unpinned_fallback_is_rejected(self) -> None:
+        config = valid_topology()
+        value = "unpinned-app-0.1.0"
+        config["services"]["app"]["environment"]["INSTRUMENT_VERSION"] = value
+        config["services"]["frontend"]["build"]["args"]["VITE_INSTRUMENT_VERSION"] = (
+            value
+        )
+        assert self._errors(config) == [
+            "app INSTRUMENT_VERSION is the unpinned fallback, not a build identifier"
+        ]
+
+    @pytest.mark.parametrize("value", ["${INSTRUMENT_VERSION}", "-x", "a b", "x" * 101])
+    def test_a_malformed_value_is_rejected(self, value: str) -> None:
+        config = valid_topology()
+        config["services"]["app"]["environment"]["INSTRUMENT_VERSION"] = value
+        config["services"]["frontend"]["build"]["args"]["VITE_INSTRUMENT_VERSION"] = (
+            value
+        )
+        errors = self._errors(config)
+        assert len(errors) == 1
+        assert errors[0].startswith("app INSTRUMENT_VERSION must be a commit SHA")
+
+    @pytest.mark.parametrize("value", ["v1.2.3", "r7b-2026.11", "a" * 100])
+    def test_a_release_tag_is_accepted(self, value: str) -> None:
+        config = valid_topology()
+        config["services"]["app"]["environment"]["INSTRUMENT_VERSION"] = value
+        config["services"]["frontend"]["build"]["args"]["VITE_INSTRUMENT_VERSION"] = (
+            value
+        )
+        assert self._errors(config) == []
+
+    def test_a_frontend_built_with_another_value_is_rejected(self) -> None:
+        config = valid_topology()
+        config["services"]["frontend"]["build"]["args"]["VITE_INSTRUMENT_VERSION"] = (
+            "other"
+        )
+        assert self._errors(config) == [BUILD_MISMATCH]
+
+    @pytest.mark.parametrize("build", [{}, {"args": {}}, {"args": []}])
+    def test_a_source_built_frontend_without_the_arg_is_rejected(
+        self, build: dict[str, Any]
+    ) -> None:
+        config = valid_topology()
+        config["services"]["frontend"]["build"] = build
+        assert any(
+            line.startswith("frontend build arg VITE_INSTRUMENT_VERSION")
+            for line in self._errors(config)
+        )
+
+    def test_a_prebuilt_frontend_image_is_not_compared(self) -> None:
+        """Deploy by digest: there is no build block, and the baked value is
+        compared with the program's by eye per the runbook."""
+        config = valid_topology()
+        del config["services"]["frontend"]["build"]
+        config["services"]["frontend"]["image"] = "ghcr.io/example/frontend@sha256:abc"
+        assert self._errors(config) == []
+
+    def test_the_prebuilt_image_still_needs_the_app_value(self) -> None:
+        config = valid_topology()
+        del config["services"]["frontend"]["build"]
+        del config["services"]["app"]["environment"]["INSTRUMENT_VERSION"]
+        assert len(self._errors(config)) == 1
+
+
+def test_the_shipped_compose_files_wire_one_variable_to_both_sides() -> None:
+    """INSTRUMENT_VERSION in .env reaches the app and the frontend build."""
+    base = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    prod = (ROOT / "docker-compose.prod.yml").read_text(encoding="utf-8")
+    assert (
+        base["services"]["app"]["environment"]["INSTRUMENT_VERSION"]
+        == "${INSTRUMENT_VERSION:-}"
+    )
+    assert "VITE_INSTRUMENT_VERSION: ${INSTRUMENT_VERSION:-}" in prod
 
 
 def test_production_topology_accepts_the_short_form_backup_mount() -> None:

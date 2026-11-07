@@ -46,6 +46,10 @@ Stop before rehearsal unless all items pass:
   are the exact participant-instrument build F1 will use, recorded in the rehearsal evidence per
   `docs/planning/gates/p6.md` P6.3. This is a hard gate on P6.3: rehearsing against a pre-R7b
   build proves nothing about the instrument F1 will use.
+- The candidate is deployed from the verified signed images with `docker-compose.release.yml`
+  ([Image pinning and signing](image-signing.md)), with `INSTRUMENT_VERSION` set to the candidate commit
+  SHA. The production topology validator rejects an unset or unpinned value, and the instrument build
+  shown in the UI footer matches `program.instrument_version` in the saved evidence export.
 
 Record the entry result in the [readiness decision](../planning/evidence/p6-readiness-decision.md).
 

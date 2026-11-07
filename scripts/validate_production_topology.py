@@ -10,7 +10,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 DEFAULT_AUTHENTIK_MIDDLEWARE = "authentik@file"
 
@@ -25,6 +25,34 @@ _PLACEHOLDER = re.compile(
 # start on is rejected here too.
 _TRUTHY = {"1", "true", "t", "yes", "y", "on"}
 _REQUIRED_SECRETS = ("FRAGRANCE_RATER_API_KEY", "OPENROUTER_API_KEY")
+# The participant-instrument build identifier: a commit SHA or a release tag. The
+# backend column holds 100 characters, and the leading character rules out the
+# "${...}" and "-" shapes an unrendered or half-filled variable leaves behind.
+_INSTRUMENT_VERSION = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}")
+# Mirrors services.calibration_service.UNPINNED_INSTRUMENT_PREFIX: what the backend
+# records when INSTRUMENT_VERSION is unset, which the F1 gate refuses.
+_UNPINNED_PREFIX = "unpinned-app-"
+_INSTRUMENT_MISSING = "".join(
+    (
+        "app must set INSTRUMENT_VERSION to the build identifier",
+        " (commit SHA or release tag)",
+    )
+)
+_INSTRUMENT_UNPINNED = "".join(
+    ("app INSTRUMENT_VERSION is the unpinned fallback", ", not a build identifier")
+)
+_INSTRUMENT_MALFORMED = "".join(
+    (
+        "app INSTRUMENT_VERSION must be a commit SHA or release tag",
+        " (letters, digits, '.', '_' and '-', at most 100 characters)",
+    )
+)
+_INSTRUMENT_MISMATCH = "".join(
+    (
+        "frontend build arg VITE_INSTRUMENT_VERSION must equal the app's",
+        " INSTRUMENT_VERSION",
+    )
+)
 # The services the runtime-hardening baseline (S-13) applies to.
 _HARDENED_SERVICES = ("app", "frontend", "db", "backup")
 # Capabilities that undo the point of cap_drop; adding one back is refused. Each
@@ -110,6 +138,12 @@ def validate_topology(
         errors.append("app DATABASE_URL must use the postgresql+asyncpg scheme")
     errors.extend(_app_runtime_errors(app, app_environment))
     frontend = services.get("frontend", {})
+    errors.extend(
+        _instrument_errors(
+            cast("dict[str, object]", app_environment),
+            cast("dict[str, object]", frontend),
+        )
+    )
     frontend_environment = frontend.get("environment", {})
     if frontend_environment.get("VITE_API_URL") != "/api":
         errors.append("frontend must use the authenticated same-origin /api path")
@@ -278,6 +312,39 @@ def _app_runtime_errors(app: dict[str, Any], environment: dict[str, Any]) -> lis
             errors.append(f"app {name} is a placeholder, not a secret")
     if str(environment.get("TEST_MODE", "")).strip().lower() in _TRUTHY:
         errors.append("app must not set TEST_MODE in production")
+    return errors
+
+
+def _instrument_errors(
+    app_environment: dict[str, object], frontend: dict[str, object]
+) -> list[str]:
+    """Require a pinned participant-instrument build, the same on both sides.
+
+    The backend records ``INSTRUMENT_VERSION`` on each program at activation and
+    the frontend shows its own build in the footer; the F1 gate refuses a program
+    recorded as ``unpinned-app-...``. An unset variable renders as blank, which
+    the backend then replaces with that fallback, so the render is the place to
+    catch it. A frontend built from source must carry the same value as a build
+    argument; a prebuilt image (deploy by digest) has no build block, and its
+    baked-in value is compared with the program's by eye per the runbook.
+    """
+    errors: list[str] = []
+    value = str(app_environment.get("INSTRUMENT_VERSION") or "").strip()
+    if not value:
+        errors.append(_INSTRUMENT_MISSING)
+    elif value.startswith(_UNPINNED_PREFIX):
+        errors.append(_INSTRUMENT_UNPINNED)
+    elif not _INSTRUMENT_VERSION.fullmatch(value):
+        errors.append(_INSTRUMENT_MALFORMED)
+    build = frontend.get("build")
+    if isinstance(build, dict):
+        arguments = cast("dict[str, object]", build).get("args")
+        built = ""
+        if isinstance(arguments, dict):
+            argument = cast("dict[str, object]", arguments)
+            built = str(argument.get("VITE_INSTRUMENT_VERSION") or "").strip()
+        if built != value:
+            errors.append(_INSTRUMENT_MISMATCH)
     return errors
 
 

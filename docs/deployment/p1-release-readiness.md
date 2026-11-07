@@ -211,6 +211,11 @@ uv run python scripts/validate_production_topology.py /secure/path/compose.json 
   ${AUTHENTIK_MIDDLEWARE:+--authentik-middleware "$AUTHENTIK_MIDDLEWARE"}
 ```
 
+When deploying the signed images by digest (see [Image pinning and signing](image-signing.md)), add
+`-f docker-compose.release.yml` after `docker-compose.prod.yml` in the render and in `up`, with
+`APP_IMAGE_DIGEST`, `FRONTEND_IMAGE_DIGEST` and `INSTRUMENT_VERSION` set. The override drops the source
+build, so what runs is what was verified, and Compose refuses to render while either digest is unset.
+
 The middleware name defaults to `$AUTHENTIK_MIDDLEWARE`, then to `authentik@file`; the flag is passed
 only when the variable is set, because an empty name would override the default. Pass the name the
 Traefik router label actually carries. Besides the network and proxy checks above, the validator
@@ -225,6 +230,11 @@ also rejects a render in which:
   an example. The production override requires both, and neither compose file has an `env_file`, so
   a value that is not named there never reaches the container and every billed endpoint answers 503;
 - `TEST_MODE` is enabled (the app also refuses to start with it in production).
+- `INSTRUMENT_VERSION` is blank, the `unpinned-app-` fallback, or not a commit SHA or release tag
+  (letters, digits, `.`, `_` and `-`, at most 100 characters), or a frontend built from source carries a
+  different `VITE_INSTRUMENT_VERSION` build argument. The backend records this value on each program at
+  activation and the F1 gate refuses a program recorded as unpinned, so set it to the commit SHA of the
+  build you deploy. A frontend deployed by digest has no build block and is not compared; see below.
 - the `backup` service is missing, has no healthcheck, keeps its dumps anywhere other than a volume
   mounted at `/backups`, publishes a host port, or joins the authenticated edge (see
   [Backup and restore](backup-and-restore.md); a deployment with no backup job has no recovery point);

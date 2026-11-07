@@ -74,13 +74,22 @@ means the image at that digest was signed by this repository's `docker-publish.y
 Any other result (no signatures found, an identity mismatch, a missing registry login) means do not
 deploy it.
 
-Then deploy by digest, so what runs is what was verified:
+Then deploy by digest, so what runs is what was verified. `docker-compose.release.yml` is the override
+for this: layered last, it drops the source build of `app` and `frontend` and pulls
+`ghcr.io/byronwilliamscpa/fragrance_rater` and `ghcr.io/byronwilliamscpa/fragrance_rater-frontend` at the
+digests you give it, and Compose refuses to render while either is unset.
 
-```yaml
-services:
-  app:
-    image: ghcr.io/byronwilliamscpa/fragrance_rater@sha256:<digest>
+```bash
+export APP_IMAGE_DIGEST=sha256:<digest verified for the app image>
+export FRONTEND_IMAGE_DIGEST=sha256:<digest verified for the frontend image>
+export INSTRUMENT_VERSION=<the commit SHA both images were published from>
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  -f docker-compose.release.yml up -d
 ```
+
+`INSTRUMENT_VERSION` is the commit SHA `docker-publish.yml` baked into the frontend and the value the backend
+records on each program at activation. After the first program is activated, compare the UI footer
+("Instrument build ...") with `program.instrument_version` in the evidence export; they must match.
 
 For the P6 rehearsal and F1, record each verified digest with the other release evidence described in
 [P6 pilot readiness](p6-pilot-readiness.md).
@@ -92,7 +101,7 @@ For the P6 rehearsal and F1, record each verified digest with the other release 
   is a separate, report-only control.
 - **The committed compose files build from source.** `docker-compose.yml` and `docker-compose.prod.yml`
   build `app` and `frontend` on the host rather than pulling the signed images, so verification applies
-  only when you deploy the published images as shown above. A source build is protected by the pinned
+  only when you also layer `docker-compose.release.yml` as shown above. A source build is protected by the pinned
   base images, not by these signatures.
 - **The signing identity is the workflow file path and branch.** Renaming `docker-publish.yml`, or
   publishing from another branch, changes the identity; update the regexp here and in

@@ -22,7 +22,14 @@ DOCKERFILES = tuple(
         if not p.relative_to(ROOT).parts[0].startswith(".")
     )
 )
-COMPOSE_FILES = tuple(sorted(p.name for p in ROOT.glob("docker-compose*.yml")))
+# The release override pulls its images by an operator-supplied digest variable, so it
+# has no literal pin to check here; test_the_release_override_* below covers it.
+RELEASE_OVERRIDE = "docker-compose.release.yml"
+COMPOSE_FILES = tuple(
+    sorted(
+        p.name for p in ROOT.glob("docker-compose*.yml") if p.name != RELEASE_OVERRIDE
+    )
+)
 SIGN_JOBS = {"sign-backend": "backend", "sign-frontend": "frontend"}
 
 _DIGEST = r"@sha256:[0-9a-f]{64}"
@@ -325,3 +332,45 @@ def test_the_documented_verify_command_matches_the_workflow_identity() -> None:
     assert f"--certificate-oidc-issuer {_OIDC_ISSUER}" in doc
     assert _IDENTITY_FRAGMENT in doc
     assert "ByronWilliamsCPA/fragrance-rater" in doc
+
+
+# ---- Release override (deploy by verified digest) ----------------------------
+
+
+def _release_services() -> dict:
+    return yaml.load(_read(RELEASE_OVERRIDE), Loader=_ComposeLoader)["services"]  # noqa: S506 - SafeLoader subclass
+
+
+@pytest.mark.parametrize(
+    ("service", "image", "variable"),
+    [
+        ("app", "fragrance_rater", "APP_IMAGE_DIGEST"),
+        ("frontend", "fragrance_rater-frontend", "FRONTEND_IMAGE_DIGEST"),
+    ],
+)
+def test_the_release_override_pulls_the_signed_image_by_a_required_digest(
+    service: str, image: str, variable: str
+) -> None:
+    """No fallback: an unset digest must fail the render, never build or float."""
+    entry = _release_services()[service]
+    assert re.fullmatch(
+        rf"ghcr\.io/byronwilliamscpa/{re.escape(image)}@\$\{{{variable}:\?[^}}]+\}}",
+        entry["image"],
+    ), entry["image"]
+    # The `build` block of the base file is reset, so the image is pulled, not built.
+    assert "build" in entry
+    assert entry["build"] in (None, "null")
+
+
+def test_the_release_override_names_the_images_the_signing_doc_verifies() -> None:
+    doc = _read("docs/deployment/image-signing.md")
+    for service in _release_services().values():
+        name = service["image"].split("@", 1)[0]
+        assert name in doc, f"{name} is not the image the signing doc verifies"
+
+
+def test_the_release_override_touches_only_the_two_published_images() -> None:
+    services = _release_services()
+    assert set(services) == {"app", "frontend"}
+    for entry in services.values():
+        assert set(entry) == {"build", "image"}
