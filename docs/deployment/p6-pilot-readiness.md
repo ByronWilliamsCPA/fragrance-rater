@@ -33,7 +33,8 @@ Stop before rehearsal unless all items pass:
 - P0 and P2-P5 are complete in the authoritative plan, and P1 repository controls pass.
 - The candidate is a specific commit from `main`, with immutable application and frontend image
   digests. If the candidate deploys the published images, each digest passes the `cosign verify`
-  command in [Image pinning and signing](image-signing.md) before it is recorded; base images are
+  command in [Image pinning and signing](image-signing.md), with `--certificate-github-workflow-sha` set
+  to the candidate commit so each digest is tied to that commit, before it is recorded; base images are
   already pinned by digest in the repository, and Renovate keeps those pins current.
 - Remote CI and the Python compatibility summary pass on that commit.
 - P1 repository controls pass, and private locations exist for every pending P1 artifact.
@@ -46,6 +47,10 @@ Stop before rehearsal unless all items pass:
   are the exact participant-instrument build F1 will use, recorded in the rehearsal evidence per
   `docs/planning/gates/p6.md` P6.3. This is a hard gate on P6.3: rehearsing against a pre-R7b
   build proves nothing about the instrument F1 will use.
+- The candidate is deployed from the verified signed images with `docker-compose.release.yml`
+  ([Image pinning and signing](image-signing.md)), with `INSTRUMENT_VERSION` set to the candidate commit
+  SHA. The production topology validator rejects an unset or unpinned value, and the instrument build
+  shown in the UI footer matches `program.instrument_version` in the saved evidence export.
 
 Record the entry result in the [readiness decision](../planning/evidence/p6-readiness-decision.md).
 

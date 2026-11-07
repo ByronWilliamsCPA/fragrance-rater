@@ -198,7 +198,10 @@ and `FORWARDED_ALLOW_IPS` (the private app network and the edge subnet, so rate 
 the real client). The validator below rejects a render missing any of them or using `*`.
 
 Render the exact deployment configuration and save it to the private evidence directory, then
-validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails:
+validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails.
+Set `INSTRUMENT_VERSION` first (to the commit SHA of the build you deploy, in `.env` or the shell): an
+unset value renders blank and fails the validator, and a source-built frontend takes the same value as
+its `VITE_INSTRUMENT_VERSION` build argument.
 
 ```bash
 # The render contains both API keys in plaintext: write it straight to a
@@ -210,6 +213,11 @@ uv run python scripts/validate_production_topology.py /secure/path/compose.json 
   "$(docker network inspect "$FRAGRANCE_TRAEFIK_NETWORK" --format '{{(index .IPAM.Config 0).Subnet}}')" \
   ${AUTHENTIK_MIDDLEWARE:+--authentik-middleware "$AUTHENTIK_MIDDLEWARE"}
 ```
+
+When deploying the signed images by digest (see [Image pinning and signing](image-signing.md)), add
+`-f docker-compose.release.yml` after `docker-compose.prod.yml` in the render and in `up`, with
+`APP_IMAGE_DIGEST`, `FRONTEND_IMAGE_DIGEST` and `INSTRUMENT_VERSION` set. The override drops the source
+build, so what runs is what was verified, and Compose refuses to render while either digest is unset.
 
 The middleware name defaults to `$AUTHENTIK_MIDDLEWARE`, then to `authentik@file`; the flag is passed
 only when the variable is set, because an empty name would override the default. Pass the name the
@@ -225,6 +233,11 @@ also rejects a render in which:
   an example. The production override requires both, and neither compose file has an `env_file`, so
   a value that is not named there never reaches the container and every billed endpoint answers 503;
 - `TEST_MODE` is enabled (the app also refuses to start with it in production).
+- `INSTRUMENT_VERSION` is blank, the `unpinned-app-` fallback, or not a commit SHA or release tag
+  (letters, digits, `.`, `_` and `-`, at most 100 characters), or a frontend built from source carries a
+  different `VITE_INSTRUMENT_VERSION` build argument. The backend records this value on each program at
+  activation and the F1 gate refuses a program recorded as unpinned, so set it to the commit SHA of the
+  build you deploy. A frontend deployed by digest has no build block and is not compared; see below.
 - the `backup` service is missing, has no healthcheck, keeps its dumps anywhere other than a volume
   mounted at `/backups`, publishes a host port, or joins the authenticated edge (see
   [Backup and restore](backup-and-restore.md); a deployment with no backup job has no recovery point);

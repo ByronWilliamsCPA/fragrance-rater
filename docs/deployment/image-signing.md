@@ -62,25 +62,41 @@ Use the digest you intend to deploy, not a tag:
 ```bash
 IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater
 DIGEST=sha256:<digest-recorded-for-the-release>
+COMMIT=<the 40-character release candidate commit>
 
 cosign verify \
   --certificate-identity-regexp '^https://github\.com/ByronWilliamsCPA/fragrance-rater/\.github/workflows/docker-publish\.yml@refs/heads/main$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-github-workflow-sha "${COMMIT}" \
   "${IMAGE}@${DIGEST}"
 ```
 
-Repeat with `IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater-frontend` and its digest. A zero exit status
-means the image at that digest was signed by this repository's `docker-publish.yml` running on `main`.
-Any other result (no signatures found, an identity mismatch, a missing registry login) means do not
-deploy it.
+Repeat with `IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater-frontend` and its digest, with the same
+`COMMIT`. A zero exit status means the image at that digest was signed by this repository's
+`docker-publish.yml` running on `main` at that commit, which is what ties each digest to the release
+candidate: an app and a frontend digest from different publishes cannot both pass with one `COMMIT`.
+Any other result (no signatures found, an identity or commit mismatch, a missing registry login) means do
+not deploy it. `--certificate-github-workflow-sha` is a documented `cosign verify` option; it has not been
+exercised against a real certificate from this repository's workflow. On the first verification of a
+published image, run it twice per image: once with the right `COMMIT`, which must succeed, and once with
+a different 40-character value, which must fail. A check that cannot fail proves nothing.
 
-Then deploy by digest, so what runs is what was verified:
+Then deploy by digest, so what runs is what was verified. `docker-compose.release.yml` is the override
+for this: layered last, it drops the source build of `app` and `frontend` and pulls
+`ghcr.io/byronwilliamscpa/fragrance_rater` and `ghcr.io/byronwilliamscpa/fragrance_rater-frontend` at the
+digests you give it, and Compose refuses to render while either is unset.
 
-```yaml
-services:
-  app:
-    image: ghcr.io/byronwilliamscpa/fragrance_rater@sha256:<digest>
+```bash
+export APP_IMAGE_DIGEST=sha256:<digest verified for the app image>
+export FRONTEND_IMAGE_DIGEST=sha256:<digest verified for the frontend image>
+export INSTRUMENT_VERSION=<the commit SHA both images were published from>
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  -f docker-compose.release.yml up -d
 ```
+
+`INSTRUMENT_VERSION` is the commit SHA `docker-publish.yml` baked into the frontend and the value the backend
+records on each program at activation. After the first program is activated, compare the UI footer
+("Instrument build ...") with `program.instrument_version` in the evidence export; they must match.
 
 For the P6 rehearsal and F1, record each verified digest with the other release evidence described in
 [P6 pilot readiness](p6-pilot-readiness.md).
@@ -92,7 +108,7 @@ For the P6 rehearsal and F1, record each verified digest with the other release 
   is a separate, report-only control.
 - **The committed compose files build from source.** `docker-compose.yml` and `docker-compose.prod.yml`
   build `app` and `frontend` on the host rather than pulling the signed images, so verification applies
-  only when you deploy the published images as shown above. A source build is protected by the pinned
+  only when you also layer `docker-compose.release.yml` as shown above. A source build is protected by the pinned
   base images, not by these signatures.
 - **The signing identity is the workflow file path and branch.** Renaming `docker-publish.yml`, or
   publishing from another branch, changes the identity; update the regexp here and in

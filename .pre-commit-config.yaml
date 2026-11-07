@@ -28,7 +28,7 @@ repos:
       - id: check-yaml
         stages: [pre-commit]
         # These files use supported custom tags: MkDocs !ENV and Compose !reset.
-        exclude: ^(mkdocs\.yml|docker-compose\.prod\.yml)$
+        exclude: ^(mkdocs\.yml|docker-compose\.(prod|release)\.yml)$
       - id: check-json
         # TypeScript config files are JSONC and intentionally allow trailing commas.
         exclude: ^frontend/tsconfig\..*\.json$
