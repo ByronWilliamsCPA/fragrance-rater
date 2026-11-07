@@ -30,9 +30,10 @@ human-readable verification evidence, physical-sample confirmation, role, and re
 relationship. A hidden repeat uses the exact fragrance UUID and version key of its referenced
 original. An unresolved version is left out of the program rather than guessed.
 
-The file also records who verified it and when: top-level `verified_by` (a name) and `verified_at` (a UTC timestamp such
-as `2026-11-08T14:30:00Z`). The template ships both as `null` and the validator rejects `null`, so a manifest cannot pass
-without them.
+The file also records who verified it and when: top-level `verified_by` (a name) and `verified_at` (a UTC timestamp
+written `YYYY-MM-DDTHH:MM:SSZ`, optionally with fractional seconds, such as `2026-11-08T14:30:00Z`). End it with `Z`;
+an offset such as `+00:00` is rejected. The template ships both as `null` and the validator rejects `null`, so a
+manifest cannot pass without them.
 
 Record the physical bottle's barcode as `gtin` when it has one - the strongest identity signal
 available, since it is assigned per exact SKU by the manufacturer rather than inferred from text.
@@ -45,12 +46,13 @@ Validate the completed file:
 
 ```bash
 uv run python scripts/validate_calibration_manifest.py /secure/path/baseline-manifest.json \
-  --expect-shape baseline=33,hidden_repeat=6,holdout=10 --require-label-check
+  --expect-shape baseline=33,hidden_repeat=6,holdout=10,total=49 --require-label-check
 sha256sum /secure/path/baseline-manifest.json
 ```
 
 `--expect-shape` checks the number of memberships per role against the planned program (33 universal baseline, 6 hidden
-repeat and 10 holdout memberships, 49 in all over 43 fragrances); leave it out if the reviewed program differs.
+repeat and 10 holdout memberships, 49 in all over 43 fragrances). `total=49` counts every membership whatever its role, so
+an extra membership of another role fails too. Leave the option out if the reviewed program differs.
 `--require-label-check` demands `label_checked_by` on every entry (see the decant section below). The command exits 0
 when valid, 1 with one line per violation, and 2 when the file cannot be read. Retain the output and the `sha256sum`
 line with the manifest as the verification report.

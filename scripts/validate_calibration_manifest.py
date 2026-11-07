@@ -23,6 +23,8 @@ SHAPE_ROLES = {
     "hidden_repeat": "HIDDEN_REPEAT",
     "holdout": "HOLDOUT",
 }
+# --expect-shape also accepts total=N, the count of all memberships whatever their role.
+SHAPE_TOTAL = "total"
 REQUIRED_TEXT = (
     "membership_key",
     "fragrance_id",
@@ -247,12 +249,13 @@ def validate_manifest(
 
 
 def parse_shape(text: str) -> dict[str, int]:
-    """Parse ``baseline=33,hidden_repeat=6,holdout=10`` into role counts."""
+    """Parse ``baseline=33,hidden_repeat=6,holdout=10,total=49`` into counts."""
     shape: dict[str, int] = {}
     for part in text.split(","):
         name, separator, count = part.strip().partition("=")
-        if not separator or name not in SHAPE_ROLES or not count.strip().isdigit():
-            names = ", ".join(sorted(SHAPE_ROLES))
+        known = name in SHAPE_ROLES or name == SHAPE_TOTAL
+        if not separator or not known or not count.strip().isdigit():
+            names = ", ".join([*sorted(SHAPE_ROLES), SHAPE_TOTAL])
             msg = f"{part.strip()!r} is not NAME=COUNT with NAME one of {names}"
             raise argparse.ArgumentTypeError(msg)
         if name in shape:
@@ -263,23 +266,29 @@ def parse_shape(text: str) -> dict[str, int]:
 
 
 def validate_shape(document: object, expected: dict[str, int]) -> list[str]:
-    """Compare the number of memberships per role with the declared program shape."""
+    """Compare membership counts per role, and in total, with the declared shape."""
     if not isinstance(document, dict):
         return []  # validate_manifest already reports an unusable document
     entries = cast("dict[str, object]", document).get("entries")
     if not isinstance(entries, list):
         return []
     counts: dict[str, int] = {}
+    total = 0
     for entry in cast("list[object]", entries):
         if isinstance(entry, dict):
+            total += 1
             role = str(cast("dict[str, object]", entry).get("role"))
             counts[role] = counts.get(role, 0) + 1
-    return [
-        f"expected {want} {name} membership(s) ({SHAPE_ROLES[name]}), found "
-        f"{counts.get(SHAPE_ROLES[name], 0)}"
+    errors = [
+        f"expected {want} {name} membership(s) ({SHAPE_ROLES[name]}), "
+        f"found {counts.get(SHAPE_ROLES[name], 0)}"
         for name, want in expected.items()
-        if counts.get(SHAPE_ROLES[name], 0) != want
+        if name in SHAPE_ROLES and counts.get(SHAPE_ROLES[name], 0) != want
     ]
+    want_total = expected.get(SHAPE_TOTAL)
+    if want_total is not None and total != want_total:
+        errors.append(f"expected {want_total} membership(s) in total, found {total}")
+    return errors
 
 
 class _Args(argparse.Namespace):
@@ -297,8 +306,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--expect-shape",
         type=parse_shape,
-        metavar="baseline=N,hidden_repeat=N,holdout=N",
-        help="also require exactly this many memberships per role",
+        metavar="baseline=N,hidden_repeat=N,holdout=N,total=N",
+        help="also require exactly this many memberships per role and in total",
     )
     parser.add_argument(
         "--require-label-check",

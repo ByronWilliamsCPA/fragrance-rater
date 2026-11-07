@@ -481,6 +481,42 @@ class TestExpectedShape:
         assert any("baseline" in error for error in errors)
         assert any("holdout" in error for error in errors)
 
+    def test_an_extra_membership_of_another_role_fails_the_total(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(33, 6, 10)
+        document["entries"].append(
+            valid_entry(
+                membership_key="a0",
+                fragrance_id="fa0",
+                version_key="v-a0",
+                role="ACTIVE_LEARNING",
+            )
+        )
+        expected = validator.parse_shape(
+            "baseline=33,hidden_repeat=6,holdout=10,total=49"
+        )
+        assert validator.validate_shape(document, expected) == [
+            "expected 49 membership(s) in total, found 50"
+        ]
+
+    def test_the_total_matches_when_every_role_is_counted(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        expected = validator.parse_shape("total=49")
+        assert validator.validate_shape(_shape_document(33, 6, 10), expected) == []
+
+    def test_a_shape_without_a_total_ignores_other_roles(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(1, 0, 0)
+        document["entries"].append(
+            valid_entry(
+                membership_key="a0",
+                fragrance_id="fa0",
+                version_key="v-a0",
+                role="ACTIVE_LEARNING",
+            )
+        )
+        assert validator.validate_shape(document, {"baseline": 1}) == []
+
     def test_an_unusable_document_adds_no_shape_noise(self) -> None:
         validator = load_script("validate_calibration_manifest")
         assert validator.validate_shape([], {"baseline": 1}) == []
@@ -497,6 +533,8 @@ class TestExpectedShape:
             "other=3",
             "baseline=1,baseline=2",
             "baseline=1,,holdout=2",
+            "total=",
+            "total=1,total=2",
         ],
     )
     def test_parse_shape_rejects_malformed_text(self, text: str) -> None:
@@ -528,6 +566,20 @@ class TestManifestCommandLine:
         path = self._write(tmp_path, _shape_document(3, 1, 1))
         assert validator.main([path, "--expect-shape", "holdout=2"]) == 1
         assert "expected 2 holdout" in capsys.readouterr().err
+
+    def test_shape_and_label_check_together_exit_zero(self, tmp_path: Path) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(3, 1, 1)
+        for entry in document["entries"]:
+            entry["label_checked_by"] = ["A. Verifier", "B. Second"]
+        path = self._write(tmp_path, document)
+        argv = [
+            path,
+            "--expect-shape",
+            "baseline=3,hidden_repeat=1,holdout=1,total=5",
+            "--require-label-check",
+        ]
+        assert validator.main(argv) == 0
 
     def test_require_label_check_failure_exits_one(self, tmp_path: Path) -> None:
         validator = load_script("validate_calibration_manifest")
