@@ -9,7 +9,7 @@ import re
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 GATES = {f"P6.{index}" for index in range(1, 7)}
 ARTIFACTS = {
@@ -18,6 +18,7 @@ ARTIFACTS = {
     "p1_gate",
     "quality_report",
     "redacted_export_manifest",
+    "redacted_r7b_export",
     "signed_decision",
     "synthetic_rehearsal",
 }
@@ -120,6 +121,37 @@ def validate_release(release: object) -> list[str]:
     return errors
 
 
+def validate_r7b_build(r7b_build: object, release: object) -> list[str]:
+    """Require the rehearsed R7b build to be exactly the release candidate.
+
+    P6.3 only means something if the synthetic rehearsal ran the participant
+    instrument build that F1 will run. Naming a different commit or image than the
+    release closes the gate on evidence about some other build, so each field must
+    be well formed and equal to the same field of ``release``.
+    """
+    if not isinstance(r7b_build, dict):
+        return ["r7b_build must be an object"]
+    build = cast("dict[str, object]", r7b_build)
+    candidate = cast("dict[str, object]", release) if isinstance(release, dict) else {}
+    errors: list[str] = []
+    fields = (
+        ("commit", COMMIT, "a 40-character lowercase Git commit"),
+        ("app_image_digest", DIGEST, "an immutable SHA-256 digest"),
+        ("frontend_image_digest", DIGEST, "an immutable SHA-256 digest"),
+    )
+    for field_name, pattern, description in fields:
+        value = str(build.get(field_name, ""))
+        released = str(candidate.get(field_name, ""))
+        if not pattern.fullmatch(value):
+            errors.append(f"r7b_build.{field_name} must be {description}")
+        elif pattern.fullmatch(released) and value != released:
+            # A malformed release field is already reported by validate_release;
+            # comparing against it would only add a misleading second error.
+            message = f"r7b_build.{field_name} must equal release.{field_name}"
+            errors.append(f"{message}: the rehearsal did not run the candidate")
+    return errors
+
+
 def validate_limitations(limitations: object) -> list[str]:
     """Reject malformed or unresolved release-blocking limitations."""
     if not isinstance(limitations, list):
@@ -201,7 +233,18 @@ def validate_readiness(document: object) -> list[str]:
                     f"artifacts.{name} must use the private:<opaque-reference> format"
                 )
 
+    errors.extend(
+        validate_r7b_build(document.get("r7b_build"), document.get("release"))
+    )
     errors.extend(validate_limitations(document.get("known_limitations")))
+    # An empty list cannot tell a review that found nothing from a step never done.
+    if document.get("known_limitations") == [] and not completed_text(
+        document.get("known_limitations_review")
+    ):
+        errors.append(
+            "known_limitations_review must be completed text when known_limitations "
+            "is empty (for example: reviewed, none identified)"
+        )
     errors.extend(validate_decision(document.get("decision")))
     return errors
 
