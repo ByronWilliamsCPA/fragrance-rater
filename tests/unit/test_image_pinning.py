@@ -337,8 +337,17 @@ def test_the_documented_verify_command_matches_the_workflow_identity() -> None:
 # ---- Release override (deploy by verified digest) ----------------------------
 
 
+class _TagKeepingLoader(_ComposeLoader):
+    """Keeps ``!reset`` visible, so a quoted ``"null"`` cannot pass for a reset."""
+
+
+_TagKeepingLoader.add_constructor(
+    "!reset", lambda loader, node: ("!reset", loader.construct_scalar(node))
+)
+
+
 def _release_services() -> dict:
-    return yaml.load(_read(RELEASE_OVERRIDE), Loader=_ComposeLoader)["services"]  # noqa: S506 - SafeLoader subclass
+    return yaml.load(_read(RELEASE_OVERRIDE), Loader=_TagKeepingLoader)["services"]  # noqa: S506 - SafeLoader subclass
 
 
 @pytest.mark.parametrize(
@@ -357,16 +366,18 @@ def test_the_release_override_pulls_the_signed_image_by_a_required_digest(
         rf"ghcr\.io/byronwilliamscpa/{re.escape(image)}@\$\{{{variable}:\?[^}}]+\}}",
         entry["image"],
     ), entry["image"]
-    # The `build` block of the base file is reset, so the image is pulled, not built.
-    assert "build" in entry
-    assert entry["build"] in (None, "null")
+    # The base file's `build` block is reset by the real `!reset` tag (not a quoted
+    # string, which Compose would treat as a build context), so the image is pulled.
+    assert entry["build"] == ("!reset", "null")
 
 
 def test_the_release_override_names_the_images_the_signing_doc_verifies() -> None:
     doc = _read("docs/deployment/image-signing.md")
     for service in _release_services().values():
         name = service["image"].split("@", 1)[0]
-        assert name in doc, f"{name} is not the image the signing doc verifies"
+        # Whole names only: the frontend name starts with the backend name.
+        pattern = rf"(?<![A-Za-z0-9._/-]){re.escape(name)}(?![A-Za-z0-9._-])"
+        assert re.search(pattern, doc), f"{name} is not verified by the signing doc"
 
 
 def test_the_release_override_touches_only_the_two_published_images() -> None:

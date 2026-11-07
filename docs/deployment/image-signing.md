@@ -62,17 +62,23 @@ Use the digest you intend to deploy, not a tag:
 ```bash
 IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater
 DIGEST=sha256:<digest-recorded-for-the-release>
+COMMIT=<the 40-character release candidate commit>
 
 cosign verify \
   --certificate-identity-regexp '^https://github\.com/ByronWilliamsCPA/fragrance-rater/\.github/workflows/docker-publish\.yml@refs/heads/main$' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-github-workflow-sha "${COMMIT}" \
   "${IMAGE}@${DIGEST}"
 ```
 
-Repeat with `IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater-frontend` and its digest. A zero exit status
-means the image at that digest was signed by this repository's `docker-publish.yml` running on `main`.
-Any other result (no signatures found, an identity mismatch, a missing registry login) means do not
-deploy it.
+Repeat with `IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater-frontend` and its digest, with the same
+`COMMIT`. A zero exit status means the image at that digest was signed by this repository's
+`docker-publish.yml` running on `main` at that commit, which is what ties each digest to the release
+candidate: an app and a frontend digest from different publishes cannot both pass with one `COMMIT`.
+Any other result (no signatures found, an identity or commit mismatch, a missing registry login) means do
+not deploy it. `--certificate-github-workflow-sha` is a documented `cosign verify` option; it has not been
+exercised against a real certificate from this repository's workflow, so treat the first verification of
+a published image as the check that it matches.
 
 Then deploy by digest, so what runs is what was verified. `docker-compose.release.yml` is the override
 for this: layered last, it drops the source build of `app` and `frontend` and pulls

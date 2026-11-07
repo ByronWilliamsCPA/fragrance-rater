@@ -198,7 +198,10 @@ and `FORWARDED_ALLOW_IPS` (the private app network and the edge subnet, so rate 
 the real client). The validator below rejects a render missing any of them or using `*`.
 
 Render the exact deployment configuration and save it to the private evidence directory, then
-validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails:
+validate it against the live edge subnet; a `FRAGRANCE_TRAEFIK_CIDR` that differs from it fails.
+Set `INSTRUMENT_VERSION` first (to the commit SHA of the build you deploy, in `.env` or the shell): an
+unset value renders blank and fails the validator, and a source-built frontend takes the same value as
+its `VITE_INSTRUMENT_VERSION` build argument.
 
 ```bash
 # The render contains both API keys in plaintext: write it straight to a

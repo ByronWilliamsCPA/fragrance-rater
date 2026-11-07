@@ -33,7 +33,8 @@ Stop before rehearsal unless all items pass:
 - P0 and P2-P5 are complete in the authoritative plan, and P1 repository controls pass.
 - The candidate is a specific commit from `main`, with immutable application and frontend image
   digests. If the candidate deploys the published images, each digest passes the `cosign verify`
-  command in [Image pinning and signing](image-signing.md) before it is recorded; base images are
+  command in [Image pinning and signing](image-signing.md), with `--certificate-github-workflow-sha` set
+  to the candidate commit so each digest is tied to that commit, before it is recorded; base images are
   already pinned by digest in the repository, and Renovate keeps those pins current.
 - Remote CI and the Python compatibility summary pass on that commit.
 - P1 repository controls pass, and private locations exist for every pending P1 artifact.
