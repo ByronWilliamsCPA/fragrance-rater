@@ -724,7 +724,7 @@ reads as an environment switch that does nothing. Separately, the generated prod
 `read_only`, `cap_drop`, `security_opt` or `tmpfs` on any service, and base images are floating tags
 (`python:3.12-slim`, `nginx:alpine`, `ghcr.io/astral-sh/uv:latest`) rather than digest pins.
 
-**Context**: Architecture review findings S-13 and S-20, fixed in R14 PR 3b (2026-11-01); the digest-pinning
+**Context**: Architecture review findings S-13 and S-20, fixed in R14 PR 3b (2026-11-06, #192); the digest-pinning
 half (S-12) ships in the companion pull request. Measuring the real write paths showed the template's own
 app needs `/tmp` (the generated import endpoint writes a temp file), which a bare `read_only: true` would
 have broken silently.
