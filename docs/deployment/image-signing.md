@@ -77,8 +77,9 @@ Repeat with `IMAGE=ghcr.io/byronwilliamscpa/fragrance_rater-frontend` and its di
 candidate: an app and a frontend digest from different publishes cannot both pass with one `COMMIT`.
 Any other result (no signatures found, an identity or commit mismatch, a missing registry login) means do
 not deploy it. `--certificate-github-workflow-sha` is a documented `cosign verify` option; it has not been
-exercised against a real certificate from this repository's workflow, so treat the first verification of
-a published image as the check that it matches.
+exercised against a real certificate from this repository's workflow. On the first verification of a
+published image, run it twice per image: once with the right `COMMIT`, which must succeed, and once with
+a different 40-character value, which must fail. A check that cannot fail proves nothing.
 
 Then deploy by digest, so what runs is what was verified. `docker-compose.release.yml` is the override
 for this: layered last, it drops the source build of `app` and `frontend` and pulls
