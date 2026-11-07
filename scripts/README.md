@@ -7,8 +7,10 @@ Utility scripts for Fragrance Rater.
 ### validate_p6_readiness.py
 
 Validates that the P6 closure record identifies immutable release images, marks P6.1-P6.6 as
-passed, references every private evidence artifact, contains no unresolved blocking limitation,
-and records an attributable UTC `go` decision.
+passed, references every private evidence artifact (including the redacted R7b export), contains no
+unresolved blocking limitation, and records an attributable UTC `go` decision. `r7b_build` must equal
+`release` (the rehearsal ran the release candidate), and an empty `known_limitations` needs a completed
+`known_limitations_review` note.
 
 ```bash
 uv run python scripts/validate_p6_readiness.py /secure/path/p6-readiness.json

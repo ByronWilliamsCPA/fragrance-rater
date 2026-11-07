@@ -127,10 +127,10 @@ Review the [participant guide](../guides/pilot-participant.md),
 and every known limitation. The core maintainer records `go` or `no-go` in the
 [readiness decision](../planning/evidence/p6-readiness-decision.md).
 
-An empty `known_limitations` array validates cleanly, but it cannot by itself distinguish a
-review that found nothing from a step that was never done. Record an explicit "reviewed, none
-identified" note in the readiness decision whenever the list is empty, so the closure record
-shows the review happened.
+An empty `known_limitations` array cannot by itself distinguish a review that found nothing from a
+step that was never done, so the record's `known_limitations_review` must then hold a completed note
+(for example "reviewed, none identified"); the validator rejects an empty list without one. Record the
+same note in the readiness decision so the closure record shows the review happened.
 
 Only `go`, with every P6.1-P6.6 item passed and no unresolved release-blocking limitation, closes
 P6. A missing artifact, failed criterion, stale deployment, or `no-go` keeps F1 blocked. Any
@@ -147,3 +147,9 @@ uv run python scripts/validate_p6_readiness.py /secure/path/p6-readiness.json
 The validator checks completeness and consistency; it does not determine whether an observation
 is truthful or whether a private artifact is sufficient. The core maintainer must review those
 artifacts before recording `go`.
+
+Two fields bind the rehearsal to the release. `r7b_build` names the commit and the application and
+frontend image digests the P6.3 rehearsal exercised, and each must equal the same field of `release`: a
+rehearsal that ran a different build says nothing about the build F1 will run, so a mismatch fails
+the record. `artifacts.redacted_r7b_export` is the private reference to the saved R7b evidence
+exports and their [summary](#p63-rehearse-the-synthetic-workflow).

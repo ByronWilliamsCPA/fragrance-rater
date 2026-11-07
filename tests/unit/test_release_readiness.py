@@ -619,17 +619,24 @@ def valid_p6_readiness() -> dict[str, Any]:
             "deployment_reference": "private:release-candidate",
             "remote_ci_passed": True,
         },
+        "r7b_build": {
+            "commit": "a" * 40,
+            "app_image_digest": f"sha256:{'b' * 64}",
+            "frontend_image_digest": f"sha256:{'c' * 64}",
+        },
         "gates": {f"P6.{index}": "pass" for index in range(1, 7)},
         "artifacts": {
             "p1_gate": "private:p1",
             "device_matrix": "private:devices",
             "synthetic_rehearsal": "private:rehearsal",
             "redacted_export_manifest": "private:export",
+            "redacted_r7b_export": "private:r7b-export",
             "quality_report": "private:quality",
             "operations_drill": "private:operations",
             "signed_decision": "private:decision",
         },
         "known_limitations": [],
+        "known_limitations_review": "Reviewed on 2026-09-12; none identified",
         "decision": {
             "value": "go",
             "decided_by": "core maintainer",
@@ -660,6 +667,131 @@ def test_p6_readiness_rejects_pending_evidence_and_decision() -> None:
         in errors
     )
     assert "decision.value must be go to close P6" in errors
+
+
+class TestR7bBuildBinding:
+    """P6.3 evidence must be about the build the release candidate names."""
+
+    def test_the_template_fails_on_every_new_field(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        template = json.loads(
+            (ROOT / "data" / "pilot" / "p6-readiness.template.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        errors = validator.validate_readiness(template)
+        assert "r7b_build.commit must be a 40-character lowercase Git commit" in errors
+        assert (
+            "r7b_build.app_image_digest must be an immutable SHA-256 digest" in errors
+        )
+        assert (
+            "artifacts.redacted_r7b_export must use the private:<opaque-reference> format"
+            in errors
+        )
+        assert any(line.startswith("known_limitations_review") for line in errors)
+
+    def test_a_record_without_the_r7b_build_is_rejected(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        del document["r7b_build"]
+        assert validator.validate_readiness(document) == ["r7b_build must be an object"]
+
+    @pytest.mark.parametrize(
+        ("field", "other"),
+        [
+            ("commit", "d" * 40),
+            ("app_image_digest", f"sha256:{'e' * 64}"),
+            ("frontend_image_digest", f"sha256:{'f' * 64}"),
+        ],
+    )
+    def test_a_different_build_than_the_release_is_rejected(
+        self, field: str, other: str
+    ) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        document["r7b_build"][field] = other
+        errors = validator.validate_readiness(document)
+        assert len(errors) == 1
+        assert errors[0].startswith(f"r7b_build.{field} must equal release.{field}")
+
+    @pytest.mark.parametrize(
+        "field", ["commit", "app_image_digest", "frontend_image_digest"]
+    )
+    @pytest.mark.parametrize("bad", ["", "pending", "ABC", "sha256:short", None])
+    def test_a_malformed_build_field_is_rejected(self, field: str, bad: object) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        document["r7b_build"][field] = bad
+        errors = validator.validate_readiness(document)
+        assert any(line.startswith(f"r7b_build.{field} must be") for line in errors)
+
+    def test_a_missing_build_field_is_rejected(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        del document["r7b_build"]["commit"]
+        errors = validator.validate_readiness(document)
+        assert "r7b_build.commit must be a 40-character lowercase Git commit" in errors
+
+    def test_a_non_object_build_is_rejected(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        document["r7b_build"] = "a" * 40
+        assert validator.validate_readiness(document) == ["r7b_build must be an object"]
+
+    def test_a_malformed_release_adds_no_equality_noise_for_the_build(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        document["release"] = "x"
+        errors = validator.validate_readiness(document)
+        assert "release must be an object" in errors
+        assert all("must equal" not in line for line in errors)
+
+    def test_the_r7b_export_reference_is_required(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        del document["artifacts"]["redacted_r7b_export"]
+        assert validator.validate_readiness(document) == [
+            "artifacts.redacted_r7b_export must use the private:<opaque-reference> format"
+        ]
+
+
+class TestLimitationsReview:
+    """An empty limitation list needs a recorded review note."""
+
+    @pytest.mark.parametrize("value", [None, "", "  ", "pending", "TBD", 7])
+    def test_an_empty_list_without_a_review_note_is_rejected(
+        self, value: object
+    ) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        document["known_limitations_review"] = value
+        errors = validator.validate_readiness(document)
+        assert len(errors) == 1
+        assert errors[0].startswith("known_limitations_review must be completed text")
+
+    def test_a_missing_review_note_is_rejected(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        del document["known_limitations_review"]
+        assert any(
+            line.startswith("known_limitations_review")
+            for line in validator.validate_readiness(document)
+        )
+
+    def test_the_note_is_not_required_when_limitations_are_listed(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        document["known_limitations"] = [valid_limitation()]
+        del document["known_limitations_review"]
+        assert validator.validate_readiness(document) == []
+
+    def test_a_malformed_limitations_list_adds_no_review_noise(self) -> None:
+        validator = load_script("validate_p6_readiness")
+        document = valid_p6_readiness()
+        document["known_limitations"] = "none"
+        del document["known_limitations_review"]
+        errors = validator.validate_readiness(document)
+        assert errors == ["known_limitations must be an array"]
 
 
 def valid_limitation() -> dict[str, Any]:
