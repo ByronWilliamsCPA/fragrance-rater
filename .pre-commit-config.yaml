@@ -123,12 +123,13 @@ repos:
     hooks:
       - id: bandit-full
         name: Bandit Security Scan (full src/)
-        # scripts/validate_p6_readiness.py and scripts/validate_vocabulary.py are
-        # named explicitly (not the whole scripts/ tree) because they gate the P6
-        # pilot go/no-go decision and the vocabulary publish rules respectively,
+        # scripts/validate_p6_readiness.py, scripts/validate_vocabulary.py and
+        # scripts/summarize_evidence_export.py are named explicitly (not the whole
+        # scripts/ tree) because they gate the P6 pilot go/no-go decision, the
+        # vocabulary publish rules and the F1 completeness evidence respectively,
         # and the changed-file bandit hook above excludes scripts/ entirely; other
         # scripts are not yet in scope for this check.
-        entry: uv run bandit -c pyproject.toml -r src/ scripts/validate_p6_readiness.py scripts/validate_vocabulary.py -ll -q
+        entry: uv run bandit -c pyproject.toml -r src/ scripts/validate_p6_readiness.py scripts/validate_vocabulary.py scripts/summarize_evidence_export.py -ll -q
         language: system
         pass_filenames: false
         stages: [pre-push]
@@ -145,14 +146,14 @@ repos:
     hooks:
       - id: basedpyright
         name: BasedPyright type checker
-        # scripts/validate_p6_readiness.py and scripts/validate_vocabulary.py are
-        # named explicitly for the same reason as the bandit-full hook above:
-        # they each gate a release/publish decision and were otherwise checked
-        # by nothing in this repo.
-        entry: uv run --no-sync basedpyright src/ scripts/validate_p6_readiness.py scripts/validate_vocabulary.py
+        # scripts/validate_p6_readiness.py, scripts/validate_vocabulary.py and
+        # scripts/summarize_evidence_export.py are named explicitly for the same
+        # reason as the bandit-full hook above: they each gate a release, publish
+        # or pilot-evidence decision and were otherwise checked by nothing here.
+        entry: uv run --no-sync basedpyright src/ scripts/validate_p6_readiness.py scripts/validate_vocabulary.py scripts/summarize_evidence_export.py
         language: system
         pass_filenames: false
-        files: ^(src/|scripts/validate_p6_readiness\.py|scripts/validate_vocabulary\.py)
+        files: ^(src/|scripts/validate_p6_readiness\.py|scripts/validate_vocabulary\.py|scripts/summarize_evidence_export\.py)
         stages: [pre-commit]
 
   # ============================================================================

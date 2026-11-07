@@ -75,6 +75,23 @@ Perform an interruption after a saved response and a retry of one consequential 
 that the saved state remains correct and no duplicate impression, response revision, or reveal
 transition appears.
 
+Save each enrollment's manager-only evidence export (`GET
+/api/v1/calibration/enrollments/{enrollment_id}/evidence-export`, signed in as a manager) to the private
+evidence directory, then summarize it:
+
+```bash
+uv run python scripts/summarize_evidence_export.py --require-each-field-once \
+  --expect-instrument <build commit SHA or release tag> /secure/path/export.json
+```
+
+The tool prints each captured field as `non-null/denominator`, counts `season_fit` and `setting_fit`
+against skin-stage observations only, and counts quality flags and consent events. It also prints each
+file's size and SHA-256 for the manifest in the rehearsal log. It exits 0 when every captured field
+is non-null at least once and the program records the build you name, 1 when a field is null in every row
+or the pin differs (an `unpinned-app-` fallback is refused), and 2 when a file is not a readable export
+of the expected version. Pass several files to pool them, as F1 does across evaluators. The export holds
+synthetic data only during this rehearsal, but it can still carry names and dates, so keep it private.
+
 ## P6.4 Run the quality gate
 
 Use the [quality report](../planning/evidence/p6-quality-report.md) on every critical page.
