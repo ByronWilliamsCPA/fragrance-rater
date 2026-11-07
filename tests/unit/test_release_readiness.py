@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import json
 import sys
@@ -14,6 +15,12 @@ if TYPE_CHECKING:
     from types import ModuleType
 
 ROOT = Path(__file__).parents[2]
+
+# The verifier block every complete manifest carries (the template ships both as null).
+VERIFIED: dict[str, str] = {
+    "verified_by": "A. Verifier",
+    "verified_at": "2026-11-08T14:30:00Z",
+}
 
 
 def load_script(name: str) -> ModuleType:
@@ -33,6 +40,7 @@ def test_manifest_requires_verified_exact_physical_versions() -> None:
     document = {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [
             {
                 "membership_key": "m1",
@@ -78,6 +86,7 @@ def test_manifest_accepts_a_repeat_of_the_same_verified_version() -> None:
     document = {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [base, repeat],
     }
     assert validator.validate_manifest(document) == []
@@ -108,6 +117,7 @@ def test_manifest_accepts_a_valid_gtin() -> None:
     document = {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [valid_entry(gtin="3508440005953")],
     }
     assert validator.validate_manifest(document) == []
@@ -118,6 +128,7 @@ def test_manifest_omitted_gtin_is_not_an_error() -> None:
     document = {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [valid_entry()],
     }
     assert validator.validate_manifest(document) == []
@@ -131,6 +142,7 @@ def test_manifest_rejects_a_gtin_with_a_bad_check_digit() -> None:
     document = {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [valid_entry(gtin="3508440005950")],
     }
     errors = validator.validate_manifest(document)
@@ -148,6 +160,7 @@ def test_manifest_rejects_a_gtin_authored_as_a_json_number() -> None:
     document = {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [valid_entry(gtin=36000291452)],
     }
     errors = validator.validate_manifest(document)
@@ -160,6 +173,7 @@ def test_manifest_reports_non_string_identifiers_without_crashing() -> None:
     document = {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [
             {
                 "membership_key": ["bad"],
@@ -185,6 +199,7 @@ def _document_with_entry(entry: dict[str, Any]) -> dict[str, Any]:
     return {
         "program_name": "Baseline",
         "program_version": "v1",
+        **VERIFIED,
         "entries": [entry],
     }
 
@@ -303,6 +318,295 @@ class TestSourceEvidence:
         # The malformed URL must not have short-circuited validation of
         # the rest of the entry (physical_sample_confirmed is also wrong).
         assert any("physical_sample_confirmed" in error for error in errors)
+
+
+class TestManifestVerification:
+    """P1.1: a manifest records who verified it and when, as in the template."""
+
+    def test_a_complete_verifier_block_passes(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        assert validator.validate_manifest(_document_with_entry(valid_entry())) == []
+
+    @pytest.mark.parametrize("value", [None, "", "   ", 7, ["A. Verifier"]])
+    def test_verified_by_must_be_a_name(self, value: object) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = {**_document_with_entry(valid_entry()), "verified_by": value}
+        errors = validator.validate_manifest(document)
+        assert any("verified_by" in error for error in errors)
+
+    def test_the_blank_template_fields_fail(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        template = json.loads(
+            (ROOT / "data/calibration/baseline-manifest.template.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        document = {**_document_with_entry(valid_entry()), **template}
+        document["entries"] = [valid_entry()]
+        errors = validator.validate_manifest(document)
+        assert any("verified_by" in error for error in errors)
+        assert any("verified_at" in error for error in errors)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            None,
+            "",
+            "2026-11-08",
+            "2026-11-08 14:30:00",
+            "2026-11-08T14:30:00+00:00",
+            "2026-11-08T14:30:00",
+            "2026-13-08T14:30:00Z",
+            "2026-11-08T25:30:00Z",
+            20261108,
+        ],
+    )
+    def test_verified_at_must_be_a_real_utc_timestamp(self, value: object) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = {**_document_with_entry(valid_entry()), "verified_at": value}
+        errors = validator.validate_manifest(document)
+        assert any("verified_at" in error for error in errors)
+
+    def test_fractional_seconds_are_accepted(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = {
+            **_document_with_entry(valid_entry()),
+            "verified_at": "2026-11-08T14:30:00.250Z",
+        }
+        assert validator.validate_manifest(document) == []
+
+
+class TestLabelCheck:
+    """The owner's 2026-11-01 decant standard: two people check the label."""
+
+    def test_absent_is_allowed_by_default(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        assert validator.validate_manifest(_document_with_entry(valid_entry())) == []
+
+    def test_absent_fails_when_required(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        errors = validator.validate_manifest(
+            _document_with_entry(valid_entry()), require_label_check=True
+        )
+        assert errors == ["entries[0].label_checked_by is required (two people)"]
+
+    def test_two_different_people_pass(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        entry = valid_entry(label_checked_by=["A. Verifier", "B. Second"])
+        document = _document_with_entry(entry)
+        assert validator.validate_manifest(document, require_label_check=True) == []
+
+    @pytest.mark.parametrize(
+        "names",
+        [
+            ["A. Verifier"],
+            ["A. Verifier", "a. verifier"],
+            ["A. Verifier", "  A. VERIFIER  "],
+        ],
+    )
+    def test_one_person_counted_twice_fails(self, names: list[str]) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _document_with_entry(valid_entry(label_checked_by=names))
+        errors = validator.validate_manifest(document)
+        assert errors == ["entries[0].label_checked_by needs 2 different people"]
+
+    @pytest.mark.parametrize(
+        "names", [[], "A. Verifier", None, ["A. Verifier", ""], ["A", 2], {"a": "b"}]
+    )
+    def test_malformed_values_fail_without_crashing(self, names: object) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _document_with_entry(valid_entry(label_checked_by=names))
+        errors = validator.validate_manifest(document)
+        assert errors == [
+            "entries[0].label_checked_by must be a list of non-empty names"
+        ]
+
+
+def _shape_document(baseline: int, repeats: int, holdout: int) -> dict[str, Any]:
+    """Build a manifest with the given number of memberships per role."""
+    entries: list[dict[str, Any]] = [
+        valid_entry(
+            membership_key=f"b{index}",
+            fragrance_id=f"fb{index}",
+            version_key=f"v-b{index}",
+        )
+        for index in range(baseline)
+    ]
+    entries.extend(
+        valid_entry(
+            membership_key=f"r{index}",
+            fragrance_id="fb0",
+            version_key="v-b0",
+            role="HIDDEN_REPEAT",
+            repeat_of_membership_key="b0",
+        )
+        for index in range(repeats)
+    )
+    entries.extend(
+        valid_entry(
+            membership_key=f"h{index}",
+            fragrance_id=f"fh{index}",
+            version_key=f"v-h{index}",
+            role="HOLDOUT",
+        )
+        for index in range(holdout)
+    )
+    return {**_document_with_entry(valid_entry()), "entries": entries}
+
+
+class TestExpectedShape:
+    """The intended program is 33 baseline, 6 hidden repeat and 10 holdout."""
+
+    def test_the_f1_shape_is_accepted(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(33, 6, 10)
+        expected = validator.parse_shape("baseline=33,hidden_repeat=6,holdout=10")
+        assert validator.validate_manifest(document) == []
+        assert validator.validate_shape(document, expected) == []
+        assert len(document["entries"]) == 49
+
+    def test_a_missing_membership_is_named(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(33, 6, 9)
+        errors = validator.validate_shape(document, {"holdout": 10})
+        assert errors == ["expected 10 holdout membership(s) (HOLDOUT), found 9"]
+
+    def test_each_wrong_role_is_reported(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(2, 1, 0)
+        errors = validator.validate_shape(
+            document, {"baseline": 3, "hidden_repeat": 1, "holdout": 1}
+        )
+        assert len(errors) == 2
+        assert any("baseline" in error for error in errors)
+        assert any("holdout" in error for error in errors)
+
+    def test_an_extra_membership_of_another_role_fails_the_total(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(33, 6, 10)
+        document["entries"].append(
+            valid_entry(
+                membership_key="a0",
+                fragrance_id="fa0",
+                version_key="v-a0",
+                role="ACTIVE_LEARNING",
+            )
+        )
+        expected = validator.parse_shape(
+            "baseline=33,hidden_repeat=6,holdout=10,total=49"
+        )
+        assert validator.validate_shape(document, expected) == [
+            "expected 49 membership(s) in total, found 50"
+        ]
+
+    def test_the_total_matches_when_every_role_is_counted(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        expected = validator.parse_shape("total=49")
+        assert validator.validate_shape(_shape_document(33, 6, 10), expected) == []
+
+    def test_a_shape_without_a_total_ignores_other_roles(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(1, 0, 0)
+        document["entries"].append(
+            valid_entry(
+                membership_key="a0",
+                fragrance_id="fa0",
+                version_key="v-a0",
+                role="ACTIVE_LEARNING",
+            )
+        )
+        assert validator.validate_shape(document, {"baseline": 1}) == []
+
+    def test_an_unusable_document_adds_no_shape_noise(self) -> None:
+        validator = load_script("validate_calibration_manifest")
+        assert validator.validate_shape([], {"baseline": 1}) == []
+        assert validator.validate_shape({"entries": "x"}, {"baseline": 1}) == []
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "",
+            "baseline",
+            "baseline=",
+            "baseline=x",
+            "baseline=-1",
+            "other=3",
+            "baseline=1,baseline=2",
+            "baseline=1,,holdout=2",
+            "total=",
+            "total=1,total=2",
+        ],
+    )
+    def test_parse_shape_rejects_malformed_text(self, text: str) -> None:
+        validator = load_script("validate_calibration_manifest")
+        with pytest.raises(argparse.ArgumentTypeError):
+            validator.parse_shape(text)
+
+
+class TestManifestCommandLine:
+    """The command line wires the checks together and keeps its exit codes."""
+
+    def _write(self, tmp_path: Path, document: object) -> str:
+        path = tmp_path / "manifest.json"
+        path.write_text(json.dumps(document), encoding="utf-8")
+        return str(path)
+
+    def test_valid_manifest_exits_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        validator = load_script("validate_calibration_manifest")
+        path = self._write(tmp_path, _shape_document(3, 1, 1))
+        assert validator.main([path]) == 0
+        assert "5 entries" in capsys.readouterr().out
+
+    def test_expect_shape_failure_exits_one(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        validator = load_script("validate_calibration_manifest")
+        path = self._write(tmp_path, _shape_document(3, 1, 1))
+        assert validator.main([path, "--expect-shape", "holdout=2"]) == 1
+        assert "expected 2 holdout" in capsys.readouterr().err
+
+    def test_shape_and_label_check_together_exit_zero(self, tmp_path: Path) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = _shape_document(3, 1, 1)
+        for entry in document["entries"]:
+            entry["label_checked_by"] = ["A. Verifier", "B. Second"]
+        path = self._write(tmp_path, document)
+        argv = [
+            path,
+            "--expect-shape",
+            "baseline=3,hidden_repeat=1,holdout=1,total=5",
+            "--require-label-check",
+        ]
+        assert validator.main(argv) == 0
+
+    def test_require_label_check_failure_exits_one(self, tmp_path: Path) -> None:
+        validator = load_script("validate_calibration_manifest")
+        path = self._write(tmp_path, _shape_document(1, 0, 0))
+        assert validator.main([path, "--require-label-check"]) == 1
+
+    def test_a_manifest_with_verifier_errors_exits_one(self, tmp_path: Path) -> None:
+        validator = load_script("validate_calibration_manifest")
+        document = {**_shape_document(1, 0, 0), "verified_by": None}
+        assert validator.main([self._write(tmp_path, document)]) == 1
+
+    def test_unreadable_files_exit_two(self, tmp_path: Path) -> None:
+        validator = load_script("validate_calibration_manifest")
+        assert validator.main([str(tmp_path / "absent.json")]) == 2
+        broken = tmp_path / "broken.json"
+        broken.write_text("{not json", encoding="utf-8")
+        assert validator.main([str(broken)]) == 2
+        binary = tmp_path / "binary.json"
+        binary.write_bytes(b"\xff\xfe\x00")
+        assert validator.main([str(binary)]) == 2
+
+    def test_a_bad_shape_argument_exits_two(self, tmp_path: Path) -> None:
+        validator = load_script("validate_calibration_manifest")
+        path = self._write(tmp_path, _shape_document(1, 0, 0))
+        with pytest.raises(SystemExit) as raised:
+            validator.main([path, "--expect-shape", "nonsense"])
+        assert raised.value.code == 2
 
 
 def valid_p6_readiness() -> dict[str, Any]:

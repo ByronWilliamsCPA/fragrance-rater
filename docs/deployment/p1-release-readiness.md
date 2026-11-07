@@ -30,6 +30,11 @@ human-readable verification evidence, physical-sample confirmation, role, and re
 relationship. A hidden repeat uses the exact fragrance UUID and version key of its referenced
 original. An unresolved version is left out of the program rather than guessed.
 
+The file also records who verified it and when: top-level `verified_by` (a name) and `verified_at` (a UTC timestamp
+written `YYYY-MM-DDTHH:MM:SSZ`, optionally with fractional seconds, such as `2026-11-08T14:30:00Z`). End it with `Z`;
+an offset such as `+00:00` is rejected. The template ships both as `null` and the validator rejects `null`, so a
+manifest cannot pass without them.
+
 Record the physical bottle's barcode as `gtin` when it has one - the strongest identity signal
 available, since it is assigned per exact SKU by the manufacturer rather than inferred from text.
 It is optional (a decant or some indie houses carry no scannable barcode), but when present it
@@ -40,11 +45,36 @@ contradicts the fragrance's own recorded source evidence is rejected outright.
 Validate the completed file:
 
 ```bash
-uv run python scripts/validate_calibration_manifest.py /secure/path/baseline-manifest.json
+uv run python scripts/validate_calibration_manifest.py /secure/path/baseline-manifest.json \
+  --expect-shape baseline=33,hidden_repeat=6,holdout=10,total=49 --require-label-check
+sha256sum /secure/path/baseline-manifest.json
 ```
+
+`--expect-shape` checks the number of memberships per role against the planned program (33 universal baseline, 6 hidden
+repeat and 10 holdout memberships, 49 in all over 43 fragrances). `total=49` counts every membership whatever its role, so
+an extra membership of another role fails too. Leave the option out if the reviewed program differs.
+`--require-label-check` demands `label_checked_by` on every entry (see the decant section below). The command exits 0
+when valid, 1 with one line per violation, and 2 when the file cannot be read. Retain the output and the `sha256sum`
+line with the manifest as the verification report.
 
 Two people should compare the validated manifest with bottle, decant, or retailer labels before
 program membership is locked. Retain the report and manifest hash.
+
+### Creating the exact catalog versions
+
+A manifest entry needs an existing `fragrance_id`, and Program setup only searches rows that already exist. A version
+that is not in the catalog is created before the manifest is authored:
+
+- **Path:** `POST /api/v1/fragrances` by a verified caller (use the manager). The required fields are `name`, `brand`,
+  `concentration`, `primary_family` and `subfamily`. Set `version_key` explicitly: it defaults to `legacy`, and the
+  manifest entry's `version_key` must be the one the catalog row carries. Use the `Unclassified` family sentinel when no
+  Michael Edwards family applies (ADR-014, `core/vocabulary.py`).
+- **Duplicates:** a live row with the same name, brand, concentration and version key is refused with a 409
+  `FRAGRANCE_EXISTS`. Two concentrations of one name are separate versions and do not collide. (The 409 message names
+  only name and brand; the stored rule is the unique index `uq_fragrance_version`.)
+- **Then:** copy the returned `id` into the manifest entry. Parfumo capture is deprecated and refuses to write, and
+  Fragella is reference-only, so neither creates these rows. Do not enter a value for a fragrance whose exact version
+  is not yet verified.
 
 ### Source reference format and decant verification (owner decision, 2026-11-01)
 
@@ -63,6 +93,10 @@ date, and a two-person check of the decant label against that record. Set the pr
 The owner accepted this as sufficient proof for P1.1 on 2026-11-01. For a decant entry, `verification_evidence`
 is a statement of that record and label check, and `physical_sample_confirmed: true` means the labelled decant is in
 hand and was checked by two people. Manufacturer or packaging confirmation is not required.
+
+Record that check on the entry as `label_checked_by`, a list of the two people who did it. The validator accepts it on
+any entry, rejects a list with fewer than two different names (comparison ignores case and surrounding spaces), and
+`--require-label-check` makes it mandatory, which is the setting for an all-decant manifest.
 
 ## Restore and pre-upgrade inventory
 
