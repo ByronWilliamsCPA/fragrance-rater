@@ -113,8 +113,10 @@ EXPOSE 80
 # #VERIFY after any base-image bump, confirm 127.0.0.1 is still reachable
 # and nginx still binds IPv4 (docker inspect --format
 # '{{json .State.Health}}' should show Status "healthy", not "unhealthy").
+# Exec (JSON) form via `sh -c` so Hadolint DL3025 passes; the command and its
+# exit-1-on-failure behaviour are unchanged.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget -q --spider http://127.0.0.1/health || exit 1
+    CMD ["sh", "-c", "wget -q --spider http://127.0.0.1/health || exit 1"]
 
 # Run as non-root user
 USER appuser
