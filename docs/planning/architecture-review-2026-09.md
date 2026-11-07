@@ -583,7 +583,22 @@ describes 2026-09-21):** R5 (protocol research reconciliation) is done; PR #125 
 ADR-012 `SourceSnapshot` provenance columns and a nullable `source_url` landed (D-01 partly; `source_revision`,
 `content_hash`, `parser_version`, and the rest remain R8 scope); and R2 is done (PR #135, merge commit `329c648`, and PR #136,
 merge commit `00f14d6`, both 2026-10-21). Nothing in the "all other workstreams remain open" line below has otherwise changed.
-See [PROJECT-PLAN.md section 11b](PROJECT-PLAN.md#11b-integration-status-as-of-2026-10-21).
+See [PROJECT-PLAN.md section 11b](PROJECT-PLAN.md#11b-integration-status-as-of-2026-11-07).
+
+**Status note, 2026-11-07 (a dated addition; the list below still describes 2026-09-21):** R7a, R7b, R8, R13 and R14
+are done and R6's mechanism is merged. **WS-9 / R8** (#172 `96bcc5d`, #181 `64321e7`, #182 `9d34a25`, #185
+`f207f26`, #187 `bf5ca17`) closes D-01 in schema (with #125) and in semantics (#187), D-08 (PostgreSQL `BEFORE` triggers), D-12
+(the migration converts 19 `json` columns to `jsonb`; this review counted 22), D-16 (UTC defaults and a startup
+`TimeZone` assertion), D-21 (the shared `live()` helper in `models/soft_delete.py`; whether every call site uses it
+was not re-audited here) and D-22 (the per-presentation observation idempotency key). **WS-8 / R13** (#168
+`b13f1f1`, #173 `198ec48`, #174 `e7c8ac6`, #175 `19ecf59`) closes G-01 (the P4 and P5 gate records were amended; P4.4 and P4.5
+stay mocked-only), F-10, F-11 and F-13 (`vitest-axe` over every route and a 360 px reflow test;
+`eslint-plugin-jsx-a11y` is in `frontend/eslint.config.js`). **WS-10 and WS-11 / R14** (#170 `13d7e5e`, #171
+`63ab34f`, #177 `a7443a4`, #178 `0b34e87`, #179 `02b7c36`, #192 `381d33c`, #193 `8a0d038`) closes S-04, S-08, S-12,
+S-13, S-16, S-20, S-27, S-28, D-18 (the inventory generator is `scripts/p1_migration_inventory.py` from #116, not the
+`pre_migration_inventory.py` named in the finding; `scripts/verify_restore.py` is new in #171), G-04, G-05, G-08, G-10
+(with S-14, #183 `001139c`), G-12 and D-14. S-12's signing is performed in the publish workflow (#193); a
+deployer-side `cosign verify` is still owed.
 
 As of 2026-09-21:
 
@@ -637,8 +652,8 @@ As of 2026-09-21:
   count, so with fewer than three evaluations a holdout answered 404 where any other impression answered 400; and audit
   events logged at INFO would have been dropped under `LOG_LEVEL=WARNING`, so they now go through a
   `fragrance_rater.audit` logger kept at INFO.
-- All other workstreams (the rest of WS-2, WS-4 through WS-8, WS-10, WS-11, and the rest of WS-9: D-01 (ADR-012 fields
-  landed in PR #125; the rest is R8), D-08, D-12, D-16, D-21, D-22) remain open; see PROJECT-PLAN.md for current status.
+- All other workstreams remain open as of 2026-11-07: the rest of WS-2, WS-4 (R9), WS-5 (R10), WS-6 (R11) and WS-7
+  (R12); see PROJECT-PLAN.md for current status.
 
 ## 8. Template feedback
 
