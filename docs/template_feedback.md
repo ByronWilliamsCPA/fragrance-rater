@@ -558,7 +558,7 @@ a baseline of warnings. Agents following the file either fail to find tools or a
 does not enforce. The "Project Structure" section is also a fixed sketch that was never regenerated.
 
 **Context**: Architecture review G-05; fixed in this project's `CLAUDE.md` in R14 PR 3a (`uv run basedpyright src/`
-reports 0 errors and 132 warnings; the policy is that the count must not rise).
+reported 0 errors and 132 warnings when written, 131 by 2026-11-07; the policy is that the count must not rise).
 
 **Suggested Fix**: Generate the agent mapping from the subagents, commands and skills the template actually ships, state a
 ratchet policy for type warnings, and either generate the structure section from the tree or drop it in favor of a
@@ -655,7 +655,7 @@ wrap therefore fails one tool or the other; the only clean forms are one over-lo
 `str.join`, and the warning baseline silently absorbs the BasedPyright side.
 
 **Context**: R8 PR 2 (2026-10-31): a long CHECK body and a filter description could not be wrapped
-without adding a BasedPyright warning above the 132-warning baseline.
+without adding a BasedPyright warning above the baseline (132 when written, 131 by 2026-11-07).
 
 **Suggested Fix**: Pick one side in the template: either disable `reportImplicitStringConcatenation`
 (and keep ISC) or ignore ISC003 and document `" ".join((...))` as the house pattern.
@@ -741,6 +741,32 @@ and the `uv` copy source as `name:tag@sha256:...` with a Renovate `pinDigests` r
 - `{{cookiecutter.project_slug}}/docker-compose.yml`
 - `{{cookiecutter.project_slug}}/docker-compose.prod.yml`
 - `{{cookiecutter.project_slug}}/renovate.json`
+
+---
+
+### BasedPyright failures never fail the shared CI workflow, so a type-warning ratchet is unenforced
+
+**Priority**: Medium
+
+**Issue**: The org's reusable `python-ci.yml` runs `basedpyright "$SRC_DIR"/ || { echo "::warning::Type checking
+found issues" }`, so neither a type error nor a rising warning count fails the job. The template's `CLAUDE.md` and
+`docs/ci-gates.md` nonetheless state that type checking gates merge and that the warning count must not rise, so the
+documented policy and the enforced behaviour disagree.
+
+**Context**: Found by the 2026-11-07 repository audit (local baseline run): `uv run basedpyright src/` reported
+0 errors and 131 warnings, the CI job log for the same commit showed the swallowed exit status, and nothing in the
+repository compared the count with the documented baseline.
+
+**Suggested Fix**: Make the reusable step blocking for errors, and ship a small ratchet script with the template
+(read `basedpyright --outputjson`, fail on any error or on a warning count above a committed ceiling, fail closed on a
+malformed report) plus a caller job that feeds the `CI Gate` aggregate. This project's version is
+`scripts/check_type_baseline.py` and the `type-baseline` job in `.github/workflows/ci.yml`.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.github/workflows/ci.yml`
+- `{{cookiecutter.project_slug}}/scripts/check_type_baseline.py`
+- `{{cookiecutter.project_slug}}/CLAUDE.md`
 
 ---
 
