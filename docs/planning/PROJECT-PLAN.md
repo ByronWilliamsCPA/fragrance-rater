@@ -88,7 +88,10 @@ participant-facing blind-instrument build) must merge before P6.3's synthetic re
 rehearsal that validates an instrument F1 will not run proves nothing about the
 instrument that matters. R8 may still land after the P6 go decision, since it is schema/service
 work with no evaluator-facing UI. Recorded 2026-09-21 after a one-shot-blind-baseline review found
-the diagram's literal ordering would let P6.3 rehearse against a pre-R7b instrument.
+the diagram's literal ordering would let P6.3 rehearse against a pre-R7b instrument. Status on 2026-11-07: every sprint in
+the P6-blocker node is merged (R7b's acceptance export is still owed to P6.3), and of the F1-blocker sprints R2, R5, R7a,
+R7b and R8 are merged; only R6's 43-version alias decisions remain, waiting on the verified manifest. The diagram shows
+dependencies, not status.
 
 P1 evidence may be gathered while P3-P5 are implemented, but its deployed UI, disclosure, and
 smoke checks use the final P6 candidate. No family member evaluates an actual pilot perfume
@@ -572,30 +575,35 @@ the review's implementation-status section, and the relevant ADR in the same pul
   to the P6.3 rehearsal record before P6.3 is marked complete, and again before F1's first exposure
   if R7b changed after P6.3 last ran.
 
-## 11b. Integration status as of 2026-10-21
+## 11b. Integration status as of 2026-11-07
 
 This section records state and proposes actions. It does not change any milestone gate. Items under "pending owner
 approval" are **proposed only**: the owner has not approved closing pull requests, deleting branches, resetting local
-`main`, or pushing, and none of those has been performed. Sources are the 2026-10-21 repository and GitHub state;
+`main`, or pushing, and none of those has been performed. Sources are the 2026-10-21 repository and GitHub state, refreshed on 2026-11-07;
 items not re-verified are marked.
 
 ### Main state
 
-- This section is a 2026-10-21 snapshot; the pull request ledgers below are updated as work merges. The 2026-10-21
-  state was `origin/main` at `f5baecc` (#132) with the single Alembic head `c5a9e2d7f1b4`. As of 2026-10-30 `origin/main`
-  is at `6d46a58` (#161) and the single Alembic head is `cd1e2375a2e4`; the chain up to `c5a9e2d7f1b4` is listed in the
-  Live PostgreSQL migration row of section 3, and later revisions are named in the merged ledger.
+- This section began as a 2026-10-21 snapshot and was refreshed on 2026-11-07. When refreshed, `origin/main` was at
+  `bf9be17` (#196) with the single Alembic head `736b7db082fb` (#187); the chain from `c5a9e2d7f1b4` is listed in the
+  Live PostgreSQL migration row of section 3, and the merged ledger below names each later revision.
 - **The 2026-10-19 dependency-advisory block is cleared.** #140 (`932c211`) bumped `mako` to 1.4.3, `certifi` to
   2026.10.19, and `virtualenv` to 21.14.12. The CI, Container Security, SBOM and Security Scan, and Postman API Tests
   runs on `main` for `5d26c34` all passed. The Security Analysis push run for `f5baecc` shows `cancelled`, and no
   completed run for that commit was re-verified here (#132 merged on its second enqueue after a cancelled merge-group run).
-- Not caused by this work and not triaged: the Documentation workflow's Deploy to GitHub Pages job fails at "Setup
-  Pages" on every `main` push checked, back to 2026-09-21 (its build job passes; not a required check), and the Mutation Testing
-  workflow reports `startup_failure` on its weekly runs (last seen 2026-10-18).
+- Checks that were red or failing on `main` and are not required contexts, as of 2026-11-07: (a) the Documentation
+  Pages deploy failure is resolved: #166 (`0578c71`) disabled the deploy because Pages is unavailable for the
+  organization, and the Documentation workflow passes on `main`. (b) Mutation Testing still reports `startup_failure`
+  on its weekly runs (runs 37 to 40, last seen 2026-11-01, the last two still under the older `74cfc8e9`
+  reusable-workflow pin); the next scheduled run is the first under the current pin, and the cause is not triaged.
+  (c) Container Security went red at `381d33c` (#192) on Hadolint `DL3025` for the shell-form `HEALTHCHECK` in both
+  Dockerfiles. It was the first run under reusable-workflow pin `79bf84c7` (adopted by #169, whose pull request did
+  not run this workflow because its path filter omits the workflow file). #195 (`fbfdc8c`) fixed it and the workflow
+  passes on `main` again.
 - Merge rules (organization rulesets): required contexts are Security Gate Validation, Dependency & Standards
   Validation, Check REUSE Compliance, and CI Gate; strict up-to-date policy; signed commits; linear history; squash
   merge queue; zero required approvals; delete-branch-on-merge on.
-- **Merging to `main` does not deploy.** There is no deploy workflow; `docker-publish` only builds and pushes images.
+- **Merging to `main` does not deploy.** There is no deploy workflow; `docker-publish` only builds, pushes and signs images (keyless cosign, #193).
   The R2 migrations therefore have not run against production.
 - Before this plan's last substantive edit (PR #124, 2026-09-26) the ledger omitted: #116 P1 migration inventory
   tooling and concurrency tests; #118 R1 CI truthfulness; #119 guided calibration entry routing; #120 public Evidence
@@ -604,7 +612,7 @@ items not re-verified are marked.
   write path now fails closed); #127 `fr-core` olfactory vocabulary v0 (ADR-017); #128 blind-evaluation instrument
   v0.5 and web-workflow documents; #133 Renovate lock-file exemption; #134 `pyjwt` 2.15.1 CVE fix.
 
-### Merged ledger (2026-10-21, in merge order)
+### Merged ledger (snapshot through #132 on 2026-10-21; updated through 2026-11-07, in merge order)
 
 | PR | Commit | Result and what remains |
 | :--- | :--- | :--- |
@@ -629,12 +637,51 @@ items not re-verified are marked.
 | #161 | `6d46a58` | R7a PR 2 (2026-10-30): provenance and governance, schema plus the activation write. Migration `cd1e2375a2e4`: `consent_events` and `calibration_quality_flags` (both append-only), randomization algorithm and seed on enrollments and `intended_position` on presentations, `Program.instrument_version` written at activation (`INSTRUMENT_VERSION`, else `unpinned-app-<version>`), skin-stage-only `season_fit` and `setting_fit`. **Resolved by R7b:** `enroll()` writes the randomization record and consent and flags are written (PR 1, #165), season and setting became multi-select child rows (migration `f74bf7ff9c2d`), and `INSTRUMENT_VERSION` is wired into compose and the frontend build (PR 2) |
 | #138 | `2f6d971` | Selectable standard or random blind label scheme at enrollment (pilot tooling for P6 and F1; no plan home). Merged 2026-10-30. When this ledger first listed it, it was held on an owner ruling about session-grouping leakage from standard labels, the `App.test.tsx` expectation, and a CodeRabbit thread on the label prefix; the pull request records how they were resolved |
 | #149 | `f247d3a` | R4 (2026-10-30): role-neutral holdout answers, impression-only explanations, calibration and prediction audit trail (kept at any `LOG_LEVEL`), no-store by default, server-owned disclosure state, logging configured, `SecretStr` keys with redaction. **API removal:** `GET /recommendations/{reviewer_id}/{fragrance_id}/explain` |
+| #150 | `04c28d4` | Docs: recorded R4 and R6 PR 1 as merged (subset of this ledger) |
+| #148 | `af41ed5` | Renovate: `@types/node` v26 (frontend dev dependency) |
+| #153 | `aa11a1e` | CI: `persist-credentials: false` on checkouts, deprecated security-workflow inputs dropped |
+| #154 | `fe11664` | Docs: residual stale references from the repo-inconsistencies review |
+| #155 | `799f661` | Docs: still-open ideas from reviewed `claude/*` branches (idea register) |
+| #156 | `3fc6a05` | Docs: Fragella API integration notes (batching, slug encoding, field shapes) |
+| #159 | `d0a51e5` | Docs: recorded #158 as merged |
+| #162 | `3b0d3ce` | Docs: recorded R7a schema (#160, #161) as merged |
+| #165 | `eafb818` | R7b PR 1 (2026-10-30): backend write paths for instrument v2, migration `f74bf7ff9c2d` (`calibration_fit_choices`); `enroll()` records the randomization, consent and quality flags are written |
+| #166 | `0578c71` | CI: GitHub Pages deploy disabled (Pages unavailable for the organization), docs build kept; also `pyasn1` 0.6.5 for four advisories |
+| #167 | `73d6bcc` | R7b PR 2 (2026-10-31): participant instrument v2 UI, `INSTRUMENT_VERSION` build wiring, e2e and WCAG 2.2 AA scans, synthetic-run guard test. The acceptance export from a deployed synthetic run is still owed to P6.3 |
+| #168 | `b13f1f1` | R13 PR 1: MSW, `vitest-axe` on every route, 360 px reflow test |
+| #170 | `13d7e5e` | R14 PR 1: both billed-endpoint secrets required by the prod override, stricter topology validator, `TEST_MODE` refused in production, no literal weak credential in `.env.example` (S-04, S-08, S-16, S-27, S-28) |
+| #171 | `63ab34f` | R14 PR 2: scheduled `backup` service, verified dumps, retention floor, `scripts/verify_restore.py` (D-18) |
+| #172 | `96bcc5d` | R8 PR 1 (2026-10-31): training eligibility, `v_training_rows`, source provenance, checkpoint schema; migration `620c8c861268` |
+| #173 | `198ec48` | R13 PR 2: real-stack tier with forward-auth stub |
+| #174 | `e7c8ac6` | R13 review follow-ups |
+| #175 | `19ecf59` | `real-stack-e2e` is part of the CI Gate |
+| #176 | `443e15f` | Frontend: revealed identities stay on screen after a guided reveal (no sprint home) |
+| #177 | `a7443a4` | R14 PR 1 review fixes |
+| #178 | `0b34e87` | Topology validator requires the `backup` service |
+| #179 | `02b7c36` | R14 PR 3a: documentation consolidation (G-04, G-05, G-08, G-10, G-12, D-14) |
+| #180 | `8945a34` | API: `get_db` commits before the response is sent (`scope="function"`, FastAPI >= 0.121; no sprint home) |
+| #181 | `64321e7` | R8 PR 2: readers on `v_training_rows`, triggers, jsonb, UTC, idempotency key; migration `4edb5c967539`. **Deploy note:** runs at container start, take a backup first |
+| #182 | `9d34a25` | R8 review follow-up; migration `50c1f75abb15` |
+| #183 | `001139c` | Removed the withdrawn PYSEC-2022-42969 pip-audit ignore (S-14) |
+| #184 | `a1dc3c0` | Docs: R7b, R8, R13, R14 progress |
+| #185 | `f207f26` | R8 choice A: an invalidated later answer no longer supersedes in `v_training_rows`; migration `52e22be935d3` |
+| #186 | `966a48c` | `family-consent-v1` approved with the owner's final wording |
+| #187 | `bf5ca17` | `bounded_lookup` dropped, excluded snapshots ignored in the GTIN check, `source_reference` format defined; migration `736b7db082fb`; closes #130 |
+| #188, #189, #190 | `874d01a`, `7cea198`, `63a7f6d` | Docs: owner's 2026-11-01 decisions, review fixes, decant label-check proof accepted for P1.1, OpenRouter zero data retention recorded |
+| #193 | `8a0d038` | R14 PR 3b (S-12): base images, uv 0.9.26 and compose postgres images pinned by digest; Renovate `pinDigests`; keyless cosign sign jobs (`docs/deployment/image-signing.md`, `tests/unit/test_image_pinning.py`). Merged before #192 despite the numbering |
+| #191 | `54e88e6` | Lock file maintenance |
+| #163 | `54b516a` | CI: security-analysis cancels only superseded pull request runs (merged 2026-11-06) |
+| #164 | `7de145b` | Docs: ledger records the deleted backup branches and dropped stash |
+| #169 | `2c71998` | GitHub Actions update; every reusable-workflow caller moves from `74cfc8e9` to `79bf84c7`. Container Security did not run on this PR (path filter omits the workflow file) and went red on the next Dockerfile change, #192; fixed by #195 |
+| #192 | `381d33c` | R14 PR 3b (S-13, S-20): `x-hardened` (read-only root, `cap_drop: [ALL]`, `no-new-privileges`) on app, frontend, db and backup; `BUILD_ENV` removed; validator and tests. **Deploy notes:** db runs as 70:70; the bind-mounted `backup_database.sh` must be world-readable and executable on the host (no `DAC_OVERRIDE`); a file-level restore needs a chown (`docs/deployment/backup-and-restore.md`) |
+| #195 | `fbfdc8c` | Exec-form `HEALTHCHECK` in both Dockerfiles; clears the Hadolint DL3025 finding that turned Container Security red on `main` at `381d33c` (the Hadolint step is advisory, not a required context) |
+| #196 | `bf9be17` | Docs: R14 recorded as done and the status mirrors refreshed (plan v2.10, roadmap, `CLAUDE.md`, planning README) |
 
 ### Open pull request ledger
 
 | PR | Branch | Purpose and plan home | Status |
 | :--- | :--- | :--- | :--- |
-| None | | | |
+| #194 | `renovate/docker-images` | Renovate digest refresh for the pinned base and compose postgres images (S-12 pins); gates nothing | Open. Required checks were green. Its Container Security job failed on the same Hadolint finding #195 fixed on `main`, so the branch needs updating to pick that up. The advisory `review / Baseline Triage Review` check errors at its API call on every pull request, which is not a repository defect. Review the digests before merge |
 
 Issue #5 is the Renovate dashboard.
 
@@ -642,8 +689,11 @@ Issue #5 is the Renovate dashboard.
 
 Each step needs a green re-run of the required checks.
 
-No pull request is open on this ledger. Before the next deploy, take a backup (the vocabulary and R7a migrations run at
-container start) and deploy a commit at or after `6d46a58`.
+Only #194 is open (above). Before the next deploy, run the P1.3 CHECK preflight against a production backup clone (a
+violating row blocks container start; see the #136 row), then take a backup (the R6 to R8 migrations run at container
+start and the chain head is `736b7db082fb`) and deploy a commit at or after `381d33c`, which carries both halves of R14 PR 3b
+(hardening and signed images). The production override also refuses to render without both API keys, the `backup`
+service and `FRAGRANCE_TRAEFIK_CIDR`.
 
 ### Pending owner approval
 
@@ -654,7 +704,12 @@ rebase and split of `docs/fragella-api-reference`, and the Scentineer documentat
 
 State only. No deletion has been performed or approved.
 
-- **Merged by content (the pull request merged); safe to delete once the owner approves:**
+- **Remote branches still present on 2026-11-07** (`git ls-remote --heads`): `feat/r13-real-stack` (PR #173),
+  `feat/r6-alias-curation` (PR #157) and `feat/r6-vocabulary-schema` (PR #151), each for a merged pull request, and
+  `renovate/docker-images` (PR #194). Deleting the three merged ones needs the owner after confirming no unmerged commit
+  remains. The local-clone items below (stale local `main`, `docs/fragella-api-reference`, the Scentineer pair) cannot be
+  verified from CI and remain owner items.
+- **Historical, resolved by 2026-11-07 (these no longer exist on `origin`); merged by content (the pull request merged):**
   `chore/gitignore-and-adr-crosslinks` (#95), `chore/renovate-hold-blocked-majors` (#113), `claude/r1-sprint-6slwgt`
   (#118), `docs/bandit-finding-count-accuracy` (#109), `docs/ml-architecture-data-capture-addendum` (#124),
   `docs/panel-web-handoff` (#128), `docs/project-plan-refresh-2026-09` (#108),
@@ -678,8 +733,7 @@ State only. No deletion has been performed or approved.
   (`claude/fragrance-app-architecture-8i6v4i`) `307ee845`; dataset concept (`claude/fragrance-dataset-concept-w2qvwa`)
   `e1995db1`; plan-vs-implementation review (`claude/project-plan-implementation-review-t1ht0j`) `440b9a4f`, remote
   branch already deleted; repo-inconsistencies review (`claude/repo-inconsistencies-review-45w1ao`) `b78c1425`, its
-  still-needed fixes are in a separate PR. The architecture-review and dataset-concept remote branches are scheduled
-  for deletion once this change merges.
+  still-needed fixes are in a separate PR. Those remote branches no longer exist on `origin` (2026-11-07).
 - **Local `main` is stale** (22 commits behind `origin/main`); its one ahead commit `f29dfc7` is already in
   `origin/main` as `2fc4e65` (#121). A fast-forward or reset is safe after owner approval.
 - **`docs/fragella-api-reference`** (the checkout of the primary clone, no upstream) is 7 commits ahead of `main` and
@@ -715,24 +769,23 @@ State only. No deletion has been performed or approved.
 - **Outreach:** brand outreach and vendor outreach are both complete with no replies. A second wave is a separate
   decision.
 - **#129:** the P1.1 criterion now reads "source URL or source reference" (table above); the early R8 delivery is
-  recorded in the R8 row. Close.
+  recorded in the R8 row. Closed.
 - **#130:** `bounded_lookup` dropped, `excluded_no_new_writes` rows no longer block the GTIN conflict check, and
   `source_reference` is `who | YYYY-MM-DD | evidence or scope` (PR #187). The pairs table and `fields` allow-list were
   already enforced. Closed with #187.
-- **#131:** reconciled by the dated amendment in ADR-012 (2026-11-01). Close.
+- **#131:** reconciled by the dated amendment in ADR-012 (2026-11-01). Closed.
 
 ### Critical path to F1
 
 Restated from the gate records; no gate text changes here.
 
-R2 (#135, #136), R3 (#143, #144), R4 (#149), R7a (#160, #161), R7b (#165, #167), R8 (#172, #181, #182), and R13 (#168, #173, #174, #175) are done, and so is every R14 item that gates P6 (#170, #171, #179; R14 PR 3b gates nothing). R7b's code merged ahead of P6.3, but its acceptance export still has to come from the deployed synthetic run. Before
-any deploy of R2 or R3: the P1.3 backup-clone CHECK preflight, `FRAGRANCE_TRAEFIK_CIDR` set, and Traefik forwarding
-`X-authentik-groups` (#137). Then P6.1 through P6.6 with a recorded `go`: all five P6 evidence files are still
+R2 (#135, #136), R3 (#143, #144), R4 (#149), R7a (#160, #161), R7b's code (#165, #167), R8 (#172, #181, #182, with the owner choices in #185 and #187), R13 (#168, #173, #174, #175) and R14 (#170, #171, #177, #178, #179, #192, #193) are done (R7b is code-complete only: its acceptance export still has to come from the deployed synthetic run before P6.3 can close); no unmerged sprint item gates P6. Before
+any deploy of R2 or R3: the P1.3 backup-clone CHECK preflight, `FRAGRANCE_TRAEFIK_CIDR` set to the live Traefik subnet (a value that excludes Traefik makes nginx clear the identity headers, so every protected request returns 401; check it with the P1.6 steps in the [P1 runbook](../deployment/p1-release-readiness.md#production-topology)), and Traefik forwarding
+`X-authentik-groups` (#137), both API keys set (the production override refuses to render without them), the bind-mounted `backup_database.sh` readable and executable by everyone on the host (mode `755`; the backup container runs without `DAC_OVERRIDE`), and, if the published images are deployed, `cosign verify` of each digest per `docs/deployment/image-signing.md`. Then P6.1 through P6.6 with a recorded `go`: all five P6 evidence files are still
 "Pending" templates, the 2026-09-18 incident is interim evidence only and does not substitute for P6.2's device
 matrix, and any participant-instrument change after P6.3 voids P6.3. Then the F1 pre-exposure declaration with R6 (its 43-version
-alias decisions wait for the verified manifest) and R8 (done) complete, then F1, then a `proceed to D1` decision. R13 and R14 (operations items) also gate P6 per the sprint table.
-The external blocker is P1.1 rights-cleared baseline and holdout coverage (0 of 33 baseline fragrances in the
-committed coverage evidence; the 43-item set adds the 10 holdouts).
+alias decisions wait for the verified manifest) and R8 (done) complete, then F1, then a `proceed to D1` decision.
+The external blocker is the P1.1 verified manifest: all 43 fragrances are procured as decants and the owner accepted the decant label-check proof on 2026-11-01, but the manifest and the two-person label checks are still to be authored and reviewed; the committed coverage evidence still shows 0 of 33 baseline fragrances with rights-cleared notes.
 
 ## 12. Milestone F1: Initial family perfume pilot
 
