@@ -36,7 +36,15 @@ if TYPE_CHECKING:
 
 EXPORT_VERSION = "r7b-evidence-v1"
 
-_PRESENTATION_FIELDS = (
+# Every field the instrument captures, by where it appears in the export. The
+# synthetic-run test and ``scripts/summarize_evidence_export.py`` both import
+# these, so the export, its acceptance test and the operator's completeness
+# report cannot drift apart.
+PROGRAM_FIELDS = ("instrument_version",)
+ENROLLMENT_FIELDS = ("randomization_algorithm",)
+SESSION_FIELDS = ("occurred_on", "started_at", "ended_at", "evaluator_timezone")
+
+PRESENTATION_FIELDS = (
     "intended_position",
     "presented_at",
     "applied_at",
@@ -52,7 +60,7 @@ _PRESENTATION_FIELDS = (
     "sample_batch_code",
     "physical_sample_confirmed",
 )
-_CONTEXT_FIELDS = (
+CONTEXT_FIELDS = (
     "illness",
     "nasal_congestion",
     "allergy_symptoms",
@@ -67,6 +75,28 @@ _CONTEXT_FIELDS = (
     "hormonal_context",
     "note",
 )
+OBSERVATION_FIELDS = (
+    "observed_at",
+    "response_status",
+    "recognition",
+    "owned_or_worn",
+    "scrubbed_off",
+    "time_to_scrub_minutes",
+    "last_detected_elapsed_min",
+    "first_not_detected_elapsed_min",
+)
+RANK_ENTRY_FIELDS = ("eligible_for_rank", "rank_position")
+FLAG_FIELDS = ("code", "severity", "source", "disposition", "explanation")
+CAPTURED_FIELDS: dict[str, tuple[str, ...]] = {
+    "program": PROGRAM_FIELDS,
+    "enrollment": ENROLLMENT_FIELDS,
+    "session": SESSION_FIELDS,
+    "context": CONTEXT_FIELDS,
+    "presentation": PRESENTATION_FIELDS,
+    "observation": OBSERVATION_FIELDS,
+    "rank_entry": RANK_ENTRY_FIELDS,
+    "flag": FLAG_FIELDS,
+}
 
 
 def _iso(value: object) -> object:
@@ -148,9 +178,7 @@ async def build_evidence_export(
         )
         context_document: dict[str, object] | None = None
         if context is not None and context_allowed:
-            context_document = {
-                name: getattr(context, name) for name in _CONTEXT_FIELDS
-            }
+            context_document = {name: getattr(context, name) for name in CONTEXT_FIELDS}
         presentation_documents: list[dict[str, object]] = []
         for presentation in presentations:
             document: dict[str, object] = {
@@ -159,7 +187,7 @@ async def build_evidence_export(
                 "position": presentation.position,
                 **{
                     name: _iso(cast("object", getattr(presentation, name)))
-                    for name in _PRESENTATION_FIELDS
+                    for name in PRESENTATION_FIELDS
                 },
                 "observations": [
                     {**observation_payload(o), "fit_choices": fits[o.id]}

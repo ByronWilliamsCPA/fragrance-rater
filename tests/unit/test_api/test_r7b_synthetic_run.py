@@ -12,6 +12,10 @@ written but dropped from the export, this fails and names it.
 
 from __future__ import annotations
 
+import importlib.util
+import json
+import sys
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -20,6 +24,16 @@ from fragrance_rater.api import calibration as calibration_api
 from fragrance_rater.core.config import settings
 from fragrance_rater.services import consent as consent_module
 from fragrance_rater.services.consent import ConsentText
+from fragrance_rater.services.evidence_export import (
+    CONTEXT_FIELDS,
+    ENROLLMENT_FIELDS,
+    FLAG_FIELDS,
+    OBSERVATION_FIELDS,
+    PRESENTATION_FIELDS,
+    PROGRAM_FIELDS,
+    RANK_ENTRY_FIELDS,
+    SESSION_FIELDS,
+)
 
 PREFIX = "/api/v1/calibration"
 MANAGER = {"X-Authentik-Username": "manager"}
@@ -31,54 +45,6 @@ APPROVED = ConsentText(
     sha256="c" * 64,
     body="Version: family-consent-v1\nStatus: APPROVED\n\nApproved test wording.\n",
 )
-
-# Every field the instrument captures, by where it appears in the export.
-PROGRAM_FIELDS = ("instrument_version",)
-ENROLLMENT_FIELDS = ("randomization_algorithm",)
-SESSION_FIELDS = ("occurred_on", "started_at", "ended_at", "evaluator_timezone")
-CONTEXT_FIELDS = (
-    "illness",
-    "nasal_congestion",
-    "allergy_symptoms",
-    "hunger",
-    "hours_since_food",
-    "hours_since_caffeine",
-    "personal_fragrance_worn",
-    "ambient_odor",
-    "ambient_odor_detail",
-    "room_temperature_c",
-    "room_humidity_pct",
-    "hormonal_context",
-    "note",
-)
-PRESENTATION_FIELDS = (
-    "intended_position",
-    "presented_at",
-    "applied_at",
-    "application_timezone",
-    "application_method",
-    "application_dose_sprays",
-    "sample_source_type",
-    "sample_container",
-    "sample_volume_ml",
-    "sample_acquired_on",
-    "sample_decanted_on",
-    "sample_opened_on",
-    "sample_batch_code",
-    "physical_sample_confirmed",
-)
-OBSERVATION_FIELDS = (
-    "observed_at",
-    "response_status",
-    "recognition",
-    "owned_or_worn",
-    "scrubbed_off",
-    "time_to_scrub_minutes",
-    "last_detected_elapsed_min",
-    "first_not_detected_elapsed_min",
-)
-RANK_ENTRY_FIELDS = ("eligible_for_rank", "rank_position")
-FLAG_FIELDS = ("code", "severity", "source", "disposition", "explanation")
 
 
 def _non_null_somewhere(
@@ -101,7 +67,9 @@ async def _ok(response: Any, status: int = 200) -> Any:
 
 
 @pytest.mark.asyncio
-async def test_a_full_session_exports_every_captured_field(test_app: Any) -> None:
+async def test_a_full_session_exports_every_captured_field(
+    test_app: Any, tmp_path: Path
+) -> None:
     reviewer = await _ok(
         await test_app.post(
             "/api/v1/reviewers", json={"name": "Evaluator"}, headers=MANAGER
@@ -359,3 +327,26 @@ async def test_a_full_session_exports_every_captured_field(test_app: Any) -> Non
     assert export["consent"]["state"]["session_context"] == "granted"
     # Identity stays concealed in the export.
     assert "Concealed" not in str(export)
+
+    # The operator's summary tool reads this same export and agrees: every
+    # captured field is non-null at least once.
+    spec = importlib.util.spec_from_file_location(
+        "summarize_evidence_export",
+        Path(__file__).parents[3] / "scripts" / "summarize_evidence_export.py",
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    tool = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = tool
+    spec.loader.exec_module(tool)
+    saved = tmp_path / "export.json"
+    saved.write_text(json.dumps(export), encoding="utf-8")
+    assert tool.main([str(saved), "--require-each-field-once"]) == tool.EXIT_OK
+    # A test build has no pinned identifier, and the tool refuses to accept the
+    # package-version fallback as the participant-instrument build.
+    fallback = export["program"]["instrument_version"]
+    assert fallback.startswith("unpinned-app-")
+    assert (
+        tool.main([str(saved), "--expect-instrument", fallback])
+        == tool.EXIT_REQUIREMENT
+    )
