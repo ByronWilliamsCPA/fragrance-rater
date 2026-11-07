@@ -81,9 +81,11 @@ USER appuser
 
 # Expose port (default for FastAPI/web apps)
 EXPOSE 8000
-# Health check - adjust endpoint based on your app
+# Health check - adjust endpoint based on your app.
+# Exec (JSON) form via `sh -c` so Hadolint DL3025 passes while the command keeps
+# its exact semantics: any curl failure exits 1, which Docker reports as unhealthy.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8000/health/live || exit 1
+    CMD ["sh", "-c", "curl -f http://localhost:8000/health/live || exit 1"]
 
 # Apply pending Alembic migrations before the server starts, so a fresh
 # deploy never boots against an unmigrated database.
