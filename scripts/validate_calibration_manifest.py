@@ -5,15 +5,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from fragrance_rater.utils.gtin import is_valid_gtin
 
 SOURCE_REFERENCE_PARTS = 3
+MIN_LABEL_CHECKERS = 2
+UTC_TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z")
+# Names accepted by --expect-shape, mapped to the program role they count.
+SHAPE_ROLES = {
+    "baseline": "UNIVERSAL_BASELINE",
+    "hidden_repeat": "HIDDEN_REPEAT",
+    "holdout": "HOLDOUT",
+}
 REQUIRED_TEXT = (
     "membership_key",
     "fragrance_id",
@@ -34,7 +43,52 @@ ROLES = {
 }
 
 
-def validate_manifest(document: object) -> list[str]:
+def _validate_verification(document: dict[str, object]) -> list[str]:
+    """Check who verified the manifest and when (the template ships both as null)."""
+    errors: list[str] = []
+    verified_by = document.get("verified_by")
+    if not isinstance(verified_by, str) or not verified_by.strip():
+        errors.append("verified_by must be the non-empty name of the verifier")
+    verified_at = document.get("verified_at")
+    if not isinstance(verified_at, str) or not UTC_TIMESTAMP.fullmatch(verified_at):
+        errors.append("verified_at must be a UTC timestamp like 2026-11-08T14:30:00Z")
+    else:
+        try:
+            datetime.fromisoformat(verified_at)
+        except ValueError:
+            errors.append("verified_at is not a real date and time")
+    return errors
+
+
+def _validate_label_check(
+    prefix: str, entry: dict[str, object], *, required: bool
+) -> list[str]:
+    """Check the two-person decant label check recorded in label_checked_by."""
+    # #ASSUME: data-integrity: the owner's 2026-11-01 decant standard needs a
+    # two-person label check, but a non-decant entry (a bottle with packaging)
+    # has no such check, so label_checked_by is validated when present and
+    # only demanded when the caller opts in with required=True.
+    # #VERIFY: tests/unit/test_release_readiness.py::TestLabelCheck
+    if "label_checked_by" not in entry:
+        if required:
+            return [f"{prefix}.label_checked_by is required (two people)"]
+        return []
+    raw = entry["label_checked_by"]
+    names = cast("list[object]", raw) if isinstance(raw, list) else []
+    texts = [name.strip() for name in names if isinstance(name, str)]
+    if not names or len(texts) != len(names) or not all(texts):
+        return [f"{prefix}.label_checked_by must be a list of non-empty names"]
+    distinct = {text.casefold() for text in texts}
+    if len(distinct) < MIN_LABEL_CHECKERS:
+        return [
+            f"{prefix}.label_checked_by needs {MIN_LABEL_CHECKERS} different people"
+        ]
+    return []
+
+
+def validate_manifest(
+    document: object, *, require_label_check: bool = False
+) -> list[str]:
     """Return all contract violations in a calibration manifest."""
     if not isinstance(document, dict):
         return ["root must be an object"]
@@ -43,6 +97,7 @@ def validate_manifest(document: object) -> list[str]:
         errors.append("program_name is required")
     if not document.get("program_version"):
         errors.append("program_version is required")
+    errors.extend(_validate_verification(document))
     entries = document.get("entries")
     if not isinstance(entries, list) or not entries:
         return [*errors, "entries must be a non-empty array"]
@@ -142,6 +197,9 @@ def validate_manifest(document: object) -> list[str]:
                     errors.append(f"{prefix}.source_url must be an absolute HTTPS URL")
         if entry.get("physical_sample_confirmed") is not True:
             errors.append(f"{prefix}.physical_sample_confirmed must be true")
+        errors.extend(
+            _validate_label_check(prefix, entry, required=require_label_check)
+        )
         # #ASSUME: data-integrity: gtin is optional (some physical samples
         # - decants, vintage, some indie houses - carry no scannable
         # manufacturer barcode) but when present must be a real,
@@ -188,22 +246,80 @@ def validate_manifest(document: object) -> list[str]:
     return errors
 
 
-def main() -> int:
+def parse_shape(text: str) -> dict[str, int]:
+    """Parse ``baseline=33,hidden_repeat=6,holdout=10`` into role counts."""
+    shape: dict[str, int] = {}
+    for part in text.split(","):
+        name, separator, count = part.strip().partition("=")
+        if not separator or name not in SHAPE_ROLES or not count.strip().isdigit():
+            names = ", ".join(sorted(SHAPE_ROLES))
+            msg = f"{part.strip()!r} is not NAME=COUNT with NAME one of {names}"
+            raise argparse.ArgumentTypeError(msg)
+        if name in shape:
+            msg = f"{name} is given more than once"
+            raise argparse.ArgumentTypeError(msg)
+        shape[name] = int(count)
+    return shape
+
+
+def validate_shape(document: object, expected: dict[str, int]) -> list[str]:
+    """Compare the number of memberships per role with the declared program shape."""
+    if not isinstance(document, dict):
+        return []  # validate_manifest already reports an unusable document
+    entries = cast("dict[str, object]", document).get("entries")
+    if not isinstance(entries, list):
+        return []
+    counts: dict[str, int] = {}
+    for entry in cast("list[object]", entries):
+        if isinstance(entry, dict):
+            role = str(cast("dict[str, object]", entry).get("role"))
+            counts[role] = counts.get(role, 0) + 1
+    return [
+        f"expected {want} {name} membership(s) ({SHAPE_ROLES[name]}), found "
+        f"{counts.get(SHAPE_ROLES[name], 0)}"
+        for name, want in expected.items()
+        if counts.get(SHAPE_ROLES[name], 0) != want
+    ]
+
+
+class _Args(argparse.Namespace):
+    """Typed view of the parsed command line."""
+
+    manifest: Path = Path()
+    expect_shape: dict[str, int] | None = None
+    require_label_check: bool = False
+
+
+def main(argv: list[str] | None = None) -> int:
     """Validate a JSON file and return a shell-friendly exit status."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
-    args = parser.parse_args()
+    parser.add_argument(
+        "--expect-shape",
+        type=parse_shape,
+        metavar="baseline=N,hidden_repeat=N,holdout=N",
+        help="also require exactly this many memberships per role",
+    )
+    parser.add_argument(
+        "--require-label-check",
+        action="store_true",
+        help="require label_checked_by (two different people) on every entry",
+    )
+    args = parser.parse_args(argv, namespace=_Args())
     try:
-        document = json.loads(args.manifest.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        document = cast("object", json.loads(args.manifest.read_text(encoding="utf-8")))
+    except (OSError, ValueError) as exc:
         print(f"manifest could not be read: {exc}", file=sys.stderr)
         return 2
-    errors = validate_manifest(document)
+    errors = validate_manifest(document, require_label_check=args.require_label_check)
+    if args.expect_shape:
+        errors.extend(validate_shape(document, args.expect_shape))
     if errors:
         for error in errors:
             print(error, file=sys.stderr)
         return 1
-    print(f"valid calibration manifest: {len(document['entries'])} entries")
+    entries = cast("dict[str, list[object]]", document)["entries"]
+    print(f"valid calibration manifest: {len(entries)} entries")
     return 0
 
 
