@@ -139,6 +139,38 @@ class TestMain:
         path.write_text("{not json", encoding="utf-8")
         assert gate.main([str(path)]) == gate.EXIT_BAD_REPORT
 
+    def test_non_utf8_file_is_a_bad_report_not_a_traceback(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        path = tmp_path / "binary.json"
+        path.write_bytes(b"\xff\xfe\x00 not utf-8")
+        assert gate.main([str(path)]) == gate.EXIT_BAD_REPORT
+        assert "could not read" in capsys.readouterr().err
+
+    def test_non_utf8_standard_input_is_a_bad_report(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        stream = io.TextIOWrapper(io.BytesIO(b"\xff\xfe"), encoding="utf-8")
+        monkeypatch.setattr("sys.stdin", stream)
+        assert gate.main(["-"]) == gate.EXIT_BAD_REPORT
+
+    @pytest.mark.parametrize("value", ["-1", "-131", "abc", "1.5", ""])
+    def test_rejects_a_negative_or_non_integer_ceiling(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str], value: str
+    ) -> None:
+        path = write(tmp_path, report(0, 0))
+        with pytest.raises(SystemExit) as raised:
+            gate.main([path, "--ceiling", value])
+        assert raised.value.code == 2
+        assert "--ceiling" in capsys.readouterr().err
+
+    def test_a_zero_ceiling_is_valid(self, tmp_path: Path) -> None:
+        assert gate.main([write(tmp_path, report(0, 0)), "--ceiling", "0"]) == 0
+        assert (
+            gate.main([write(tmp_path, report(0, 1)), "--ceiling", "0"])
+            == gate.EXIT_REGRESSION
+        )
+
     def test_empty_standard_input_is_a_bad_report(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

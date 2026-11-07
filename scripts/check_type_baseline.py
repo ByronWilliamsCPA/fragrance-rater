@@ -96,10 +96,25 @@ def _load(source: str) -> object:
     try:
         text = sys.stdin.read() if source == "-" else Path(source).read_text("utf-8")
         report = cast("object", json.loads(text))
-    except (OSError, json.JSONDecodeError) as exc:
+    # JSONDecodeError and UnicodeDecodeError are both ValueError subclasses, so
+    # malformed JSON and non-UTF-8 bytes are both reported as a bad report.
+    except (OSError, ValueError) as exc:
         msg = f"could not read a JSON report from {source!r}: {exc}"
         raise BadReportError(msg) from exc
     return report
+
+
+def _non_negative_int(value: str) -> int:
+    """Parse a command-line integer that must not be negative."""
+    try:
+        number = int(value)
+    except ValueError as exc:
+        msg = f"{value!r} is not an integer"
+        raise argparse.ArgumentTypeError(msg) from exc
+    if number < 0:
+        msg = f"{value!r} is negative; a warning ceiling cannot be below 0"
+        raise argparse.ArgumentTypeError(msg)
+    return number
 
 
 class _Args(argparse.Namespace):
@@ -120,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--ceiling",
-        type=int,
+        type=_non_negative_int,
         default=WARNING_CEILING,
         help=f"warning ceiling to enforce (default: {WARNING_CEILING})",
     )
