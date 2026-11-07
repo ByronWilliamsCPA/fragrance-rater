@@ -612,7 +612,7 @@ items not re-verified are marked.
   write path now fails closed); #127 `fr-core` olfactory vocabulary v0 (ADR-017); #128 blind-evaluation instrument
   v0.5 and web-workflow documents; #133 Renovate lock-file exemption; #134 `pyjwt` 2.15.1 CVE fix.
 
-### Merged ledger (rows to #149 from 2026-10-21; later rows added 2026-11-07, in merge order)
+### Merged ledger (snapshot through #132 on 2026-10-21; updated through 2026-11-07, in merge order)
 
 | PR | Commit | Result and what remains |
 | :--- | :--- | :--- |
@@ -689,8 +689,9 @@ Issue #5 is the Renovate dashboard.
 
 Each step needs a green re-run of the required checks.
 
-Only #194 is open (above). Before the next deploy, take a backup (the R6 to R8 migrations run at container start and the
-chain head is `736b7db082fb`) and deploy a commit at or after `381d33c`, which carries both halves of R14 PR 3b
+Only #194 is open (above). Before the next deploy, run the P1.3 CHECK preflight against a production backup clone (a
+violating row blocks container start; see the #136 row), then take a backup (the R6 to R8 migrations run at container
+start and the chain head is `736b7db082fb`) and deploy a commit at or after `381d33c`, which carries both halves of R14 PR 3b
 (hardening and signed images). The production override also refuses to render without both API keys, the `backup`
 service and `FRAGRANCE_TRAEFIK_CIDR`.
 
@@ -778,9 +779,9 @@ State only. No deletion has been performed or approved.
 
 Restated from the gate records; no gate text changes here.
 
-R2 (#135, #136), R3 (#143, #144), R4 (#149), R7a (#160, #161), R7b (#165, #167), R8 (#172, #181, #182, with the owner choices in #185 and #187), R13 (#168, #173, #174, #175) and R14 (#170, #171, #177, #178, #179, #192, #193) are done; no merged-sprint item is left that gates P6. R7b's code merged ahead of P6.3, but its acceptance export still has to come from the deployed synthetic run. Before
-any deploy of R2 or R3: the P1.3 backup-clone CHECK preflight, `FRAGRANCE_TRAEFIK_CIDR` set, and Traefik forwarding
-`X-authentik-groups` (#137), both API keys set (the production override refuses to render without them), the bind-mounted `backup_database.sh` readable and executable on the host, and, if the published images are deployed, `cosign verify` of each digest per `docs/deployment/image-signing.md`. Then P6.1 through P6.6 with a recorded `go`: all five P6 evidence files are still
+R2 (#135, #136), R3 (#143, #144), R4 (#149), R7a (#160, #161), R7b's code (#165, #167), R8 (#172, #181, #182, with the owner choices in #185 and #187), R13 (#168, #173, #174, #175) and R14 (#170, #171, #177, #178, #179, #192, #193) are done (R7b is code-complete only: its acceptance export still has to come from the deployed synthetic run before P6.3 can close); no unmerged sprint item gates P6. Before
+any deploy of R2 or R3: the P1.3 backup-clone CHECK preflight, `FRAGRANCE_TRAEFIK_CIDR` set to the live Traefik subnet (a value that excludes Traefik makes nginx clear the identity headers, so every protected request returns 401; check it with the P1.6 steps in the [P1 runbook](../deployment/p1-release-readiness.md#production-topology)), and Traefik forwarding
+`X-authentik-groups` (#137), both API keys set (the production override refuses to render without them), the bind-mounted `backup_database.sh` readable and executable by everyone on the host (mode `755`; the backup container runs without `DAC_OVERRIDE`), and, if the published images are deployed, `cosign verify` of each digest per `docs/deployment/image-signing.md`. Then P6.1 through P6.6 with a recorded `go`: all five P6 evidence files are still
 "Pending" templates, the 2026-09-18 incident is interim evidence only and does not substitute for P6.2's device
 matrix, and any participant-instrument change after P6.3 voids P6.3. Then the F1 pre-exposure declaration with R6 (its 43-version
 alias decisions wait for the verified manifest) and R8 (done) complete, then F1, then a `proceed to D1` decision.

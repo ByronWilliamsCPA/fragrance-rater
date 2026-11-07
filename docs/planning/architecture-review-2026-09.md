@@ -588,9 +588,7 @@ See [PROJECT-PLAN.md section 11b](PROJECT-PLAN.md#11b-integration-status-as-of-2
 **Status note, 2026-11-07 (a dated addition; the list below still describes 2026-09-21):** R7a, R7b, R8, R13 and R14
 are done and R6's mechanism is merged. **WS-9 / R8** (#172 `96bcc5d`, #181 `64321e7`, #182 `9d34a25`, #185
 `f207f26`, #187 `bf5ca17`) closes D-01 in schema (with #125) and in semantics (#187), D-08 (PostgreSQL `BEFORE` triggers), D-12
-(the migration converts 19 `json` columns to `jsonb`; this review counted 22), D-16 (UTC defaults and a startup
-`TimeZone` assertion), D-21 (the shared `live()` helper in `models/soft_delete.py`; whether every call site uses it
-was not re-audited here) and D-22 (the per-presentation observation idempotency key). **WS-8 / R13** (#168
+(the migration converts 19 `json` columns to `jsonb`; this review counted 22), D-16 (UTC defaults and a startup `TimeZone` assertion) and D-22 (the per-presentation observation idempotency key). **D-21 is closed only in part:** the shared `live()` helper exists in `models/soft_delete.py`, but not every read path uses it; for example `manager_enrollments` in `api/calibration.py` still returns an enrolled reviewer's name without checking `deleted_at`. **WS-8 / R13** (#168
 `b13f1f1`, #173 `198ec48`, #174 `e7c8ac6`, #175 `19ecf59`) closes G-01 (the P4 and P5 gate records were amended; P4.4 and P4.5
 stay mocked-only), F-10, F-11 and F-13 (`vitest-axe` over every route and a 360 px reflow test;
 `eslint-plugin-jsx-a11y` is in `frontend/eslint.config.js`). **WS-10 and WS-11 / R14** (#170 `13d7e5e`, #171
@@ -652,8 +650,7 @@ As of 2026-09-21:
   count, so with fewer than three evaluations a holdout answered 404 where any other impression answered 400; and audit
   events logged at INFO would have been dropped under `LOG_LEVEL=WARNING`, so they now go through a
   `fragrance_rater.audit` logger kept at INFO.
-- All other workstreams remain open as of 2026-11-07: the rest of WS-2, WS-4 (R9), WS-5 (R10), WS-6 (R11) and WS-7
-  (R12); see PROJECT-PLAN.md for current status.
+- All other workstreams remain open as of 2026-11-07: the rest of WS-2, WS-4 (R9), WS-5 (R10), WS-6 (R11), WS-7 (R12), the rest of WS-9 (D-21, in part) and the rest of WS-11 (G-09, `ruff format` drift on Markdown); see PROJECT-PLAN.md for current status.
 
 ## 8. Template feedback
 
