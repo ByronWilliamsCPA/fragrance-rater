@@ -181,8 +181,9 @@ When working on this project, always suggest appropriate security measures:
 ### 3. Code Quality Standards
 
 - Treat linting warnings as errors to fix, not ignore
-- Type checker policy: the BasedPyright baseline is 0 errors and 132 warnings (`uv run basedpyright src/`). The
-  warning count must not rise, and warnings in code you touch are fixed rather than carried
+- Type checker policy: the BasedPyright baseline is 0 errors and 131 warnings (`uv run basedpyright src/`; the ceiling lives in
+  `scripts/check_type_baseline.py` and the `type-baseline` CI job enforces it). The warning count must not rise, and
+  warnings in code you touch are fixed rather than carried
 - Don't accumulate technical debt by deferring quality issues
 
 ### 4. Default to Strictest Settings
