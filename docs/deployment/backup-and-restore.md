@@ -87,7 +87,18 @@ the `.sha256` files with them. The project does not choose a destination for you
 ## Proving a backup restores
 
 Run this against a server that is **not** the live one (or one where a short-lived scratch database
-is acceptable), using an account that can create and drop databases:
+is acceptable), using an account that can create and drop databases.
+
+The machine you run it from needs `pg_restore` of the **same major version as the server**
+(PostgreSQL 16; check with `pg_restore --version`). A newer `pg_restore` sends session settings a
+16 server does not know (17 and later send `SET transaction_timeout`), and the script restores with
+`--exit-on-error`, so the proof fails with `pg_restore failed (exit 1)` on a perfectly good dump.
+Ubuntu 24.04's `postgresql-client-16` package matches; a newer distribution or a package manager
+that tracks the latest release may install a later one. CI hit exactly this on 2026-11-11, when its
+runner image moved to newer client tools. The same applies to the manual `pg_restore` under
+[Restoring for real](#restoring-for-real).
+
+Then run:
 
 ```bash
 export P1_ADMIN_DATABASE_URL='postgresql://<user>:<password>@<restore-host>/postgres'

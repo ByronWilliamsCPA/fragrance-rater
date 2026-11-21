@@ -770,6 +770,59 @@ malformed report) plus a caller job that feeds the `CI Gate` aggregate. This pro
 
 ---
 
+### Scheduled Mutation Testing caller never starts, and nothing surfaces it
+
+**Priority**: Medium
+
+**Issue**: The generated `mutation-testing.yml` is a thin caller of the org's reusable `python-mutation.yml`. In this
+project every weekly scheduled run ends in `startup_failure`, so the workflow is rejected before any job starts and
+no mutation score has been produced. Because the job is report-only, weekly, and outside the `CI Gate` aggregate, the
+failure is silent: no pull request check goes red and nothing opens an issue.
+
+**Context**: Found by the 2026-11-20 project status audit. All seven scheduled runs listed, from 2026-09-27 to
+2026-11-15, show `startup_failure`, across three different pinned SHAs of the reusable workflow. The cause is
+unconfirmed, because the audit session could not read the org repository or the run's error banner. The two leading
+candidates are a permissions mismatch (the caller grants only `contents: read`; a reusable workflow that requests
+more is rejected at parse time even when `post-pr-comment` is `false`) and an input type mismatch on
+`mutation-threshold` or `fail-under-threshold`, which the caller builds from expressions.
+
+**Suggested Fix**: Validate the generated caller against the reusable workflow in the template's own CI (for example
+`actionlint` with the reusable workflow checked out, or a `workflow_dispatch` smoke run in the template's sample
+project), and document the minimum `permissions` the caller must grant. Separately, give scheduled report-only
+workflows a failure signal, such as a step that opens or updates an issue when a scheduled run does not succeed.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.github/workflows/mutation-testing.yml`
+
+---
+
+### Jobs run on the floating `ubuntu-latest` label while images and actions are digest-pinned
+
+**Priority**: Medium
+
+**Issue**: The generated workflows pin actions by SHA and (after the S-12 fix) service and base images by digest, but
+every job still uses `runs-on: ubuntu-latest`. When GitHub moves that label to a new image, the tools preinstalled on
+the runner change with no commit in the repository, so a green `main` can turn red on its own.
+
+**Context**: Found by the 2026-11-20 project status audit. `main` passed CI on 2026-11-11 and has not changed since,
+yet every pull request opened afterwards fails `PostgreSQL Integration`. The runner label now resolves to
+`ubuntu-26.04`, whose PostgreSQL client tools emit `SET transaction_timeout = 0;` on restore; the digest-pinned
+`postgres:16-alpine` service does not recognise that setting, and `pg_restore --exit-on-error` aborts. Five
+backup and restore tests fail, and `CI Gate` blocks every open pull request. The same client and server mismatch
+would break the restore proof on any operator machine with newer client tools, so it is not only a CI concern.
+
+**Suggested Fix**: Generate workflows with an explicit runner version (for example `ubuntu-24.04`) and let Renovate
+propose the bump, so a runner change arrives as a reviewable pull request. For jobs that talk to a pinned database
+service, take the client tools from the same image as the server rather than from the runner.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.github/workflows/ci.yml`
+- `{{cookiecutter.project_slug}}/.github/workflows/*.yml` (every `runs-on: ubuntu-latest`)
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:
