@@ -49,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GitHub now bills Advanced Security (Code Security), so CodeQL code scanning
   and the `dependency-review` action no longer function. SonarCloud (SAST),
   Ruff, Bandit, and `pip-audit` continue to run and are unaffected.
+- `.github/workflows/claude-baseline-review.yml`, the caller of the org-level Claude
+  Tier 0 baseline PR review. Its `review / Baseline Triage Review` check errored at its
+  API call on every pull request and was never a required check.
 
 ### Fixed
 

@@ -77,7 +77,7 @@ scope for the R1 alignment sweep; see "Known residual gaps" below.
 | `docs.yml` | Push/PR touching `docs/**`/`mkdocs.yml`, dispatch | MkDocs Material build; deploys to GitHub Pages on push to main | Build failures | Runs on PR; verify ruleset before assuming required |
 | `release.yml` | `workflow_run` after CI on main/master, dispatch | Semantic-release versioning and GitHub Release creation (`publish-to-pypi: false`) | Release pipeline failures | No (post-merge) |
 | `slsa-provenance.yml` | GitHub Release, dispatch | SLSA provenance generation for release artifacts | Provenance generation failures | No (post-release) |
-| `claude-baseline-review.yml` | PR | Claude-based baseline/advisory review | Not gating | No |
+| `claude-baseline-review.yml` | *(removed)* | n/a | n/a | Deleted: the caller of the org-level reusable `review / Baseline Triage Review` errored at its API call on every pull request and never produced a usable review; it was advisory and never a required context |
 
 ## Analysis outside GitHub Actions
 
