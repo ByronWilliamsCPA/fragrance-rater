@@ -681,7 +681,7 @@ items not re-verified are marked.
 
 | PR | Branch | Purpose and plan home | Status |
 | :--- | :--- | :--- | :--- |
-| #194 | `renovate/docker-images` | Renovate digest refresh for the pinned base and compose postgres images (S-12 pins); gates nothing | Open. Required checks were green. Its Container Security job failed on the same Hadolint finding #195 fixed on `main`, so the branch needs updating to pick that up. The advisory `review / Baseline Triage Review` check errors at its API call on every pull request, which is not a repository defect. Review the digests before merge |
+| #194 | `renovate/docker-images` | Renovate digest refresh for the pinned base and compose postgres images (S-12 pins); gates nothing | Open. Required checks were green. Its Container Security job failed on the same Hadolint finding #195 fixed on `main`, so the branch needs updating to pick that up. The advisory `review / Baseline Triage Review` check errored at its API call on every pull request; its caller workflow has since been removed. Review the digests before merge |
 
 Issue #5 is the Renovate dashboard.
 
