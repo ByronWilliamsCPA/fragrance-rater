@@ -251,9 +251,19 @@ jobs:
   # upgrade head`, then runs the integration-marked suite with P1_DATABASE_URL set
   # so that test actually executes instead of skipping. R2 adds the
   # `compare_metadata == []` schema-parity test in the same suite.
+  #
+  # The runner is pinned rather than `ubuntu-latest` because the backup and
+  # restore tests run the RUNNER's pg_dump, pg_restore and psql against the
+  # service, and those tools must be the server's major version. A newer
+  # pg_restore sends session settings the 16 server rejects (17 and later send
+  # `SET transaction_timeout`), and scripts/verify_restore.py restores with
+  # --exit-on-error, so every restore test fails. That happened on 2026-11-11
+  # when `ubuntu-latest` moved to ubuntu-26.04 with no commit here.
+  # ubuntu-24.04 ships the PostgreSQL 16 tools; move the runner and the service
+  # image together.
   postgres-integration:
     name: PostgreSQL Integration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     services:
@@ -292,6 +302,21 @@ jobs:
         run: uv sync --all-extras --frozen
       - name: Apply migrations
         run: uv run alembic upgrade head
+      - name: Check the PostgreSQL client tools match the service
+        # Fails in one line, with the cause, instead of as five restore tests
+        # reporting `pg_restore failed` (see the note above this job).
+        env:
+          PGPASSWORD: fragrance_rater_ci
+        run: |
+          client="$(pg_restore --version | grep -oE '[0-9]+' | head -n 1)"
+          server_num="$(psql --host localhost --username fragrance_rater --dbname fragrance_rater \
+            --no-psqlrc --tuples-only --no-align --command 'SHOW server_version_num')"
+          server="$((server_num / 10000))"
+          echo "pg_restore major version: ${client}; server major version: ${server}"
+          if [ "${client}" != "${server}" ]; then
+            echo "::error::pg_restore ${client} does not match the PostgreSQL ${server} service. Pin a runner image whose client tools are version ${server}, or move the service image and the runner together."
+            exit 1
+          fi
       - name: Run PostgreSQL-gated integration tests
         # --no-cov: this job's focus is PostgreSQL-only correctness, not
         # coverage; pyproject's addopts --cov-fail-under=80 would otherwise
