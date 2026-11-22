@@ -821,6 +821,35 @@ service, take the client tools from the same image as the server rather than fro
 - `{{cookiecutter.project_slug}}/.github/workflows/ci.yml`
 - `{{cookiecutter.project_slug}}/.github/workflows/*.yml` (every `runs-on: ubuntu-latest`)
 
+### The markdownlint pre-commit hook has no pinned Node version and crashes while building its environment
+
+- **Priority**: Medium
+- **Category**: Tooling
+- **Discovered**: 2026-11-22
+
+**Issue**: The generated `.pre-commit-config.yaml` pins the `markdownlint-cli` hook to a commit SHA but sets neither a
+`language_version` on the hook nor a top-level `default_language_version` for `node`. pre-commit builds the hook
+environment with `nodeenv`, and with no version given it resolved Node to the pre-release `27.0.0-alpha.0.1.1`, which
+`nodeenv` could not parse. The hook then fails with an environment error before it lints a single file, so every
+commit that stages a Markdown file is blocked until the hook is skipped. The failure depends on what the Node
+download index serves on the day, so the same pinned hook can work one week and fail the next.
+
+**Context**: Found on 2026-11-22 while committing a CHANGELOG and documentation change in a fresh git worktree. The
+workaround was `SKIP=markdownlint` for that one hook plus a manual `npx markdownlint-cli@0.49.1` run over the changed
+files; `--no-verify` was not used. The machine's own Node was v24.18.0, so a hook that used the system Node would have
+run. The pin and the manual run were not tried as a permanent fix, and the alternatives below are untested here.
+
+**Suggested Fix**: Pin the Node runtime the same way the Python hooks are pinned. Add a top-level
+`default_language_version: node: <current LTS>` to the generated `.pre-commit-config.yaml` (or set `language_version`
+on the markdownlint hook), and let Renovate propose the bump so a Node change arrives as a reviewable pull request.
+Whichever form is chosen, confirm on a clean `pre-commit clean` cache that the hook environment builds, because the
+failure only appears when the environment is created fresh. A `language: system` local hook is an alternative if the
+template is willing to require Node on every contributor machine.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.pre-commit-config.yaml`
+
 ---
 
 ## Submitting Feedback
