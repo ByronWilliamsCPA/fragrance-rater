@@ -285,10 +285,40 @@ superseded where it conflicts. It marks no gate as passed, and the ceiling is st
   sniff of one sample and the first sniff of the next, about 5 minutes after a persistent sample) is a different
   number and is unchanged. The two must not be conflated.
 - **Implementation state.** The sheet (`facilitated-session-sheet v2.0`), the run sheet and the spray-sheet generator
-  describe the procedure; the application support (program `blotter_mode`, shared codes and order at enrollment, the
-  flag, the 2 minute check) is a code work item in
-  [PROJECT-PLAN.md section 11a](../PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24). Until it
-  merges the application still checks 5 minutes and cannot give evaluators the same code and order.
+  describe the procedure. The application support (program `blotter_mode`, shared codes and order at enrollment, the
+  flag, the 2 minute check) merged in #220, and the server-side safeguards below merged in #221; see
+  [PROJECT-PLAN.md section 11a](../PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24). Merged code is
+  not gate evidence: none of it has been rehearsed in P6.3.
+
+### 2026-11-25 addendum: server-side safeguards for `SHARED_GROUP` programs (#221)
+
+Recorded after #221 merged (`2bcd3cc`). It states what the code does and leaves the protocol decisions above
+unchanged.
+
+- **`SHARED_GROUP` implies a household reveal.** One blind code per sample goes to every evaluator, so one evaluator's
+  own reveal would unblind the others. Setting the blotter mode to `SHARED_GROUP` sets `reveal_policy` to `HOUSEHOLD`
+  (`CalibrationService.set_blotter_mode`); `PUT .../reveal-policy` refuses `ENROLLMENT` for a group program; and the
+  reveal path reads `DisclosureGate.effective_reveal_policy`, which treats a stored `ENROLLMENT` on a group program as
+  `HOUSEHOLD`, so no backfill is needed.
+- **Program-wide holdout gate.** In a `SHARED_GROUP` program holdout samples open only when **every** enrollment has a
+  checkpoint (`DisclosureGate.holdouts_open`, `missing_checkpoints`), because the one physical holdout blotter reaches
+  all evaluators. `INDIVIDUAL` programs keep the per-enrollment rule. Enrolling a new evaluator is refused once every
+  group enrollment has a checkpoint (`require_enrollment_open`), since the late enrollment would close the holdouts
+  again for evaluators who may already have answered. The manager readiness view reports `blotter_mode`,
+  `holdouts_open_program_wide`, `enrollments_missing_checkpoint` and a per-row `missing_checkpoint` and `holdouts_open`.
+- **Evidence cannot pre-date the checkpoint.** For a holdout, an explicit evidence time (presented, sprayed, first
+  smell, observed or column finished, ranking) earlier than the checkpoint that opened it is refused with HTTP 422
+  (`EVIDENCE_BEFORE_CHECKPOINT`). When no time is supplied the server stamps receipt time, which cannot pre-date the
+  checkpoint. The server cannot know when a blotter was physically smelled, so smelling a holdout before the
+  checkpoint exists is prevented only by the facilitator's procedure (run sheet), not by software.
+- **Ceiling flag.** The flag's `rule_version` is now `spray-to-smell-ceiling-v2` (a free-text column; earlier rows stay
+  readable). `spray_to_smell_ceiling_exceeded` is not informational: it demotes training eligibility until the flag is
+  closed, unlike `group_shared_blotter`.
+- **Known gaps, not decided here.** No merged path withdraws an enrollment, and a withdrawn evaluator's unfinished
+  enrollment blocks the household reveal for everyone (`household_blocker`). Because every group enrollment shares the
+  blind code, the blind-code guard cannot detect a sheet entered under the wrong evaluator; a seat or initials check
+  would change a recorded field and therefore the sheet version. Both are open owner decisions in the
+  [F1 gate](../gates/f1.md).
 
 ## 2026-11-24 amendment: `would_buy` stays on the blind skin form (pending owner confirmation)
 

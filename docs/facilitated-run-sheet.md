@@ -29,6 +29,27 @@ rehearsal, and any change is recorded in the F1 pre-exposure declaration (see th
 The first limits how stale a blotter may be when someone smells it. The second limits carryover between samples. They
 happen to share the figure 2; they are checked separately and written down separately.
 
+## Checkpoint rule: no holdout is sprayed or smelled before its checkpoint exists
+
+This is the one rule that cannot be repaired afterwards, so check it before the first holdout blotter of the program.
+
+- **Group mode (`SHARED_GROUP`, the F1 mode).** Do not spray or smell any holdout blotter until the manager has created
+  a checkpoint for **every enrollment in the program** (all six) and the manager's readiness view shows
+  `holdouts_open_program_wide` true with `enrollments_missing_checkpoint` empty. One physical holdout blotter reaches
+  all six evaluators, so a single missing checkpoint holds the holdouts back for everyone.
+- **Individual mode.** Do not spray or smell an evaluator's holdout blotters until that evaluator's own checkpoint
+  exists (`holdouts_open` true on that evaluator's readiness row).
+
+Why: a holdout smelled on paper before its checkpoint exists cannot be made prospective afterwards. The server now
+refuses holdout evidence whose times are earlier than the checkpoint that opened the holdouts, but it cannot know when
+a blotter was physically smelled, so keeping to this order is a procedure the facilitator owns, not something the
+application enforces. If a holdout is smelled early by mistake, do not transcribe it as if it were prospective: record
+it in the deviation log and tell the manager before entering anything; no merged procedure covers this case.
+
+Before the first holdout, write the **checkpoint-created time of every enrollment** in the F1 pre-exposure declaration
+(see the [F1 gate](planning/gates/f1.md)). The readiness view shows which enrollments are missing a checkpoint but not
+the time each was created, so note the clock time when the manager creates them.
+
 ## Roles and blinding
 
 - The facilitator is the declared mapping holder. The facilitator retrieves the blind-to-identity mapping, labels and
@@ -127,7 +148,8 @@ What this means for the sheets and the data:
   (with and without them). The flag lets that choice be reversed later.
 - **Application support.** The application behaviour above (program `blotter_mode`, the
   `shared-triples-group-blotter-v1` enrollment algorithm, the flag and the 2 minute check) is implemented by merged
-  code pull request #220; see the
+  code pull request #220, and by #221, which adds the server-side holdout and reveal safeguards described under
+  [Checkpoint rule](#checkpoint-rule-no-holdout-is-sprayed-or-smelled-before-its-checkpoint-exists); see the
   [project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) for its state.
 
 ### Seat order and who does what
@@ -236,7 +258,9 @@ finished, the next sitting waits.
    type the blind code printed on the paper into the "Blind code printed on the sheet" box for each column. The
    application refuses to save when it is not the code of the sample on screen, so a mismatch means the wrong sheet or
    the wrong evaluator: stop and check. In group blotter mode the six sheets of a session carry the same codes, so the
-   code alone no longer tells the evaluators apart: confirm the enrollment and the paper record ID first.
+   code alone no longer tells the evaluators apart: confirm the enrollment and the paper record ID first. The
+   application cannot catch a sheet entered under the wrong evaluator in this mode, because every enrollment shares the
+   blind code, so this check is yours.
 2. Type the paper's spray time, first-smell time (asked once per sample) and column-finished time. The application
    stores the first smell as the presented time and the column-finished time as the observed time, and works out
    elapsed minutes as whole minutes from spray to column finished; you never type them. The session start, session
@@ -248,7 +272,7 @@ finished, the next sitting waits.
    signed on the paper sheet). Enter the conditions slip into the session-context form only for an evaluator who
    accepted it; later sessions never ask again.
 5. A saved observation cannot be edited, so compare each column on screen with the paper before pressing Save, then
-   complete Part E on the sheet and sign it.
+   complete Part E on sheet 2 (the facilitator sheet) and sign it.
 6. Do not discuss what you just typed with anyone.
 
 ## Paper retention and scans
@@ -259,7 +283,10 @@ finished, the next sitting waits.
   conditions slips and the scans, and the manager destroys them at the same time as the database and its backups
   (see [Backup and restore](deployment/backup-and-restore.md#retiring-the-evaluation-database)). Confirm this with the
   owner before F1; it is an inference, not a stated rule.
-- After Part E is complete, scan each score sheet in full (both sides) and keep the original. Scans and originals are
+- After Part E is complete, scan every page of each evaluator's session sheet, all four pages (the session sheet is two
+  duplex sheets: sheet 1 is the evaluator's Parts A to D, sheet 2 is the facilitator's Part E plus the instructions),
+  and keep the originals. Clip sheet 2 behind that evaluator's sheet 1 (the paper record ID is in Part A on sheet 1) so
+  the two stay together. Scans and originals are
   private evidence kept outside the repository. Keep slip scans in a different folder from sheet scans.
 - Keep sheets and slips in separate folders at all times. Only the paper record ID links them.
 - Never write an identity, role or mapping on a sheet, a scan or a filename.

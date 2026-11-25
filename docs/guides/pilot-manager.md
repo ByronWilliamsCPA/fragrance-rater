@@ -90,10 +90,10 @@ drafts until the P6.3 rehearsal.
 | Session-scoped wizard (skin-plan step removed from the blotter flow, per-session ranking, holdout sequence, manager checkpoint and household reveal panel) (#216) | Merged |
 | Transcription timing (paper first-smell, finished and session times, whole-minute elapsed time) and the blind-code confirmation guard (#218) | Merged |
 | Group blotter mode in the application (program `blotter_mode`, shared codes and order, `group_shared_blotter` flag, 2 minute ceiling) | Merged: #220, `6774525` (see [PROJECT-PLAN.md section 11a](../planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24)) |
-| Group blotter procedure: sheet v2.0, run sheet, spray-sheet `--mode group`, guides, gates | This documentation pull request (#219), merged after #220 |
+| Group blotter procedure: sheet v2.0, run sheet, spray-sheet `--mode group`, guides, gates | Merged: #219, after #220 |
+| Group safeguards in the server (program-wide holdout gate, evidence before checkpoint refused, group programs reveal as a household, 2 minute ceiling rule `v2`) | Merged: #221, `2bcd3cc` |
 
-A merged item is not gate evidence: none of this has been rehearsed in P6.3. Until the group blotter code merges, the
-application still checks a 5 minute ceiling and has no `blotter_mode`; re-read this table against the merged pull
+A merged item is not gate evidence: none of this has been rehearsed in P6.3. Re-read this table against the merged pull
 requests before relying on it.
 
 ### Enroll with shared triples
@@ -101,7 +101,8 @@ requests before relying on it.
 1. Create and activate the program as usual. For a household reveal, set the reveal policy to `HOUSEHOLD` on the
    draft program (at creation, or with `PUT /api/v1/calibration/programs/{program_id}/reveal-policy` while the
    program is still a draft). The default `ENROLLMENT` reveals each evaluator separately and leaks across
-   evaluators who share triples.
+   evaluators who share triples. A `SHARED_GROUP` program always reveals as a household: setting the blotter mode sets
+   `HOUSEHOLD`, and the server refuses `ENROLLMENT` for it.
 2. In **Program setup**, choose the shared-triples algorithm. For individual mode that is
    `shared-triples-latin-rotation-v1`: standard labels are refused with it, and blind codes are random and specific to
    each evaluator, because with shared triples a label that names the session would reveal session identity and
@@ -137,7 +138,9 @@ any holdout observation exists. Nothing in the evaluator screens creates one. Af
 baseline, hidden repeats and planned skin, and each skin plan is finalized (an intentionally empty plan for the five),
 create the checkpoints as a manager:
 
-- Check `GET /api/v1/calibration/programs/{program_id}/readiness` for each enrollment's `checkpoint_blocker`.
+- Check `GET /api/v1/calibration/programs/{program_id}/readiness` for each enrollment's `checkpoint_blocker`. In a
+  `SHARED_GROUP` program the response also lists `enrollments_missing_checkpoint` and `holdouts_open_program_wide`, and
+  each row has `missing_checkpoint` and `holdouts_open`.
 - Create them with `POST /api/v1/calibration/programs/{program_id}/checkpoints`. By default it also freezes one
   prediction snapshot per program holdout. Skipped enrollments are listed with a reason.
 
@@ -145,6 +148,13 @@ This holds in every program with holdouts, including the P6 synthetic rehearsal,
 exists in the wizard; #216 (merged) adds a checkpoint and household reveal panel in **Program setup**. Whether F1 requires a linked prediction per
 holdout is an open owner decision; the call freezes predictions by default, and the declaration should state what was
 frozen.
+
+In a `SHARED_GROUP` program one physical holdout blotter reaches every evaluator, so holdouts open for everyone only
+when **every** enrollment has a checkpoint, and a new enrollment is refused once they all do. The server also refuses a
+holdout evidence time earlier than the checkpoint, but it cannot see when a blotter was smelled: tell the facilitator
+when the readiness view shows no missing checkpoint, and write each checkpoint's creation time in the declaration. The
+facilitator must not spray or smell a holdout before then (see the
+[run sheet](../facilitated-run-sheet.md#checkpoint-rule-no-holdout-is-sprayed-or-smelled-before-its-checkpoint-exists)).
 
 ### Household reveal
 
@@ -154,7 +164,8 @@ skin locked, a finalized skin plan, a checkpoint, and all holdouts locked. Readi
 evaluator who is done while another is not. Reveal only after all six have finished, and announce it yourself.
 
 **Withdrawn-evaluator caveat.** An evaluator who withdraws stays enrolled in the program, so the household reveal
-keeps waiting for them: an enrollment that cannot finish blocks everyone's reveal. No merged procedure covers this
+keeps waiting for them: an enrollment that cannot finish blocks everyone's reveal (verified in code; a group program
+cannot reveal any other way). No merged procedure covers this
 (neither dropping an enrollment from the program nor revealing without them). It is an open owner decision; settle it
 before F1 and write the decision into the declaration. A withdrawn `session_context` consent also withholds that
 evaluator's conditions answers from reads and the evidence export, so decide how their rows are handled before the reveal.
@@ -197,8 +208,8 @@ for the procedure. In short:
 These are not decided here: the confirmation of `would_buy` staying on the blind skin form, the sign-off of the scale
 wording, the paper retention period, the spray distance and count (the repository defines neither; fix them in the
 declaration), whether F1 requires a linked prediction per holdout, the withdrawn-evaluator procedure (a withdrawn
-evaluator probably blocks the household reveal, which is unverified), and whether the seat order is rotated between
-sessions.
+evaluator blocks the household reveal), the wrong-evaluator filing gap in group mode (a shared blind code means a sheet
+entered under the wrong evaluator is not detected), and whether the seat order is rotated between sessions.
 
 ## Measure and close the workflow
 
