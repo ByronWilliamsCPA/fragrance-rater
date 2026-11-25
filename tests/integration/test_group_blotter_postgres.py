@@ -117,7 +117,6 @@ async def _membership(db: AsyncSession) -> Membership:
         program_id=program.id,
         fragrance_id=fragrance.id,
         role="UNIVERSAL_BASELINE",
-        identity_evidence="Verified",
     )
     db.add(member)
     await db.flush()
