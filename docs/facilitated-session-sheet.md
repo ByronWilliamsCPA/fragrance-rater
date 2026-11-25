@@ -9,52 +9,62 @@ tags:
   - evaluation
 ---
 
+Sheet version: `facilitated-session-sheet v1.0`
+
 Print one sheet per evaluator for each blotter session. The manager pre-prints that evaluator's physical blind
 codes in the sample header row and nothing else that identifies a fragrance. Do not write the fragrance
 identity, experimental role, repeat relationship, holdout status, or mapping anywhere on this sheet. The
 facilitator keeps completed sheets as private evidence and enters them through the authenticated application.
+Nobody discusses a sample or a score with anyone until the household reveal.
 
-This sheet covers blotter observations only. A skin test uses its own sheet, one per skin day.
+This sheet covers blotter observations only. A skin test uses its own sheet, one per skin day. The conditions
+questions (feeling unwell, congestion, hunger and the rest) are not on this page: they go on the separate
+[conditions slip](facilitated-conditions-slip.md), which is filed apart from this sheet. The facilitator runs the
+session by the [facilitator run sheet](facilitated-run-sheet.md).
+
+## Sheet version
+
+The sheet version id above is printed on every sheet and on the footer of the last page. It is the only record of
+which paper wording an evaluator used, because the application pins only the frontend build, not the paper form.
+The facilitator names the sheet version (and the conditions slip version) in the F1 pre-exposure declaration (see
+the [F1 gate](planning/gates/f1.md)) before the first exposure. Any change to a row, a scale, an anchor, the
+ceiling wording, or a rule is a new version id (v1.1 for a wording-only fix that changes no data field, v2.0 for any
+change to what is recorded), and sheets of two versions are never mixed inside one program without recording both
+in the declaration. A sheet that does not show a version id is not used.
 
 ## Rules for the evaluator
 
-1. Work silently. Do not discuss samples, scores, or reactions until the facilitator closes the session.
-2. Smell each blotter as soon as you receive it and write the time you first smell it. Complete one sample column
-   at a time, left to right, then write the finish time and initial the **Column complete** row.
+1. Work silently. Do not discuss samples, scores, or reactions with anyone, including other evaluators, until the
+   household reveal. The facilitator will announce the reveal after every evaluator has finished every session. Until
+   then, talk only about logistics (a window, a pen, a break).
+2. Smell each blotter as soon as you receive it and write the time you first smell it. The facilitator sprays and
+   writes the spray time; the provisional ceiling from spray to first smell is 5 minutes, so do not wait. Complete
+   one sample column at a time, left to right, then write the finish time and initial the **Column complete** row.
 3. After initialing, never change that column, even if a later sample changes your mind.
 4. Leave an answer blank when you are not answering it. A circled zero is a real answer.
 5. If you cannot smell a sample, circle **No** for Detected and leave the rest of that column blank.
-6. When all three columns are initialed, rank the samples in Part D, then hand the whole sheet to the facilitator.
-   You will not see this sheet again, including when a fragrance repeats.
+6. When all three columns are initialed, rank the samples in Part D, then hand the whole sheet to the facilitator
+   and stay silent until the facilitator says everyone has finished (you still do not discuss the samples). You
+   will not see this sheet again, including when a fragrance repeats, and you will not hear what any sample was
+   until the household reveal.
 
 ## Part A. Sitting
 
 | Field | Entry |
 | --- | --- |
-| Paper record ID | _______________________________________________ |
+| Sheet version | facilitated-session-sheet v1.0 |
+| Paper record ID (pre-printed; the conditions slip, if any, carries the same ID) | ______________________________ |
 | Data classification | ☐ Synthetic rehearsal ☐ Approved family pilot |
 | Assigned evaluator reference | _______________________________________________ |
 | Session code prefix (pre-printed) | _______________________________________________ |
 | Local date | __________________ |
 | Time zone | __________________ |
 | Recorder initials | __________________ |
-| Approved consent text read and accepted by the evaluator | ☐ Yes (version: ______________) |
+| Consent on file (recorded once in the application before the first session; version) | ☐ Yes (______________) |
 
-Conditions today. Every answer is optional. Leave a row blank when it is not asked, and tick **Prefer not to
-answer** to record a refusal. Ask only if the evaluator has accepted the session-context consent.
-
-| Question | Entry |
-| --- | --- |
-| Feeling unwell today? | Yes / No / Prefer not to answer |
-| Nose congested? | Yes / No / Prefer not to answer |
-| Allergy symptoms today? | Yes / No / Prefer not to answer |
-| Wearing a fragrance or scented products? | Yes / No / Prefer not to answer |
-| Noticeable smell in the room? | Yes / No / Prefer not to answer |
-| Hunger | Not hungry / Slightly / Hungry / Very hungry / Prefer not to answer |
-| Hours since last ate | __________ |
-| Hours since last caffeine | __________ |
-| Room temperature (C) | __________ |
-| Room humidity (%) | __________ |
+**Conditions today** are not recorded here. If you have agreed to answer them, you complete the separate slip before
+the first blotter is sprayed, and the facilitator files it apart from this sheet. The paper record ID is the only link
+between the two.
 
 ## Part B. Scores, one column per sample
 
@@ -148,9 +158,13 @@ pressing Save, because a saved observation cannot be edited.
 | Entered by | _______________________________________________ |
 | Entry UTC date and time | _______________________________________________ |
 | Consent recorded for this evaluator, with the note naming how consent was obtained | ☐ Yes |
-| Conditions entered for this session | ☐ Yes ☐ Not asked |
+| Conditions slip entered (from the separate slip, only with session-context consent) | ☐ Yes ☐ Not asked |
+| Enrollment on screen matches the evaluator reference and paper record ID on this sheet | ☐ Yes |
+| Blind code printed on the paper confirmed against the application before saving, each column (type or read the code; do not save on a mismatch) | ☐ Sample 1 ☐ Sample 2 ☐ Sample 3 |
+| Ambiguous marks entered as blank plus a flag | ☐ Yes ☐ None |
 | Elapsed minutes entered as whole minutes from spray to column finished; exact times stay on this sheet | ☐ Yes |
-| Any spray-to-first-smell time over the declared ceiling (provisional 5 minutes, confirmed in P6.3) flagged as a deviation | ☐ Yes ☐ None over |
+| Any spray-to-first-smell time over the declared ceiling (provisional 5 minutes, confirmed in P6.3) flagged as a deviation, not silently dropped | ☐ Yes ☐ None over |
+| Sheet scanned and original filed (see the run sheet, paper retention) | ☐ Yes |
 | Samples 1, 2 and 3 entered and each stage locked | ☐ Yes |
 | Ranking entered | ☐ Yes ☐ Skipped ☐ Could not tell apart |
 | Paper-to-application comparison | ☐ Exact ☐ Corrected with explanation below |
@@ -160,3 +174,5 @@ pressing Save, because a saved observation cannot be edited.
 Correction or explanation: ____________________________________________________
 _______________________________________________________________________________
 ```
+
+Sheet version: facilitated-session-sheet v1.0
