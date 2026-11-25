@@ -850,6 +850,53 @@ template is willing to require Node on every contributor machine.
 
 - `{{cookiecutter.project_slug}}/.pre-commit-config.yaml`
 
+### The docs structure has no home for printable fieldwork forms or a per-document version id
+
+- **Priority**: Low
+- **Category**: Documentation
+- **Discovered**: 2026-11-25
+
+**Issue**: The template's docs layout and front-matter validator assume every page is prose that lives in the
+MkDocs nav. A protocol that depends on a paper form (a score sheet, a conditions slip, a run sheet) needs three things
+the template does not provide: a stable location for printable forms, a convention for a version id printed on the
+form itself, and a way to tie a form version to a pre-exposure or release declaration so a wording change is visible as
+a version change. We invented `facilitated-session-sheet v1.0` and `facilitated-conditions-slip v1.0` ad hoc in the
+body text.
+
+**Context**: Found while writing the facilitated six-evaluator guides, where the paper sheet is part of the instrument
+and an unversioned sheet would make a rehearsal unprovable.
+
+**Suggested Fix**: Add a `docs/forms/` convention to the template, an optional `form_version` front-matter field
+validated by `tools/`, and a short note in the contributing guide that a form's version id must appear in its footer
+and in any gate that cites it.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/docs/`
+- `{{cookiecutter.project_slug}}/tools/` (front matter validator)
+
+### Generated planning docs have no status-tracking convention for work items that are merged but not gate evidence
+
+- **Priority**: Low
+- **Category**: Documentation
+- **Discovered**: 2026-11-25
+
+**Issue**: The generated `PROJECT-PLAN.md` and roadmap give a gate a status but have no convention for separating
+"the code or document is merged" from "the gate evidence exists". In this project the two diverged repeatedly: a
+work item can be merged while the rehearsal or declaration that makes it count has not happened, and the same
+pull-request numbers get copied across the plan, the roadmap mirror and the gate pages, which drift.
+
+**Context**: Updating section 11a, the roadmap mirror and the F1 and P6 gate pages for the same six pull requests in
+one change.
+
+**Suggested Fix**: Give the plan template a work-item table with separate "Merged (PR)" and "Evidence retained"
+columns, and generate the roadmap mirror's status text from that table instead of hand-copying it.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/docs/planning/PROJECT-PLAN.md`
+- `{{cookiecutter.project_slug}}/docs/planning/roadmap.md`
+
 ---
 
 ## Submitting Feedback
