@@ -88,10 +88,10 @@ describe('transcription helpers', () => {
   })
 
   it('flags a first smell only when it is later than the ceiling', () => {
-    expect(SPRAY_TO_SMELL_CEILING_MINUTES).toBe(5)
+    expect(SPRAY_TO_SMELL_CEILING_MINUTES).toBe(2)
     expect(sprayToSmellMinutes(SPRAYED, SMELLED)).toBe(2)
-    expect(overCeiling(SPRAYED, '2026-11-25T10:05')).toBe(false)
-    expect(overCeiling(SPRAYED, '2026-11-25T10:06')).toBe(true)
+    expect(overCeiling(SPRAYED, '2026-11-25T10:02')).toBe(false)
+    expect(overCeiling(SPRAYED, '2026-11-25T10:03')).toBe(true)
     expect(overCeiling(SPRAYED, '')).toBe(false)
   })
 
@@ -141,10 +141,16 @@ const sample: Sample = {
 }
 const enrollment = { id: 'e1', skin_plan_locked: true } as unknown as Enrollment
 
-function renderPanel(task: ReturnType<typeof makeTask>, overrides: Partial<Sample> = {}) {
+function renderPanel(
+  task: ReturnType<typeof makeTask>,
+  overrides: Partial<Sample> = {},
+  group = false
+) {
   return render(
     <SampleObservationPanel
-      enrollment={enrollment}
+      enrollment={
+        group ? ({ ...enrollment, blotter_mode: 'SHARED_GROUP' } as Enrollment) : enrollment
+      }
       sample={{ ...sample, ...overrides }}
       stage="BLOTTER"
       stageFixed
@@ -263,8 +269,44 @@ describe('paper column of the observation panel', () => {
     typeInto('Time sprayed', SPRAYED)
     typeInto('Time first smelled', '2026-11-25T10:08')
 
-    expect(await screen.findByText(/over the 5-minute ceiling/)).toBeInTheDocument()
+    expect(await screen.findByText(/over the 2-minute ceiling/)).toBeInTheDocument()
     expect(screen.getByText(/saved as written and flagged as a deviation/)).toBeInTheDocument()
+  })
+
+  it('says nothing about a shared blotter outside a group program', () => {
+    renderPanel(makeTask())
+    expect(screen.queryByText(/Group blotter session/)).toBeNull()
+  })
+
+  it('explains the shared code and the per-evaluator spray time in a group program', () => {
+    renderPanel(makeTask(), {}, true)
+    const note = screen.getByRole('note')
+    expect(note).toHaveTextContent(/every evaluator shares this blind code/)
+    expect(note).toHaveTextContent(/time sprayed of the blotter THIS evaluator smelled/)
+    expect(note).toHaveTextContent(/2-minute window/)
+    expect(note).toHaveTextContent(/sprays a new blotter of the same sample/)
+  })
+
+  it('saves a group evaluator column under the shared code with that evaluator own spray time', async () => {
+    const task = makeTask()
+    renderPanel(task, {}, true)
+    fillPaper('aaa1', { smelled: SMELLED })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2))
+    expect(task.setError).not.toHaveBeenCalled()
+    // The code is the group's shared one; the spray time is this evaluator's own.
+    expect(post.mock.calls[0]).toEqual([
+      '/calibration/presentations/s1/exposure',
+      {
+        stage: 'BLOTTER',
+        at: new Date(SMELLED).toISOString(),
+        sprayed_at: new Date(SPRAYED).toISOString(),
+        confirmed_blind_code: 'aaa1',
+      },
+    ])
+    expect(post.mock.calls[1][0]).toBe('/calibration/presentations/s1/observations')
   })
 })
 

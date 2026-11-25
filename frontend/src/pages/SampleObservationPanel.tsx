@@ -341,7 +341,11 @@ export function SampleObservationPanel({
             {sample.post_reveal_entry ? 'Post-reveal observation' : 'Blind observation'}
           </legend>
           {paper && (
-            <PaperSheetFields sample={sample} defaultSprayed={sprayMemory[sample.id] ?? ''} />
+            <PaperSheetFields
+              sample={sample}
+              defaultSprayed={sprayMemory[sample.id] ?? ''}
+              groupBlotter={enrollment.blotter_mode === 'SHARED_GROUP'}
+            />
           )}
           <div className="fields fields-compact">
             {paper ? null : stage === 'SKIN' ? (

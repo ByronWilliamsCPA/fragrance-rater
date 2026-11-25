@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type {
+  BlotterMode,
   FragellaUsage,
   FragranceSummary,
   ManagerEnrollment,
@@ -39,6 +40,26 @@ const roles = [
 
 const INDEPENDENT_SHUFFLE = 'system-random-shuffle-v1'
 const SHARED_TRIPLES = 'shared-triples-latin-rotation-v1'
+const GROUP_BLOTTER = 'shared-triples-group-blotter-v1'
+
+const BLOTTER_MODE_LABELS: Record<BlotterMode, string> = {
+  INDIVIDUAL: 'One blotter per evaluator (default)',
+  SHARED_GROUP: 'One blotter per sample, passed around the group (F1 group session)',
+}
+
+/**
+ * The plain-language trade-off of the group blotter mode, shown wherever the
+ * mode is chosen. Kept as one constant so the create form and the selected
+ * program say the same thing.
+ */
+const GROUP_BLOTTER_NOTE =
+  'The facilitator passes one physical blotter per sample around all evaluators, one at a time. ' +
+  "Every evaluator therefore shares each sample's blind code and the session order, so the " +
+  'order a person smells a sample in is confounded with their seat in the circle. Their scores ' +
+  'are flagged as group-blotter scores: the flag is informational, the scores stay eligible for ' +
+  'training, and results can be reported with and without them. Each evaluator must smell within ' +
+  'the spray-to-smell window (provisionally 2 minutes), or the facilitator sprays a new blotter ' +
+  'of the same sample.'
 
 function percentage(value: number | null): string {
   return value === null ? 'No denominator yet' : `${Math.round(value * 100)}%`
@@ -78,6 +99,11 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
   const previewRequest = useRef(0)
   const task = useTask()
   const selectedProgram = programs.find((program) => program.id === programId)
+  // A SHARED_GROUP program enrolls only with the group-blotter order; the mode
+  // is chosen on the program, not per enrollment.
+  const grouped = selectedProgram?.blotter_mode === 'SHARED_GROUP'
+  const enrollAlgorithm = grouped ? GROUP_BLOTTER : algorithm
+  const sharedSessions = enrollAlgorithm !== INDEPENDENT_SHUFFLE
   const reviewerNames = useMemo(
     () => new Map(reviewers.map((reviewer) => [reviewer.id, reviewer.name])),
     [reviewers]
@@ -112,11 +138,28 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
 
   async function createProgram(form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
-    const response = await api.post<{ id: string }>('/calibration/programs', values)
+    // The mode is sent only when the facilitator picks the group session, so
+    // the default request is unchanged and the server default (INDIVIDUAL) holds.
+    const { blotter_mode: mode, ...rest } = values
+    const response = await api.post<{ id: string }>('/calibration/programs', {
+      ...rest,
+      ...(mode === 'SHARED_GROUP' ? { blotter_mode: 'SHARED_GROUP' } : {}),
+    })
     setProgramId(response.data.id)
     await reload()
     form.reset()
     task.setNotice('Draft created.')
+  }
+
+  async function changeBlotterMode(mode: BlotterMode) {
+    await api.put(`/calibration/programs/${programId}/blotter-mode`, { blotter_mode: mode })
+    await reload()
+    invalidatePreview()
+    task.setNotice(
+      mode === 'SHARED_GROUP'
+        ? 'Group blotter session selected. It locks when the first evaluator is enrolled.'
+        : 'One blotter per evaluator selected.'
+    )
   }
 
   async function searchCatalog(form: HTMLFormElement) {
@@ -193,7 +236,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
 
   async function enroll(form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
-    const shared = algorithm === SHARED_TRIPLES
+    const shared = sharedSessions
     await api.post(`/calibration/programs/${programId}/enroll`, {
       reviewer_id: values.reviewer_id,
       recorder_usernames: String(values.recorders)
@@ -207,7 +250,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
       label_scheme: shared || values.label_scheme === 'random' ? 'random' : 'standard',
       ...(shared
         ? {
-            randomization_algorithm: SHARED_TRIPLES,
+            randomization_algorithm: enrollAlgorithm,
             ...sharedTemplateOptions(form),
             session_template: templatePreview?.session_template ?? null,
           }
@@ -323,6 +366,17 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
               Description
               <textarea name="description" />
             </label>
+            <label>
+              Blotter mode
+              <select name="blotter_mode" defaultValue="INDIVIDUAL">
+                {(Object.keys(BLOTTER_MODE_LABELS) as BlotterMode[]).map((mode) => (
+                  <option key={mode} value={mode}>
+                    {BLOTTER_MODE_LABELS[mode]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="notice">{GROUP_BLOTTER_NOTE}</p>
             <button disabled={task.busy}>Create draft</button>
           </form>
           {programs.length ? (
@@ -343,6 +397,26 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
 
           {programId && (
             <>
+              <label>
+                Blotter mode for this program
+                <select
+                  value={selectedProgram?.blotter_mode ?? 'INDIVIDUAL'}
+                  disabled={task.busy}
+                  onChange={(event) =>
+                    void task.run(() => changeBlotterMode(event.target.value as BlotterMode))
+                  }
+                >
+                  {(Object.keys(BLOTTER_MODE_LABELS) as BlotterMode[]).map((mode) => (
+                    <option key={mode} value={mode}>
+                      {BLOTTER_MODE_LABELS[mode]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p>
+                The mode can be changed until the first evaluator is enrolled; after that it is
+                locked.
+              </p>
               <form
                 className="search-row"
                 onSubmit={(event) => {
@@ -549,24 +623,42 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
               Session order
               <select
                 name="randomization_algorithm"
-                value={algorithm}
+                value={enrollAlgorithm}
+                disabled={grouped}
                 onChange={(event) => {
                   setAlgorithm(event.target.value)
                   invalidatePreview()
                 }}
               >
-                <option value={INDEPENDENT_SHUFFLE}>Independent shuffle per evaluator</option>
-                <option value={SHARED_TRIPLES}>
-                  Shared sessions, balanced order per evaluator (facilitated)
-                </option>
+                {grouped ? (
+                  <option value={GROUP_BLOTTER}>
+                    One shared session order for the whole group (group blotter)
+                  </option>
+                ) : (
+                  <>
+                    <option value={INDEPENDENT_SHUFFLE}>Independent shuffle per evaluator</option>
+                    <option value={SHARED_TRIPLES}>
+                      Shared sessions, balanced order per evaluator (facilitated)
+                    </option>
+                  </>
+                )}
               </select>
             </label>
-            {algorithm === SHARED_TRIPLES ? (
+            {sharedSessions ? (
               <>
-                <p>
-                  Every evaluator smells the same samples in each session; the order inside a
-                  session differs per evaluator. Blind codes are random.
-                </p>
+                {grouped ? (
+                  <p>
+                    Every evaluator smells the same samples in the same order, from one blotter
+                    passed around the group, and shares each sample&apos;s blind code. Blind codes
+                    are random. Scores are flagged as group-blotter scores (informational; they stay
+                    eligible for training).
+                  </p>
+                ) : (
+                  <p>
+                    Every evaluator smells the same samples in each session; the order inside a
+                    session differs per evaluator. Blind codes are random.
+                  </p>
+                )}
                 <label>
                   Exceptionally persistent or animalic samples (at most one per session)
                   <select name="persistent_membership_ids" multiple onChange={invalidatePreview}>
