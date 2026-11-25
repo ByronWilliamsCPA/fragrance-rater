@@ -40,6 +40,8 @@ FlagCode = Literal[
     "recorder_assistance",
     "instrument_fault",
     "evaluator_reported_problem",
+    "non_blind",
+    "spray_to_smell_ceiling_exceeded",
     "other",
 ]
 
@@ -156,3 +158,23 @@ class QualityFlagInput(StrictInput):
             message = "A closing flag inherits its target and code"
             raise ValueError(message)
         return self
+
+
+class NonBlindInput(StrictInput):
+    """Mark every session of an enrollment as non-blind (F1 mapping holder).
+
+    The explanation is required: it is the written reason the evaluator is not
+    blind (for F1, "declared mapping holder; sprays, times, transcribes and
+    controls the reveal"), kept on each flag row.
+    """
+
+    explanation: str = Field(min_length=1, max_length=4000)
+
+    @field_validator("explanation")
+    @classmethod
+    def explanation_is_not_blank(cls, value: str) -> str:
+        """A blank reason is no reason."""
+        if not value.strip():
+            message = "A reason is required"
+            raise ValueError(message)
+        return value.strip()

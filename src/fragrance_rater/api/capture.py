@@ -7,7 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fragrance_rater.core.auth import VerifiedIdentity, actor, manager
 from fragrance_rater.core.database import get_db
-from fragrance_rater.schemas.capture import QualityFlagInput, RankingInput
+from fragrance_rater.schemas.capture import (
+    NonBlindInput,
+    QualityFlagInput,
+    RankingInput,
+)
 from fragrance_rater.services.capture_service import CaptureService
 from fragrance_rater.services.evidence_export import build_evidence_export
 from fragrance_rater.utils.logging import get_logger, log_audit_event
@@ -73,6 +77,32 @@ async def record_flag(
         training_eligibility_changes=len(changes),
     )
     return {"id": flag.id, "training_eligibility_changes": len(changes)}
+
+
+@router.post("/enrollments/{enrollment_id}/non-blind", status_code=201)
+async def mark_non_blind(
+    enrollment_id: str, data: NonBlindInput, db: DB, identity: Identity
+) -> dict[str, list[str]]:
+    """Flag an enrollment's rows non-blind (F1: the evaluator who holds the mapping).
+
+    Writes one ``non_blind`` quality flag per session through the ordinary flag
+    path: the evaluator's rows leave blind-baseline training but stay in
+    evaluation. Idempotent; a manager or a recorder assigned to the enrollment.
+    """
+    username, admin = actor(identity)
+    result = await CaptureService(db).mark_enrollment_non_blind(
+        enrollment_id, data, username, admin
+    )
+    log_audit_event(
+        logger,
+        action="enrollment_non_blind",
+        actor=username,
+        target_type="enrollment",
+        target_id=enrollment_id,
+        flagged=len(result["flagged"]),
+        already_flagged=len(result["already_flagged"]),
+    )
+    return result
 
 
 @router.get("/sessions/{session_id}/quality-flags")

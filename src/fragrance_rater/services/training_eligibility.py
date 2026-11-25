@@ -20,6 +20,11 @@ else (an import, a backfill, raw SQL) never trains without a decision:
   ``withheld`` or ``invalidated`` sets those rows to that outcome.
 * A manager may set any row to ``eligible``, ``withheld``, or ``invalidated``
   with a reason.
+* Evidence covered by an active ``non_blind`` flag (F1's mapping-holder
+  evaluator, ``services/non_blind.py``) never becomes ``eligible``: the rule
+  keeps it ``questionable`` whatever a resolution says, and a manager cannot
+  set it ``eligible`` either. It stays in every evaluation path, which read
+  the rows themselves and not ``v_training_rows``.
 
 No automatic path ever changes a ``withheld`` or ``invalidated`` row: only a
 manager's explicit decision does. Every change is an audit event
@@ -51,6 +56,7 @@ from fragrance_rater.models.calibration import (
     QualityFlag,
 )
 from fragrance_rater.models.evaluation import Evaluation
+from fragrance_rater.services.non_blind import active_non_blind_flag
 from fragrance_rater.utils.logging import get_logger, log_audit_event
 
 if TYPE_CHECKING:
@@ -76,6 +82,10 @@ ManagerDecision = Literal["eligible", "withheld", "invalidated"]
 """What a manager may set directly or choose when resolving a flag."""
 
 MANAGER_DECISIONS: tuple[ManagerDecision, ...] = ("eligible", "withheld", "invalidated")
+
+
+class NonBlindEvidenceError(ValueError):
+    """A manager tried to make non-blind evidence eligible for blind training."""
 
 
 @dataclass(frozen=True)
@@ -201,6 +211,32 @@ class TrainingEligibilityService:
             )
         )
 
+    async def covered_by_non_blind(self, observation: Observation) -> bool:
+        """Whether an active ``non_blind`` flag covers ``observation``.
+
+        Args:
+            observation (Observation): The observation.
+
+        Returns:
+            bool: True when the observation, its presentation, or its session
+                carries a ``non_blind`` flag that was not invalidated.
+        """
+        presentation = await self._presentation_of(observation)
+        return (
+            await self.db.scalar(
+                select(QualityFlag.id)
+                .where(
+                    active_non_blind_flag(),
+                    or_(
+                        QualityFlag.observation_id == observation.id,
+                        QualityFlag.presentation_id == presentation.id,
+                        QualityFlag.session_id == presentation.session_id,
+                    ),
+                )
+                .limit(1)
+            )
+        ) is not None
+
     async def _covering_pending_resolutions(
         self, observation: Observation
     ) -> list[str]:
@@ -234,6 +270,12 @@ class TrainingEligibilityService:
 
     async def _rule_state(self, observation: Observation) -> str:
         """What option C says an observation's code is, ignoring manager codes."""
+        # #CRITICAL: data-integrity: non-blind evidence must never train a
+        # blind baseline, even after its flag is resolved or a stage locks.
+        # #VERIFY: test_non_blind_flag.py covers lock, resolution, and a late
+        # write; ``v_training_rows`` then excludes the ``questionable`` rows.
+        if await self.covered_by_non_blind(observation):
+            return QUESTIONABLE
         if await self._covering_open_flags(observation):
             return QUESTIONABLE
         presentation = await self._presentation_of(observation)
@@ -441,6 +483,8 @@ class TrainingEligibilityService:
 
         Raises:
             LookupError: When the row does not exist.
+            NonBlindEvidenceError: When ``eligible`` is asked for an
+                observation covered by an active ``non_blind`` flag.
         """
         row: Evaluation | Observation | None
         if target_type == "evaluation":
@@ -452,6 +496,17 @@ class TrainingEligibilityService:
         if row is None:
             message = f"{target_type} {target_id} not found"
             raise LookupError(message)
+        if (
+            decision == TRAINABLE_EVIDENCE_ELIGIBILITY
+            and isinstance(row, Observation)
+            and await self.covered_by_non_blind(row)
+        ):
+            message = (
+                "Evidence from a non-blind evaluator cannot be made eligible "
+                "for blind-baseline training; invalidate the non_blind flag "
+                "first if it was raised in error"
+            )
+            raise NonBlindEvidenceError(message)
         change = _change(row, decision)
         await self.db.flush()
         _audit(

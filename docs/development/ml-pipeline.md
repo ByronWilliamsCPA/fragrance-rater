@@ -96,6 +96,26 @@ prediction for the same model version, so re-running is idempotent. The manifest
 server-side and checked against the reviewer's excluded versions before anything is written
 (review M-09, X-18).
 
+## Non-blind evaluators (the F1 mapping holder)
+
+The evaluator who also holds the blind-to-identity mapping is not blind (`gates/f1.md`, ADR-009
+2026-09-21 amendment). A manager or an assigned recorder marks that enrollment with
+`POST /api/v1/calibration/enrollments/{id}/non-blind` (a written reason is required), which raises
+one `non_blind` quality flag per session through the ordinary flag path. Effects:
+
+- The rows become `questionable`, so `v_training_rows` and `ml.training_view` drop them: they never
+  train a blind baseline. Resolving the flag cannot release them, a manager cannot set them
+  `eligible`, and only a manager can invalidate the flag (raised in error), which restores the
+  ordinary rule.
+- Evaluation is unchanged: `repeat_pairs`, the holdout scorecards, and the evidence export read the
+  observations themselves. The export marks `enrollment.non_blind`.
+- `ml.reliability.pooled_reliability_both_ways` returns the pooled repeat benchmark with and without
+  the non-blind evaluator's pairs (`repeat_pairs(..., exclude_non_blind=True)` is the building block).
+
+`spray_to_smell_ceiling_exceeded` is the companion deviation code for a sample first smelled past
+F1's provisional spray-to-first-smell ceiling; it is raised through `POST
+/api/v1/calibration/quality-flags` like any other deviation.
+
 ## Notebook use
 
 ```python

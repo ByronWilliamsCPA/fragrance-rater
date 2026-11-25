@@ -29,6 +29,7 @@ from fragrance_rater.services.calibration_service import (
 )
 from fragrance_rater.services.capture_service import CaptureService
 from fragrance_rater.services.consent import ConsentService
+from fragrance_rater.services.non_blind import non_blind_enrollment_ids
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -226,6 +227,9 @@ async def build_evidence_export(
             "randomization_algorithm": enrollment.randomization_algorithm,
             "randomization_seed": enrollment.randomization_seed,
             "revealed": enrollment.revealed_at is not None,
+            # F1 mapping holder: rows stay in this export (evaluation) but are
+            # out of blind-baseline training. See services/non_blind.py.
+            "non_blind": enrollment.id in await non_blind_enrollment_ids(db),
         },
         "consent": {
             "state": consent_state,

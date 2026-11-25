@@ -19,7 +19,9 @@ from fragrance_rater.models.calibration import (
     RankEntry,
     RankEvent,
 )
+from fragrance_rater.schemas.capture import QualityFlagInput
 from fragrance_rater.services.calibration_service import CalibrationService, reject
+from fragrance_rater.services.non_blind import NON_BLIND_CODE, active_non_blind_flag
 from fragrance_rater.services.training_eligibility import (
     TrainingEligibilityService,
     Transition,
@@ -29,7 +31,7 @@ from fragrance_rater.utils.timestamps import now_naive_utc
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from fragrance_rater.schemas.capture import QualityFlagInput, RankingInput
+    from fragrance_rater.schemas.capture import NonBlindInput, RankingInput
 
 # A sample the evaluator could not assess is not ranked, however it was answered.
 _UNRANKABLE_STATUSES = {"skipped", "unable_to_assess", "interrupted", "invalidated"}
@@ -264,6 +266,26 @@ class CaptureService:
         flag, _ = await self.record_flag_with_eligibility(data, username, admin)
         return flag
 
+    @staticmethod
+    def _guard_non_blind_close(
+        raised: QualityFlag, data: QualityFlagInput, admin: bool
+    ) -> None:
+        """Only a manager closes a ``non_blind`` flag, and never to ``eligible``.
+
+        Non-blind evidence must not be released to blind-baseline training by a
+        resolution; if the flag was raised in error, it is invalidated.
+        """
+        if raised.code != NON_BLIND_CODE:
+            return
+        if not admin:
+            reject("Only a manager can close a non_blind flag", 403)
+        if data.training_outcome == "eligible":
+            message = (
+                "Non-blind evidence cannot be made eligible for blind-baseline "
+                "training; invalidate the flag if it was raised in error"
+            )
+            reject(message)
+
     async def record_flag_with_eligibility(
         self, data: QualityFlagInput, username: str, admin: bool
     ) -> tuple[QualityFlag, list[Transition]]:
@@ -322,6 +344,7 @@ class CaptureService:
             )
             assert target_id is not None
             target = await self._flag_target(target_type, target_id, username, admin)
+            self._guard_non_blind_close(raised, data, admin)
             if raised.action != "raised":
                 reject("Only a raised flag can be closed")
             if await self.db.scalar(
@@ -357,6 +380,76 @@ class CaptureService:
             )
         await self.db.flush()
         return flag, changes
+
+    async def mark_enrollment_non_blind(
+        self, enrollment_id: str, data: NonBlindInput, username: str, admin: bool
+    ) -> dict[str, list[str]]:
+        """Flag every session of an enrollment ``non_blind`` (F1 mapping holder).
+
+        This uses the ordinary quality-flag write path, one ``non_blind`` flag
+        per session, so each row follows the append-only lifecycle and the
+        R8 eligibility rule applies unchanged: covered rows become
+        ``questionable`` (out of ``v_training_rows``) and stay in evaluation.
+        Every session exists from enrollment onward, so one call covers the
+        enrollment's whole schedule. Calling it again flags only sessions that
+        do not already carry an active ``non_blind`` flag.
+
+        The caller must be a manager or a recorder assigned to the enrollment
+        (the same standing as flagging a session). Only a manager can close
+        the flags afterwards.
+
+        Args:
+            enrollment_id (str): The enrollment of the evaluator who holds the
+                mapping.
+            data (NonBlindInput): The written reason.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            dict[str, list[str]]: ``flagged`` (ids of the flags written) and
+                ``already_flagged`` (ids of sessions that already had one).
+        """
+        await self.calibration.enrollment(enrollment_id, username, admin)
+        session_ids = list(
+            await self.db.scalars(
+                select(CalibrationSession.id)
+                .where(CalibrationSession.enrollment_id == enrollment_id)
+                .order_by(CalibrationSession.created_at, CalibrationSession.id)
+            )
+        )
+        flagged: list[str] = []
+        already: list[str] = []
+        for session_id in session_ids:
+            if await self.db.scalar(
+                select(QualityFlag.id)
+                .where(QualityFlag.session_id == session_id, active_non_blind_flag())
+                .limit(1)
+            ):
+                already.append(session_id)
+                continue
+            flag = await self.record_flag(
+                self._non_blind_flag(session_id, data, admin), username, admin
+            )
+            flagged.append(flag.id)
+        return {"flagged": flagged, "already_flagged": already}
+
+    @staticmethod
+    def _non_blind_flag(
+        session_id: str, data: NonBlindInput, admin: bool
+    ) -> QualityFlagInput:
+        """Build the session-level ``non_blind`` flag for one session."""
+        return QualityFlagInput(
+            action="raised",
+            source="manager" if admin else "recorder",
+            # Retained in evaluation; training exclusion is carried by
+            # training_eligibility, not by this disposition.
+            disposition="include",
+            target_type="session",
+            target_id=session_id,
+            code=NON_BLIND_CODE,
+            severity="info",
+            explanation=data.explanation,
+        )
 
     async def flags(
         self, session_id: str, username: str, admin: bool
