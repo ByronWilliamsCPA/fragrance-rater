@@ -272,6 +272,31 @@ describe('shared-session enrollment', () => {
     await waitFor(() => expect(reload).toHaveBeenCalled())
   })
 
+  it('says so when a group program goes back to one blotter per evaluator', async () => {
+    put.mockResolvedValue({ data: { id: 'p', blotter_mode: 'INDIVIDUAL' } })
+    renderPage('SHARED_GROUP')
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/programs/p/members'))
+    fireEvent.change(screen.getByLabelText('Blotter mode for this program'), {
+      target: { value: 'INDIVIDUAL' },
+    })
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/calibration/programs/p/blotter-mode', {
+        blotter_mode: 'INDIVIDUAL',
+      })
+    )
+    expect(await screen.findByText('One blotter per evaluator selected.')).toBeInTheDocument()
+  })
+
+  it('shows the server refusal when the mode is already locked', async () => {
+    put.mockRejectedValue(new Error('locked'))
+    renderPage('INDIVIDUAL')
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/programs/p/members'))
+    fireEvent.change(screen.getByLabelText('Blotter mode for this program'), {
+      target: { value: 'SHARED_GROUP' },
+    })
+    expect(await screen.findByText('Request failed.')).toBeInTheDocument()
+  })
+
   it('enrolls a group program with the group algorithm and no order choice', async () => {
     const form = renderPage('SHARED_GROUP')
     await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/programs/p/members'))
