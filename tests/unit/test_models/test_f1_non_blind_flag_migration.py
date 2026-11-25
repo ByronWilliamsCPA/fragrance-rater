@@ -87,14 +87,17 @@ def test_it_follows_the_bounded_lookup_migration() -> None:
     assert MIGRATION.down_revision == "736b7db082fb"
 
 
-def test_the_new_list_is_the_model_vocabulary() -> None:
-    assert _codes(MIGRATION.CODES_SQL) == set(QUALITY_FLAG_CODES)
+def test_the_new_list_is_the_model_vocabulary_before_the_group_flag() -> None:
+    # e4b6c8a2d915 adds ``group_shared_blotter`` after this migration.
+    assert _codes(MIGRATION.CODES_SQL) == set(QUALITY_FLAG_CODES) - {
+        "group_shared_blotter"
+    }
     assert set(MIGRATION.NEW_CODES) <= set(QUALITY_FLAG_CODES)
 
 
 def test_the_previous_list_is_what_cd1e2375a2e4_created() -> None:
-    assert _codes(MIGRATION.PREVIOUS_CODES_SQL) == set(QUALITY_FLAG_CODES) - set(
-        MIGRATION.NEW_CODES
+    assert _codes(MIGRATION.PREVIOUS_CODES_SQL) == (
+        set(QUALITY_FLAG_CODES) - set(MIGRATION.NEW_CODES) - {"group_shared_blotter"}
     )
     source = Path(GOVERNANCE.__file__).read_text(encoding="utf-8")
     for code in _codes(MIGRATION.PREVIOUS_CODES_SQL):

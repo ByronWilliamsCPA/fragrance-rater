@@ -25,6 +25,10 @@ else (an import, a backfill, raw SQL) never trains without a decision:
   keeps it ``questionable`` whatever a resolution says, and a manager cannot
   set it ``eligible`` either. It stays in every evaluation path, which read
   the rows themselves and not ``v_training_rows``.
+* An INFORMATIONAL flag (``group_blotter.INFORMATIONAL_FLAG_CODES``, today
+  ``group_shared_blotter`` on every session of an F1 group-blotter program)
+  never demotes, holds, or releases anything: the owner decided those scores
+  stay trainable. Raising, closing, and every open-flag lookup skip it.
 
 No automatic path ever changes a ``withheld`` or ``invalidated`` row: only a
 manager's explicit decision does. Every change is an audit event
@@ -56,6 +60,7 @@ from fragrance_rater.models.calibration import (
     QualityFlag,
 )
 from fragrance_rater.models.evaluation import Evaluation
+from fragrance_rater.services.group_blotter import INFORMATIONAL_FLAG_CODES
 from fragrance_rater.services.non_blind import active_non_blind_flag
 from fragrance_rater.utils.logging import get_logger, log_audit_event
 
@@ -140,10 +145,15 @@ def _change(row: Evaluation | Observation, code: str) -> Transition | None:
 
 
 def _open_flag() -> ColumnElement[bool]:
-    """``QualityFlag`` is a raised flag that no later row closes."""
+    """``QualityFlag`` is a raised flag that no later row closes.
+
+    Informational flags are never open for eligibility purposes: they describe
+    the evidence and must not hold it back.
+    """
     closing = aliased(QualityFlag)
     return and_(
         QualityFlag.action == "raised",
+        QualityFlag.code.not_in(INFORMATIONAL_FLAG_CODES),
         ~exists().where(closing.supersedes_id == QualityFlag.id),
     )
 
@@ -259,6 +269,7 @@ class TrainingEligibilityService:
                 select(QualityFlag.id).where(
                     QualityFlag.action == "resolved",
                     QualityFlag.training_outcome.is_(None),
+                    QualityFlag.code.not_in(INFORMATIONAL_FLAG_CODES),
                     or_(
                         QualityFlag.observation_id == observation.id,
                         QualityFlag.presentation_id == presentation.id,
@@ -374,8 +385,11 @@ class TrainingEligibilityService:
 
         Returns:
             list[Transition]: The changes made; ``withheld`` and
-                ``invalidated`` rows are never among them.
+                ``invalidated`` rows are never among them. Always empty for
+                an informational flag.
         """
+        if flag.code in INFORMATIONAL_FLAG_CODES:
+            return []
         changes = [
             change
             for row in await self.flagged_observations(flag)
@@ -421,6 +435,8 @@ class TrainingEligibilityService:
             ValueError: If a resolved closing reaches the per-row loop without
                 an outcome (the early return above makes that unreachable).
         """
+        if closing.code in INFORMATIONAL_FLAG_CODES:
+            return []
         if closing.action == "resolved" and outcome is None:
             return []
         changes: list[Transition] = []

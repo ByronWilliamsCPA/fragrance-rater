@@ -42,6 +42,7 @@ FlagCode = Literal[
     "evaluator_reported_problem",
     "non_blind",
     "spray_to_smell_ceiling_exceeded",
+    "group_shared_blotter",
     "other",
 ]
 

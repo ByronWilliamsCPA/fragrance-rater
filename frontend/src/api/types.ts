@@ -157,6 +157,15 @@ export type PerfumerAttribution = { name: string; source_url: string }
 export type RevealPolicy = 'ENROLLMENT' | 'HOUSEHOLD'
 
 /**
+ * How a program hands out blotters: one per evaluator (`INDIVIDUAL`, the
+ * default) or ONE physical blotter per sample passed around the whole group
+ * (`SHARED_GROUP`, the F1 group session). In a group program the evaluators
+ * share each sample's blind code and the session order, and their scores carry
+ * an informational group-blotter flag; the scores stay eligible for training.
+ */
+export type BlotterMode = 'INDIVIDUAL' | 'SHARED_GROUP'
+
+/**
  * Why an enrollment cannot be revealed yet, first match wins on the server.
  * `ENROLLMENT` programs only use the first three; `HOUSEHOLD` programs add
  * `CHECKPOINT`, `HOLDOUT` and `HOUSEHOLD_WAIT`. The enum is additive, so the
@@ -177,6 +186,8 @@ export type Enrollment = Assignment & {
   skin_plan_locked: boolean
   /** Optional only for servers older than the household policy; absent means ENROLLMENT. */
   reveal_policy?: RevealPolicy
+  /** Optional only for servers older than the group blotter mode; absent means INDIVIDUAL. */
+  blotter_mode?: BlotterMode
   presentations: Sample[]
 }
 
@@ -184,6 +195,8 @@ export type Program = Person & {
   version: string
   status: string
   reveal_policy?: RevealPolicy
+  /** Optional only for servers older than the group blotter mode; absent means INDIVIDUAL. */
+  blotter_mode?: BlotterMode
 }
 
 /** One row of GET /calibration/programs/{id}/readiness. */
@@ -277,6 +290,8 @@ export type ManagerEnrollment = {
   revealed: boolean
   /** Optional only for servers older than the household policy. */
   reveal_policy?: RevealPolicy
+  /** Optional only for servers older than the group blotter mode. */
+  blotter_mode?: BlotterMode
   checkpoint_count?: number
   checkpoint_blocker?: CheckpointBlocker | null
 }

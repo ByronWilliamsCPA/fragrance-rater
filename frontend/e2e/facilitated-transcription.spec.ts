@@ -75,7 +75,7 @@ test.describe('Facilitator transcription of a paper sheet', () => {
     await page.getByLabel('Time first smelled').fill(SMELLED_LATE)
     await page.getByLabel('Time this column finished').fill(FINISHED)
     await expect(page.getByText('Elapsed since the spray: 20 whole minutes.')).toBeVisible()
-    await expect(page.getByText(/over the 5-minute ceiling/)).toBeVisible()
+    await expect(page.getByText(/over the 2-minute ceiling/)).toBeVisible()
     await expectNoViolations(page)
 
     await page.getByLabel('Blind code printed on the sheet').fill('CODE-A2')

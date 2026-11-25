@@ -8,6 +8,7 @@ import pytest
 from fragrance_rater.schemas.calibration import RandomizationAlgorithm
 from fragrance_rater.services.calibration_service import RANDOMIZATION_ALGORITHM
 from fragrance_rater.services.shared_triples import (
+    GROUP_BLOTTER_ALGORITHM,
     INDEPENDENT_SHUFFLE_ALGORITHM,
     SHARED_TRIPLES_ALGORITHM,
     TemplateError,
@@ -15,6 +16,7 @@ from fragrance_rater.services.shared_triples import (
     evaluator_order,
     generate_template,
     parse_randomization_record,
+    position_counts,
     randomization_record,
     recover_template,
     rotation_row,
@@ -61,6 +63,7 @@ def test_algorithm_names_agree_with_the_schema():
     assert set(RandomizationAlgorithm.__args__) == {
         INDEPENDENT_SHUFFLE_ALGORITHM,
         SHARED_TRIPLES_ALGORITHM,
+        GROUP_BLOTTER_ALGORITHM,
     }
     assert RANDOMIZATION_ALGORITHM == INDEPENDENT_SHUFFLE_ALGORITHM
 
@@ -325,3 +328,46 @@ def test_single_sample_sessions_need_only_two_sessions_of_separation():
     template = generate_template(f1_members(2, 1, 0), 1, "0123456789abcdef")
     assert template == [["b00"], ["b01"], ["r00"]]
     validate_template(template, f1_members(2, 1, 0), 1)
+
+
+# --- group-blotter variant (no rotation, same order for every evaluator) -----
+
+
+def test_group_template_is_valid_without_rotation(template):
+    members = f1_members()
+    group = generate_template(members, 3, "0123456789abcdef", rotate=False)
+    validate_template(group, members, 3, rotate=False)
+    assert sorted(m for s in group for m in s) == sorted(m.id for m in members)
+
+
+def test_group_evaluator_order_ignores_the_rotation():
+    group = generate_template(f1_members(), 3, "0123456789abcdef", rotate=False)
+    assert evaluator_order(group, 0, rotate=False) == group
+    assert evaluator_order(group, 5, rotate=False) == group
+    assert evaluator_order(group, 5) != group
+
+
+def test_group_repeats_are_separated_by_twice_the_session_size():
+    members = f1_members()
+    originals = {m.id: m.repeat_of_id for m in members if m.repeat_of_id}
+    for size in (1, 2, 3, 4):
+        group = generate_template(members, size, "feedfacecafebeef", rotate=False)
+        flat = [mid for s in group for mid in s]
+        for repeat, original in originals.items():
+            assert flat.index(repeat) - flat.index(original) >= 2 * size
+
+
+def test_group_validation_refuses_a_repeat_closer_than_twice_the_session_size():
+    members = f1_members(baseline=4, repeats=1, holdouts=1)
+    template = [["b00"], ["r00"], ["b01"], ["b02"], ["b03"], ["h00"]]
+    with pytest.raises(TemplateError, match="presentations after its original"):
+        validate_template(template, members, 1, rotate=False)
+
+
+def test_position_counts_use_every_position_of_a_full_session():
+    assert position_counts([["a", "b", "c"], ["d", "e", "f"], ["g"]]) == {
+        1: 3,
+        2: 2,
+        3: 2,
+    }
+    assert position_counts([]) == {}

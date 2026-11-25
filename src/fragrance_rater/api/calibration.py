@@ -27,6 +27,7 @@ from fragrance_rater.models.calibration import (
 from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.calibration import (
+    BlotterModeInput,
     CheckpointInput,
     EnrollmentInput,
     ExposureInput,
@@ -91,6 +92,7 @@ async def programs(db: DB, identity: Identity) -> list[dict[str, object]]:
             "version": p.version,
             "status": p.status,
             "reveal_policy": p.reveal_policy,
+            "blotter_mode": p.blotter_mode,
         }
         for p in result
         if admin or p.id in allowed
@@ -135,6 +137,24 @@ async def set_reveal_policy(
         reveal_policy=data.reveal_policy,
     )
     return {"id": obj.id, "reveal_policy": obj.reveal_policy}
+
+
+@router.put("/programs/{program_id}/blotter-mode")
+async def set_blotter_mode(
+    program_id: str, data: BlotterModeInput, db: DB, identity: Identity
+) -> dict[str, str]:
+    """Choose individual or shared-group blotters until the first enrollment."""
+    username = manager(identity)
+    obj = await CalibrationService(db).set_blotter_mode(program_id, data.blotter_mode)
+    log_audit_event(
+        logger,
+        action="program_blotter_mode",
+        actor=username,
+        target_type="calibration_program",
+        target_id=program_id,
+        blotter_mode=data.blotter_mode,
+    )
+    return {"id": obj.id, "blotter_mode": obj.blotter_mode}
 
 
 @router.post("/programs/{program_id}/members", status_code=201)
@@ -313,7 +333,7 @@ async def enroll(
     """Assign and randomize the program for one shared reviewer."""
     username = manager(identity)
     await DisclosureGate(db).require_enrollment_open(program_id)
-    obj = await CalibrationService(db).enroll(program_id, data)
+    obj = await CalibrationService(db).enroll(program_id, data, username)
     log_audit_event(
         logger,
         action="enroll",
@@ -439,6 +459,7 @@ async def enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
                 ),
                 "program_name": program.name,
                 "program_version": program.version,
+                "blotter_mode": program.blotter_mode,
             }
         )
     return result
@@ -476,6 +497,7 @@ async def manager_enrollments(db: DB, identity: Identity) -> list[dict[str, obje
                 "reveal_blocker": blocker,
                 "revealed": item.revealed_at is not None,
                 "reveal_policy": program.reveal_policy,
+                "blotter_mode": program.blotter_mode,
                 "checkpoint_count": state.checkpoint_count,
                 "checkpoint_blocker": state.checkpoint_blocker(),
             }

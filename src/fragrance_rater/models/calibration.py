@@ -11,10 +11,13 @@ from sqlalchemy import (
     Date,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    false,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.schema import SchemaItem
@@ -152,8 +155,12 @@ FIT_CODE_CHECK = f"(dimension = 'season' AND code IN ({quoted(SEASON_FIT_CODES)}
 # ``non_blind`` marks an evaluator who also holds the identity mapping (F1,
 # ADR-009 2026-09-21 amendment); ``spray_to_smell_ceiling_exceeded`` is F1's
 # deviation for a sample first smelled past the provisional spray-to-first-smell
-# ceiling. Migration d7f3a91c5b28 writes the same list literally (same
-# #ASSUME/#VERIFY as the R7a block above).
+# ceiling; ``group_shared_blotter`` is the INFORMATIONAL session flag raised
+# automatically for every session of a ``SHARED_GROUP`` program (one blotter per
+# sample passed around the group; shared code and order). It never changes
+# training eligibility (``services/group_blotter.py``). Migrations d7f3a91c5b28
+# and e4b6c8a2d915 write the same list literally (same #ASSUME/#VERIFY as the
+# R7a block above).
 QUALITY_FLAG_CODES: tuple[str, ...] = (
     "out_of_order_presentation",
     "outside_planned_window",
@@ -171,6 +178,7 @@ QUALITY_FLAG_CODES: tuple[str, ...] = (
     "evaluator_reported_problem",
     "non_blind",
     "spray_to_smell_ceiling_exceeded",
+    "group_shared_blotter",
     "other",
 )
 # Append-only lifecycle: a flag is raised once; a later row resolves it (with a
@@ -336,6 +344,16 @@ PREDICTION_SCALES: tuple[str, ...] = ("0-10", "1-5")
 REVEAL_POLICIES: tuple[str, ...] = ("ENROLLMENT", "HOUSEHOLD")
 DEFAULT_REVEAL_POLICY = "ENROLLMENT"
 
+# How physical blotters reach evaluators (F1 group format).
+# ``INDIVIDUAL``: every evaluator smells their own blotter, with their own blind
+# code and order (the behaviour before F1 and the default).
+# ``SHARED_GROUP``: the facilitator passes ONE blotter per sample around the
+# group, so every evaluator shares the sample's blind code and the session
+# order; the sessions are flagged ``group_shared_blotter``. A program cannot
+# change mode once anyone is enrolled.
+BLOTTER_MODES: tuple[str, ...] = ("INDIVIDUAL", "SHARED_GROUP")
+DEFAULT_BLOTTER_MODE = "INDIVIDUAL"
+
 
 class Program(Base):
     """Immutable protocol definition once activated.
@@ -349,6 +367,8 @@ class Program(Base):
     F1 column:
         reveal_policy: One of ``REVEAL_POLICIES``. Programs created before it
             existed hold ``ENROLLMENT``, their actual behaviour.
+        blotter_mode: One of ``BLOTTER_MODES``. Programs created before it
+            existed hold ``INDIVIDUAL``, their actual behaviour.
     """
 
     __tablename__ = "calibration_programs"
@@ -370,6 +390,10 @@ class Program(Base):
             in_check("reveal_policy", REVEAL_POLICIES, nullable=False),
             name="reveal_policy_valid",
         ),
+        CheckConstraint(
+            in_check("blotter_mode", BLOTTER_MODES, nullable=False),
+            name="blotter_mode_valid",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     name: Mapped[str] = mapped_column(String(200))
@@ -381,6 +405,9 @@ class Program(Base):
     instrument_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     reveal_policy: Mapped[str] = mapped_column(
         String(20), default=DEFAULT_REVEAL_POLICY, server_default=DEFAULT_REVEAL_POLICY
+    )
+    blotter_mode: Mapped[str] = mapped_column(
+        String(20), default=DEFAULT_BLOTTER_MODE, server_default=DEFAULT_BLOTTER_MODE
     )
 
 
@@ -624,6 +651,9 @@ class Presentation(Base):
         physical_sample_confirmed: The operator confirmed that the physical
             sample matches the membership's version (P1.1 validator's
             ``physical_sample_confirmed``, which had no column).
+        shared_blind_code: True when ``blind_code`` is shared by every evaluator
+            in a ``SHARED_GROUP`` program (one blotter per sample for the
+            group); such a code is unique only within one session.
         intended_position: The 1-based position in the session that the
             enrollment's randomization assigned, written once at schedule
             generation and never changed. ``position`` is the order the
@@ -633,9 +663,26 @@ class Presentation(Base):
     """
 
     __tablename__ = "calibration_presentations"
+    # Blind codes: an INDIVIDUAL presentation's code is unique across the whole
+    # table (a partial unique index, scoped to ``shared_blind_code`` false). A
+    # SHARED_GROUP program gives every evaluator the same code for a sample, so
+    # a code legitimately appears once per evaluator's session; the
+    # (session_id, blind_code) constraint keeps it unique inside one session.
+    # #ASSUME: data-integrity: a shared code never equals another stimulus's
+    # code. No portable constraint can say so across the two row kinds, so the
+    # enrollment service draws each shared code against every existing code.
+    # #VERIFY: test_group_blotter_enrollment (codes distinct per membership and
+    # never equal to an existing individual code).
     __table_args__ = (
         UniqueConstraint("session_id", "position"),
-        UniqueConstraint("blind_code"),
+        UniqueConstraint("session_id", "blind_code"),
+        Index(
+            "uq_calibration_presentations_blind_code_individual",
+            "blind_code",
+            unique=True,
+            postgresql_where=text("shared_blind_code = false"),
+            sqlite_where=text("shared_blind_code = 0"),
+        ),
         # Not unique per session: a deviation must stay recordable, and a CHECK
         # comparing it to ``position`` would reject the evidence it exists for.
         CheckConstraint(
@@ -671,6 +718,9 @@ class Presentation(Base):
         ForeignKey("calibration_memberships.id", ondelete="RESTRICT"), index=True
     )
     blind_code: Mapped[str] = mapped_column(String(24))
+    shared_blind_code: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false()
+    )
     position: Mapped[int] = mapped_column(Integer)
     skin_reason: Mapped[str | None] = mapped_column(Text)
     blotter_locked_at: Mapped[datetime | None]

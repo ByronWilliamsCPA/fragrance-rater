@@ -169,6 +169,7 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
             "reveal_blocker": "SKIN_PLAN",
             "revealed": False,
             "reveal_policy": "ENROLLMENT",
+            "blotter_mode": "INDIVIDUAL",
             "checkpoint_count": 0,
             "checkpoint_blocker": "SKIN_PLAN",
         }

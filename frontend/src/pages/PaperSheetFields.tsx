@@ -26,10 +26,17 @@ import {
 export function PaperSheetFields({
   sample,
   defaultSprayed,
+  groupBlotter = false,
 }: {
   sample: Sample
   /** The spray time last typed for this sample, so later columns start from it. */
   defaultSprayed: string
+  /**
+   * True for a SHARED_GROUP program: one blotter per sample goes round the
+   * evaluators, so the blind code is shared and each column's spray time is
+   * that of the blotter this evaluator smelled, not of the first blotter.
+   */
+  groupBlotter?: boolean
 }) {
   const [sprayed, setSprayed] = useState(defaultSprayed)
   const [smelled, setSmelled] = useState('')
@@ -45,6 +52,15 @@ export function PaperSheetFields({
         Type what is written on this column. The sheet keeps the exact times; the app keeps when the
         blotter was first smelled, when this column finished, and the whole minutes since the spray.
       </p>
+      {groupBlotter && (
+        <p className="notice" role="note">
+          Group blotter session: every evaluator shares this blind code, so a matching code does not
+          show whose sheet this is. Type the time sprayed of the blotter THIS evaluator smelled. If
+          the {SPRAY_TO_SMELL_CEILING_MINUTES}-minute window from spray to this evaluator&apos;s
+          first smell would have been exceeded, the facilitator sprays a new blotter of the same
+          sample (same blind code) and writes its spray time on the sheet instead.
+        </p>
+      )}
       <label>
         Blind code printed on the sheet
         <input name="confirmed_blind_code" autoComplete="off" spellCheck={false} />

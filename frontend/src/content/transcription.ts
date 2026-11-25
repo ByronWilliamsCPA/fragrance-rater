@@ -10,14 +10,16 @@ import axios from 'axios'
 /**
  * The provisional spray-to-first-smell ceiling, in minutes.
  *
- * #ASSUME: Timing Dependencies: 5 minutes is the working value of the F1
- * facilitated format (ADR-005 amendment), not a final one.
+ * #ASSUME: Timing Dependencies: 2 minutes is the working value of the F1
+ * facilitated format (ADR-005 amendment), not a final one. It runs from the
+ * blotter's spray to THIS evaluator's first smell; in a group session a new
+ * blotter is sprayed when the window would be exceeded.
  * #VERIFY: it mirrors SPRAY_TO_SMELL_CEILING in
  * src/fragrance_rater/services/transcription_timing.py; the server decides
  * whether a deviation flag is raised, this only warns before saving. Change
  * both together when the P6.3 rehearsal confirms the value.
  */
-export const SPRAY_TO_SMELL_CEILING_MINUTES = 5
+export const SPRAY_TO_SMELL_CEILING_MINUTES = 2
 
 /** Whether an enrollment is transcribed from paper (the household/facilitated format). */
 export function isTranscribed(policy: string | undefined): boolean {
