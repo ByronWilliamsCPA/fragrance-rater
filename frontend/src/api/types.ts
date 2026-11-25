@@ -205,6 +205,24 @@ export type ManagerEnrollment = {
   revealed: boolean
 }
 
+export type SessionTemplatePreview = {
+  source: 'recorded' | 'supplied' | 'generated'
+  next_rotation: number
+  session_size: number
+  session_template: string[][]
+  sessions: Array<{
+    number: number
+    block: 'baseline' | 'holdout'
+    members: Array<{
+      membership_id: string
+      role: string
+      fragrance_name: string
+      fragrance_brand: string
+      persistent: boolean
+    }>
+  }>
+}
+
 export type MappingRow = {
   session_id: string
   position: number

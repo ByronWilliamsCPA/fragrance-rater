@@ -35,6 +35,7 @@ from fragrance_rater.schemas.calibration import (
     ResponseInput,
     SessionEndInput,
     SessionStartInput,
+    SharedTemplateInput,
     SkinPlanInput,
     Stage,
 )
@@ -287,8 +288,71 @@ async def enroll(
         program_id=program_id,
         reviewer_id=obj.reviewer_id,
         recorder_usernames=list(obj.recorder_usernames or []),
+        randomization_algorithm=obj.randomization_algorithm,
     )
     return {"id": obj.id}
+
+
+@router.post("/programs/{program_id}/session-template/preview")
+async def preview_session_template(
+    program_id: str, data: SharedTemplateInput, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Manager-only preview of the shared session composition.
+
+    Returns the template the next shared-session enrollment would use: the
+    one already recorded for the program, the supplied one once validated, or
+    a freshly generated one. Pass the returned ``session_template`` back on
+    enroll to keep exactly this composition; a generated preview is not
+    stored. The response names fragrances, so it is limited to managers like
+    the mapping sheet, and nothing evaluator-facing returns it.
+    """
+    username = manager(identity)
+    service = CalibrationService(db)
+    template, members, rotation, _, source = await service.shared_template(
+        program_id, data
+    )
+    by_id = {m.id: m for m in members}
+    rows = {
+        m.id: (m, f)
+        for m, f in (
+            await db.execute(
+                select(Membership, Fragrance)
+                .join(Fragrance, Fragrance.id == Membership.fragrance_id)
+                .where(Membership.program_id == program_id)
+            )
+        ).all()
+    }
+    log_audit_event(
+        logger,
+        action="session_template_preview",
+        actor=username,
+        target_type="calibration_program",
+        target_id=program_id,
+        source=source,
+    )
+    return {
+        "source": source,
+        "next_rotation": rotation,
+        "session_size": data.session_size,
+        "session_template": template,
+        "sessions": [
+            {
+                "number": index,
+                "block": "holdout" if by_id[ids[0]].is_holdout else "baseline",
+                "members": [
+                    {
+                        "membership_id": mid,
+                        "role": rows[mid][0].role,
+                        "fragrance_name": rows[mid][1].name,
+                        "fragrance_brand": rows[mid][1].brand,
+                        "persistent": by_id[mid].persistent,
+                    }
+                    for mid in ids
+                ],
+            }
+            for index, ids in enumerate(template, start=1)
+        ],
+    }
 
 
 @router.get("/enrollments")
