@@ -30,6 +30,7 @@ from fragrance_rater.models.calibration import (
     Observation,
     Presentation,
 )
+from fragrance_rater.services.group_blotter import group_blotter_enrollment_ids
 from fragrance_rater.services.non_blind import non_blind_enrollment_ids
 
 if TYPE_CHECKING:
@@ -258,6 +259,7 @@ async def repeat_pairs(
     reviewer_id: str | None = None,
     *,
     exclude_non_blind: bool = False,
+    exclude_group_blotter: bool = False,
 ) -> list[RepeatPair]:
     """Pair each hidden repeat with its original blind encounter.
 
@@ -275,6 +277,11 @@ async def repeat_pairs(
             ``non_blind`` flag (the F1 mapping holder). Pairs are read from the
             observations themselves, so the default keeps them: non-blind rows
             leave blind-baseline training, not evaluation.
+        exclude_group_blotter (bool): Drop every evaluator carrying an active
+            ``group_shared_blotter`` flag (a ``SHARED_GROUP`` program, where one
+            blotter per sample is passed between evaluators). The default keeps
+            them: the flag is informational and never removes evidence from
+            training.
 
     Returns:
         list[RepeatPair]: Pairs ordered by evaluator, version and stage,
@@ -291,10 +298,13 @@ async def repeat_pairs(
     )
     if reviewer_id is not None:
         statement = statement.where(Enrollment.reviewer_id == reviewer_id)
+    excluded: set[str] = set()
     if exclude_non_blind:
-        non_blind = await non_blind_enrollment_ids(session)
-        if non_blind:
-            statement = statement.where(Enrollment.id.not_in(non_blind))
+        excluded |= await non_blind_enrollment_ids(session)
+    if exclude_group_blotter:
+        excluded |= await group_blotter_enrollment_ids(session)
+    if excluded:
+        statement = statement.where(Enrollment.id.not_in(excluded))
     # The four-entity select returns untyped Rows; naming the tuple shape
     # once here keeps the loop below fully typed instead of Any.
     rows = cast(
@@ -445,6 +455,35 @@ async def pooled_reliability_both_ways(
     }
 
 
+async def pooled_reliability_group_blotter_both_ways(
+    session: AsyncSession,
+) -> dict[str, ReliabilityReport]:
+    """Report the pooled repeat benchmark with and without group-blotter sessions.
+
+    F1 group sessions pass one physical blotter per sample around the evaluators,
+    so an evaluator may smell a blotter later than the first, and every
+    evaluator shares the sample order. The owner kept those scores trainable
+    (the ``group_shared_blotter`` flag is informational), so the pooled
+    benchmark is reported both ways and a reader can see whether the group
+    format moves it. With no ``SHARED_GROUP`` program the two reports are
+    identical. F1 reporting calls this beside ``pooled_reliability_both_ways``.
+
+    Args:
+        session (AsyncSession): Open database session.
+
+    Returns:
+        dict[str, ReliabilityReport]: ``including_group_blotter`` (every
+            evaluator) and ``excluding_group_blotter`` (individual-blotter
+            evaluators only).
+    """
+    return {
+        "including_group_blotter": reliability_report(await repeat_pairs(session)),
+        "excluding_group_blotter": reliability_report(
+            await repeat_pairs(session, exclude_group_blotter=True)
+        ),
+    }
+
+
 __all__ = [
     "MIN_PAIRS",
     "RELIABILITY_NOTE",
@@ -455,6 +494,7 @@ __all__ = [
     "mean_absolute_difference",
     "pearson",
     "pooled_reliability_both_ways",
+    "pooled_reliability_group_blotter_both_ways",
     "reliability_report",
     "repeat_pairs",
     "spearman",

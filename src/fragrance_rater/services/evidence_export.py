@@ -29,6 +29,7 @@ from fragrance_rater.services.calibration_service import (
 )
 from fragrance_rater.services.capture_service import CaptureService
 from fragrance_rater.services.consent import ConsentService
+from fragrance_rater.services.group_blotter import group_blotter_enrollment_ids
 from fragrance_rater.services.non_blind import non_blind_enrollment_ids
 from fragrance_rater.utils.timestamps import now_naive_utc
 
@@ -230,6 +231,11 @@ async def build_evidence_export(
             # F1 mapping holder: rows stay in this export (evaluation) but are
             # out of blind-baseline training. See services/non_blind.py.
             "non_blind": enrollment.id in await non_blind_enrollment_ids(db),
+            # F1 group session: one blotter per sample passed between evaluators.
+            # Informational only; the rows stay trainable. See
+            # services/group_blotter.py.
+            "group_shared_blotter": enrollment.id
+            in await group_blotter_enrollment_ids(db),
         },
         "consent": {
             "state": consent_state,

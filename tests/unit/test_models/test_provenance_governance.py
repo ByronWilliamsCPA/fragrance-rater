@@ -56,6 +56,8 @@ FOLLOW_UP_MIGRATION = next(_VERSIONS.glob("50c1f75abb15_*.py"))
 # F1: recreates the quality-flag code CHECK with ``non_blind`` and
 # ``spray_to_smell_ceiling_exceeded``; the vocabulary test reads the final CHECK.
 FLAG_CODES_MIGRATION = next(_VERSIONS.glob("d7f3a91c5b28_*.py"))
+# F1 group sessions: recreates the same CHECK once more with ``group_shared_blotter``.
+GROUP_FLAG_MIGRATION = next(_VERSIONS.glob("e4b6c8a2d915_*.py"))
 TRAINING_OUTCOMES = ("eligible", "withheld", "invalidated")
 NOW = datetime(2026, 10, 30, 12, 0, 0)  # noqa: DTZ001 - schema stores naive UTC
 DIGEST = "a" * 64
@@ -116,6 +118,9 @@ class _RecordingOp:
     def add_column(self, *_args: object, **_kwargs: object) -> None:
         return None
 
+    def create_unique_constraint(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
     def create_check_constraint(self, name: str, condition: str) -> None:
         self.checks[name] = condition
 
@@ -136,7 +141,12 @@ def _migration_module(path: Path = MIGRATION):
 def migration_checks() -> dict[str, str]:
     """Run the migrations' ``upgrade`` against a recorder; return CHECKs by name."""
     recorder = _RecordingOp()
-    for path in (MIGRATION, FOLLOW_UP_MIGRATION, FLAG_CODES_MIGRATION):
+    for path in (
+        MIGRATION,
+        FOLLOW_UP_MIGRATION,
+        FLAG_CODES_MIGRATION,
+        GROUP_FLAG_MIGRATION,
+    ):
         migration = _migration_module(path)
         migration.op = recorder
         migration.upgrade()

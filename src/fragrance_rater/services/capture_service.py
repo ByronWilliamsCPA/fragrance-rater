@@ -27,6 +27,7 @@ from fragrance_rater.services.calibration_service import (
     reject,
 )
 from fragrance_rater.services.disclosure_gate import DisclosureGate
+from fragrance_rater.services.group_blotter import GROUP_SHARED_BLOTTER_CODE
 from fragrance_rater.services.non_blind import NON_BLIND_CODE, active_non_blind_flag
 from fragrance_rater.services.training_eligibility import (
     TrainingEligibilityService,
@@ -42,6 +43,12 @@ if TYPE_CHECKING:
 
 # A sample the evaluator could not assess is not ranked, however it was answered.
 _UNRANKABLE_STATUSES = {"skipped", "unable_to_assess", "interrupted", "invalidated"}
+
+
+_GROUP_FLAG_AUTOMATIC = (
+    "group_shared_blotter is applied automatically when a SHARED_GROUP "
+    "program enrolls an evaluator"
+)
 
 
 class CaptureService:
@@ -365,6 +372,11 @@ class CaptureService:
             assert data.target_id is not None
             assert data.code is not None
             assert data.severity is not None
+            if data.code == GROUP_SHARED_BLOTTER_CODE:
+                # #ASSUME: data-integrity: only enrollment raises this flag, so
+                # its presence always means the program's blotter mode.
+                # #VERIFY: test_group_blotter_routes.py (manual raise is 422).
+                reject(_GROUP_FLAG_AUTOMATIC, 422)
             target = await self._flag_target(
                 data.target_type, data.target_id, username, admin
             )
@@ -391,6 +403,8 @@ class CaptureService:
             assert target_id is not None
             target = await self._flag_target(target_type, target_id, username, admin)
             self._guard_non_blind_close(raised, data, admin)
+            if raised.code == GROUP_SHARED_BLOTTER_CODE and not admin:
+                reject("Only a manager can close a group_shared_blotter flag", 403)
             if raised.action != "raised":
                 reject("Only a raised flag can be closed")
             if await self.db.scalar(

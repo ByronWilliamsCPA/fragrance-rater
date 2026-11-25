@@ -51,14 +51,14 @@ def test_the_ceiling_boundary_is_not_a_breach() -> None:
     start = now_naive_utc() - timedelta(hours=1)
 
     assert seconds_over_ceiling(start, start + SPRAY_TO_SMELL_CEILING) == 0
-    assert seconds_over_ceiling(start, start + timedelta(seconds=299)) == 0
+    assert seconds_over_ceiling(start, start + timedelta(seconds=119)) == 0
     assert (
         seconds_over_ceiling(
             start, start + SPRAY_TO_SMELL_CEILING + timedelta(seconds=1)
         )
         == 1
     )
-    assert seconds_over_ceiling(start, start + timedelta(minutes=8)) == 180
+    assert seconds_over_ceiling(start, start + timedelta(minutes=5)) == 180
 
 
 def test_whole_minutes_floor() -> None:

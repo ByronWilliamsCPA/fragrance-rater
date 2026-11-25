@@ -28,6 +28,20 @@ pure, database-free rules for that design so they can be tested exhaustively:
   ``persistent_membership_ids`` and/or a membership ``selection`` flag
   ``persistent_or_animalic: true``. The validator enforces whichever is given.
 
+Group-blotter variant (``SHARED_GROUP`` programs): when the facilitator passes
+one physical blotter per sample around the whole group, every evaluator
+necessarily smells the same sample in the same order, so there is no Latin
+rotation: the canonical template *is* every evaluator's order, and each
+sample carries one blind code for the whole group (the code is assigned by the
+enrollment service, not here). Order and circle position are confounded by
+design (owner decision, F1). Position balance across the program then comes
+from the template itself: every full session uses each position once, so a
+program of full sessions uses every position equally often, and only the short
+last session of a block (for example the lone tenth holdout) can leave one
+position ahead by one per block. :func:`position_counts` reports it. Hidden
+repeats must still follow their original by at least ``2 * session_size``
+presentations, checked on the one shared order.
+
 Nothing here reads entropy except through an explicit ``seed`` argument, so a
 generated template is reproducible from the seed recorded on the enrollment.
 """
@@ -46,6 +60,11 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
 SHARED_TRIPLES_ALGORITHM = "shared-triples-latin-rotation-v1"
+GROUP_BLOTTER_ALGORITHM = "shared-triples-group-blotter-v1"
+# Algorithms whose evaluators all follow one recorded session template.
+TEMPLATE_ALGORITHMS: frozenset[str] = frozenset(
+    {SHARED_TRIPLES_ALGORITHM, GROUP_BLOTTER_ALGORITHM}
+)
 INDEPENDENT_SHUFFLE_ALGORITHM = "system-random-shuffle-v1"
 
 # Attempts before generation gives up. Each attempt is a different
@@ -140,16 +159,22 @@ def rotation_row(rotation: int, session_index: int, size: int) -> tuple[int, ...
     return rows[(rotation + session_index) % len(rows)]
 
 
-def evaluator_order(template: Sequence[Sequence[str]], rotation: int) -> Template:
+def evaluator_order(
+    template: Sequence[Sequence[str]], rotation: int, *, rotate: bool = True
+) -> Template:
     """Return one evaluator's actual presentation order for every session.
 
     Args:
         template (Sequence[Sequence[str]]): Canonical sessions.
         rotation (int): The evaluator's 0-based ordinal under the template.
+        rotate (bool): ``False`` for the group-blotter variant, where every
+            evaluator smells the canonical order unchanged.
 
     Returns:
         Template: Sessions in template order, each in this evaluator's order.
     """
+    if not rotate:
+        return [list(session) for session in template]
     return [
         [session[slot] for slot in rotation_row(rotation, index, len(session))]
         for index, session in enumerate(template)
@@ -216,8 +241,30 @@ def parse_randomization_record(value: str | None) -> tuple[int, str, str | None]
     return int(match["rotation"]), match["digest"], match["generated"]
 
 
-def _rotation_period(template: Sequence[Sequence[str]]) -> int:
+def position_counts(template: Sequence[Sequence[str]]) -> dict[int, int]:
+    """Count how many stimuli sit at each 1-based position across the template.
+
+    In the group-blotter variant this is every evaluator's own count, because
+    the order is shared. Full sessions add one to every position, so counts
+    differ only through a block's short last session.
+
+    Args:
+        template (Sequence[Sequence[str]]): Canonical sessions.
+
+    Returns:
+        dict[int, int]: Position number to the number of stimuli there.
+    """
+    counts: dict[int, int] = {}
+    for session in template:
+        for position in range(1, len(session) + 1):
+            counts[position] = counts.get(position, 0) + 1
+    return counts
+
+
+def _rotation_period(template: Sequence[Sequence[str]], *, rotate: bool = True) -> int:
     """Number of evaluators after which every session's row assignment repeats."""
+    if not rotate:
+        return 1
     return math.lcm(*(len(williams_rows(len(s))) for s in template if s))
 
 
@@ -283,16 +330,20 @@ def _check_repeats(
     template: Sequence[Sequence[str]],
     members: dict[str, TemplateMember],
     session_size: int,
+    *,
+    rotate: bool = True,
 ) -> None:
     """Every hidden repeat follows its original far enough, for every evaluator."""
     repeats = [m for m in members.values() if m.is_repeat]
     if not repeats:
         return
     minimum = 2 * session_size
-    for rotation in range(_rotation_period(template)):
+    for rotation in range(_rotation_period(template, rotate=rotate)):
         where: dict[str, tuple[int, int]] = {}
         flat = 0
-        for index, session in enumerate(evaluator_order(template, rotation)):
+        for index, session in enumerate(
+            evaluator_order(template, rotation, rotate=rotate)
+        ):
             for mid in session:
                 where[mid] = (index, flat)
                 flat += 1
@@ -305,10 +356,10 @@ def _check_repeats(
             if repeat_session <= original_session or (
                 repeat_slot - original_slot < minimum
             ):
+                suffix = ", for every evaluator's rotation" if rotate else ""
                 msg = (
-                    f"A hidden repeat must come in a later session, at least "
-                    f"{minimum} presentations after its original, for every "
-                    f"evaluator's rotation"
+                    f"A hidden repeat must come in a later session, at least {minimum} "
+                    f"presentations after its original{suffix}"
                 )
                 raise TemplateError(msg)
 
@@ -317,6 +368,8 @@ def validate_template(
     template: Sequence[Sequence[str]],
     members: Iterable[TemplateMember],
     session_size: int,
+    *,
+    rotate: bool = True,
 ) -> None:
     """Fail loudly if a template breaks any shared-session guarantee.
 
@@ -324,6 +377,8 @@ def validate_template(
         template (Sequence[Sequence[str]]): Canonical sessions of membership ids.
         members (Iterable[TemplateMember]): Every membership in the program.
         session_size (int): Samples per full session.
+        rotate (bool): ``False`` for the group-blotter variant (one shared
+            order, no Latin rotation).
 
     Raises:
         TemplateError: Naming the first broken rule.
@@ -331,7 +386,7 @@ def validate_template(
     by_id = {m.id: m for m in members}
     _check_coverage(template, by_id)
     _check_blocks(template, by_id, session_size)
-    _check_repeats(template, by_id, session_size)
+    _check_repeats(template, by_id, session_size, rotate=rotate)
     for session in template:
         if sum(by_id[mid].persistent for mid in session) > 1:
             msg = (
@@ -351,7 +406,7 @@ def _chunk(items: Sequence[str], size: int) -> Template:
     return [list(items[i : i + size]) for i in range(0, len(items), size)]
 
 
-def _repeat_slot_gap(session_size: int) -> int:
+def _repeat_slot_gap(session_size: int, *, rotate: bool = True) -> int:
     """Canonical slots a generated repeat must follow its original by.
 
     A repeat ``d`` sessions after its original is at least
@@ -362,16 +417,24 @@ def _repeat_slot_gap(session_size: int) -> int:
 
     Args:
         session_size (int): Samples per full session.
+        rotate (bool): ``False`` when everyone smells the canonical order, so
+            exactly ``2 * session_size`` positions suffice.
 
     Returns:
-        int: The minimum canonical slot distance, a whole number of sessions.
+        int: The minimum canonical slot distance.
     """
+    if not rotate:
+        return 2 * session_size
     sessions_apart = -(-(3 * session_size - 1) // session_size)
     return sessions_apart * session_size
 
 
 def generate_template(
-    members: Sequence[TemplateMember], session_size: int, seed: str
+    members: Sequence[TemplateMember],
+    session_size: int,
+    seed: str,
+    *,
+    rotate: bool = True,
 ) -> Template:
     """Build a valid template deterministically from ``seed``.
 
@@ -387,6 +450,7 @@ def generate_template(
         members (Sequence[TemplateMember]): Every membership in the program.
         session_size (int): Samples per full session.
         seed (str): Generation seed; record it to reproduce the template.
+        rotate (bool): ``False`` for the group-blotter variant.
 
     Returns:
         Template: A template that passes :func:`validate_template`.
@@ -398,7 +462,7 @@ def generate_template(
     singles = [m.id for m in members if not m.is_repeat and not m.is_holdout]
     repeats = [m for m in members if m.is_repeat]
     holdouts = [m.id for m in members if m.is_holdout]
-    gap = _repeat_slot_gap(session_size)
+    gap = _repeat_slot_gap(session_size, rotate=rotate)
     for attempt in range(GENERATION_ATTEMPTS):
         order = sorted(singles, key=lambda mid: _rank(seed, attempt, "order", mid))
         placed = True
@@ -420,7 +484,7 @@ def generate_template(
         tail = sorted(holdouts, key=lambda mid: _rank(seed, attempt, "holdout", mid))
         candidate = _chunk(order, session_size) + _chunk(tail, session_size)
         try:
-            validate_template(candidate, members, session_size)
+            validate_template(candidate, members, session_size, rotate=rotate)
         except TemplateError:
             continue
         return candidate

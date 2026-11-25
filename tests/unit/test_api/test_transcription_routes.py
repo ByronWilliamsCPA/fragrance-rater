@@ -198,7 +198,7 @@ async def test_a_first_smell_exactly_at_the_ceiling_is_not_flagged(
         _exposure_url(world),
         json={
             "stage": "BLOTTER",
-            "sprayed_at": (now - timedelta(minutes=7)).isoformat(),
+            "sprayed_at": (now - timedelta(minutes=4)).isoformat(),
             "at": (now - timedelta(minutes=2)).isoformat(),
         },
         headers=RECORDER,
@@ -280,7 +280,7 @@ async def test_a_transcribed_column_stores_finish_time_and_whole_minutes(
 ) -> None:
     sprayed, smelled, finished = (
         _at(minutes=20),
-        _at(minutes=18),
+        _at(minutes=19),
         _at(minutes=7, seconds=30),
     )
     await test_app.post(

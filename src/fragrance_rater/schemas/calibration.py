@@ -20,6 +20,8 @@ Role = Literal[
 Stage = Literal["BLOTTER", "SKIN"]
 # Keep in sync with models.calibration.REVEAL_POLICIES (a unit test pins them).
 RevealPolicy = Literal["ENROLLMENT", "HOUSEHOLD"]
+# Keep in sync with models.calibration.BLOTTER_MODES (a unit test pins them).
+BlotterMode = Literal["INDIVIDUAL", "SHARED_GROUP"]
 # R7b input vocabularies. ``models.calibration`` holds the stored codes; a unit
 # test pins each of these to its tuple so the two cannot drift.
 ResponseStatus = Literal[
@@ -82,6 +84,13 @@ class ProgramInput(StrictInput):
     version: str = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=10000)
     reveal_policy: RevealPolicy = "ENROLLMENT"
+    blotter_mode: BlotterMode = "INDIVIDUAL"
+
+
+class BlotterModeInput(StrictInput):
+    """Change how blotters reach evaluators while the program has no enrollment."""
+
+    blotter_mode: BlotterMode
 
 
 class RevealPolicyInput(StrictInput):
@@ -121,10 +130,14 @@ class MembershipInput(StrictInput):
 
 
 RandomizationAlgorithm = Literal[
-    "system-random-shuffle-v1", "shared-triples-latin-rotation-v1"
+    "system-random-shuffle-v1",
+    "shared-triples-latin-rotation-v1",
+    "shared-triples-group-blotter-v1",
 ]
 # A unit test pins these to services.shared_triples' constants.
 _SHARED_TRIPLES = "shared-triples-latin-rotation-v1"
+_GROUP_BLOTTER = "shared-triples-group-blotter-v1"
+_TEMPLATE_ALGORITHMS = (_SHARED_TRIPLES, _GROUP_BLOTTER)
 SessionTemplate = list[
     Annotated[
         list[Annotated[str, Field(min_length=1, max_length=36)]],
@@ -156,7 +169,9 @@ class EnrollmentInput(SharedTemplateInput):
     recorder_usernames: list[str] = Field(min_length=1, max_length=20)
     # "system-random-shuffle-v1" (default) shuffles independently per
     # evaluator; "shared-triples-latin-rotation-v1" gives every evaluator the
-    # same session composition with a balanced Latin-square order inside it.
+    # same session composition with a balanced Latin-square order inside it;
+    # "shared-triples-group-blotter-v1" (SHARED_GROUP programs) also gives
+    # every evaluator the same blind code and the same order.
     randomization_algorithm: RandomizationAlgorithm = "system-random-shuffle-v1"
     # "standard" yields readable labels (E01-S1-2) that are easy to write on
     # vials; "random" keeps the independent 8-hex-character codes. Unset means
@@ -165,7 +180,7 @@ class EnrollmentInput(SharedTemplateInput):
 
     @model_validator(mode="after")
     def _shared_options_need_shared_algorithm(self) -> Self:
-        shared = self.randomization_algorithm == _SHARED_TRIPLES
+        shared = self.randomization_algorithm in _TEMPLATE_ALGORITHMS
         # #CRITICAL: security: with shared sessions a standard label's
         # S-number names the session, and therefore which evaluators hold the
         # same fragrance and which sessions are holdouts (F1 decision 3).
@@ -178,7 +193,7 @@ class EnrollmentInput(SharedTemplateInput):
         ):
             msg = (
                 "session_template and persistent_membership_ids apply only to "
-                "shared-triples-latin-rotation-v1"
+                "the shared-triples algorithms"
             )
             raise ValueError(msg)
         return self
@@ -188,7 +203,7 @@ class EnrollmentInput(SharedTemplateInput):
         """Whether blind codes follow the readable ``E01-S1-2`` scheme."""
         return self.label_scheme == "standard" or (
             self.label_scheme is None
-            and self.randomization_algorithm != _SHARED_TRIPLES
+            and self.randomization_algorithm not in _TEMPLATE_ALGORITHMS
         )
 
 

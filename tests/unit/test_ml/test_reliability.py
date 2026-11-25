@@ -14,6 +14,7 @@ from fragrance_rater.ml.reliability import (
     mean_absolute_difference,
     pearson,
     pooled_reliability_both_ways,
+    pooled_reliability_group_blotter_both_ways,
     reliability_report,
     repeat_pairs,
     spearman,
@@ -380,6 +381,119 @@ class TestNonBlindRepeatPairs:
 
         assert both["including_non_blind"].n_pairs == 1
         assert both["excluding_non_blind"].n_pairs == 1
+
+
+class TestGroupBlotterRepeatPairs:
+    """F1 group sessions: pairs stay in evaluation and training, reportable both ways."""
+
+    @staticmethod
+    def _flag(session, calibration_session, code="group_shared_blotter", **fields):
+        flag = QualityFlag(
+            session_id=calibration_session.id,
+            action=fields.pop("action", "raised"),
+            code=code,
+            severity="info",
+            source="automatic_validation",
+            disposition="include",
+            rule_version="group-shared-blotter-v1",
+            explanation="Group blotter",
+            recorded_by="manager",
+            **fields,
+        )
+        session.add(flag)
+        return flag
+
+    @staticmethod
+    async def _add_pair(session, program, observation_factory):
+        session.add_all(
+            [
+                observation_factory(program["presentations"]["UNIVERSAL_BASELINE"]),
+                observation_factory(
+                    program["presentations"]["HIDDEN_REPEAT"], liking=6
+                ),
+            ]
+        )
+        await session.flush()
+
+    @pytest.mark.asyncio
+    async def test_the_flag_keeps_pairs_by_default(self, program, observation_factory):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        self._flag(session, program["calibration_session"])
+        await session.flush()
+
+        assert len(await repeat_pairs(session)) == 1
+        assert len(await repeat_pairs(session, exclude_non_blind=True)) == 1
+
+    @pytest.mark.asyncio
+    async def test_excluding_group_blotter_drops_the_group_pairs(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        self._flag(session, program["calibration_session"])
+        await session.flush()
+
+        assert await repeat_pairs(session, exclude_group_blotter=True) == []
+
+    @pytest.mark.asyncio
+    async def test_a_withdrawn_flag_no_longer_excludes(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        raised = self._flag(session, program["calibration_session"])
+        await session.flush()
+        self._flag(
+            session,
+            program["calibration_session"],
+            action="invalidated",
+            supersedes_id=raised.id,
+        )
+        await session.flush()
+
+        assert len(await repeat_pairs(session, exclude_group_blotter=True)) == 1
+
+    @pytest.mark.asyncio
+    async def test_both_exclusions_combine(self, program, observation_factory):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        self._flag(session, program["calibration_session"], code="non_blind")
+        await session.flush()
+
+        assert (
+            await repeat_pairs(
+                session, exclude_non_blind=True, exclude_group_blotter=True
+            )
+            == []
+        )
+        assert len(await repeat_pairs(session, exclude_group_blotter=True)) == 1
+
+    @pytest.mark.asyncio
+    async def test_both_ways_reports_each_denominator(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        self._flag(session, program["calibration_session"])
+        await session.flush()
+
+        both = await pooled_reliability_group_blotter_both_ways(session)
+
+        assert both["including_group_blotter"].n_pairs == 1
+        assert both["excluding_group_blotter"].n_pairs == 0
+
+    @pytest.mark.asyncio
+    async def test_both_ways_agree_without_a_group_program(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+
+        both = await pooled_reliability_group_blotter_both_ways(session)
+
+        assert both["including_group_blotter"].n_pairs == 1
+        assert both["excluding_group_blotter"].n_pairs == 1
 
 
 class TestReliabilityReport:

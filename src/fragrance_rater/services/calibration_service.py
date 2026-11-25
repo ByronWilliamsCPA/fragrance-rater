@@ -20,6 +20,7 @@ from fragrance_rater.models.calibration import (
     Observation,
     Presentation,
     Program,
+    QualityFlag,
     SessionContext,
     SourceSnapshot,
 )
@@ -28,9 +29,15 @@ from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.models.soft_delete import is_live
 from fragrance_rater.services.consent import ConsentService
 from fragrance_rater.services.disclosure_gate import DisclosureGate
+from fragrance_rater.services.group_blotter import (
+    GROUP_SHARED_BLOTTER_CODE,
+    GROUP_SHARED_BLOTTER_RULE_VERSION,
+)
 from fragrance_rater.services.llm_service import get_llm_service
 from fragrance_rater.services.shared_triples import (
+    GROUP_BLOTTER_ALGORITHM,
     SHARED_TRIPLES_ALGORITHM,
+    TEMPLATE_ALGORITHMS,
     TemplateError,
     TemplateMember,
     evaluator_order,
@@ -53,7 +60,6 @@ from fragrance_rater.utils.timestamps import now_naive_utc
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-    from fragrance_rater.models.calibration import QualityFlag
     from fragrance_rater.schemas.calibration import (
         EnrollmentInput,
         ExposureInput,
@@ -74,6 +80,10 @@ def reject(message: str, status: int = 409) -> NoReturn:
 
 UNPINNED_INSTRUMENT_PREFIX = "unpinned-app-"
 
+_MODE_ALGORITHM_MISMATCH = (
+    "A SHARED_GROUP program enrolls with shared-triples-group-blotter-v1 "
+    "and no other program may use it"
+)
 _KEY_REUSED = "This idempotency key was already used for a different submission"
 _TEMPLATE_DIFFERS = (
     "The session template differs from the one this program's earlier "
@@ -366,8 +376,45 @@ class CalibrationService:
         await self.db.flush()
         return member
 
-    async def enroll(self, program_id: str, data: EnrollmentInput) -> Enrollment:
-        """Assign independent blind codes and randomized order for each evaluator."""
+    async def set_blotter_mode(self, program_id: str, mode: str) -> Program:
+        """Choose individual or shared-group blotters before anyone is enrolled.
+
+        Args:
+            program_id (str): The program.
+            mode (str): ``INDIVIDUAL`` or ``SHARED_GROUP``.
+
+        Returns:
+            Program: The updated program.
+        """
+        program = await self.program(program_id)
+        # #CRITICAL: data-integrity: blind codes and orders are generated at
+        # enrollment from this mode, so changing it afterwards would leave a
+        # program with two incompatible schedules.
+        # #VERIFY: test_blotter_mode_locks_after_first_enrollment (test_group_blotter_enrollment.py).
+        if await self.db.scalar(
+            select(Enrollment.id).where(Enrollment.program_id == program_id).limit(1)
+        ):
+            reject("The blotter mode is locked once an evaluator is enrolled")
+        program.blotter_mode = mode
+        await self.db.flush()
+        return program
+
+    async def enroll(
+        self, program_id: str, data: EnrollmentInput, actor: str = "system"
+    ) -> Enrollment:
+        """Assign blind codes and an order for one evaluator.
+
+        Independent per evaluator by default; shared by every evaluator when
+        the program's blotter mode is ``SHARED_GROUP``.
+
+        Args:
+            program_id (str): The program.
+            data (EnrollmentInput): The evaluator and schedule options.
+            actor (str): Who enrolled, recorded on automatic flags.
+
+        Returns:
+            Enrollment: The new enrollment with its whole schedule.
+        """
         program = await self.program(program_id)
         if program.status != "active":
             reject("Activate the definition before enrollment")
@@ -382,7 +429,10 @@ class CalibrationService:
         ):
             reject("Reviewer already enrolled")
         await self._require_one_algorithm(program_id, data.randomization_algorithm)
+        grouped = self._require_matching_mode(program, data.randomization_algorithm)
         get_llm_service().invalidate_reviewer_cache(data.reviewer_id)
+        if grouped:
+            return await self._enroll_group_blotter(program_id, data, actor)
         if data.randomization_algorithm == SHARED_TRIPLES_ALGORITHM:
             return await self._enroll_shared_triples(program_id, data)
         # #ASSUME: data-integrity: the schedule is drawn from the operating
@@ -466,6 +516,22 @@ class CalibrationService:
         await self.db.flush()
         return enrollment
 
+    @staticmethod
+    def _require_matching_mode(program: Program, algorithm: str) -> bool:
+        """Tie the enrollment algorithm to the program's blotter mode.
+
+        Args:
+            program (Program): The program being enrolled into.
+            algorithm (str): The requested randomization algorithm.
+
+        Returns:
+            bool: Whether the program is ``SHARED_GROUP``.
+        """
+        grouped = program.blotter_mode == "SHARED_GROUP"
+        if grouped != (algorithm == GROUP_BLOTTER_ALGORITHM):
+            reject(_MODE_ALGORITHM_MISMATCH)
+        return grouped
+
     async def _require_one_algorithm(self, program_id: str, algorithm: str) -> None:
         """Refuse to mix shared-session and independent schedules in one program.
 
@@ -481,9 +547,9 @@ class CalibrationService:
                 )
             )
         )
-        shared = algorithm == SHARED_TRIPLES_ALGORITHM
-        if (shared and existing - {SHARED_TRIPLES_ALGORITHM}) or (
-            not shared and SHARED_TRIPLES_ALGORITHM in existing
+        shared = algorithm in TEMPLATE_ALGORITHMS
+        if (shared and existing - {algorithm}) or (
+            not shared and existing & TEMPLATE_ALGORITHMS
         ):
             reject("Every evaluator in a program must use the same randomization")
 
@@ -526,11 +592,16 @@ class CalibrationService:
             for m in members
         ]
 
-    async def _recorded_template(self, program_id: str) -> tuple[Template, int, str]:
+    async def _recorded_template(
+        self, program_id: str, algorithm: str = SHARED_TRIPLES_ALGORITHM
+    ) -> tuple[Template, int, str]:
         """Recover the program's shared template from its enrollments.
 
         Args:
             program_id (str): The program.
+            algorithm (str): The template algorithm the enrollments used.
+                The group-blotter variant has no rotation, so each
+                evaluator's order is the template itself.
 
         Returns:
             tuple[Template, int, str]: The canonical template, the next free
@@ -540,7 +611,7 @@ class CalibrationService:
             await self.db.scalars(
                 select(Enrollment).where(
                     Enrollment.program_id == program_id,
-                    Enrollment.randomization_algorithm == SHARED_TRIPLES_ALGORITHM,
+                    Enrollment.randomization_algorithm == algorithm,
                 )
             )
         )
@@ -553,7 +624,10 @@ class CalibrationService:
         sessions: dict[str, list[str]] = {}
         for row in await self.presentations(first.id):
             sessions.setdefault(row.session_id, []).append(row.membership_id)
-        template = recover_template(list(sessions.values()), rotation)
+        if algorithm == GROUP_BLOTTER_ALGORITHM:
+            template = [list(ids) for ids in sessions.values()]
+        else:
+            template = recover_template(list(sessions.values()), rotation)
         # #CRITICAL: data-integrity: every later evaluator must receive exactly
         # the template the first one did. A recorded digest that no longer
         # matches the stored presentations means the schedule was altered, so
@@ -567,7 +641,11 @@ class CalibrationService:
         return template, next_rotation, generated or ""
 
     async def shared_template(
-        self, program_id: str, data: SharedTemplateInput
+        self,
+        program_id: str,
+        data: SharedTemplateInput,
+        *,
+        group: bool | None = None,
     ) -> tuple[Template, list[TemplateMember], int, str | None, str]:
         """Resolve and validate the template the next shared enrollment uses.
 
@@ -579,16 +657,28 @@ class CalibrationService:
             program_id (str): The program.
             data (SharedTemplateInput): Session size, optional template, and
                 persistent stimuli.
+            group (bool | None): ``True`` for the group-blotter variant (one
+                shared order, no rotation); ``None`` reads it from the
+                program's blotter mode.
 
         Returns:
             tuple[Template, list[TemplateMember], int, str | None, str]: The
-            template, members, next rotation, generation seed (None when
-            supplied), and the source (recorded/supplied/generated).
+            template, members, next rotation (the evaluator's ordinal in the
+            group-blotter variant), generation seed (None when supplied), and
+            the source (recorded/supplied/generated).
         """
+        if group is None:
+            program = await self.db.get(Program, program_id)
+            if program is None:
+                reject("Program not found", 404)
+            group = program.blotter_mode == "SHARED_GROUP"
+        rotate = not group
         members = await self._template_members(
             program_id, data.persistent_membership_ids
         )
-        recorded, rotation, recorded_seed = await self._recorded_template(program_id)
+        recorded, rotation, recorded_seed = await self._recorded_template(
+            program_id, GROUP_BLOTTER_ALGORITHM if group else SHARED_TRIPLES_ALGORITHM
+        )
         generated: str | None = None
         if recorded:
             if data.session_template is not None and data.session_template != recorded:
@@ -602,12 +692,14 @@ class CalibrationService:
             # reproducible, and it is stored on the enrollment for audit.
             generated = secrets.token_hex(8)
             try:
-                template = generate_template(members, data.session_size, generated)
+                template = generate_template(
+                    members, data.session_size, generated, rotate=rotate
+                )
             except TemplateError as error:
                 reject(str(error), 422)
             source = "generated"
         try:
-            validate_template(template, members, data.session_size)
+            validate_template(template, members, data.session_size, rotate=rotate)
         except TemplateError as error:
             reject(str(error), 422)
         return template, members, rotation, generated, source
@@ -684,6 +776,120 @@ class CalibrationService:
                 )
         await self.db.flush()
         return enrollment
+
+    async def _group_codes(self, program_id: str, template: Template) -> dict[str, str]:
+        """Return the one blind code each stimulus carries for the whole group.
+
+        The first group enrollment draws a fresh random code per stimulus
+        (unused anywhere else); later enrollments reuse exactly those codes.
+
+        Args:
+            program_id (str): The program.
+            template (Template): The program's shared session template.
+
+        Returns:
+            dict[str, str]: Membership id to its shared blind code.
+        """
+        rows = (
+            await self.db.execute(
+                select(Presentation.membership_id, Presentation.blind_code)
+                .join(CalibrationSession)
+                .join(Enrollment)
+                .where(
+                    Enrollment.program_id == program_id,
+                    Enrollment.randomization_algorithm == GROUP_BLOTTER_ALGORITHM,
+                )
+            )
+        ).all()
+        recorded: dict[str, set[str]] = {}
+        for membership_id, code in rows:
+            recorded.setdefault(membership_id, set()).add(code)
+        ids = [mid for session in template for mid in session]
+        if not recorded:
+            return dict(zip(ids, await self._unique_codes(len(ids)), strict=True))
+        # #CRITICAL: data-integrity: every evaluator must hold the same code
+        # for a sample, or the facilitator's one blotter would match a
+        # different code on each paper sheet.
+        # #VERIFY: test_group_codes_tamper_fails_loudly.
+        if set(recorded) != set(ids) or any(len(c) != 1 for c in recorded.values()):
+            reject("The program's recorded group blind codes are inconsistent", 500)
+        return {mid: next(iter(codes)) for mid, codes in recorded.items()}
+
+    async def _enroll_group_blotter(
+        self, program_id: str, data: EnrollmentInput, actor: str
+    ) -> Enrollment:
+        """Enroll one evaluator on a SHARED_GROUP program's one shared schedule.
+
+        Every evaluator gets the same sessions, the same order inside each
+        session, and the same blind code per sample (one blotter per sample is
+        passed around the group). Each session is flagged
+        ``group_shared_blotter`` automatically; the flag is informational and
+        never changes training eligibility.
+        """
+        # #ASSUME: concurrency: enroll() holds the program row lock (SELECT ...
+        # FOR UPDATE in program()) for the whole transaction, so two first
+        # enrollments cannot draw two code sets or generate two templates.
+        # #VERIFY: on SQLite the lock is a no-op; production runs PostgreSQL.
+        template, _, ordinal, generated, _ = await self.shared_template(
+            program_id, data, group=True
+        )
+        codes = await self._group_codes(program_id, template)
+        enrollment = Enrollment(
+            program_id=program_id,
+            reviewer_id=data.reviewer_id,
+            recorder_usernames=data.recorder_usernames,
+            randomization_algorithm=GROUP_BLOTTER_ALGORITHM,
+            randomization_seed=randomization_record(
+                ordinal, template_digest(template), generated
+            ),
+        )
+        self.db.add(enrollment)
+        await self.db.flush()
+        # Same created_at tie-break as enroll().
+        session_created_at = now_naive_utc()
+        for session_ids in template:
+            session = CalibrationSession(
+                enrollment_id=enrollment.id, context={}, created_at=session_created_at
+            )
+            self.db.add(session)
+            await self.db.flush()
+            session_created_at += timedelta(microseconds=1)
+            for position, membership_id in enumerate(session_ids, start=1):
+                self.db.add(
+                    Presentation(
+                        session_id=session.id,
+                        membership_id=membership_id,
+                        blind_code=codes[membership_id],
+                        shared_blind_code=True,
+                        position=position,
+                        intended_position=position,
+                    )
+                )
+            self.db.add(
+                QualityFlag(
+                    session_id=session.id,
+                    action="raised",
+                    code=GROUP_SHARED_BLOTTER_CODE,
+                    severity="info",
+                    source="automatic_validation",
+                    disposition="include",
+                    rule_version=GROUP_SHARED_BLOTTER_RULE_VERSION,
+                    explanation=(
+                        "Group blotter: one blotter per sample was passed around "
+                        "the group, so the blind code and the sample order are "
+                        "shared with the other evaluators. Informational only; "
+                        "training eligibility is unchanged."
+                    ),
+                    recorded_by=actor,
+                )
+            )
+        await self.db.flush()
+        return enrollment
+
+    async def _blotter_mode(self, program_id: str) -> str:
+        """Return a program's blotter mode (``INDIVIDUAL`` when it is gone)."""
+        program = await self.db.get(Program, program_id)
+        return program.blotter_mode if program is not None else "INDIVIDUAL"
 
     async def enrollment(
         self, enrollment_id: str, username: str, admin: bool
@@ -1410,5 +1616,6 @@ class CalibrationService:
             "reveal_blocker": reveal_blocker,
             "skin_plan_locked": enrollment.skin_plan_locked_at is not None,
             "reveal_policy": await gate.policy(enrollment.program_id),
+            "blotter_mode": await self._blotter_mode(enrollment.program_id),
             "presentations": result,
         }

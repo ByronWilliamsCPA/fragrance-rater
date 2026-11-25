@@ -28,12 +28,18 @@ if TYPE_CHECKING:
 
     from fragrance_rater.models.calibration import CalibrationSession, Presentation
 
-# #ASSUME: timing-dependency: 5 minutes is the PROVISIONAL spray-to-first-smell
-# ceiling of the F1 facilitated format (ADR-005 amendment, gates/f1.md). It is
-# a working value to be confirmed or changed by the P6.3 rehearsal.
-# #VERIFY: P6.3 records the confirmed value in the F1 pre-exposure declaration;
-# change this one constant (and the matching frontend constant) with it.
-SPRAY_TO_SMELL_CEILING = timedelta(minutes=5)
+# #ASSUME: timing-dependency: 2 minutes is the PROVISIONAL spray-to-first-smell
+# ceiling of the F1 facilitated format (ADR-005 amendment, gates/f1.md). It was
+# 5 minutes until the owner chose group sessions, where one blotter per sample
+# is passed around the evaluators one at a time: the window runs from the
+# blotter's spray to EACH evaluator's first smell, and when it would be
+# exceeded the facilitator sprays a NEW blotter of the same sample (same blind
+# code). Each evaluator's own sprayed_at/presented_at pair is checked against
+# this ceiling, never the first evaluator's.
+# #VERIFY: P6.3 tests whether six evaluators can each smell within 2 minutes
+# and records the confirmed value in the F1 pre-exposure declaration; change
+# this one constant (and the matching frontend constant) with it.
+SPRAY_TO_SMELL_CEILING = timedelta(minutes=2)
 
 # The flag raised when a first smell breaches the ceiling, and the rule that
 # raises it, so an automatic flag names the version of the rule it applied.
