@@ -406,3 +406,24 @@ async def test_a_session_start_before_the_session_existed_is_refused(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_a_ranking_time_outside_the_sitting_is_refused_before_anything_else(
+    test_app: Any, world: dict[str, str]
+) -> None:
+    url = f"{PREFIX}/sessions/{world['session_id']}/rankings"
+    body = {"stage": "BLOTTER", "response_status": "skipped"}
+
+    too_early = await test_app.post(
+        url, json={**body, "ranked_at": _at(days=5)}, headers=RECORDER
+    )
+    plausible = await test_app.post(
+        url, json={**body, "ranked_at": _at(minutes=3)}, headers=RECORDER
+    )
+
+    assert too_early.status_code == 422
+    assert "before this session existed" in too_early.json()["detail"]
+    # A plausible time passes the timing rule and meets the next rule instead
+    # (no sample has been assessed yet), which is a 409, not a 422.
+    assert plausible.status_code == 409
