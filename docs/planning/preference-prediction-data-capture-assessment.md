@@ -440,7 +440,10 @@ Add or complete:
 - Decide whether minimal season/setting judgments belong in this baseline. If yes, define them now;
   they cannot be reconstructed later.
 - Remove `would_buy` from the blind core as the approved protocol requires, or explicitly reconcile
-  the current schema/UI, which still offers a 0-10 skin-stage purchase question.
+  the current schema/UI, which still offers a 0-10 skin-stage purchase question. *Update 2026-11-24: the
+  removal was not carried out; an owner decision of 2026-10-30 (recorded in the `PROJECT-PLAN.md` R7b row)
+  keeps `would_buy` on the skin form. The ADR-005 and ADR-009 2026-11-24 amendments record the
+  reconciliation, pending owner confirmation of its leakage and analysis implications.*
 - Freeze a data dictionary with field meaning, scale anchors, allowed missingness, collection stage,
   and leakage eligibility.
 

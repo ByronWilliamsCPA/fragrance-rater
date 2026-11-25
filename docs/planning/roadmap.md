@@ -1,6 +1,6 @@
 # Fragrance Rater Execution Roadmap
 
-> **Status**: Active mirror | **Updated**: 2026-11-07
+> **Status**: Active mirror | **Updated**: 2026-11-25
 
 The [Authoritative Project Plan](PROJECT-PLAN.md) owns scope, status, acceptance criteria,
 risks, and evidence. This page is a compact execution view and must be updated from that plan in
@@ -37,7 +37,11 @@ P0 ┬→ P1 -------------------------------------------------------------------
                                    └→ R6 → R8 (F1 blockers only; R5 is done)                             └→ D4 → D5
 ```
 
-F1 also requires R2, R5, R6, R7a, R7b, and R8 merged. R9-R12 are maintainability sprints and gate nothing, and
+F1 also requires R2, R5, R6, R7a, R7b, and R8 merged. On 2026-11-24 the product owner decided that F1 runs as a
+six-evaluator facilitated format (shared session triples, random blind codes, one recorder login, skin for the
+non-blind holder only, one household reveal after the holdouts); its work items are listed in
+[PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) and gate F1.
+No milestone status changes, and F1 stays blocked on P6. R9-R12 are maintainability sprints and gate nothing, and
 R14's documentation items gate nothing. R8 may land after the P6 go decision but must land before F1.
 
 ## Immediate queue

@@ -575,6 +575,41 @@ the review's implementation-status section, and the relevant ADR in the same pul
   to the P6.3 rehearsal record before P6.3 is marked complete, and again before F1's first exposure
   if R7b changed after P6.3 last ran.
 
+### F1 facilitated-format work items (decided 2026-11-24)
+
+Decided by the product owner on 2026-11-24 (ADR-005 and ADR-009 amendments of that date). These items extend
+the R2 enrollment and R7b participant-instrument surfaces for the six-evaluator facilitated F1 format; they
+are tracked here as their own list rather than as a new numbered sprint, and they gate F1. Several of them
+change what the participant or recorder screens do, so under this plan's existing rule that a participant-
+instrument change after P6.3 voids P6.3, they must merge before P6.3 is executed (proposed consequence of
+that rule, pending owner confirmation). **No sprint or milestone status above changes because of this list.**
+Each item is marked done only when its pull request is merged, with the PR number added here. At the time of
+writing, none is recorded as merged.
+
+| Item | Scope | Status |
+| :--- | :--- | :--- |
+| Docs: protocol amendments | ADR-005 and ADR-009 amendments, calibration-v1 and baseline-evidence randomisation wording, the F1 gate declaration, this plan, the blind-evaluation workflow | Documentation pull request for this decision; not itself gate evidence |
+| Non-blind quality flag | A quality-flag code for the holder's rows (needs a CHECK-constraint migration) and honoring it in the evidence export and training eligibility | Not recorded as merged |
+| Shared-triple enrollment | A manager-supplied session composition with per-session Latin-square rotation, random evaluator-specific codes, holdouts last, repeat separation validated, actual order persisted; the persistent-or-animalic limit enforced if the needed data exists | Not recorded as merged |
+| Holdout gate and household reveal | Server-side gate that refuses holdout observation writes until the enrollment has a checkpoint; a manager path to create the checkpoint; a program-level reveal policy that reveals all enrollments together only after every stage, the skin plans, the checkpoints and all holdouts are locked (per-enrollment reveal stays the default); correct phase labelling of holdout rankings | Not recorded as merged |
+| Session-scoped wizard | Frontend: no skin-plan step or inline skin-plan form in the blotter flow; session boundary screen; per-session ranking posted to the right session; holdout sequence after the checkpoint; household-reveal waiting screen; role-aware next-sample choice; corrected guidance text; a manager checkpoint action | Not recorded as merged |
+| Transcription and timing | Transcription of the paper sheet with the first-smell time sent as the presentation time, the finished time as the observation time, whole-minute elapsed time, session start, end and ranked times, per-session conditions, consent recorded once, and a guard that confirms the blind code printed on the sheet before a column is saved | Not recorded as merged |
+| Sheet and spray sheet | Paper session sheet with its own version id, a separate conditions slip, the provisional 5-minute ceiling wording, a facilitator run sheet, and a spray-sheet generator whose identity-bearing output goes only to a gitignored path | Not recorded as merged |
+| Guides and rehearsal scope | Manager and participant guides for the facilitated variant; P6.2 and P6.3 scope for a six-person paper-plus-transcription rehearsal; template feedback | Not recorded as merged |
+
+Known gaps and questions carried by these items, not yet resolved:
+
+- The `would_buy` removal that DEC-03 planned was not carried out (R7b row, owner decision 2026-10-30; see
+  the ADR-005 and ADR-009 2026-11-24 amendments, pending owner confirmation of the leakage and analysis
+  implications). In the facilitated format only the holder has a skin stage.
+- The scale wording remains a draft and needs owner sign-off; this plan does not record it as signed off.
+- Not yet scoped: an evaluator-by-session progress view for the manager, room-contamination flags, more than
+  four seeded reviewer records, a UI for the `model_training` and `aggregate_reporting` consent scopes, and a
+  check that training paths honor `model_training` consent (today only the evidence export checks it).
+- Calendar: at most two sessions (6 blotters) a day means 17 sessions need at least 9 test days.
+- P6.3 must rehearse paper plus transcription in the six-person format and confirm or replace the provisional
+  5-minute spray-to-first-smell ceiling. Until then the ceiling is a working value.
+
 ## 11b. Integration status as of 2026-11-07
 
 This section records state and proposes actions. It does not change any milestone gate. Items under "pending owner
@@ -799,6 +834,15 @@ values before discovery work.
 **Depends on:** P6
 **Evidence:** [F1 Initial Family Pilot Gate](gates/f1.md)
 
+### F1 facilitated format (decided 2026-11-24)
+
+The product owner decided on 2026-11-24 that F1 runs with six evaluators in a facilitated, paper-first
+format: shared session triples with a per-evaluator rotated order, random blind codes, one recorder login
+transcribing the paper sheets, skin tests for the non-blind holder only, and one household reveal after the
+holdouts. Protocol: ADR-005 and ADR-009, both amended 2026-11-24. Pre-exposure declaration additions:
+[`gates/f1.md`](gates/f1.md). Work items: [section 11a](#f1-facilitated-format-work-items-decided-2026-11-24).
+F1 status is unchanged: **Planned; blocked on P6**.
+
 ### F1 acceptance criteria
 
 - The pilot declares its dates, evaluators, exact physical samples, algorithm version, candidate
@@ -810,7 +854,8 @@ values before discovery work.
 - The review records usability problems separately from fragrance or algorithm outcomes.
 - Before first exposure, the R7b synthetic-run export is attached (or re-attached, if R7b changed
   since P6.3 last ran) and the blind-instrument version is recorded, per `gates/f1.md`'s
-  blind-baseline instrument completeness row. F1's four evaluators each get exactly one blind pass;
+  blind-baseline instrument completeness row. F1's evaluators (four in the original design, six in the facilitated
+  format) each get exactly one blind pass;
   a field this criterion would have caught cannot be recovered afterward.
 - The core maintainer retains a redacted evidence export and records a decision. Only a
   proceed-to-D1 decision completes F1 for sequencing; revise, extend, or stop keeps D1 blocked.
@@ -1004,7 +1049,7 @@ A work package may enter implementation only when:
 | Mobile/home connectivity prevents use | Medium | Medium | Core maintainer | P6 rehearses failure handling; F1 measures failures and retains manual recovery |
 | Scope expands into advanced ML too early | Medium | Medium | Product owner | D5 decision gate; active learning and calibrated claims remain out of scope |
 | F1's blind pass runs on a schema-only instrument (fields exist in the database but nothing in the released UI writes them) | High as scoped before 2026-09-21 | Critical: irreversible for the initial four evaluators, whose pre-reveal exposures (blotter, hidden-repeat blotter, and skin) all fall within F1's single blind pass; three of them provide blind observations, and the mapping-holder's rows are non-blind (next row) | Product owner | R7b's synthetic released-UI export (section 11a) and the P6.3 re-rehearsal requirement (`gates/p6.md`) |
-| The F1 mapping-holder is also one of the four evaluators | Confirmed for this pilot (2026-09-21); training exclusion confirmed by the product owner 2026-09-26 | High for that evaluator's rows only | Product owner | That evaluator's rows are flagged non-blind and excluded from blind-baseline model training but remain in evaluation, with per-evaluator metrics still reporting that evaluator and the pooled repeat benchmark reported both including and excluding their pairs, per `gates/f1.md` and the [ADR-009 2026-09-21 amendment](adr/adr-009-prospective-evaluation-and-checkpoints.md#2026-09-21-amendment-mapping-holder-evaluator-excluded-from-training-retained-in-evaluation); the other three evaluators are unaffected |
+| The F1 mapping-holder is also one of the evaluators (one of four in the original design, one of six in the facilitated format) | Standing decision: the holder evaluates and is flagged non-blind. Confirmed for this pilot (2026-09-21); training exclusion confirmed by the product owner 2026-09-26; carried unchanged into the six-evaluator facilitated format decided 2026-11-24, where the holder also sprays, times, transcribes, verifies and controls the reveal (`gates/f1.md`) | High for that evaluator's rows only | Product owner | That evaluator's rows are flagged non-blind and excluded from blind-baseline model training but remain in evaluation, with per-evaluator metrics still reporting that evaluator and the pooled repeat benchmark reported both including and excluding their pairs (24 and 18 for four evaluators, 36 and 30 for six), per `gates/f1.md` and the [ADR-009 2026-09-21 amendment](adr/adr-009-prospective-evaluation-and-checkpoints.md#2026-09-21-amendment-mapping-holder-evaluator-excluded-from-training-retained-in-evaluation) and [2026-11-24 amendment](adr/adr-009-prospective-evaluation-and-checkpoints.md#2026-11-24-amendment-six-evaluator-facilitated-f1-format); the other evaluators are unaffected. The earlier facilitated-plan draft treated holder-as-evaluator as unconfirmed; that was a contradiction with this row, resolved here by the standing 2026-09-21 decision, and no new decision is needed for it. The name of the holder is recorded in the pre-exposure declaration, not in this repository |
 
 ## 22. Audit finding disposition
 

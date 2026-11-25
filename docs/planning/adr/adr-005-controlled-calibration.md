@@ -1,9 +1,10 @@
 # ADR-005: Controlled Calibration and Disclosure State
 
-> **Status**: Accepted; amended 2026-09-19 (protocol research reconciliation) and 2026-09-21
-> (exposure cardinality and would_buy permanence)
+> **Status**: Accepted; amended 2026-09-19 (protocol research reconciliation), 2026-09-21
+> (exposure cardinality and would_buy permanence), 2026-10-30 (role-neutral answers) and 2026-11-24
+> (six-evaluator facilitated F1 format)
 >
-> **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21
+> **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21, 2026-10-30, 2026-11-24
 
 ## Context
 
@@ -151,6 +152,9 @@ identity through price and size, so it is necessarily post-reveal), but the loss
 here rather than left implicit. ADR-009's matching 2026-09-21 amendment redefines `would_buy` as a
 separately linked post-reveal outcome.
 
+> **Superseded in part, pending owner confirmation (2026-11-24):** the R7b removal of blind `would_buy`
+> described above was not carried out. See the [2026-11-24 `would_buy` amendment](#2026-11-24-amendment-would_buy-stays-on-the-blind-skin-form-pending-owner-confirmation).
+
 ## 2026-10-30 amendment: role-neutral answers and server-owned disclosure state (R4)
 
 The blind policy covers every answer a participant surface can give, not only its payloads.
@@ -172,6 +176,120 @@ closes them:
 
 Every participant-reachable error path is listed with the reason it is safe in the
 [P4 participant disclosure matrix](../evidence/p4-participant-disclosure.md#participant-reachable-error-paths-r4).
+
+## 2026-11-24 amendment: six-evaluator facilitated F1 format
+
+The Decision and the amendments above were written for four independent evaluators, each with an
+independently shuffled schedule and a per-enrollment reveal. The product owner decided on 2026-11-24
+that F1 runs instead as a six-evaluator, facilitated, paper-first format. Three of the six are new to
+fragrance evaluation. This amendment records the protocol consequences; the approval is the decision
+date above, and no separate retained artifact exists in the repository. Nothing here changes
+the 33-baseline, 10-holdout and 6-hidden-repeat structure, the 13 baseline sessions of 3, the scales,
+the daily load or the inter-stimulus rule. It also does not mark any gate as passed: F1 stays blocked
+on P6 (see [the F1 gate](../gates/f1.md)).
+
+### Format
+
+One facilitator, who is also the declared mapping holder and one of the six evaluators, runs
+parallel silent sessions. Each evaluator has their own tray of three coded blotters, writes on a
+paper sheet (one sheet per evaluator per session, three sample columns), and has no login and no
+phone. The facilitator labels and sprays the vials, times the session, transcribes the sheets into
+the application through one recorder login, verifies the transcription, and controls the reveal.
+Because the facilitator is an evaluator and also sees the mapping, the facilitator's rows are
+non-blind by construction (the 2026-09-21 mapping-holder consequence above, carried into ADR-009's
+matching amendment); the facilitator's own observations are a single-blind design with observer
+cues, not a blind one.
+
+### Changes to the protocol table
+
+| Element | Prior design | Decision for the facilitated format | Rationale |
+| :--- | :--- | :--- | :--- |
+| Evaluators | Four (three blind, one non-blind mapping holder) | Six (five blind, one non-blind mapping holder) | Product owner decision of 2026-11-24. |
+| Session composition | Each evaluator's sessions independently shuffled | Shared triples: all six evaluators smell the same three fragrances in the same session, taken from the manifest's own 13 baseline sessions of 3, with holdouts in a separate final block | Parallel silent sessions need one tray composition per session; the facilitator can spray and time one set of triples. |
+| Order within a session | Independent per-evaluator shuffle | Per-session Latin-square rotation: each evaluator's order within a session is a row of a balanced (Williams) Latin square of the triple, advanced by one row per session, so that across six evaluators every fragrance sits in every position exactly twice per session and adjacent-pair carryover is balanced; each evaluator's actual order is persisted (`intended_position`) | Shared triples would otherwise fix one order for everyone and confound fragrance with position. A single fixed permutation per evaluator was rejected because it would tie each evaluator to one position pattern across all 13 sessions. |
+| Position balance per evaluator | 13 first, 13 second, 13 third across 39 baseline slots | Unchanged, and automatic: each of the 13 full sessions of 3 puts exactly one presentation in each position | No extra constraint is needed beyond using full triples. |
+| Blind codes | `standard` scheme default (`E{n}-S{k}-{pos}`) | `random` scheme only (`secrets.token_hex(4).upper()`, evaluator-specific codes) | With shared triples the S number would identify the session for every evaluator, and holdout sessions are last, so the standard code would disclose holdout status. See the [calibration V1 label note](../../calibration-v1.md#configuration-and-workflow). |
+| Skin | About 6 candidates per evaluator, at most 1 new application per evaluator per day | Skin-absent by design for the five blind evaluators; only the non-blind mapping holder carries a skin plan. The five finalize an intentionally empty skin plan. Skin is a separate optional path on its own day, never inside a facilitated blotter session | Facilitated sessions have no skin tests, and a single facilitator cannot supervise six skin timelines. The 1-per-evaluator-per-day limit and the candidate-selection rule apply unchanged to the holder. |
+| Hidden repeats | 6 per evaluator; 24 pooled family-wide pairs (18 excluding the holder) | 6 per evaluator; 36 pooled pairs across six evaluators (30 excluding the holder). The repeat set is program-level and identical for every evaluator | Arithmetic: 6 evaluators x 6 hidden repeats = 36; 5 blind evaluators x 6 = 30. The earlier figures were 4 x 6 = 24 and 3 x 6 = 18. |
+| Repeat consistency | Pooled, wide-uncertainty benchmark; no individual reliability figure | Same, and reported descriptively only. No exclusion threshold is declared, including for the three novices; everyone is included | Six pairs per evaluator give 5 degrees of freedom and are not an individual reliability figure, so a pass/fail cut on them would be statistically unsupported. This supersedes the earlier idea of a declared threshold. |
+| Reveal | Per enrollment, after that evaluator's baseline, repeat and planned skin stages | One household (program-level) reveal, available only after every enrollment has locked its baseline, repeat and planned skin stages, the skin plans are finalized, a checkpoint exists for each enrollment and all holdouts are locked. All enrollments are then revealed together. Per-enrollment reveal stays the default for existing programs | A per-enrollment reveal would let one evaluator learn identities that the shared triples still show the others. |
+| Phase order | Baseline, then skin, then reveal, then holdouts | All six complete baseline including hidden repeats; skin plans finalized (empty for five); a checkpoint per enrollment; holdouts; one household reveal. All six must be captured before the next session starts | Holdouts are smelled before the household reveal, so the checkpoint must be frozen first; checkpoint creation closes after any holdout response (ADR-009). |
+| Timing | No elapsed-time rule beyond the clean-air interval | No fixed interval. Record the actual sprayed, first-smelled and column-finished times. A provisional 5-minute ceiling from spray to first smell applies, to be confirmed in P6.3; a breach is recorded as a deviation, never silently dropped | Blotters age; the ceiling bounds the exposure variation the facilitator cannot otherwise control. The 5 minutes is a provisional working value, not a researched one. |
+| Session conditions | Recorded per session on the score page | Recorded on a separate slip, not the score page | The approved consent text promises that session-context answers are kept apart from the ratings. |
+| Consent | Recorded per participant | Recorded once in the application before session 1, with the evaluator present; the server stamps `occurred_at` and the record persists per scope until withdrawn | Not recorded per sitting. |
+
+### Primary target and completeness for the skin-absent evaluators
+
+The 2026-09-19 table prefers a locked skin stage over a locked blotter stage when choosing an
+evaluator's primary target. For the five skin-absent evaluators no skin stage exists, so their
+primary target is the locked blotter liking. Fields that the instrument collects at the skin stage only
+(`season_fit`, `setting_fit`, `would_wear`, `would_buy` and the skin timepoints) are absent for these five by
+design. F1 completeness denominators therefore count skin-stage fields only for evaluators who have
+a skin plan, and a missing skin value for one of the five is not a missing-data finding. Blotter
+completeness is counted across all six. A reader of any F1 export must be able to see which
+evaluators were skin-absent by design.
+
+### Consequences (facilitated format)
+
+- The only skin evidence in F1 comes from the non-blind holder, whose rows are excluded from
+  blind-baseline training. F1 therefore yields no blind skin-stage training rows. Anything that
+  needs blind skin data waits for a later program; this is the price of the one-facilitator format
+  and is accepted by the 2026-11-24 decision.
+- Position-effect and shared-room effects are not separable from the evaluators' own differences with
+  six people in one room. Session context is recorded on the separate slip so these can at least be
+  examined descriptively.
+- The shared-triple template, the random-label requirement, the rotated order, the household reveal
+  and the holdout gate are requirements that follow from this amendment. They are implemented by the
+  facilitated-format work items in
+  [PROJECT-PLAN.md section 11a](../PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24);
+  until each item merges, the repository still behaves as the earlier amendments describe. The
+  "at most one persistent or animalic stimulus per session" rule from the 2026-09-19 table is not
+  enforced by any code today. The shared-triple enrollment work item is designed to enforce it in the
+  template validator, from manager-supplied membership marks because no catalog field holds the property
+  (design as reported by that work item; not verified here, since it has not merged).
+- Calendar: with a maximum of 6 blotters (two sessions) a day, 17 sessions (13 baseline and 4 holdout)
+  need at least 9 test days, not the 7 the 2026-09-19 row computed for the 13 baseline sessions alone.
+- The three novices may be less consistent than experienced evaluators. This is reported, not
+  filtered: the pooled repeat benchmark is expected to widen, which makes ADR-009's decision rule
+  (clear the upper bound of the pooled interval) more conservative, not less. This expectation is
+  inferred, not measured.
+
+## 2026-11-24 amendment: `would_buy` stays on the blind skin form (pending owner confirmation)
+
+> **Status of this amendment: pending owner confirmation of the leakage and analysis implications
+> below.** It records what the repository currently says and does, not a re-decision.
+
+The 2026-09-21 amendment above, the Consequences bullet that calls the move "a permanent omission for the
+initial F1 evaluators", and the `would_buy` row of the 2026-09-19 table all assume that DEC-03 removes
+`would_buy` from the blind skin core in R7b, so that F1 asks it at no pre-reveal stage. Verified in the
+repository on 2026-11-24:
+
+- `PROJECT-PLAN.md` section 11a, the R7b row, records an **owner decision of 2026-10-30: `would_buy` stays
+  on the form; the removal is not carried out.**
+- `tests/unit/test_schemas/test_response_input_r7b.py` (`test_would_buy_is_still_accepted`) encodes that
+  decision: a skin-stage `would_buy` is still accepted.
+- `frontend/src/content/calibrationScales.ts` still lists `would_buy` in `skinGroups`, and not in
+  `blotterGroups`.
+
+The 2026-10-30 decision is cited by the plan row and the test, but its own source document was not
+found in the repository; this amendment relies on those two secondary records. Where the earlier text says
+that F1 asks `would_buy` at no pre-reveal stage, that no F1 pre-reveal observation contains it, or that its
+loss is permanent, the 2026-10-30 decision supersedes it: F1's instrument captures a blind, price-free
+`would_buy` on the skin form. The reasoning that an offer-conditioned `would_buy` is necessarily post-reveal
+is unaffected, and the post-reveal decision-block outcome ADR-009 describes remains the offer-conditioned
+measurement; whether that block is still built is not established by the repository.
+
+Implications the owner is asked to confirm:
+
+- **Who produces blind `would_buy`.** It is a skin-stage field. Under the 2026-11-24 facilitated-format
+  amendment above, only the non-blind mapping holder has a skin stage, so F1 yields no blind-evaluator
+  `would_buy` at all, and the holder's value is non-blind and excluded from blind-baseline training.
+  Under the earlier four-evaluator design the three blind evaluators would have produced it.
+- **Leakage.** A price-free 0 to 10 purchase question can still be answered from brand or price
+  recognition when the evaluator guesses the fragrance; the earlier concern (DC-06) that a context-free
+  `would_buy` cannot separate dislike from price and size is not resolved by keeping it.
+- **Analysis.** ADR-009 must again treat `would_buy` as a possible same-observation secondary target for
+  evaluators who have a skin stage, reported with its own n, never pooled with liking.
 
 ## Related
 

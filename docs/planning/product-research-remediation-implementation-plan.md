@@ -110,6 +110,11 @@ product owner before deciding.
   executed as part of R7b (remove the question from `calibrationScales.ts:184`'s `skinGroups`).
   ADR-005's amendment now also notes this is a permanent omission for the initial four evaluators,
   not an ordinary deferral.
+  **Update 2026-11-24:** the removal was not carried out. `PROJECT-PLAN.md` section 11a (R7b row) records an
+  owner decision of 2026-10-30 that `would_buy` stays on the skin form, and
+  `tests/unit/test_schemas/test_response_input_r7b.py` encodes it. The decision's own source document was
+  not found in the repository. The ADR-005 and ADR-009 2026-11-24 amendments record this, pending owner
+  confirmation of the leakage and analysis implications.
 - **DEC-04: resolved per the recommended default.** The assessment's preference-driver-feature
   recommendation is withdrawn; ADR-016 is unchanged (still not before F1). ADR-016 now notes the
   deferral is permanent for the initial four evaluators.
@@ -212,7 +217,7 @@ below is scoped to the R-sprint that should own it per DEC-02.
 | Randomization/deviation record on `Membership`/`Presentation` (intended vs. actual order, seed) | R7a | DC-20 |
 | Response-status enum (skipped / unable-to-assess / interrupted / not-asked / invalidated / technical-failure) replacing bare NULL on optional observation fields | R7a | DC-18 |
 | Familiarity as a versioned code plus a prior-ownership boolean, replacing the bare 0-5 int | R7a | DC-24, ADR-005 amendment |
-| `would_buy` relocated out of the blind skin-stage core into a decision block with scenario/offer fields | R7b | DC-06, DEC-03 |
+| `would_buy` relocated out of the blind skin-stage core into a decision block with scenario/offer fields (relocation not carried out: owner decision 2026-10-30, see DEC-03 update) | R7b | DC-06, DEC-03 |
 
 ## 8. Required data-dictionary additions
 
@@ -417,7 +422,7 @@ Milestone R, it specifies what lands *inside* each already-sequenced sprint.
 | 2 | R3/R4 (not started) | ROLES-03/S-05/B-10 scoping fix; ADMIN-01 admin checks | Yes (P6-gating) |
 | 3 | R6 (not started) | Vocabulary normalization (DC-03/MS-04); CAL-02 baseline-template validation (DEC-05) | Yes |
 | 4a | R7a, schema/service (not started) | Exposure metadata (DC-02), season/setting columns (DC-01, DEC-01 resolved yes), pairwise/rank-event schema (DC-08), perceived-notes normalization (DC-15), randomization record (DC-20), familiarity-as-code (DC-24), consent-event table (DC-25/Section 18), response-status vocabulary (DC-18) | Yes: all irrecoverable-after-the-fact |
-| 4b | R7b, participant instrument (not started; must merge before P6.3, `PROJECT-PLAN.md` section 4) | Session-context form, blotter recognition/ownership controls, skin-timepoint stamping, scrub-off, unable-to-assess control, deviation-flag control, one-rank-event ranking UI, `would_buy` relocation (DC-06/DEC-03), mandatory `season_fit`/`setting_fit` fields at skin stage (DEC-01, Q9); synthetic released-UI export as acceptance evidence | Yes: same irrecoverability as 4a, but only the UI half actually collects it |
+| 4b | R7b, participant instrument (not started; must merge before P6.3, `PROJECT-PLAN.md` section 4) | Session-context form, blotter recognition/ownership controls, skin-timepoint stamping, scrub-off, unable-to-assess control, deviation-flag control, one-rank-event ranking UI, `would_buy` relocation (DC-06/DEC-03; not carried out, see the DEC-03 update), mandatory `season_fit`/`setting_fit` fields at skin stage (DEC-01, Q9); synthetic released-UI export as acceptance evidence | Yes: same irrecoverability as 4a, but only the UI half actually collects it |
 | 5 | R8 (not started) | Evidence-row eligibility view (DC-04/MS-02), `FeatureSnapshot`/checkpoint enrichment (DC-19/MS-10) | Yes, but may land after the P6 go decision: no evaluator-facing UI |
 | 6 | Frontend, any time after R3 | Nav collapse (FE-02), scale-field phone treatment (FE-03), preference-profile page (PREF-01), `EvidencePage` follow-ups (FE-08), Fragella confidence relabel (DEC-06) | No, but should land before F1 for usability, not correctness |
 | 7 | Data dictionary/manifest (new, DC-16/17 fold into R7a, DC-26 folds into R8) | DC-16, DC-17, DC-26 | Yes for DC-16/17, before first export for DC-26 |

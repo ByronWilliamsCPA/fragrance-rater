@@ -2,9 +2,11 @@
 
 > **Status**: Accepted; amended 2026-09-19 (declared learning problem; repeat-benchmark
 > terminology) and 2026-09-21 (mapping-holder evaluator excluded from training, retained in
-> evaluation; `would_buy` as a post-reveal outcome), both confirmed by the product owner 2026-09-26
+> evaluation; `would_buy` as a post-reveal outcome), both confirmed by the product owner 2026-09-26;
+> amended 2026-11-24 (`would_buy` stays on the blind skin form, pending owner confirmation; six-evaluator
+> facilitated F1 format)
 >
-> **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21
+> **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21, 2026-11-24
 
 ## Context
 
@@ -122,6 +124,71 @@ that decision block is completed after reveal, and reported beside liking with i
 decision blocks) as its denominator. It is never pooled with the pre-reveal targets. `would_wear`
 is unchanged: a same-observation secondary target at the skin stage. See ADR-005's 2026-09-21
 amendment for why a blind `would_buy` cannot be recovered for the initial four evaluators.
+
+## 2026-11-24 amendment: `would_buy` stays on the blind skin form (pending owner confirmation)
+
+> **Status of this amendment: pending owner confirmation of the leakage and analysis implications.**
+
+The 2026-09-21 amendment above states that R7b removes `would_buy` from the blind skin core, so that no F1
+pre-reveal observation contains it. `PROJECT-PLAN.md` section 11a (R7b row) records an owner decision of
+2026-10-30 that `would_buy` stays on the form and that the removal is not carried out;
+`tests/unit/test_schemas/test_response_input_r7b.py` encodes it. The decision's own source document was not
+found in the repository. That decision supersedes the statement above: a pre-reveal skin-stage observation
+can carry a blind, price-free `would_buy`.
+
+Consequences for this ADR, to be confirmed by the owner:
+
+- The Secondary targets row above applies again to `would_buy` for any evaluator who has a skin stage,
+  taken from the same observation and reported with its own n. It stays unpooled with liking.
+- The post-reveal decision-block outcome (with offer and scenario context) stays a separate,
+  offer-conditioned measurement; the repository does not establish whether it is still being built.
+- In the six-evaluator facilitated format (below), only the non-blind mapping holder has a skin stage, so
+  the only pre-reveal `would_buy` rows in F1 are non-blind and excluded from blind-baseline training.
+
+## 2026-11-24 amendment: six-evaluator facilitated F1 format
+
+The product owner decided on 2026-11-24 that F1 runs as a six-evaluator facilitated format; the protocol
+side is in [ADR-005's 2026-11-24 amendment](adr-005-controlled-calibration.md#2026-11-24-amendment-six-evaluator-facilitated-f1-format).
+This amendment records what changes for prospective evaluation. The Decision, the declared learning
+problem and the decision rule are otherwise unchanged. No gate is marked passed by this amendment.
+
+- **Evaluators and training.** Six evaluators, of whom five are blind and one is the non-blind mapping
+  holder. The holder's rows stay flagged non-blind, excluded from blind-baseline model training and retained
+  in evaluation (2026-09-21 amendment above). The holder also sprays, times, transcribes, verifies and
+  controls the reveal, so the holder's observations are single-blind with observer cues.
+- **Pooled repeat benchmark.** Each evaluator has 6 hidden repeats, so the pool is 6 x 6 = 36 pairs across
+  six evaluators, or 5 x 6 = 30 excluding the holder. These replace the 24 (4 x 6) and 18 (3 x 6) of the
+  four-evaluator amendments, which now apply only if the program reverts to four evaluators. Report it both
+  ways, 30 and 36, with the pooled interval. The 2026-09-19 comparison rule (an improvement must clear the
+  upper bound of the pooled interval) is unchanged. Six pairs per evaluator still give 5 degrees of freedom,
+  so the pool remains a wide-uncertainty benchmark and not an individual reliability figure.
+- **Repeat consistency and novices.** Three evaluators are new to fragrance. Everyone is included and repeat
+  consistency is reported descriptively. No exclusion threshold is declared or applied, and it must not be
+  added after seeing outcomes (the Decision forbids post-hoc tuning of this kind).
+- **Checkpoints and holdouts.** A checkpoint is created per enrollment after that enrollment's baseline,
+  repeat and planned skin stages are locked and the skin plan is finalized, and before any holdout response
+  (checkpoint creation closes after the first holdout response, see the Decision). In the facilitated format
+  holdouts are smelled before the household reveal, so holdout sessions must stay unavailable until the
+  checkpoint exists. This is a requirement; the server-side gate that enforces it is a work item listed in
+  [PROJECT-PLAN.md section 11a](../PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24), and
+  until it merges nothing in the software prevents holdouts from being recorded first.
+- **Household reveal.** Identities are revealed once, for the whole program, after every enrollment's
+  holdouts are locked. A per-enrollment reveal would disclose to one evaluator what the shared triples still
+  hide from the others. Per-enrollment reveal remains the default for existing programs. Holdout identity
+  hiding (until their own stage is locked) is unchanged.
+- **Skin-absent by design.** The five blind evaluators have no skin stage by design (see ADR-005). Their
+  primary target is the locked blotter liking, because the 2026-09-19 rule only prefers skin where a skin
+  stage exists. Reports declare denominators per stage: skin-stage fields are counted only for evaluators with
+  a skin plan, so F1 completeness never counts skin for the five, and a missing skin value for one of them is
+  reported as "absent by design", not as missing data. Blotter fields are counted across all six.
+- **Holdout eligibility.** Holdout eligibility stays evaluator-specific (the H02 prior-exposure check in the
+  [baseline evidence](../evidence/baseline-v3.1-universal-and-holdout.md)). With six evaluators the check is
+  made for each of them, and an evaluator with prior exposure to a holdout is reported as ineligible for it,
+  not silently dropped.
+- **Consequence for blind skin evidence.** F1 produces no blind skin-stage training rows, because the only
+  skin evidence is the holder's. Any claim about skin-stage prediction waits for a later program.
+
+Related: [ADR-005](adr-005-controlled-calibration.md), 2026-11-24 amendment; [F1 gate](../gates/f1.md).
 
 ## Related
 

@@ -50,7 +50,8 @@ than stored alongside the disagreement - see `fragrance_rater.utils.gtin` and
 evidence than any text-based source comparison; its absence is not itself a problem, since many
 sources never publish one. One recorder can record for several evaluators.
 Program activation freezes membership; enrollment independently randomizes presentation order
-and assigns blind labels under one of two schemes chosen at enrollment (`label_scheme`):
+per evaluator (the default) and assigns blind labels under one of two schemes chosen at enrollment
+(`label_scheme`):
 
 - `standard` (default): `E{enrollment}-S{session}-{position}`, for example `E01-S1-2`. Labels are
   readable and quick to write on vials. Order is still randomized per evaluator, so a label
@@ -60,6 +61,23 @@ and assigns blind labels under one of two schemes chosen at enrollment (`label_s
   accepted trade-off for the default (decision recorded 2026-10-30); use `random` for any trial
   where that partition must stay hidden.
 - `random`: an independent 8-character hex code per presentation, with no structure at all.
+  Facilitated F1 programs (below) must use this scheme, not `standard`.
+
+**Facilitated format (F1, decided 2026-11-24).** Independent per-evaluator shuffles remain the default
+for every program. The six-evaluator facilitated F1 format instead uses shared triples: all evaluators
+smell the same three fragrances in the same session, and the order inside each session is rotated per
+evaluator (a per-session rotation through a balanced Latin square), so no fragrance is always first. Each
+evaluator's actual order is persisted per presentation. Holdouts remain a separate final block, hidden repeats are the
+same program-level set for every evaluator, and blind codes are random and evaluator-specific. The
+`standard` scheme must not be used here: with shared triples its `S` number identifies the session
+for every evaluator and so discloses holdout status to all of them. Skin tests are not part of
+facilitated sessions, and identities are revealed once for the whole program after all holdouts are
+locked. The protocol rationale is in the
+[ADR-005 2026-11-24 amendment](planning/adr/adr-005-controlled-calibration.md#2026-11-24-amendment-six-evaluator-facilitated-f1-format).
+Enrollment support for shared triples, the household reveal and the holdout gate are work items in the
+[project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24); until each
+merges, only the independent per-evaluator shuffle and the per-enrollment reveal described above exist.
+
 Repeats are interleaved with baseline stimuli with separation where the number of stimuli
 permits it. Small diagnostic/test definitions may have insufficient stimuli for the usual
 separation; this is not a general experimental-design optimizer.
