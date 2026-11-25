@@ -41,6 +41,8 @@ chose to close P1.1 on a single-checker pass for now.
 - Closing on one checker is a recorded owner deviation from the two-person wording. It is not a two-person pass.
 - A later second check is added by regenerating the manifest with `--checker`, which changes the hash. That record
   replaces this one.
+- No date is set for the second check. As recorded, neither the R6 alias decisions nor F1 wait on it; the owner can
+  change that by setting a date or making it a condition.
 
 ## Known limits carried by the manifest
 
@@ -51,6 +53,13 @@ chose to close P1.1 on a single-checker pass for now.
   H09 (Eau de Parfum). Decant labels carry no concentration, and the owner's recheck of the product pages did not
   settle them. They rest on the decant source and retailer product pages recorded in each entry's
   `verification_evidence`. For H04, no brand page lists the product any more.
+  - **Owner exception:** after the recheck did not settle them, the owner proceeded with these four values on
+    2026-11-24. This is recorded as an explicit exception to "verified concentration for every program member", not
+    as verification.
+  - **The validator cannot tell the difference.** It accepts any concentration other than the literal "unknown", so a
+    derived value passes the same way a confirmed one does. This exception is the only record that they differ.
+  - **All four have live catalog rows**, created with these concentrations. Concentration is part of the identity
+    index, so correcting one means a new row plus a soft-delete of the old one, and the manifest hash changes.
 - **B05:** recorded as "Synthetic Nature" by owner decision (2026-11-22). The brand renamed it recently and the
   direction is unconfirmed, so "Synthetic Jungle" is carried as an R6 alias.
 - **B25, H10:** no usable `source_url`; each carries a `source_reference`.
