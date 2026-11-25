@@ -172,6 +172,7 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
             "blotter_mode": "INDIVIDUAL",
             "checkpoint_count": 0,
             "checkpoint_blocker": "SKIN_PLAN",
+            "holdouts_open": False,
         }
     ]
     denied_overview = await test_app.get(
