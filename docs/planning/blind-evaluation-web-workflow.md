@@ -73,7 +73,8 @@ Move study allocation out of the mandatory first participant step. Declare
 coverage/holdout allocation before outcomes; any permitted adaptive skin
 selection retains its rule, eligible set, selections and omissions. Capture
 permission for a recorder does not automatically grant allocation or private
-mapping authority. Keep the evaluator and recorder identities distinct.
+mapping authority. Keep the evaluator and recorder identities distinct, except in the facilitated
+one-recorder variant described below, which is a declared departure.
 
 Proposed release order: resolve relevant blind tasks/repeats and scheduled
 late checks; close or explicitly skip unpriced use roles; offer optional
@@ -84,7 +85,9 @@ Define a release group covering the participants/presentations a disclosure
 could compromise. A household-wide group is the simpler first-batch proposal;
 unrelated future work need not block forever. Protect future holdouts, record
 withdrawals/missing-task closure, and freeze predictions before their target
-outcomes. A single enrollment's reveal flag cannot establish this policy.
+outcomes. A single enrollment's reveal flag cannot establish this policy. The facilitated F1 variant below
+adopts a household (program-level) reveal for exactly this reason; the per-enrollment reveal stays the default
+for every other program and for the P6 rehearsal path.
 
 Price, brand, identity, published notes and taxonomy exposure are separate
 cumulative facts. Price alone can cue identity; hiding it again cannot undo
@@ -151,6 +154,58 @@ Fougère and Oud concepts without settling their kinds in this PR. House/provide
 assertions, participant perceptions and ingredient claims remain distinct;
 [source permissions](../fragella-api.md) also remain separate from mapping quality.
 
+## Facilitated one-recorder variant (F1, decided 2026-11-24)
+
+The product owner decided on 2026-11-24 that F1 runs with six evaluators in a facilitated, paper-first format
+instead of six separate web sessions. This section describes that variant and the household reveal. The
+default per-enrollment behavior described elsewhere in this document is unchanged and remains what the
+application does for every other program; the facilitated variant is selected per program, and the software
+support for it is tracked in the
+[facilitated-format work items](PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24), none of
+which is recorded as merged at the time of writing. Protocol rationale:
+[ADR-005](adr/adr-005-controlled-calibration.md#2026-11-24-amendment-six-evaluator-facilitated-f1-format) and
+[ADR-009](adr/adr-009-prospective-evaluation-and-checkpoints.md#2026-11-24-amendment-six-evaluator-facilitated-f1-format).
+Where this section conflicts with the paper-is-a-backup statement at the top of this document, the
+facilitated variant governs for F1 only.
+
+**Roles.** One facilitator is the only person who uses the application. The facilitator is the declared
+mapping holder and also one of the six evaluators. The facilitator labels and sprays the vials, times each
+session, transcribes every paper sheet through one recorder login, verifies the transcription against the
+sheet, and controls the reveal. The five other evaluators have no logins and no phones. The facilitator's
+own observations are non-blind (single-blind with observer cues) and carry the non-blind quality flag. This
+is a declared departure from keeping evaluator and recorder identities distinct, and the pre-exposure
+declaration must say so ([F1 gate](gates/f1.md)).
+
+**Session.** Parallel silent individual sessions. Each evaluator has a tray of three coded blotters (the same
+three fragrances for all six, in a rotated order per evaluator) and one paper sheet per session with three
+sample columns. Session conditions go on a separate slip, not the score page, because the approved consent
+text promises that these answers are kept apart from the ratings. Consent is recorded once in the application
+before session 1, with the evaluator present. Facilitated sessions have no skin tests. The provisional
+spray-to-first-smell ceiling is 5 minutes, to be confirmed in P6.3; actual sprayed, first-smelled and
+column-finished times are written on the sheet, and a breach is a recorded deviation. All six sheets for a
+session are transcribed before the next session starts.
+
+**Transcription.** For each column the recorder enters the paper's values into the evaluator's enrollment.
+The sheet's version id is recorded. An ambiguous mark is entered as blank plus a flag, never resolved by
+guessing. Before a column is saved the recorder confirms the blind code printed on the sheet, so a column is
+not saved into the wrong enrollment (a guard planned by the transcription work item). Original paper sheets
+are retained and scanned.
+
+**Order of phases.** All six evaluators complete baseline including hidden repeats; skin plans are finalized
+(an intentionally empty plan for the five; only the holder carries skin work, on its own day and workflow);
+a checkpoint is created per enrollment; the holdouts follow; then one household reveal.
+
+**Household reveal.** The reveal is program-level. It is available only when every enrollment in the program
+has locked its baseline, repeat and planned skin stages, the skin plans are finalized, each enrollment has a
+checkpoint and all holdouts are locked. It then reveals every enrollment together. This resolves the earlier
+statement that one enrollment's reveal flag cannot establish the release policy, for this program type only.
+The wording of the policy is a requirement on the household-reveal work item; the repository does not yet
+implement it. Holdout sessions must stay unavailable until the enrollment's checkpoint exists, because
+checkpoint creation closes after the first holdout response.
+
+**What does not change.** Server-side disclosure rules, role-neutral errors, append-only observations, stage
+locks and the rule that a mapping-aware manager does not regain blindness by switching to a participant view.
+
 ## Current gaps and delivery order
 
 The baseline already has guided calibration/resume, append-only observations,
@@ -188,7 +243,7 @@ scopes, the plan row is authoritative and this table exists to trace, not to dup
 | WEB-02 | R7a | R7a's typed tables, real timestamps, response-status code and deviation/quality-flag table cover versioned storage and corrections; R7a is schema/service work, so draft-autosave and idempotent-submit UI mechanics are not yet detailed there. |
 | WEB-03 | R7b | R7b builds the session-start form, blotter form, fixed-timepoint skin flow and end-of-session rank event. WEB-03's "both-stage suitability" conflicts with ML Decisions Q9 (skin-stage only); see the instrument's Divergence section. |
 | WEB-04 | No counterpart; would need a plan amendment | Organizer release-group permissioning and allocation workflow are not named in R7a, R7b or P6.3; R4 covers API-level disclosure controls, not this release-group flow. |
-| WEB-05 | No counterpart; would need a plan amendment | R7b only removes blind `would_buy` from the skin form; the unpriced-role, profile/reference and offer/value follow-up module is not scoped in R7a, R7b or P6.3. |
+| WEB-05 | No counterpart; would need a plan amendment | R7b was planned to remove blind `would_buy` from the skin form, but the removal was not carried out (owner decision 2026-10-30, see the ADR-005 2026-11-24 amendment); the unpriced-role, profile/reference and offer/value follow-up module is not scoped in R7a, R7b or P6.3. |
 | WEB-06 | No counterpart; would need a plan amendment | Identified paper transcription and web/paper conflict recovery are not named in R7a, R7b or P6.3. |
 | WEB-07 | R8 (outside R7a/R7b/P6.3) | `training_eligibility`, `v_training_rows` and the checkpoint/feature-snapshot fields are R8's, sequenced after R7a/R7b rather than part of them. |
 | WEB-08 | P6.3 | P6.3 is the full setup-to-report rehearsal on the exact R7b instrument build F1 will use; it is a hard gate on P6 until R7b has merged. |

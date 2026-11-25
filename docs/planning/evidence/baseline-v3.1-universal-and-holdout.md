@@ -142,4 +142,12 @@ existing calibration or measurement policy in
    validation scoring is complete.
 5. `SessionLabel` (`S01A`-`S13C`) identifies a physical/presentation slot, not smelling order;
    presentation order is randomized/counterbalanced per evaluator, and hidden-repeat status is
-   never exposed to evaluators.
+   never exposed to evaluators. Independent per-evaluator shuffles are the default. The
+   six-evaluator facilitated F1 format (decided 2026-11-24, see the
+   [ADR-005 amendment](../adr/adr-005-controlled-calibration.md#2026-11-24-amendment-six-evaluator-facilitated-f1-format))
+   instead gives every evaluator the same three fragrances per session, the manifest's own `S01`-`S13`
+   triples, and rotates the order within each session per evaluator. `SessionLabel` remains a
+   manager-side slot identity and is never printed on a sample: facilitated programs use random,
+   evaluator-specific blind codes, because the standard `E{n}-S{k}-{pos}` scheme would disclose the
+   session (and so holdout status) to every evaluator. This rule restates the source document; it
+   does not change it.
