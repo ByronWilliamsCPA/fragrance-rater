@@ -1,7 +1,7 @@
 """Validated protocol inputs and independent unipolar response scales."""
 
 from datetime import UTC, date, datetime, timedelta
-from typing import Literal
+from typing import Annotated, Literal, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -111,15 +111,76 @@ class MembershipInput(StrictInput):
         return value
 
 
-class EnrollmentInput(StrictInput):
+RandomizationAlgorithm = Literal[
+    "system-random-shuffle-v1", "shared-triples-latin-rotation-v1"
+]
+# A unit test pins these to services.shared_triples' constants.
+_SHARED_TRIPLES = "shared-triples-latin-rotation-v1"
+SessionTemplate = list[
+    Annotated[
+        list[Annotated[str, Field(min_length=1, max_length=36)]],
+        Field(min_length=1, max_length=20),
+    ]
+]
+
+
+class SharedTemplateInput(StrictInput):
+    """Session composition shared by every evaluator in a facilitated program.
+
+    ``session_template`` lists membership ids per session in canonical order;
+    omit it to have the server generate one (or reuse the program's recorded
+    one). ``persistent_membership_ids`` names exceptionally persistent or
+    animalic stimuli, at most one of which may share a session (ADR-005).
+    """
+
+    session_size: int = Field(default=3, ge=1, le=20)
+    session_template: SessionTemplate | None = Field(default=None, max_length=200)
+    persistent_membership_ids: list[
+        Annotated[str, Field(min_length=1, max_length=36)]
+    ] = Field(default_factory=list, max_length=200)
+
+
+class EnrollmentInput(SharedTemplateInput):
     """Recorder identity is independent of whose palate is measured."""
 
     reviewer_id: str
     recorder_usernames: list[str] = Field(min_length=1, max_length=20)
-    session_size: int = Field(default=3, ge=1, le=20)
+    # "system-random-shuffle-v1" (default) shuffles independently per
+    # evaluator; "shared-triples-latin-rotation-v1" gives every evaluator the
+    # same session composition with a balanced Latin-square order inside it.
+    randomization_algorithm: RandomizationAlgorithm = "system-random-shuffle-v1"
     # "standard" yields readable labels (E01-S1-2) that are easy to write on
-    # vials; "random" keeps the independent 8-hex-character codes.
-    label_scheme: Literal["standard", "random"] = "standard"
+    # vials; "random" keeps the independent 8-hex-character codes. Unset means
+    # "standard" for the independent shuffle and "random" for shared sessions.
+    label_scheme: Literal["standard", "random"] | None = None
+
+    @model_validator(mode="after")
+    def _shared_options_need_shared_algorithm(self) -> Self:
+        shared = self.randomization_algorithm == _SHARED_TRIPLES
+        # #CRITICAL: security: with shared sessions a standard label's
+        # S-number names the session, and therefore which evaluators hold the
+        # same fragrance and which sessions are holdouts (F1 decision 3).
+        # #VERIFY: test_shared_triples_reject_standard_labels.
+        if shared and self.label_scheme == "standard":
+            msg = "Shared sessions require random blind codes, not standard labels"
+            raise ValueError(msg)
+        if not shared and (
+            self.session_template is not None or self.persistent_membership_ids
+        ):
+            msg = (
+                "session_template and persistent_membership_ids apply only to "
+                "shared-triples-latin-rotation-v1"
+            )
+            raise ValueError(msg)
+        return self
+
+    @property
+    def uses_standard_labels(self) -> bool:
+        """Whether blind codes follow the readable ``E01-S1-2`` scheme."""
+        return self.label_scheme == "standard" or (
+            self.label_scheme is None
+            and self.randomization_algorithm != _SHARED_TRIPLES
+        )
 
 
 class SkinPlanInput(StrictInput):

@@ -11,6 +11,7 @@ import type {
   Person,
   Program,
   ProgramMember,
+  SessionTemplatePreview,
 } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
 import { EmptyState } from '../components/PageState'
@@ -33,6 +34,9 @@ const roles = [
   'OWNED_VALIDATION',
   'OTHER',
 ]
+
+const INDEPENDENT_SHUFFLE = 'system-random-shuffle-v1'
+const SHARED_TRIPLES = 'shared-triples-latin-rotation-v1'
 
 const blockerText = {
   BLOTTER: 'Blotter responses remain',
@@ -71,6 +75,8 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
   const [events, setEvents] = useState<OperationalEvent[]>([])
   const [status, setStatus] = useState<OperationalStatus | null>(null)
   const [fragellaUsage, setFragellaUsage] = useState<FragellaUsage | null>(null)
+  const [algorithm, setAlgorithm] = useState(INDEPENDENT_SHUFFLE)
+  const [templatePreview, setTemplatePreview] = useState<SessionTemplatePreview | null>(null)
   const task = useTask()
   const selectedProgram = programs.find((program) => program.id === programId)
   const reviewerNames = useMemo(
@@ -91,6 +97,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
     // new program's members; this is the fetch-on-dependency-change pattern.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMembers([])
+    setTemplatePreview(null)
     if (!programId) return
     let current = true
     void task.run(async () => {
@@ -160,8 +167,26 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
     task.setNotice('Definition locked. Future enrollments use this frozen version.')
   }
 
+  function sharedTemplateOptions(form: HTMLFormElement) {
+    const data = new FormData(form)
+    return {
+      session_size: Number(data.get('session_size')),
+      persistent_membership_ids: data.getAll('persistent_membership_ids').map(String),
+    }
+  }
+
+  async function previewSessionPlan(form: HTMLFormElement) {
+    const response = await api.post<SessionTemplatePreview>(
+      `/calibration/programs/${programId}/session-template/preview`,
+      sharedTemplateOptions(form)
+    )
+    setTemplatePreview(response.data)
+    task.setNotice(`Session plan ready: ${response.data.sessions.length} shared sessions.`)
+  }
+
   async function enroll(form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
+    const shared = algorithm === SHARED_TRIPLES
     await api.post(`/calibration/programs/${programId}/enroll`, {
       reviewer_id: values.reviewer_id,
       recorder_usernames: String(values.recorders)
@@ -169,10 +194,27 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
         .map((username) => username.trim())
         .filter(Boolean),
       session_size: Number(values.session_size),
-      label_scheme: values.label_scheme === 'random' ? 'random' : 'standard',
+      // Shared sessions always use random codes: a standard label's session
+      // number would tell evaluators who shares their fragrance. The default
+      // request is unchanged, so the server's default shuffle still applies.
+      label_scheme: shared || values.label_scheme === 'random' ? 'random' : 'standard',
+      ...(shared
+        ? {
+            randomization_algorithm: SHARED_TRIPLES,
+            ...sharedTemplateOptions(form),
+            session_template: templatePreview?.session_template ?? null,
+          }
+        : {}),
     })
     await reload()
-    form.reset()
+    if (shared) {
+      // Keep the shared settings for the next evaluator; clear only who.
+      const reviewer = form.elements.namedItem('reviewer_id')
+      if (reviewer instanceof HTMLSelectElement) reviewer.value = ''
+      setTemplatePreview(null)
+    } else {
+      form.reset()
+    }
     task.setNotice('Evaluator enrolled; sessions and blind codes are ready.')
   }
 
@@ -487,15 +529,98 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
             </label>
             <label>
               Samples per session
-              <input name="session_size" type="number" min="1" max="20" defaultValue="3" />
+              <input
+                name="session_size"
+                type="number"
+                min="1"
+                max="20"
+                defaultValue="3"
+                onChange={() => setTemplatePreview(null)}
+              />
             </label>
             <label>
-              Blind label scheme
-              <select name="label_scheme" defaultValue="standard">
-                <option value="standard">Standard (E01-S1-1, session and position)</option>
-                <option value="random">Random code (8 hex characters)</option>
+              Session order
+              <select
+                name="randomization_algorithm"
+                value={algorithm}
+                onChange={(event) => {
+                  setAlgorithm(event.target.value)
+                  setTemplatePreview(null)
+                }}
+              >
+                <option value={INDEPENDENT_SHUFFLE}>Independent shuffle per evaluator</option>
+                <option value={SHARED_TRIPLES}>
+                  Shared sessions, balanced order per evaluator (facilitated)
+                </option>
               </select>
             </label>
+            {algorithm === SHARED_TRIPLES ? (
+              <>
+                <p>
+                  Every evaluator smells the same samples in each session; the order inside a
+                  session differs per evaluator. Blind codes are random.
+                </p>
+                <label>
+                  Exceptionally persistent or animalic samples (at most one per session)
+                  <select name="persistent_membership_ids" multiple>
+                    {members
+                      .filter((member) => member.role !== 'HIDDEN_REPEAT')
+                      .map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.fragrance_brand} {member.fragrance_name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  disabled={task.busy || !programId}
+                  onClick={(event) => {
+                    const form = event.currentTarget.form
+                    if (form) void task.run(() => previewSessionPlan(form))
+                  }}
+                >
+                  Preview session plan
+                </button>
+                {templatePreview && (
+                  <div aria-label="Session plan preview">
+                    <p>
+                      {templatePreview.sessions.length} sessions (
+                      {templatePreview.source === 'recorded'
+                        ? 'already fixed by an earlier evaluator'
+                        : 'used for the next enrollment'}
+                      ); next evaluator takes rotation {templatePreview.next_rotation + 1}.
+                    </p>
+                    <details>
+                      <summary>Show fragrance identities (manager only)</summary>
+                      <ol>
+                        {templatePreview.sessions.map((session) => (
+                          <li key={session.number}>
+                            {session.block === 'holdout' ? 'Holdout' : 'Baseline'} session:{' '}
+                            {session.members
+                              .map(
+                                (member) =>
+                                  `${member.fragrance_brand} ${member.fragrance_name}${
+                                    member.persistent ? ' (persistent)' : ''
+                                  }`
+                              )
+                              .join('; ')}
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                  </div>
+                )}
+              </>
+            ) : (
+              <label>
+                Blind label scheme
+                <select name="label_scheme" defaultValue="standard">
+                  <option value="standard">Standard (E01-S1-1, session and position)</option>
+                  <option value="random">Random code (8 hex characters)</option>
+                </select>
+              </label>
+            )}
             <button disabled={task.busy || selectedProgram?.status !== 'active'}>
               Enroll evaluator
             </button>

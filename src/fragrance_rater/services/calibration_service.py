@@ -28,6 +28,18 @@ from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.models.soft_delete import is_live
 from fragrance_rater.services.consent import ConsentService
 from fragrance_rater.services.llm_service import get_llm_service
+from fragrance_rater.services.shared_triples import (
+    SHARED_TRIPLES_ALGORITHM,
+    TemplateError,
+    TemplateMember,
+    evaluator_order,
+    generate_template,
+    parse_randomization_record,
+    randomization_record,
+    recover_template,
+    template_digest,
+    validate_template,
+)
 from fragrance_rater.services.training_eligibility import TrainingEligibilityService
 from fragrance_rater.utils.gtin import normalize_gtin
 from fragrance_rater.utils.timestamps import now_naive_utc
@@ -42,8 +54,10 @@ if TYPE_CHECKING:
         ResponseInput,
         SessionEndInput,
         SessionStartInput,
+        SharedTemplateInput,
     )
     from fragrance_rater.schemas.consent import SessionContextInput
+    from fragrance_rater.services.shared_triples import Template
 
 
 def reject(message: str, status: int = 409) -> NoReturn:
@@ -54,6 +68,10 @@ def reject(message: str, status: int = 409) -> NoReturn:
 UNPINNED_INSTRUMENT_PREFIX = "unpinned-app-"
 
 _KEY_REUSED = "This idempotency key was already used for a different submission"
+_TEMPLATE_DIFFERS = (
+    "The session template differs from the one this program's earlier "
+    "evaluators received"
+)
 
 # What enroll() actually does: a system-entropy shuffle of the baseline block,
 # concealed repeats inserted with at least one session of separation, then a
@@ -330,7 +348,10 @@ class CalibrationService:
             )
         ):
             reject("Reviewer already enrolled")
+        await self._require_one_algorithm(program_id, data.randomization_algorithm)
         get_llm_service().invalidate_reviewer_cache(data.reviewer_id)
+        if data.randomization_algorithm == SHARED_TRIPLES_ALGORITHM:
+            return await self._enroll_shared_triples(program_id, data)
         # #ASSUME: data-integrity: the schedule is drawn from the operating
         # system's entropy (SystemRandom, randbelow), which cannot be seeded, so
         # no seed is recorded. A seeded algorithm would store its seed here.
@@ -402,13 +423,232 @@ class CalibrationService:
                             membership_id=member.id,
                             blind_code=(
                                 f"E{enrollment_ordinal:02d}-S{session_number}-{position}"
-                                if data.label_scheme == "standard"
+                                if data.uses_standard_labels
                                 else secrets.token_hex(4).upper()
                             ),
                             position=position,
                             intended_position=position,
                         )
                     )
+        await self.db.flush()
+        return enrollment
+
+    async def _require_one_algorithm(self, program_id: str, algorithm: str) -> None:
+        """Refuse to mix shared-session and independent schedules in one program.
+
+        Shared sessions only mean something when every evaluator in the
+        program follows the same template, so a program that has one kind of
+        enrollment refuses the other. Programs without shared enrollments
+        (every existing one) are unaffected.
+        """
+        existing = set(
+            await self.db.scalars(
+                select(Enrollment.randomization_algorithm).where(
+                    Enrollment.program_id == program_id
+                )
+            )
+        )
+        shared = algorithm == SHARED_TRIPLES_ALGORITHM
+        if (shared and existing - {SHARED_TRIPLES_ALGORITHM}) or (
+            not shared and SHARED_TRIPLES_ALGORITHM in existing
+        ):
+            reject("Every evaluator in a program must use the same randomization")
+
+    async def _template_members(
+        self, program_id: str, persistent_ids: list[str]
+    ) -> list[TemplateMember]:
+        """Load the program's memberships as template inputs."""
+        members = list(
+            await self.db.scalars(
+                select(Membership)
+                .where(Membership.program_id == program_id)
+                .order_by(Membership.id)
+            )
+        )
+        if set(persistent_ids) - {m.id for m in members}:
+            reject("A persistent stimulus is not in this program", 422)
+        # #ASSUME: data-integrity: no catalog or membership column records
+        # whether a stimulus is exceptionally persistent or animalic, so the
+        # ADR-005 "at most one per session" rule runs on what the manager
+        # declares: the request's ids, or a membership selection flag.
+        # #VERIFY: test_persistent_limit_rejects_two_in_one_session and
+        # test_selection_flag_marks_a_persistent_stimulus.
+        persistent = {
+            m.id
+            for m in members
+            if m.id in persistent_ids
+            or m.selection.get("persistent_or_animalic") in (1, "true")
+        }
+        # A hidden repeat is the same physical juice as its original, so it
+        # is exactly as persistent.
+        persistent |= {m.id for m in members if m.repeat_of_id in persistent}
+        return [
+            TemplateMember(
+                id=m.id,
+                fragrance_id=m.fragrance_id,
+                role=m.role,
+                repeat_of_id=m.repeat_of_id,
+                persistent=m.id in persistent,
+            )
+            for m in members
+        ]
+
+    async def _recorded_template(self, program_id: str) -> tuple[Template, int, str]:
+        """Recover the program's shared template from its enrollments.
+
+        Args:
+            program_id (str): The program.
+
+        Returns:
+            tuple[Template, int, str]: The canonical template, the next free
+            rotation, and the first enrollment's generation seed (or "").
+        """
+        enrollments = list(
+            await self.db.scalars(
+                select(Enrollment).where(
+                    Enrollment.program_id == program_id,
+                    Enrollment.randomization_algorithm == SHARED_TRIPLES_ALGORITHM,
+                )
+            )
+        )
+        if not enrollments:
+            return [], 0, ""
+        records = [
+            (parse_randomization_record(e.randomization_seed), e) for e in enrollments
+        ]
+        (rotation, digest, generated), first = min(records, key=lambda r: r[0][0])
+        sessions: dict[str, list[str]] = {}
+        for row in await self.presentations(first.id):
+            sessions.setdefault(row.session_id, []).append(row.membership_id)
+        template = recover_template(list(sessions.values()), rotation)
+        # #CRITICAL: data-integrity: every later evaluator must receive exactly
+        # the template the first one did. A recorded digest that no longer
+        # matches the stored presentations means the schedule was altered, so
+        # enrollment stops rather than propagating a different composition.
+        # #VERIFY: test_tampered_recorded_template_fails_loudly.
+        if template_digest(template) != digest or any(
+            record[1] != digest for record, _ in records
+        ):
+            reject("The program's recorded session template is inconsistent", 500)
+        next_rotation = max(record[0] for record, _ in records) + 1
+        return template, next_rotation, generated or ""
+
+    async def shared_template(
+        self, program_id: str, data: SharedTemplateInput
+    ) -> tuple[Template, list[TemplateMember], int, str | None, str]:
+        """Resolve and validate the template the next shared enrollment uses.
+
+        Order of precedence: the template already recorded for the program
+        (a supplied one must match it), then a manager-supplied template,
+        then a newly generated one.
+
+        Args:
+            program_id (str): The program.
+            data (SharedTemplateInput): Session size, optional template, and
+                persistent stimuli.
+
+        Returns:
+            tuple[Template, list[TemplateMember], int, str | None, str]: The
+            template, members, next rotation, generation seed (None when
+            supplied), and the source (recorded/supplied/generated).
+        """
+        members = await self._template_members(
+            program_id, data.persistent_membership_ids
+        )
+        recorded, rotation, recorded_seed = await self._recorded_template(program_id)
+        generated: str | None = None
+        if recorded:
+            if data.session_template is not None and data.session_template != recorded:
+                reject(_TEMPLATE_DIFFERS)
+            template, source = recorded, "recorded"
+            generated = recorded_seed or None
+        elif data.session_template is not None:
+            template, source = data.session_template, "supplied"
+        else:
+            # Not a secret: the seed only makes the generated order
+            # reproducible, and it is stored on the enrollment for audit.
+            generated = secrets.token_hex(8)
+            try:
+                template = generate_template(members, data.session_size, generated)
+            except TemplateError as error:
+                reject(str(error), 422)
+            source = "generated"
+        try:
+            validate_template(template, members, data.session_size)
+        except TemplateError as error:
+            reject(str(error), 422)
+        return template, members, rotation, generated, source
+
+    async def _unique_codes(self, count: int) -> list[str]:
+        """Draw random blind codes unused anywhere, retrying on collision."""
+        codes: set[str] = set()
+        for _ in range(20):
+            while len(codes) < count:
+                codes.add(secrets.token_hex(4).upper())
+            taken = set(
+                await self.db.scalars(
+                    select(Presentation.blind_code).where(
+                        Presentation.blind_code.in_(codes)
+                    )
+                )
+            )
+            if not taken:
+                return list(codes)
+            codes -= taken
+        reject("Could not draw unique blind codes; retry the enrollment", 503)
+
+    async def _enroll_shared_triples(
+        self, program_id: str, data: EnrollmentInput
+    ) -> Enrollment:
+        """Enroll one evaluator on the program's shared session template.
+
+        Every evaluator gets the same sessions in the same order; inside each
+        session the order follows a balanced Latin-square row chosen by the
+        evaluator's rotation and the session number. Codes are always random
+        and evaluator-specific.
+        """
+        # #ASSUME: concurrency: enroll() holds the program row lock
+        # (SELECT ... FOR UPDATE in program()) for the whole transaction, so
+        # two first enrollments cannot generate two different templates and
+        # two later ones cannot take the same rotation.
+        # #VERIFY: on SQLite the lock is a no-op; production runs PostgreSQL.
+        template, _, rotation, generated, _ = await self.shared_template(
+            program_id, data
+        )
+        enrollment = Enrollment(
+            program_id=program_id,
+            reviewer_id=data.reviewer_id,
+            recorder_usernames=data.recorder_usernames,
+            randomization_algorithm=SHARED_TRIPLES_ALGORITHM,
+            randomization_seed=randomization_record(
+                rotation, template_digest(template), generated
+            ),
+        )
+        self.db.add(enrollment)
+        await self.db.flush()
+        order = evaluator_order(template, rotation)
+        codes = iter(await self._unique_codes(sum(len(s) for s in order)))
+        # Same created_at tie-break as enroll(): presentations() orders
+        # sessions by (created_at, id), so each session is one microsecond
+        # later than the previous one.
+        session_created_at = now_naive_utc()
+        for session_ids in order:
+            session = CalibrationSession(
+                enrollment_id=enrollment.id, context={}, created_at=session_created_at
+            )
+            self.db.add(session)
+            await self.db.flush()
+            session_created_at += timedelta(microseconds=1)
+            for position, membership_id in enumerate(session_ids, start=1):
+                self.db.add(
+                    Presentation(
+                        session_id=session.id,
+                        membership_id=membership_id,
+                        blind_code=next(codes),
+                        position=position,
+                        intended_position=position,
+                    )
+                )
         await self.db.flush()
         return enrollment
 
