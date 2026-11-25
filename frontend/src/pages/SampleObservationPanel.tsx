@@ -91,6 +91,14 @@ export type SampleObservationPanelProps = {
    * of inviting a choice the caller can't act on.
    */
   stageFixed?: boolean
+  /**
+   * Whether this sample offers the inline "Plan skin test" form while the plan
+   * is open. The guided wizard turns it off: skin planning there is a separate
+   * step after the blotter sessions (facilitated sessions have no skin tests),
+   * so a form on every blotter screen would invite a decision at the wrong
+   * time. Manual browsing keeps it.
+   */
+  allowSkinPlanning?: boolean
 }
 
 export function SampleObservationPanel({
@@ -103,6 +111,7 @@ export function SampleObservationPanel({
   task,
   refresh,
   stageFixed = false,
+  allowSkinPlanning = true,
 }: SampleObservationPanelProps) {
   // The submission a failed save left behind, so pressing Save again on the
   // same answers retries it under the same idempotency key (D-22).
@@ -206,7 +215,7 @@ export function SampleObservationPanel({
           </select>
         )}
       </label>
-      {!sample.skin_planned && !enrollment.skin_plan_locked && (
+      {allowSkinPlanning && !sample.skin_planned && !enrollment.skin_plan_locked && (
         <form
           onSubmit={(event) => {
             event.preventDefault()

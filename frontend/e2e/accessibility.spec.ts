@@ -61,8 +61,9 @@ const routeChecks: {
     // where most participants now land on a bare /calibration visit. This
     // mirrors calibration-entry.spec.ts's "never-started enrollment" fixture
     // (has_started: false) so calibrationEntryFor resolves to `{kind:
-    // 'guided'}` and the wizard renders its default first step (the
-    // skin-test plan decision) for the scan.
+    // 'guided'}` and the wizard renders its first step, the session intro
+    // (consent and conditions), for the scan. The skin-test plan is no longer
+    // a first step: it follows the blind baseline.
     path: '/calibration',
     heading: 'Before you begin',
     mocks: {

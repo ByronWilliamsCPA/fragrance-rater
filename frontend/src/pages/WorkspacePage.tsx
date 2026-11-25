@@ -39,6 +39,14 @@ function nextAction(enrollment: Enrollment): string {
   if (enrollment.reveal_blocker === 'SKIN_PLAN') return 'Finalize the skin-test plan.'
   if (enrollment.reveal_blocker === 'BLOTTER') return 'Continue required blind blotter screens.'
   if (enrollment.reveal_blocker === 'SKIN') return 'Complete the planned blind skin tests.'
+  if (enrollment.reveal_blocker === 'CHECKPOINT')
+    return 'Wait for the organizer to open the next samples.'
+  if (enrollment.reveal_blocker === 'HOLDOUT') return 'Complete the final blind samples.'
+  if (enrollment.reveal_blocker === 'HOUSEHOLD_WAIT')
+    return 'Finished. Identities are revealed once the whole household has finished.'
+  if (enrollment.reveal_blocker !== null) return 'Blind work is still outstanding.'
+  if (enrollment.reveal_policy === 'HOUSEHOLD')
+    return 'Finished. The organizer reveals the whole household together.'
   return 'Required blind work is complete. Reveal when ready.'
 }
 

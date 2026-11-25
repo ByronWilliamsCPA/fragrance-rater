@@ -129,22 +129,87 @@ export type Sample = {
     perfumers?: PerfumerAttribution[]
   }
   observations: Observation[]
+  /**
+   * False only while the server's holdout gate holds this sample closed (no
+   * checkpoint yet for the enrollment). The client must not offer a closed
+   * sample; it says nothing about lock state. Optional only because servers
+   * older than the gate omit it; a missing value is read as open, and the
+   * server still refuses every write to a closed sample.
+   */
+  available?: boolean
 }
 
 /** A perfumer credited for a fragrance version, with the source that says so. */
 export type PerfumerAttribution = { name: string; source_url: string }
 
+/**
+ * How a program reveals identities: each enrollment on its own (`ENROLLMENT`,
+ * the default) or every enrollment together after all of them finish
+ * (`HOUSEHOLD`, the F1 facilitated format).
+ */
+export type RevealPolicy = 'ENROLLMENT' | 'HOUSEHOLD'
+
+/**
+ * Why an enrollment cannot be revealed yet, first match wins on the server.
+ * `ENROLLMENT` programs only use the first three; `HOUSEHOLD` programs add
+ * `CHECKPOINT`, `HOLDOUT` and `HOUSEHOLD_WAIT`. The enum is additive, so the
+ * `string & {}` arm keeps an unknown future value typed as "not ready" rather
+ * than letting the client mistake it for a known one.
+ */
+export type RevealBlocker =
+  'SKIN_PLAN' | 'BLOTTER' | 'SKIN' | 'CHECKPOINT' | 'HOLDOUT' | 'HOUSEHOLD_WAIT' | (string & {})
+
+/** Why a checkpoint cannot be frozen yet; null when ready. */
+export type CheckpointBlocker =
+  'HOLDOUT_OBSERVED' | 'SKIN_PLAN' | 'BLOTTER' | 'SKIN' | (string & {})
+
 export type Enrollment = Assignment & {
   revealed: boolean
   reveal_eligible: boolean
-  reveal_blocker: 'BLOTTER' | 'SKIN_PLAN' | 'SKIN' | null
+  reveal_blocker: RevealBlocker | null
   skin_plan_locked: boolean
+  /** Optional only for servers older than the household policy; absent means ENROLLMENT. */
+  reveal_policy?: RevealPolicy
   presentations: Sample[]
 }
 
 export type Program = Person & {
   version: string
   status: string
+  reveal_policy?: RevealPolicy
+}
+
+/** One row of GET /calibration/programs/{id}/readiness. */
+export type EnrollmentReadiness = {
+  enrollment_id: string
+  reviewer_id: string
+  reviewer_name: string
+  checkpoint_count: number
+  checkpoint_blocker: CheckpointBlocker | null
+  reveal_blocker: RevealBlocker | null
+  revealed: boolean
+}
+
+/** GET /calibration/programs/{id}/readiness (manager only). */
+export type ProgramReadiness = {
+  program_id: string
+  reveal_policy: RevealPolicy
+  household_reveal_ready: boolean
+  household_revealed: boolean
+  enrollments: EnrollmentReadiness[]
+}
+
+/** POST /calibration/programs/{id}/checkpoints (manager only). */
+export type BulkCheckpointResult = {
+  program_id: string
+  algorithm_version: string
+  created: {
+    enrollment_id: string
+    checkpoint_id: string
+    predictions_frozen: number
+    predictions_skipped: number
+  }[]
+  skipped: { enrollment_id: string; reason: string }[]
 }
 
 export type FragellaResult = {
@@ -201,8 +266,12 @@ export type ManagerEnrollment = {
   skin_planned: number
   skin_complete: number
   reveal_eligible: boolean
-  reveal_blocker: 'BLOTTER' | 'SKIN_PLAN' | 'SKIN' | null
+  reveal_blocker: RevealBlocker | null
   revealed: boolean
+  /** Optional only for servers older than the household policy. */
+  reveal_policy?: RevealPolicy
+  checkpoint_count?: number
+  checkpoint_blocker?: CheckpointBlocker | null
 }
 
 export type SessionTemplatePreview = {

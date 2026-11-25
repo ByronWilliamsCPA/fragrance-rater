@@ -22,13 +22,19 @@ export const flagReasons = [
  */
 export function FlagProblem({
   enrollment,
+  sessionId: requestedSessionId,
   task,
 }: {
   enrollment: Enrollment
+  /** The session a "whole session" flag targets; defaults to the first session. */
+  sessionId?: string
   task: ReturnType<typeof useTask>
 }) {
   const [open, setOpen] = useState(false)
-  const sessionId = enrollment.presentations[0]?.session_id
+  const sessionId = requestedSessionId ?? enrollment.presentations[0]?.session_id
+  const sessionSamples = enrollment.presentations.filter(
+    (sample) => sample.session_id === sessionId
+  )
 
   if (!open) {
     return (
@@ -66,7 +72,7 @@ export function FlagProblem({
           What is it about?
           <select name="target" defaultValue="session">
             <option value="session">The whole session</option>
-            {enrollment.presentations.map((sample) => (
+            {sessionSamples.map((sample) => (
               <option key={sample.id} value={sample.id}>
                 Sample {sample.position} (code {sample.blind_code})
               </option>

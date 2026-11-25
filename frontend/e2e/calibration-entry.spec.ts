@@ -53,7 +53,11 @@ test.describe('Calibration entry routing', () => {
 
     await expect(page.getByRole('heading', { name: 'Guided calibration' })).toBeVisible()
     await expect(page.getByText(/Step 1 of/)).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Finalize skin-test plan' })).toBeVisible()
+    // The session opens on its first sample; the skin-test plan comes after
+    // the blind baseline, never before it and never inline.
+    await expect(page.getByText('Blind observation')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Finalize skin-test plan' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Plan skin test' })).toHaveCount(0)
   })
 
   test('opens the guided wizard on the correct next step for an in-progress enrollment', async ({
@@ -86,10 +90,32 @@ test.describe('Calibration entry routing', () => {
         skin_plan_locked: true,
         presentations: [
           {
+            // Already answered and locked: the session is under way, so the
+            // wizard resumes on the next sample without reopening the intro.
+            id: 'samp0',
+            session_id: 'sess1',
+            blind_code: 'XYZ-789',
+            position: 1,
+            skin_planned: false,
+            blotter_locked: true,
+            skin_locked: false,
+            post_reveal_entry: false,
+            observations: [
+              {
+                id: 'o0',
+                phase: 'PRE_REVEAL',
+                stage: 'BLOTTER',
+                detected: true,
+                response_status: 'completed',
+                elapsed_minutes: 0,
+              },
+            ],
+          },
+          {
             id: 'samp1',
             session_id: 'sess1',
             blind_code: 'ABC-123',
-            position: 1,
+            position: 2,
             skin_planned: false,
             blotter_locked: false,
             skin_locked: false,

@@ -104,6 +104,33 @@ describe('WorkspacePage', () => {
     expect(await screen.findByRole('button', { name: /A82F/ })).toBeInTheDocument()
   })
 
+  it.each([
+    [{ reveal_blocker: 'CHECKPOINT' }, 'Wait for the organizer to open the next samples.'],
+    [{ reveal_blocker: 'HOLDOUT' }, 'Complete the final blind samples.'],
+    [
+      { reveal_blocker: 'HOUSEHOLD_WAIT' },
+      'Finished. Identities are revealed once the whole household has finished.',
+    ],
+    [{ reveal_blocker: 'SOMETHING_NEW' }, 'Blind work is still outstanding.'],
+    [
+      { reveal_blocker: null, reveal_eligible: true, reveal_policy: 'HOUSEHOLD' },
+      'Finished. The organizer reveals the whole household together.',
+    ],
+    [
+      { reveal_blocker: null, reveal_eligible: true, reveal_policy: 'ENROLLMENT' },
+      'Required blind work is complete. Reveal when ready.',
+    ],
+  ])('names the next action for an enrollment in state %o', async (state, action) => {
+    mockBootstrap({
+      '/calibration/enrollments': [{ id: 'assignment', program_id: 'p', reviewer_id: 'r' }],
+      '/calibration/enrollments/assignment': { ...enrollment, ...state },
+    })
+    render(<App />)
+
+    expect(await screen.findByText(action)).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/holdout/i)
+  })
+
   it('retries assignment progress without reloading the application', async () => {
     let progressUnavailable = true
     get.mockImplementation((path: string) => {
