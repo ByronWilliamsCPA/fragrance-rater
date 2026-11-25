@@ -402,11 +402,26 @@ class DisclosureGate:
     async def require_enrollment_open(self, program_id: str) -> None:
         """Refuse a new enrollment in a household that is already revealed.
 
+        # #CRITICAL: concurrency: a household reveal committing between this
+        # read and the enrollment insert would leave an unrevealed evaluator in
+        # a household whose identities are already disclosed. The program row
+        # is locked FOR UPDATE first, the same lock ``reveal_household`` takes
+        # before it reads enrollments, and is held until the request commits:
+        # either the reveal commits first and this read sees ``revealed_at``,
+        # or the new enrollment commits first and the reveal sees an evaluator
+        # without a checkpoint and refuses. ``ENROLLMENT`` programs take no
+        # lock (the policy is fixed once the program is active).
+        # #VERIFY: test_enrollment_waits_for_a_household_reveal in
+        # tests/integration/test_calibration_concurrency_postgres.py.
+
         Args:
             program_id (str): The program being enrolled into.
         """
         if await self.policy(program_id) != HOUSEHOLD:
             return
+        await self.db.execute(
+            select(Program.id).where(Program.id == program_id).with_for_update()
+        )
         if any(e.revealed_at for e in await self._program_enrollments(program_id)):
             _refuse("This household is already revealed; enroll in a new program")
 

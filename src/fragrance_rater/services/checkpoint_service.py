@@ -386,8 +386,16 @@ async def freeze_program_checkpoints(
     non-holdout skin locked, no holdout observed. With ``freeze_predictions``
     the registered model is run for each enrollment's reviewer over the
     program's holdouts and every prediction snapshot is linked to the new
-    checkpoint, in this same transaction, so the holdout gate never opens on
-    a checkpoint that has no frozen prediction behind it.
+    checkpoint, in this same transaction. A holdout the model skips is
+    reported per checkpoint in ``predictions_skipped``: ``existing-prediction``
+    means an outcome-free snapshot for that model and pair already exists, so
+    the prospective prediction survives but is not linked to this checkpoint.
+
+    # #ASSUME: data-integrity: the holdout gate opens on the checkpoint alone,
+    # not on prediction coverage, matching the per-enrollment checkpoint route
+    # and the P6 path; coverage is the manager's to read from the response.
+    # #VERIFY: predictions_skipped is 0 for every created checkpoint before an
+    # F1 session; a non-zero count names holdouts to review before opening.
 
     # #CRITICAL: data-integrity: a checkpoint is what opens an enrollment's
     # holdouts (DisclosureGate.require_open). Every enrollment row is locked

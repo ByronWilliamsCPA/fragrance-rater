@@ -26,6 +26,8 @@ from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.calibration import EnrollmentInput, MembershipInput
 from fragrance_rater.services.calibration_service import CalibrationService
+from fragrance_rater.services.disclosure_gate import HOUSEHOLD, DisclosureGate
+from fragrance_rater.utils.timestamps import now_naive_utc
 
 DATABASE_URL = os.getenv("P1_DATABASE_URL")
 
@@ -315,6 +317,98 @@ async def test_concurrent_duplicate_enrollment_leaves_exactly_one_enrollment() -
             # test_concurrent_holdout_assignment_leaves_exactly_one_membership).
             # #VERIFY: cleanup runs inside this `finally` block so it
             # executes even when an assertion above fails.
+            async with session_factory() as cleanup_session:
+                await cleanup_session.execute(
+                    delete(Enrollment).where(Enrollment.program_id == program_id)
+                )
+                await cleanup_session.execute(
+                    delete(Program).where(Program.id == program_id)
+                )
+                await cleanup_session.execute(
+                    delete(Reviewer).where(Reviewer.id == reviewer_id)
+                )
+                await cleanup_session.commit()
+    finally:
+        await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_enrollment_waits_for_a_household_reveal() -> None:
+    """A new enrollment cannot slip into a household mid-reveal.
+
+    ``reveal_household`` locks the program row before it reads and reveals the
+    enrollments. ``DisclosureGate.require_enrollment_open`` must take the same
+    lock before its own read: it then blocks until the reveal commits, sees
+    ``revealed_at``, and refuses with 409. Without the lock it would read the
+    pre-reveal state and let an unrevealed evaluator into a disclosed household.
+    """
+    assert DATABASE_URL is not None
+    engine = create_async_engine(DATABASE_URL)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    suffix = uuid4().hex
+
+    try:
+        async with session_factory() as setup_session:
+            reviewer = Reviewer(name=f"F1 household reviewer {suffix}")
+            program = Program(
+                name=f"F1 household program {suffix}",
+                version="v1",
+                description=None,
+                status="active",
+                reveal_policy=HOUSEHOLD,
+            )
+            setup_session.add_all([reviewer, program])
+            await setup_session.commit()
+            reviewer_id, program_id = reviewer.id, program.id
+            enrollment = await CalibrationService(setup_session).enroll(
+                program_id,
+                EnrollmentInput(reviewer_id=reviewer_id, recorder_usernames=["f1"]),
+            )
+            await setup_session.commit()
+            enrollment_id = enrollment.id
+
+        locked = asyncio.Event()
+        release = asyncio.Event()
+
+        async def reveal() -> None:
+            """Stand in for reveal_household: lock, reveal, hold, commit."""
+            async with session_factory() as session:
+                await session.execute(
+                    select(Program.id).where(Program.id == program_id).with_for_update()
+                )
+                revealed = await session.get(Enrollment, enrollment_id)
+                assert revealed is not None
+                revealed.revealed_at = now_naive_utc()
+                await session.flush()
+                locked.set()
+                await release.wait()
+                await session.commit()
+
+        async def check() -> None:
+            async with session_factory() as session:
+                await locked.wait()
+                await DisclosureGate(session).require_enrollment_open(program_id)
+
+        try:
+            revealing = asyncio.create_task(reveal())
+            checking = asyncio.create_task(check())
+            # #ASSUME: timing-dependency: 0.5 s is ample for an unlocked read to
+            # finish on a local or CI PostgreSQL; a check still pending then is
+            # blocked on the program row lock, which is what this asserts.
+            # #VERIFY: without the lock the check returns at once (no error)
+            # and the assertions below fail, so the test cannot pass vacuously.
+            await locked.wait()
+            await asyncio.sleep(0.5)
+            assert not checking.done(), "the check must wait for the reveal's lock"
+            release.set()
+            await revealing
+            with pytest.raises(HTTPException) as refused:
+                await checking
+            assert refused.value.status_code == 409
+            assert "already revealed" in str(refused.value.detail)
+        finally:
+            release.set()
             async with session_factory() as cleanup_session:
                 await cleanup_session.execute(
                     delete(Enrollment).where(Enrollment.program_id == program_id)
