@@ -324,8 +324,27 @@ function routeGets(
   })
 }
 
+/** A time as written on a paper sheet (a `datetime-local` value). */
+const PAPER_TIME = '2026-11-25T10:00'
+
+function typePaperTime(label: string) {
+  fireEvent.change(screen.getByLabelText(label), { target: { value: PAPER_TIME } })
+}
+
+/** Leaves the intro; in the facilitated format the sheet's start time comes first. */
 async function pastIntro() {
-  fireEvent.click(await screen.findByRole('button', { name: 'Continue to the samples' }))
+  const go = await screen.findByRole('button', { name: 'Continue to the samples' })
+  if (screen.queryByLabelText('Session start time written on the sheet'))
+    typePaperTime('Session start time written on the sheet')
+  fireEvent.click(go)
+}
+
+/** Passes the boundary; in the facilitated format the sheet's end time comes first. */
+async function continueBoundary() {
+  const go = await screen.findByRole('button', { name: 'Facilitator: continue' })
+  if (screen.queryByLabelText('Session end time written on the sheet'))
+    typePaperTime('Session end time written on the sheet')
+  fireEvent.click(go)
 }
 
 function renderFlow(props: Partial<Parameters<typeof GuidedCalibrationFlow>[0]> = {}) {
@@ -409,7 +428,7 @@ describe('GuidedCalibrationFlow', () => {
     ).toBeInTheDocument()
     expect(screen.queryByText('Blind observation')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
     await pastIntro()
 
     await waitFor(() =>
@@ -435,12 +454,14 @@ describe('GuidedCalibrationFlow', () => {
     places.forEach((place, index) => {
       fireEvent.change(place, { target: { value: String(index + 1) } })
     })
+    typePaperTime('Time the ranking was written on the sheet')
     fireEvent.click(within(ranking).getByRole('button', { name: 'Save ranking' }))
 
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith('/calibration/sessions/sessB/rankings', {
         stage: 'BLOTTER',
         response_status: 'completed',
+        ranked_at: new Date(PAPER_TIME).toISOString(),
         entries: [
           { presentation_id: 'b1', rank_position: 1 },
           { presentation_id: 'b2', rank_position: 2 },
@@ -451,6 +472,24 @@ describe('GuidedCalibrationFlow', () => {
     expect(
       await screen.findByText('Session complete. Wait for the facilitator.')
     ).toBeInTheDocument()
+  })
+
+  it('refuses to save a household ranking without the time written on the sheet', async () => {
+    routeGets(household([...sessionA('done'), ...sessionB('done'), ...sessionC('open')]), {
+      rankings: { sessA: [ranked] },
+    })
+    renderFlow()
+
+    const ranking = await screen.findByRole('group', { name: 'Your ranking' })
+    within(ranking)
+      .getAllByRole('combobox')
+      .forEach((place, index) => {
+        fireEvent.change(place, { target: { value: String(index + 1) } })
+      })
+    fireEvent.click(within(ranking).getByRole('button', { name: 'Save ranking' }))
+
+    expect(await screen.findByText(/^Enter the time the ranking was written/)).toBeInTheDocument()
+    expect(post).not.toHaveBeenCalled()
   })
 
   it('does not let a closed final session block the ranking of a finished one', async () => {
@@ -472,21 +511,22 @@ describe('GuidedCalibrationFlow', () => {
     )
     renderFlow()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
 
     expect(await screen.findByText(/Blind baseline work is complete/)).toBeInTheDocument()
     expect(screen.getByText(/freezes this evaluator's checkpoint/)).toBeInTheDocument()
     expect(screen.queryByText('Blind observation')).not.toBeInTheDocument()
     expect(screen.queryByText(/CODE-H1/)).not.toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/holdout/i)
-    expect(post).not.toHaveBeenCalled()
+    // Only the finished session's end is written; nothing opens the closed sample.
+    expect(post.mock.calls.map(([url]) => url)).toEqual(['/calibration/sessions/sessC/end'])
   })
 
   it('finalizes the skin plan as its own step after the baseline', async () => {
     routeGets(household([...sessionA('done'), ...finalClosed]), { rankings: { sessA: [ranked] } })
     renderFlow({ isManager: true })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
     // Only open samples can be planned; a closed one is not even listed.
     expect(await screen.findByLabelText(/skin test for CODE-A1/)).toBeInTheDocument()
     expect(screen.queryByText(/CODE-H1/)).not.toBeInTheDocument()
@@ -506,7 +546,7 @@ describe('GuidedCalibrationFlow', () => {
     routeGets(household([...sessionA('done'), ...finalClosed]), { rankings: { sessA: [ranked] } })
     renderFlow()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
     expect(
       await screen.findByRole('button', { name: 'Finalize skin-test plan' })
     ).toBeInTheDocument()
@@ -519,7 +559,7 @@ describe('GuidedCalibrationFlow', () => {
     })
     renderFlow()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
     expect(await screen.findByLabelText(/skin test for CODE-S1/)).toBeInTheDocument()
   })
 
@@ -561,7 +601,7 @@ describe('GuidedCalibrationFlow', () => {
     )
     renderFlow({ isManager: true })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
 
     expect(await screen.findByText(/This evaluator is finished/)).toBeInTheDocument()
     expect(await screen.findByText('Evaluator Two')).toBeInTheDocument()
@@ -580,7 +620,7 @@ describe('GuidedCalibrationFlow', () => {
     )
     renderFlow()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
 
     expect(await screen.findByText(/who is still outstanding in Program setup/)).toBeInTheDocument()
     expect(get).not.toHaveBeenCalledWith('/calibration/programs/p1/readiness')
@@ -593,7 +633,7 @@ describe('GuidedCalibrationFlow', () => {
     )
     renderFlow()
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
 
     expect(await screen.findByText(/reveals the whole household together/)).toBeInTheDocument()
     expect(
@@ -648,7 +688,7 @@ describe('GuidedCalibrationFlow', () => {
     const onRevealed = vi.fn().mockResolvedValue(undefined)
     renderFlow({ onRevealed })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    await continueBoundary()
     fireEvent.click(await screen.findByRole('button', { name: 'Reveal completed baseline' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm reveal' }))
 

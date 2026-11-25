@@ -73,6 +73,14 @@ function household(sessionB: 'open' | 'done', overrides: Partial<Enrollment> = {
   }
 }
 
+const PAPER_TIME = '2026-11-25T10:00'
+
+/** Passes the boundary the way a facilitator does: the sheet's end time first. */
+async function continuePastBoundary(page: Page) {
+  await page.getByLabel('Session end time written on the sheet').fill(PAPER_TIME)
+  await page.getByRole('button', { name: 'Facilitator: continue' }).click()
+}
+
 async function expectNoFinalSamplesOrHoldoutWording(page: Page) {
   await expect(page.getByText(/CODE-H\d/)).toHaveCount(0)
   expect(await page.locator('body').innerText()).not.toMatch(/holdout/i)
@@ -92,6 +100,10 @@ test.describe('Session-scoped guided calibration', () => {
         sent.push({ path: 'rank-sessA', body: route.request().postDataJSON() })
         return json(route, {}, 201)
       },
+      '/calibration/sessions/sessA/end': (route: Route) => {
+        sent.push({ path: 'end-sessA', body: route.request().postDataJSON() })
+        return json(route, { id: 'sessA' }, 200)
+      },
       '/calibration/sessions/sessB/start': (route: Route) => {
         sent.push({ path: 'start-sessB', body: route.request().postDataJSON() })
         return json(route, { id: 'sessB' }, 201)
@@ -107,6 +119,7 @@ test.describe('Session-scoped guided calibration', () => {
     await places.nth(0).selectOption('2')
     await places.nth(1).selectOption('1')
     await places.nth(2).selectOption('3')
+    await page.getByLabel('Time the ranking was written on the sheet').fill(PAPER_TIME)
     await expectNoViolations(page)
     await ranking.getByRole('button', { name: 'Save ranking' }).click()
 
@@ -117,6 +130,7 @@ test.describe('Session-scoped guided calibration', () => {
         body: {
           stage: 'BLOTTER',
           response_status: 'completed',
+          ranked_at: expect.any(String),
           entries: [
             { presentation_id: 'a1', rank_position: 2 },
             { presentation_id: 'a2', rank_position: 1 },
@@ -128,13 +142,14 @@ test.describe('Session-scoped guided calibration', () => {
     await expect(page.getByText('Blind observation')).toHaveCount(0)
     await expectNoViolations(page)
 
-    await page.getByRole('button', { name: 'Facilitator: continue' }).click()
+    await continuePastBoundary(page)
     await expect(page.getByRole('heading', { name: 'Before you begin' })).toBeVisible()
+    await page.getByLabel('Session start time written on the sheet').fill(PAPER_TIME)
     await page.getByRole('button', { name: 'Continue to the samples' }).click()
 
     await expect(page.getByRole('heading', { name: 'CODE-B1' })).toBeVisible()
     await expect(page.getByText(/Session 2 of 3/)).toBeVisible()
-    expect(sent.map((item) => item.path)).toEqual(['rank-sessA', 'start-sessB'])
+    expect(sent.map((item) => item.path)).toEqual(['rank-sessA', 'end-sessA', 'start-sessB'])
     await expectNoFinalSamplesOrHoldoutWording(page)
   })
 
@@ -146,10 +161,11 @@ test.describe('Session-scoped guided calibration', () => {
         reveal_blocker: 'CHECKPOINT',
       }),
       '/calibration/sessions/sessB/rankings': [{ response_status: 'completed' }],
+      '/calibration/sessions/sessB/end': {},
     })
 
     await page.goto('/calibration')
-    await page.getByRole('button', { name: 'Facilitator: continue' }).click()
+    await continuePastBoundary(page)
 
     await expect(
       page.getByText('Blind baseline work is complete. Wait for the facilitator.')
@@ -197,11 +213,12 @@ test.describe('Session-scoped guided calibration', () => {
       ...bootstrapRoutes(managerAccess),
       '/calibration/enrollments/enr1': finished,
       '/calibration/sessions/sessH/rankings': [{ response_status: 'completed' }],
+      '/calibration/sessions/sessH/end': {},
       '/calibration/programs/p1/readiness': readiness,
     })
 
     await page.goto('/calibration')
-    await page.getByRole('button', { name: 'Facilitator: continue' }).click()
+    await continuePastBoundary(page)
 
     await expect(
       page.getByText('This evaluator is finished. Wait for the facilitator.')

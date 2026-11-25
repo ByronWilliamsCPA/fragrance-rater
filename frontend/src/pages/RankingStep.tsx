@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { Enrollment } from '../api/types'
 import { allAssessed, rankableSamples, rankError } from '../content/ranking'
+import { toInstant } from '../content/transcription'
 import type { useTask } from '../hooks/useTask'
 
 type RankEvent = { response_status: string }
@@ -17,18 +18,25 @@ type RankEvent = { response_status: string }
  * set other than that session's detected samples (capture_service), so the
  * samples of other sessions, including ones still closed, neither appear here
  * nor hold the ranking back.
+ *
+ * In the facilitated format (`transcription`) the ranking is copied from the
+ * paper sheet afterwards, so the time it was written is asked for and sent as
+ * `ranked_at` for every outcome, including "would rather not".
  */
 export function RankingStep({
   enrollment,
   sessionId: requestedSessionId,
   task,
   onDone,
+  transcription = false,
 }: {
   enrollment: Enrollment
   /** The session to rank; defaults to the enrollment's first session. */
   sessionId?: string
   task: ReturnType<typeof useTask>
   onDone: () => void
+  /** Facilitated format: ask for the ranking time written on the sheet. */
+  transcription?: boolean
 }) {
   const sessionId = requestedSessionId ?? enrollment.presentations[0]?.session_id
   const sessionSamples = enrollment.presentations.filter(
@@ -36,6 +44,7 @@ export function RankingStep({
   )
   const [places, setPlaces] = useState<Record<string, string>>({})
   const [checked, setChecked] = useState(!sessionId)
+  const [rankedAt, setRankedAt] = useState('')
   const samples = rankableSamples(sessionSamples)
 
   useEffect(() => {
@@ -78,9 +87,15 @@ export function RankingStep({
   const problem = rankError(positions)
 
   async function submit(status: 'completed' | 'skipped' | 'unable_to_assess') {
+    const paperTime = transcription ? toInstant(rankedAt) : null
+    if (transcription && !paperTime) {
+      task.setError('Enter the time the ranking was written on the sheet.')
+      return
+    }
     await api.post(`/calibration/sessions/${sessionId}/rankings`, {
       stage: 'BLOTTER',
       response_status: status,
+      ...(paperTime ? { ranked_at: paperTime } : {}),
       ...(status === 'completed'
         ? {
             entries: samples.map((sample, index) => ({
@@ -99,6 +114,16 @@ export function RankingStep({
         Rank the samples you could smell, 1 for the one you liked most. Samples can share a place:
         give both 1, and the next sample is 3.
       </p>
+      {transcription && (
+        <label>
+          Time the ranking was written on the sheet
+          <input
+            type="datetime-local"
+            value={rankedAt}
+            onChange={(event) => setRankedAt(event.target.value)}
+          />
+        </label>
+      )}
       <form
         onSubmit={(event) => {
           event.preventDefault()

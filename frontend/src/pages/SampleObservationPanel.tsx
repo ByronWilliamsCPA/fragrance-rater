@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Enrollment, Sample } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -19,7 +19,14 @@ import {
   type ScaleGroup,
 } from '../content/calibrationScales'
 import { submissionFor, type PendingSubmission } from '../content/submissionKey'
+import {
+  blindCodeMatches,
+  isExposureAlreadyRecorded,
+  paperTimeProblem,
+  toInstant,
+} from '../content/transcription'
 import type { useTask } from '../hooks/useTask'
+import { PaperSheetFields } from './PaperSheetFields'
 
 /**
  * Renders one group of scales under a shared heading.
@@ -99,6 +106,14 @@ export type SampleObservationPanelProps = {
    * time. Manual browsing keeps it.
    */
   allowSkinPlanning?: boolean
+  /**
+   * True in the facilitated format, where a facilitator types an evaluator's
+   * paper sheet in afterwards. A blotter column then asks for the blind code
+   * printed on the sheet and the sheet's own times, and refuses to save when
+   * the code is not this sample's. Skin tests and post-reveal notes keep the
+   * ordinary form.
+   */
+  transcription?: boolean
 }
 
 export function SampleObservationPanel({
@@ -112,20 +127,93 @@ export function SampleObservationPanel({
   refresh,
   stageFixed = false,
   allowSkinPlanning = true,
+  transcription = false,
 }: SampleObservationPanelProps) {
   // The submission a failed save left behind, so pressing Save again on the
   // same answers retries it under the same idempotency key (D-22).
   const pending = useRef<PendingSubmission | null>(null)
+  // The spray time last typed for each sample, so the next column of the same
+  // sample starts from it (the paper writes it once per sample).
+  const [sprayMemory, setSprayMemory] = useState<Record<string, string>>({})
+  // Bumped after each saved column so the paper fields start empty again.
+  const [saved, setSaved] = useState(0)
+  const paper = transcription && stage === 'BLOTTER' && !sample.post_reveal_entry
+
+  /**
+   * Checks the paper fields and stamps the first smell, returning what the
+   * observation must add; null (with the reason shown) when the column must
+   * not be saved.
+   *
+   * #CRITICAL: Data Integrity: observations are append-only and lock, so a
+   * column keyed to the wrong sample cannot be undone.
+   * #VERIFY: the typed blind code must match before anything is sent, and the
+   * server refuses a mismatch again (409) on both the exposure and the
+   * observation.
+   */
+  async function confirmPaperColumn(values: Record<string, FormDataEntryValue>) {
+    const entered = String(values.confirmed_blind_code ?? '')
+    if (!blindCodeMatches(entered, sample.blind_code)) {
+      task.setError(
+        'The blind code you typed does not match this sample. Check you have the right sheet and the right evaluator, then try again.'
+      )
+      return null
+    }
+    const sprayed = String(values.sprayed_at ?? '')
+    const smelled = String(values.first_smelled_at ?? '')
+    const finished = String(values.observed_at ?? '')
+    const unrecorded = !sample.presented_at
+    const problem = paperTimeProblem({
+      sprayed,
+      smelled,
+      finished,
+      firstSmellStillToRecord: unrecorded,
+    })
+    if (problem) {
+      task.setError(problem)
+      return null
+    }
+    setSprayMemory((previous) => ({ ...previous, [sample.id]: sprayed }))
+    const confirmed = entered.trim()
+    const sprayedAt = toInstant(sprayed)
+    if (unrecorded) {
+      try {
+        await api.post(`/calibration/presentations/${sample.id}/exposure`, {
+          stage: 'BLOTTER',
+          at: toInstant(smelled),
+          sprayed_at: sprayedAt,
+          confirmed_blind_code: confirmed,
+        })
+      } catch (reason) {
+        // A first save that stamped the exposure but failed afterwards leaves
+        // this screen stale; stamping again is refused, and that is fine.
+        if (!isExposureAlreadyRecorded(reason)) throw reason
+      }
+    }
+    return {
+      observed_at: toInstant(finished),
+      sprayed_at: sprayedAt,
+      confirmed_blind_code: confirmed,
+    }
+  }
 
   async function save(form: HTMLFormElement) {
     const values = Object.fromEntries(new FormData(form))
+    const paperFields = paper ? await confirmPaperColumn(values) : undefined
+    if (paperFields === null) return
     const data: Record<string, unknown> = {
       stage,
-      elapsed_minutes: Number(values.elapsed_minutes || 0),
       detected: detected === '' ? null : detected === 'yes',
+    }
+    if (paperFields) {
+      // The server works elapsed minutes out from the spray and finish times.
+      Object.assign(data, paperFields)
+    } else {
+      data.elapsed_minutes = Number(values.elapsed_minutes || 0)
       // A recorder transcribing a paper sheet names the real time of the
       // observation; otherwise the client clock at the first attempt is used.
-      observed_at: values.observed_at ? new Date(String(values.observed_at)).toISOString() : null,
+      data.observed_at = values.observed_at
+        ? new Date(String(values.observed_at)).toISOString()
+        : null
     }
     const reason = String(values.unanswered_reason || '')
     if (reason) data.response_status = reason
@@ -163,6 +251,7 @@ export function SampleObservationPanel({
     pending.current = null
     form.reset()
     setDetected('')
+    setSaved((count) => count + 1)
     await refresh()
     task.setNotice('Observation saved. Original responses are retained.')
   }
@@ -234,7 +323,7 @@ export function SampleObservationPanel({
         </form>
       )}
       <form
-        key={`${sample.id}-${stage}`}
+        key={`${sample.id}-${stage}-${saved}`}
         onSubmit={(event) => {
           event.preventDefault()
           const form = event.currentTarget
@@ -251,8 +340,11 @@ export function SampleObservationPanel({
           <legend>
             {sample.post_reveal_entry ? 'Post-reveal observation' : 'Blind observation'}
           </legend>
+          {paper && (
+            <PaperSheetFields sample={sample} defaultSprayed={sprayMemory[sample.id] ?? ''} />
+          )}
           <div className="fields fields-compact">
-            {stage === 'SKIN' ? (
+            {paper ? null : stage === 'SKIN' ? (
               <label>
                 Timepoint
                 <select name="elapsed_minutes" defaultValue="10">
@@ -371,10 +463,12 @@ export function SampleObservationPanel({
               <textarea name={note.name} rows={2} />
             </label>
           ))}
-          <label>
-            Time of this observation (leave blank to use now)
-            <input name="observed_at" type="datetime-local" />
-          </label>
+          {!paper && (
+            <label>
+              Time of this observation (leave blank to use now)
+              <input name="observed_at" type="datetime-local" />
+            </label>
+          )}
           <button>Save observation</button>
         </fieldset>
       </form>
