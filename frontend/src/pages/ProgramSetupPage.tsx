@@ -17,6 +17,8 @@ import { ConfirmAction } from '../components/ConfirmAction'
 import { EmptyState } from '../components/PageState'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { useTask } from '../hooks/useTask'
+import { revealBlockerLabel } from '../content/revealBlockers'
+import { ProgramReadinessPanel } from './ProgramReadinessPanel'
 
 type Props = {
   programs: Program[]
@@ -37,12 +39,6 @@ const roles = [
 
 const INDEPENDENT_SHUFFLE = 'system-random-shuffle-v1'
 const SHARED_TRIPLES = 'shared-triples-latin-rotation-v1'
-
-const blockerText = {
-  BLOTTER: 'Blotter responses remain',
-  SKIN_PLAN: 'Skin plan is not finalized',
-  SKIN: 'Planned skin responses remain',
-}
 
 function percentage(value: number | null): string {
   return value === null ? 'No denominator yet' : `${Math.round(value * 100)}%`
@@ -690,16 +686,19 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
                     ? 'Identities revealed'
                     : item.reveal_eligible
                       ? 'Ready to reveal'
-                      : blockerText[item.reveal_blocker!]}
+                      : revealBlockerLabel(item.reveal_blocker)}
                 </span>
-                {!item.revealed && (
+                {/* A household program is revealed once, for everyone, from
+                    the checkpoints and reveal panel; the per-enrollment
+                    endpoint refuses it. */}
+                {!item.revealed && item.reveal_policy !== 'HOUSEHOLD' && (
                   <ConfirmAction
                     actionLabel="Reveal identities"
                     confirmLabel="Confirm reveal"
                     description={
                       item.reveal_eligible
                         ? 'Revealing ends blind collection for this enrollment.'
-                        : `Reveal unavailable: ${blockerText[item.reveal_blocker!]}.`
+                        : `Reveal unavailable: ${revealBlockerLabel(item.reveal_blocker)}.`
                     }
                     disabled={task.busy || !item.reveal_eligible}
                     onConfirm={() => void task.run(() => revealEnrollment(item.id))}
@@ -745,6 +744,10 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
             ))}
           </div>
         </div>
+      )}
+
+      {programId && selectedProgram && (
+        <ProgramReadinessPanel key={programId} program={selectedProgram} reload={reload} />
       )}
 
       <div className="manager-grid">

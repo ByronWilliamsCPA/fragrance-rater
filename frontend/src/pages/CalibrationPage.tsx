@@ -7,6 +7,8 @@ import { EmptyState } from '../components/PageState'
 import { useTask } from '../hooks/useTask'
 import { followRouteLink, pathFor, type AssignmentId, type Navigate } from '../routing/routes'
 import { calibrationEntryFor } from '../routing/calibrationEntry'
+import { isOpen } from '../routing/wizardSteps'
+import { revealGuidance } from '../content/revealBlockers'
 import { CalibrationChoiceScreen } from './CalibrationChoiceScreen'
 import { GuidedCalibrationFlow } from './GuidedCalibrationFlow'
 import { SampleObservationPanel } from './SampleObservationPanel'
@@ -61,18 +63,17 @@ export function CalibrationPage({
   const task = useTask()
   const [manualBrowse, setManualBrowse] = useState(false)
   const [revealedHere, setRevealedHere] = useState('')
+  // The enrollment a recorder switched the wizard to. One facilitator can
+  // transcribe for a whole household, and the entry routing alone would always
+  // reopen the same in-progress enrollment.
+  const [switchedTo, setSwitchedTo] = useState('')
   const entry = calibrationEntryFor(assignments)
   const sample = enrollment?.presentations.find((presentation) => presentation.id === selected)
+  const householdReveal = enrollment?.reveal_policy === 'HOUSEHOLD'
   function enrollmentGuidance() {
     if (!enrollment) return ''
     if (enrollment.revealed) return 'Identities are revealed. You may add post-reveal observations.'
-    if (enrollment.reveal_blocker === 'SKIN_PLAN')
-      return 'All blotter screens are locked. Review and finalize the skin-test plan.'
-    if (enrollment.reveal_blocker === 'BLOTTER')
-      return 'Required blind blotter screens still need to be locked.'
-    if (enrollment.reveal_blocker === 'SKIN')
-      return 'Planned blind skin tests still need to be locked.'
-    return 'All required blind work is locked. The enrollment is eligible to reveal.'
+    return revealGuidance(enrollment.reveal_blocker, enrollment.reveal_policy)
   }
 
   const refresh = useCallback(async (id = requestedAssignment.current) => {
@@ -131,17 +132,32 @@ export function CalibrationPage({
   // entry routing move on (nothing is left to resume), and without this the
   // revealed identities would vanish from the screen as soon as the app data
   // reloaded. They stay until the person chooses to browse or leaves the page.
-  const guidedEnrollmentId =
+  const routedEnrollmentId =
     entry.kind === 'resume' || entry.kind === 'guided' ? entry.enrollmentId : revealedHere
+  const guidedEnrollmentId = assignments.some((assignment) => assignment.id === switchedTo)
+    ? switchedTo
+    : routedEnrollmentId
   if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && guidedEnrollmentId) {
     return (
       <GuidedCalibrationFlow
+        // A fresh wizard per enrollment: its per-visit session progress must
+        // never carry over to another evaluator.
+        key={guidedEnrollmentId}
         enrollmentId={guidedEnrollmentId}
         onExitToManualBrowse={() => setManualBrowse(true)}
         onRevealed={async () => {
           setRevealedHere(guidedEnrollmentId)
           await reloadAppData()
         }}
+        switchOptions={assignments.map((assignment) => ({
+          id: assignment.id,
+          label: `${
+            reviewers.find((reviewer) => reviewer.id === assignment.reviewer_id)?.name ||
+            assignment.reviewer_id
+          } · ${assignment.program_name}`,
+        }))}
+        onSwitchEnrollment={setSwitchedTo}
+        isManager={access.manager}
       />
     )
   }
@@ -243,6 +259,9 @@ export function CalibrationPage({
                       className="sample"
                       key={presentation.id}
                       aria-pressed={selected === presentation.id}
+                      // A sample the server holds closed is listed but not
+                      // offered: every write to it would be refused.
+                      disabled={!isOpen(presentation)}
                       onClick={() => {
                         setSelected(presentation.id)
                         setStage('BLOTTER')
@@ -250,7 +269,13 @@ export function CalibrationPage({
                       }}
                     >
                       {presentation.blind_code}
-                      <small>{presentation.blotter_locked ? 'Locked' : 'Open'}</small>
+                      <small>
+                        {!isOpen(presentation)
+                          ? 'Not open yet'
+                          : presentation.blotter_locked
+                            ? 'Locked'
+                            : 'Open'}
+                      </small>
                     </button>
                   ))}
               </div>
@@ -267,11 +292,16 @@ export function CalibrationPage({
                 })
               }
             />
+            {householdReveal && !enrollment.revealed && (
+              <p>This program reveals every evaluator together; a manager reveals it from Program setup.</p>
+            )}
             <ConfirmAction
               actionLabel="Reveal completed baseline"
               confirmLabel="Confirm reveal"
               description="Reveal makes fragrance identities visible for this enrollment. Confirm that all required blind responses are locked."
-              disabled={task.busy || enrollment.revealed || !enrollment.reveal_eligible}
+              disabled={
+                task.busy || enrollment.revealed || !enrollment.reveal_eligible || householdReveal
+              }
               onConfirm={() =>
                 void task.run(async () => {
                   await api.post(`/calibration/enrollments/${enrollment.id}/reveal`)

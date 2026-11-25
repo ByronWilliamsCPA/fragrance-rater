@@ -207,6 +207,73 @@ describe('RankingStep', () => {
     expect(onDone).toHaveBeenCalled()
     expect(post).not.toHaveBeenCalled()
   })
+
+  it('ranks the named session only: other sessions and closed samples do not block it', async () => {
+    const inSession = (id: string, position: number) => ({
+      ...detected(id, position),
+      session_id: 'sess2',
+    })
+    const unanswered = { ...detected('later', 1), session_id: 'sess3', observations: [] }
+    const closedFinal = {
+      ...detected('final', 1),
+      session_id: 'sess4',
+      blotter_locked: false,
+      observations: [],
+      available: false,
+    }
+    const onDone = vi.fn()
+    render(
+      <RankingStep
+        enrollment={enrollmentOf([
+          detected('a', 1),
+          inSession('x', 1),
+          inSession('y', 2),
+          unanswered,
+          closedFinal,
+        ])}
+        sessionId="sess2"
+        task={task}
+        onDone={onDone}
+      />
+    )
+
+    const selects = await screen.findAllByRole('combobox')
+    expect(selects).toHaveLength(2)
+    expect(get).toHaveBeenCalledWith('/calibration/sessions/sess2/rankings')
+    expect(screen.queryByText(/needs a response/)).not.toBeInTheDocument()
+    fireEvent.change(selects[0], { target: { value: '2' } })
+    fireEvent.change(selects[1], { target: { value: '1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save ranking' }))
+
+    await waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(post).toHaveBeenCalledWith('/calibration/sessions/sess2/rankings', {
+      stage: 'BLOTTER',
+      response_status: 'completed',
+      entries: [
+        { presentation_id: 'x', rank_position: 2 },
+        { presentation_id: 'y', rank_position: 1 },
+      ],
+    })
+  })
+
+  it('still blocks the named session when one of its own samples has no response', async () => {
+    const blank = { ...detected('y', 2), session_id: 'sess2', observations: [] }
+    render(
+      <RankingStep
+        enrollment={enrollmentOf([
+          detected('a', 1),
+          { ...detected('x', 1), session_id: 'sess2' },
+          blank,
+        ])}
+        sessionId="sess2"
+        task={task}
+        onDone={vi.fn()}
+      />
+    )
+
+    expect(await screen.findByText(/needs a response/)).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+  })
 })
 
 describe('FlagProblem', () => {
@@ -237,6 +304,25 @@ describe('FlagProblem', () => {
         explanation: 'Cooking',
       })
     )
+  })
+
+  it('flags the named session and lists only its samples', async () => {
+    render(
+      <FlagProblem
+        enrollment={enrollmentOf([detected('a', 1), { ...detected('b', 1), session_id: 'sess2' }])}
+        sessionId="sess2"
+        task={task}
+      />
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Flag a problem' }))
+    const target = screen.getByLabelText('What is it about?')
+    expect(target).toHaveTextContent('code C1')
+    expect(target.querySelectorAll('option')).toHaveLength(2)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => expect(post).toHaveBeenCalled())
+    expect(post.mock.calls[0][1]).toMatchObject({ target_type: 'session', target_id: 'sess2' })
   })
 
   it('can flag one sample instead of the whole session', async () => {

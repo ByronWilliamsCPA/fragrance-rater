@@ -12,20 +12,31 @@ type RankEvent = { response_status: string }
  * Ties are allowed (1, 1, 3). Ranking is never required: the evaluator can say
  * they would rather not or could not, and each of those is recorded as such.
  * It happens before reveal, so it is a blind judgment.
+ *
+ * Scoped to ONE session: the server ranks a session at a time and refuses any
+ * set other than that session's detected samples (capture_service), so the
+ * samples of other sessions, including ones still closed, neither appear here
+ * nor hold the ranking back.
  */
 export function RankingStep({
   enrollment,
+  sessionId: requestedSessionId,
   task,
   onDone,
 }: {
   enrollment: Enrollment
+  /** The session to rank; defaults to the enrollment's first session. */
+  sessionId?: string
   task: ReturnType<typeof useTask>
   onDone: () => void
 }) {
-  const sessionId = enrollment.presentations[0]?.session_id
+  const sessionId = requestedSessionId ?? enrollment.presentations[0]?.session_id
+  const sessionSamples = enrollment.presentations.filter(
+    (sample) => sample.session_id === sessionId
+  )
   const [places, setPlaces] = useState<Record<string, string>>({})
   const [checked, setChecked] = useState(!sessionId)
-  const samples = rankableSamples(enrollment.presentations)
+  const samples = rankableSamples(sessionSamples)
 
   useEffect(() => {
     if (!sessionId) return
@@ -35,16 +46,18 @@ export function RankingStep({
       if (last && last.response_status !== 'invalidated') onDone()
       setChecked(true)
     })
-    // Read once per enrollment.
+    // Read once per enrollment and session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enrollment.id])
+  }, [enrollment.id, sessionId])
 
   if (!checked) return null
 
-  if (!allAssessed(enrollment.presentations)) {
+  if (!allAssessed(sessionSamples)) {
     return (
       <>
-        <p className="notice">Every sample needs a response before it can be ranked.</p>
+        <p className="notice">
+          Every sample in this session needs a response before it can be ranked.
+        </p>
         <button className="secondary" onClick={onDone}>
           Continue without ranking
         </button>

@@ -51,14 +51,20 @@ function ChoiceSelect({
  */
 export function SessionIntroStep({
   enrollment,
+  sessionId: requestedSessionId,
   task,
   onDone,
 }: {
   enrollment: Enrollment
+  /**
+   * The session being opened. Start and conditions belong to THAT session;
+   * defaulting to the first session is only for callers with one session.
+   */
+  sessionId?: string
   task: ReturnType<typeof useTask>
   onDone: () => void
 }) {
-  const sessionId = enrollment.presentations[0]?.session_id
+  const sessionId = requestedSessionId ?? enrollment.presentations[0]?.session_id
   const [text, setText] = useState<ConsentText | null>(null)
   const [consent, setConsent] = useState<string>('none')
   const [context, setContext] = useState<ContextRead | null>(null)
@@ -78,9 +84,9 @@ export function SessionIntroStep({
 
   useEffect(() => {
     void task.run(load)
-    // Loaded once per enrollment.
+    // Loaded once per enrollment and session.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enrollment.id])
+  }, [enrollment.id, sessionId])
 
   async function record(eventType: 'granted' | 'withdrawn') {
     await api.post(`/calibration/reviewers/${enrollment.reviewer_id}/consent`, {

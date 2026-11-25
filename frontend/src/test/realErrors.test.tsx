@@ -92,11 +92,25 @@ const enrollment = {
   reveal_blocker: 'BLOTTER',
   skin_plan_locked: true,
   presentations: [
+    // A sample already answered and locked, so the session is under way and
+    // the wizard opens on the next sample rather than the session's opening
+    // screen.
+    {
+      id: 'samp0',
+      session_id: 'sess1',
+      blind_code: 'ABC-122',
+      position: 1,
+      skin_planned: false,
+      blotter_locked: true,
+      skin_locked: false,
+      post_reveal_entry: false,
+      observations: [{ id: 'o0', stage: 'BLOTTER', phase: 'PRE_REVEAL', elapsed_minutes: 0 }],
+    },
     {
       id: 'samp1',
       session_id: 'sess1',
       blind_code: 'ABC-123',
-      position: 1,
+      position: 2,
       skin_planned: false,
       blotter_locked: false,
       skin_locked: false,
@@ -169,7 +183,7 @@ describe('saving an observation through interruption and retry', () => {
     server.use(
       getJson('/calibration/enrollments/enr1', {
         ...enrollment,
-        presentations: [{ ...enrollment.presentations[0] }],
+        presentations: enrollment.presentations.map((item) => ({ ...item })),
       }),
       http.post(
         apiUrl('/calibration/presentations/samp1/lock/BLOTTER'),

@@ -98,6 +98,8 @@ describe('guided reveal', () => {
     render(<Harness />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Continue without ranking' }))
+    // The end of the last session waits for the facilitator before the reveal.
+    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Reveal completed baseline' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm reveal' }))
 
@@ -126,6 +128,8 @@ describe('guided reveal', () => {
     render(<Harness />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Continue without ranking' }))
+    // The end of the last session waits for the facilitator before the reveal.
+    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Reveal completed baseline' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm reveal' }))
     await screen.findByText(/Reveal complete\./)
