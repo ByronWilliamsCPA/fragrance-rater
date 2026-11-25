@@ -145,6 +145,9 @@ async def test_household_program_runs_from_checkpoint_to_one_reveal(test_app):
     assert readiness.json() == {
         "program_id": program_id,
         "reveal_policy": "HOUSEHOLD",
+        "blotter_mode": "INDIVIDUAL",
+        "holdouts_open_program_wide": False,
+        "enrollments_missing_checkpoint": [enrollment_id],
         "household_reveal_ready": False,
         "household_revealed": False,
         "enrollments": [
@@ -154,6 +157,8 @@ async def test_household_program_runs_from_checkpoint_to_one_reveal(test_app):
                 "reviewer_name": "Evaluator",
                 "checkpoint_count": 0,
                 "checkpoint_blocker": "SKIN_PLAN",
+                "missing_checkpoint": True,
+                "holdouts_open": False,
                 "reveal_blocker": "SKIN_PLAN",
                 "revealed": False,
             }

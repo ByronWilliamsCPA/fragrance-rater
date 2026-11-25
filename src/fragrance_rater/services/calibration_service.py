@@ -396,6 +396,13 @@ class CalibrationService:
         ):
             reject("The blotter mode is locked once an evaluator is enrolled")
         program.blotter_mode = mode
+        if mode == "SHARED_GROUP":
+            # #CRITICAL: security: one shared blind code per sample means one
+            # evaluator's own reveal unblinds it for all, so a group program
+            # reveals only as a household (DisclosureGate.effective_reveal_policy
+            # enforces the same at read time for rows that predate this).
+            # #VERIFY: test_setting_shared_group_forces_household_reveal.
+            program.reveal_policy = "HOUSEHOLD"
         await self.db.flush()
         return program
 
@@ -1078,7 +1085,14 @@ class CalibrationService:
             return replay, True
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
-        await DisclosureGate(self.db).require_open(enrollment, [member.role])
+        await DisclosureGate(self.db).require_open(
+            enrollment,
+            [member.role],
+            instants=[
+                ("The column-finished time", data.observed_at),
+                ("The spray time", data.sprayed_at),
+            ],
+        )
         identity_visible = post_reveal_entry(enrollment, member, obj)
         if post_reveal:
             if not identity_visible:
@@ -1374,7 +1388,14 @@ class CalibrationService:
         confirm_blind_code(obj, data.confirmed_blind_code)
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
-        await DisclosureGate(self.db).require_open(enrollment, [member.role])
+        await DisclosureGate(self.db).require_open(
+            enrollment,
+            [member.role],
+            instants=[
+                ("The first-smell time", data.at),
+                ("The spray time", data.sprayed_at),
+            ],
+        )
         if post_reveal_entry(enrollment, member, obj):
             reject("Blind collection ended at reveal")
         session = await self.db.get(CalibrationSession, obj.session_id)
@@ -1524,7 +1545,7 @@ class CalibrationService:
         }
         presentation_ids = {obj.id for obj in presentations}
         gate = DisclosureGate(self.db)
-        holdouts_open = await gate.checkpoint_count(enrollment.id) > 0
+        holdouts_open = await gate.holdouts_open(enrollment)
         observations_by_presentation: dict[str, list[Observation]] = {
             presentation_id: [] for presentation_id in presentation_ids
         }

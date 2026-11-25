@@ -210,6 +210,132 @@ async def test_a_first_smell_exactly_at_the_ceiling_is_not_flagged(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("gap_seconds", "flagged"),
+    [(120, False), (121, True), (180, True)],
+)
+async def test_the_two_minute_ceiling_boundary_is_judged_on_the_gap(
+    test_app: Any, world: dict[str, str], gap_seconds: int, flagged: bool
+) -> None:
+    """A 3-minute gap breaches; exactly 2 minutes does not (it would pass at 5)."""
+    now = datetime.now(UTC)
+    response = await test_app.post(
+        _exposure_url(world),
+        json={
+            "stage": "BLOTTER",
+            "sprayed_at": (now - timedelta(minutes=10)).isoformat(),
+            "at": (
+                now - timedelta(minutes=10) + timedelta(seconds=gap_seconds)
+            ).isoformat(),
+        },
+        headers=RECORDER,
+    )
+
+    assert response.status_code == 200
+    assert (response.json()["ceiling_flag_id"] is not None) is flagged
+    codes = [row["code"] for row in await _flags(test_app, world)]
+    assert codes == (["spray_to_smell_ceiling_exceeded"] if flagged else [])
+
+
+@pytest.mark.asyncio
+async def test_the_ceiling_flag_names_the_current_rule_version(
+    test_app: Any, world: dict[str, str]
+) -> None:
+    from sqlalchemy import select
+
+    from fragrance_rater.core.database import get_db
+    from fragrance_rater.main import app
+    from fragrance_rater.models.calibration import QualityFlag
+    from fragrance_rater.services.transcription_timing import CEILING_RULE_VERSION
+
+    assert CEILING_RULE_VERSION == "spray-to-smell-ceiling-v2"
+    await test_app.post(
+        _exposure_url(world),
+        json={"stage": "BLOTTER", "sprayed_at": _at(minutes=9), "at": _at(minutes=5)},
+        headers=RECORDER,
+    )
+
+    versions: list[str | None] = []
+    async for db in app.dependency_overrides[get_db]():
+        versions = list(
+            await db.scalars(
+                select(QualityFlag.rule_version).where(
+                    QualityFlag.code == "spray_to_smell_ceiling_exceeded"
+                )
+            )
+        )
+    assert versions == ["spray-to-smell-ceiling-v2"]
+
+
+async def _training_rows() -> set[str]:
+    from sqlalchemy import text
+
+    from fragrance_rater.core.database import get_db
+    from fragrance_rater.main import app
+
+    rows: set[str] = set()
+    async for db in app.dependency_overrides[get_db]():
+        rows = set(await db.scalars(text("SELECT row_id FROM v_training_rows")))
+    return rows
+
+
+@pytest.mark.asyncio
+async def test_a_ceiling_breach_withholds_training_until_the_flag_is_closed(
+    test_app: Any, world: dict[str, str]
+) -> None:
+    """Unlike group_shared_blotter, the ceiling flag is NOT informational."""
+    from fragrance_rater.services.group_blotter import INFORMATIONAL_FLAG_CODES
+    from fragrance_rater.services.transcription_timing import CEILING_FLAG_CODE
+
+    assert CEILING_FLAG_CODE == "spray_to_smell_ceiling_exceeded"
+    assert CEILING_FLAG_CODE not in INFORMATIONAL_FLAG_CODES
+    assert "group_shared_blotter" in INFORMATIONAL_FLAG_CODES
+
+    presentation_id = world["presentation_id"]
+    exposure = await test_app.post(
+        _exposure_url(world),
+        json={"stage": "BLOTTER", "sprayed_at": _at(minutes=9), "at": _at(minutes=5)},
+        headers=RECORDER,
+    )
+    flag_id = exposure.json()["ceiling_flag_id"]
+    assert flag_id is not None
+    observed = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/observations",
+        json={"stage": "BLOTTER", "detected": True, "liking": 6},
+        headers=RECORDER,
+    )
+    assert observed.status_code == 201, observed.text
+    row_id = observed.json()["id"]
+    locked = await test_app.post(
+        f"{PREFIX}/presentations/{presentation_id}/lock/BLOTTER", headers=RECORDER
+    )
+    assert locked.status_code == 200, locked.text
+
+    linkage = await test_app.get(
+        f"{PREFIX}/enrollments/{world['enrollment_id']}/linkage", headers=MANAGER
+    )
+    assert {r["training_eligibility"] for r in linkage.json()} == {"questionable"}
+    assert row_id not in await _training_rows()
+
+    closed = await test_app.post(
+        f"{PREFIX}/quality-flags",
+        json={
+            "action": "invalidated",
+            "source": "recorder",
+            "disposition": "include",
+            "supersedes_id": flag_id,
+        },
+        headers=RECORDER,
+    )
+    assert closed.status_code == 201, closed.text
+    linkage = await test_app.get(
+        f"{PREFIX}/enrollments/{world['enrollment_id']}/linkage", headers=MANAGER
+    )
+    assert {r["training_eligibility"] for r in linkage.json()} == {"eligible"}
+    assert row_id in await _training_rows()
+
+
+@pytest.mark.asyncio
 async def test_a_first_smell_before_the_spray_is_a_422(
     test_app: Any, world: dict[str, str]
 ) -> None:

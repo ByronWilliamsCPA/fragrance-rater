@@ -7,12 +7,16 @@ Three rules protect prospective evaluation (ADR-009) and blind collection
   session start, or ranking until a checkpoint exists for its enrollment.
   Checkpoint creation is refused once a holdout has been observed, so a holdout
   answered first would lose its prospective evaluation for good; the gate makes
-  that order impossible rather than merely discouraged.
+  that order impossible rather than merely discouraged. In a ``SHARED_GROUP``
+  program (one physical blotter for every evaluator) the gate is program-wide:
+  it opens only when EVERY enrollment has a checkpoint, and explicit evidence
+  times on a holdout cannot pre-date the checkpoint that opened it.
 * **Checkpoint readiness.** Which enrollments can be checkpointed now: blind
   baseline and repeat blotters locked, the skin plan finalized, planned
   non-holdout skin stages locked, and no holdout observed.
 * **Reveal policy.** ``ENROLLMENT`` programs keep the per-evaluator reveal they
-  always had. ``HOUSEHOLD`` programs reveal every enrollment together, by a
+  always had, except that a ``SHARED_GROUP`` program always behaves as
+  ``HOUSEHOLD``. ``HOUSEHOLD`` programs reveal every enrollment together, by a
   manager, once every enrollment has finished all blind work (checkpoint and
   holdouts included), because evaluators who share samples share what a reveal
   tells them.
@@ -42,12 +46,14 @@ from fragrance_rater.services.llm_service import get_llm_service
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from datetime import datetime
 
     from sqlalchemy.ext.asyncio import AsyncSession
 
 HOUSEHOLD = "HOUSEHOLD"
 ENROLLMENT = "ENROLLMENT"
+SHARED_GROUP = "SHARED_GROUP"
 _HOLDOUT_ROLE = "HOLDOUT"
 
 # reveal_blocker values. The first three predate F1 and keep their meaning;
@@ -72,6 +78,46 @@ HOUSEHOLD_ONLY = (
     "This program reveals every evaluator together; a manager reveals it "
     "from the program"
 )
+# A SHARED_GROUP program passes one physical blotter per sample to every
+# evaluator, so the gate is program-wide: it opens only when every enrollment
+# has a checkpoint. Silent about the sample's role, like CHECKPOINT_REQUIRED.
+GROUP_CHECKPOINT_REQUIRED = (
+    "This sample is not open yet: it opens after the organizer freezes "
+    "a checkpoint for every evaluator in this group"
+)
+EVIDENCE_BEFORE_CHECKPOINT = (
+    "{label} is earlier than the checkpoint that opens this sample; "
+    "evidence for it cannot pre-date the checkpoint"
+)
+GROUP_ENROLLMENT_CLOSED = (
+    "This group's samples are already open; enroll in a new program"
+)
+GROUP_NEEDS_HOUSEHOLD_REVEAL = (
+    "A SHARED_GROUP program reveals every evaluator together; its reveal "
+    "policy cannot be ENROLLMENT"
+)
+
+
+def effective_reveal_policy(program: Program) -> str:
+    """Return the reveal policy a program actually behaves under.
+
+    # #CRITICAL: security: in a ``SHARED_GROUP`` program one blotter, with one
+    # blind code, goes to all evaluators, so one evaluator's own reveal would
+    # unblind the shared codes for everyone. ``SHARED_GROUP`` therefore always
+    # behaves as ``HOUSEHOLD``, even if a stored ``reveal_policy`` says
+    # ``ENROLLMENT`` (a row written before the coupling, or by direct SQL).
+    # #VERIFY: test_shared_group_with_stored_enrollment_policy_still_refuses_own_reveal
+    # in tests/unit/test_services/test_shared_group_safeguards.py.
+
+    Args:
+        program (Program): The program.
+
+    Returns:
+        str: ``HOUSEHOLD`` for ``SHARED_GROUP``, else the stored policy.
+    """
+    if program.blotter_mode == SHARED_GROUP:
+        return HOUSEHOLD
+    return program.reveal_policy
 
 
 def _refuse(message: str, status: int = 409) -> NoReturn:
@@ -210,30 +256,145 @@ class DisclosureGate:
             )
         )
 
-    async def require_open(self, enrollment: Enrollment, roles: list[str]) -> None:
-        """Refuse work on holdout samples before the enrollment's checkpoint.
+    async def program_of(self, enrollment: Enrollment) -> Program:
+        """Return the enrollment's program.
+
+        Args:
+            enrollment (Enrollment): The enrollment.
+
+        Returns:
+            Program: Its program.
+        """
+        program = await self.db.get(Program, enrollment.program_id)
+        if program is None:
+            _refuse("Program not found", 404)
+        return program
+
+    async def checkpoint_times(self, enrollment: Enrollment) -> list[datetime]:
+        """Return the creation times of the checkpoints that gate this enrollment.
+
+        ``SHARED_GROUP`` programs share one physical blotter per sample, so
+        every enrollment's checkpoints gate every enrollment; otherwise only
+        the enrollment's own do.
+
+        Args:
+            enrollment (Enrollment): The enrollment.
+
+        Returns:
+            list[datetime]: Naive-UTC creation times, in no particular order.
+        """
+        query = select(ModelCheckpoint.created_at)
+        if (await self.program_of(enrollment)).blotter_mode == SHARED_GROUP:
+            query = query.join(
+                Enrollment, ModelCheckpoint.enrollment_id == Enrollment.id
+            ).where(Enrollment.program_id == enrollment.program_id)
+        else:
+            query = query.where(ModelCheckpoint.enrollment_id == enrollment.id)
+        return list(await self.db.scalars(query))
+
+    async def missing_checkpoints(self, program_id: str) -> list[str]:
+        """Return the ids of a program's enrollments that have no checkpoint.
+
+        Args:
+            program_id (str): The program.
+
+        Returns:
+            list[str]: Enrollment ids in id order; empty when every enrollment
+                (or a program with none) is covered.
+        """
+        have = set(
+            await self.db.scalars(
+                select(ModelCheckpoint.enrollment_id)
+                .join(Enrollment, ModelCheckpoint.enrollment_id == Enrollment.id)
+                .where(Enrollment.program_id == program_id)
+            )
+        )
+        return [
+            e.id
+            for e in await self._program_enrollments(program_id)
+            if e.id not in have
+        ]
+
+    async def holdouts_open(self, enrollment: Enrollment) -> bool:
+        """Return whether holdout samples are open for this enrollment.
+
+        ``INDIVIDUAL`` programs: this enrollment has a checkpoint. A
+        ``SHARED_GROUP`` program: EVERY enrollment of the program has one,
+        because the one physical holdout blotter goes to all evaluators and
+        ``freeze_program_checkpoints`` may freeze only some of them.
+
+        Args:
+            enrollment (Enrollment): The enrollment.
+
+        Returns:
+            bool: Whether holdout work may proceed.
+        """
+        if (await self.program_of(enrollment)).blotter_mode != SHARED_GROUP:
+            return await self.checkpoint_count(enrollment.id) > 0
+        return not await self.missing_checkpoints(enrollment.program_id)
+
+    async def require_open(
+        self,
+        enrollment: Enrollment,
+        roles: list[str],
+        *,
+        instants: Sequence[tuple[str, datetime | None]] = (),
+    ) -> None:
+        """Refuse work on holdout samples before their checkpoint exists.
 
         # #CRITICAL: data-integrity: a holdout observed before a checkpoint
         # permanently closes prospective evaluation for that evaluator
         # (api/calibration.py refuses the checkpoint once any holdout has a
         # response, ADR-009). The UI's step order is not a control: this gate
-        # is, and it applies to every caller, manager included.
+        # is, and it applies to every caller, manager included. In a
+        # ``SHARED_GROUP`` program it is program-wide (every enrollment needs
+        # a checkpoint), since one blotter serves all evaluators.
         # #ASSUME: concurrency: the caller holds the enrollment row lock
         # (CalibrationService.enrollment uses FOR UPDATE), and checkpoint
         # creation takes the same lock, so a checkpoint cannot appear or a
         # holdout observation slip in between this check and the write.
         # #VERIFY: tests/unit/test_services/test_disclosure_gate.py covers
         # exposure, observation, lock, session start, and ranking refusals and
-        # their opening once a checkpoint exists.
+        # their opening once a checkpoint exists;
+        # tests/unit/test_services/test_shared_group_safeguards.py covers the
+        # program-wide rule.
+
+        # #CRITICAL: Timing Dependencies: a paper sheet is transcribed up to
+        # ``TRANSCRIPTION_WINDOW`` late, so a holdout smelled on paper BEFORE
+        # the checkpoint was frozen and entered AFTER it passes the state
+        # check above yet is not prospective. Any explicit evidence instant
+        # on a holdout earlier than the latest gating checkpoint is refused
+        # (422). Without an explicit instant the server stamps receipt time,
+        # which is necessarily later than the checkpoint because the state
+        # check above already required it to exist, so nothing more is checked.
+        # #VERIFY: test_holdout_evidence_before_the_checkpoint_is_refused_*
+        # in tests/unit/test_services/test_shared_group_safeguards.py and
+        # test_holdout_instant_before_checkpoint_is_a_422 in
+        # tests/unit/test_api/test_shared_group_safeguards_routes.py.
 
         Args:
             enrollment (Enrollment): The locked enrollment.
             roles (list[str]): Membership roles of the samples the write touches.
+            instants (Sequence[tuple[str, datetime | None]]): Explicit evidence
+                times the caller supplied, as ``(label, instant)``; ``None``
+                instants are skipped.
         """
         if _HOLDOUT_ROLE not in roles:
             return
-        if await self.checkpoint_count(enrollment.id) == 0:
-            _refuse(CHECKPOINT_REQUIRED)
+        program = await self.program_of(enrollment)
+        if not await self.holdouts_open(enrollment):
+            _refuse(
+                GROUP_CHECKPOINT_REQUIRED
+                if program.blotter_mode == SHARED_GROUP
+                else CHECKPOINT_REQUIRED
+            )
+        supplied = [(label, at) for label, at in instants if at is not None]
+        if not supplied:
+            return
+        opened_at = max(await self.checkpoint_times(enrollment))
+        for label, at in supplied:
+            if at < opened_at:
+                _refuse(EVIDENCE_BEFORE_CHECKPOINT.format(label=label), 422)
 
     async def session_roles(self, session_id: str) -> list[str]:
         """Return the membership roles of every sample in a session.
@@ -307,12 +468,13 @@ class DisclosureGate:
             program_id (str): The program.
 
         Returns:
-            str: ``ENROLLMENT`` or ``HOUSEHOLD``.
+            str: ``ENROLLMENT`` or ``HOUSEHOLD`` (``SHARED_GROUP`` is always
+                ``HOUSEHOLD``, see ``effective_reveal_policy``).
         """
         program = await self.db.get(Program, program_id)
         if program is None:
             _refuse("Program not found", 404)
-        return program.reveal_policy
+        return effective_reveal_policy(program)
 
     async def _program_enrollments(
         self, program_id: str, *, lock: bool = False
@@ -422,8 +584,23 @@ class DisclosureGate:
         await self.db.execute(
             select(Program.id).where(Program.id == program_id).with_for_update()
         )
-        if any(e.revealed_at for e in await self._program_enrollments(program_id)):
+        enrollments = await self._program_enrollments(program_id)
+        if any(e.revealed_at for e in enrollments):
             _refuse("This household is already revealed; enroll in a new program")
+        # #CRITICAL: data-integrity: in a SHARED_GROUP program holdouts open
+        # only when every enrollment has a checkpoint, so an evaluator added
+        # after that point would silently close them again for evaluators who
+        # may already have answered. Refused under the program lock above, so
+        # it cannot interleave with the last checkpoint committing.
+        # #VERIFY: test_a_shared_group_refuses_enrollment_once_holdouts_open.
+        program = await self.db.get(Program, program_id)
+        if (
+            program is not None
+            and program.blotter_mode == SHARED_GROUP
+            and enrollments
+            and not await self.missing_checkpoints(program_id)
+        ):
+            _refuse(GROUP_ENROLLMENT_CLOSED)
 
     async def reveal_household(
         self, program_id: str, username: str
@@ -453,7 +630,7 @@ class DisclosureGate:
         )
         if program is None:
             _refuse("Program not found", 404)
-        if program.reveal_policy != HOUSEHOLD:
+        if effective_reveal_policy(program) != HOUSEHOLD:
             _refuse("This program reveals each evaluator separately")
         enrollments = await self._program_enrollments(program_id, lock=True)
         if not enrollments:

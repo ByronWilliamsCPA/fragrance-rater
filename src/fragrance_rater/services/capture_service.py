@@ -120,7 +120,9 @@ class CaptureService:
             )
         }
         await DisclosureGate(self.db).require_open(
-            enrollment, [members[p.membership_id].role for p in presentations]
+            enrollment,
+            [members[p.membership_id].role for p in presentations],
+            instants=[("The ranking time", data.ranked_at)],
         )
         latest = await self._latest_by_presentation(
             [p.id for p in presentations], data.stage

@@ -86,6 +86,23 @@ class ProgramInput(StrictInput):
     reveal_policy: RevealPolicy = "ENROLLMENT"
     blotter_mode: BlotterMode = "INDIVIDUAL"
 
+    @model_validator(mode="after")
+    def group_blotters_reveal_as_a_household(self) -> Self:
+        """Couple ``SHARED_GROUP`` to the household reveal.
+
+        One shared blind code per sample means one evaluator's own reveal would
+        unblind it for the rest. An unspecified policy becomes ``HOUSEHOLD``;
+        an explicit ``ENROLLMENT`` is refused.
+        """
+        if self.blotter_mode != "SHARED_GROUP":
+            return self
+        if "reveal_policy" not in self.model_fields_set:
+            self.reveal_policy = "HOUSEHOLD"
+        elif self.reveal_policy != "HOUSEHOLD":
+            msg = "A SHARED_GROUP program reveals every evaluator together"
+            raise ValueError(msg)
+        return self
+
 
 class BlotterModeInput(StrictInput):
     """Change how blotters reach evaluators while the program has no enrollment."""

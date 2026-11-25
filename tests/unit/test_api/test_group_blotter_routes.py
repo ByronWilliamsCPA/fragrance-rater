@@ -582,3 +582,211 @@ async def test_an_individual_export_is_not_marked(test_app: Any) -> None:
     )
     assert response.status_code == 200, response.text
     assert response.json()["enrollment"]["group_shared_blotter"] is False
+
+
+# --- shared-group safeguards: reveal coupling, program-wide holdout gate ----
+
+
+async def _insert_checkpoint(enrollment_id: str, *, minutes_ago: float) -> None:
+    """Freeze a checkpoint row directly, creation-dated ``minutes_ago`` in the past."""
+    from fragrance_rater.models.calibration import ModelCheckpoint
+    from fragrance_rater.utils.timestamps import now_naive_utc
+
+    async for db in app.dependency_overrides[get_db]():
+        db.add(
+            ModelCheckpoint(
+                enrollment_id=enrollment_id,
+                algorithm_version="test",
+                manifest=[],
+                predictions=[],
+                created_at=now_naive_utc() - timedelta(minutes=minutes_ago),
+            )
+        )
+
+
+def _closed_sample(view: dict[str, Any]) -> dict[str, Any]:
+    """The one sample the holdout gate holds closed (``available`` false)."""
+    (sample,) = (p for p in view["presentations"] if p["available"] is False)
+    return sample
+
+
+async def _view(client: Any, enrollment_id: str) -> dict[str, Any]:
+    response = await client.get(
+        f"{PREFIX}/enrollments/{enrollment_id}", headers=RECORDER
+    )
+    assert response.status_code == 200, response.text
+    return dict(response.json())
+
+
+@pytest.mark.asyncio
+async def test_creating_a_group_program_defaults_to_household_reveal(
+    test_app: Any,
+) -> None:
+    program_id, _ = await _build_program(test_app, "SHARED_GROUP")
+    listing = await test_app.get(f"{PREFIX}/programs", headers=MANAGER)
+    assert {r["id"]: r["reveal_policy"] for r in listing.json()}[program_id] == (
+        "HOUSEHOLD"
+    )
+    refused = await test_app.post(
+        f"{PREFIX}/programs",
+        json={
+            "name": "Bad",
+            "version": "1",
+            "blotter_mode": "SHARED_GROUP",
+            "reveal_policy": "ENROLLMENT",
+        },
+        headers=MANAGER,
+    )
+    assert refused.status_code == 422
+    assert "every evaluator together" in refused.text
+
+
+@pytest.mark.asyncio
+async def test_choosing_shared_group_sets_household_and_enrollment_is_refused(
+    test_app: Any,
+) -> None:
+    program = await _post(
+        test_app,
+        f"{PREFIX}/programs",
+        {"name": "Switch", "version": "1", "reveal_policy": "ENROLLMENT"},
+    )
+    program_id = program["id"]
+    await test_app.put(
+        f"{PREFIX}/programs/{program_id}/blotter-mode",
+        json={"blotter_mode": "SHARED_GROUP"},
+        headers=MANAGER,
+    )
+    listing = await test_app.get(f"{PREFIX}/programs", headers=MANAGER)
+    assert {r["id"]: r["reveal_policy"] for r in listing.json()}[program_id] == (
+        "HOUSEHOLD"
+    )
+
+    url = f"{PREFIX}/programs/{program_id}/reveal-policy"
+    refused = await test_app.put(
+        url, json={"reveal_policy": "ENROLLMENT"}, headers=MANAGER
+    )
+    assert refused.status_code == 409
+    assert "SHARED_GROUP" in refused.json()["detail"]
+    allowed = await test_app.put(
+        url, json={"reveal_policy": "HOUSEHOLD"}, headers=MANAGER
+    )
+    assert allowed.status_code == 200
+    assert allowed.json() == {"id": program_id, "reveal_policy": "HOUSEHOLD"}
+    # An individual program may still choose the per-evaluator reveal.
+    plain = await _post(
+        test_app, f"{PREFIX}/programs", {"name": "Plain", "version": "1"}
+    )
+    ok = await test_app.put(
+        f"{PREFIX}/programs/{plain['id']}/reveal-policy",
+        json={"reveal_policy": "ENROLLMENT"},
+        headers=MANAGER,
+    )
+    assert ok.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_a_group_evaluator_cannot_reveal_on_their_own(
+    test_app: Any, group: dict[str, Any]
+) -> None:
+    enrollment_id = group["views"][0]["enrollment_id"]
+    for headers in (RECORDER, MANAGER):
+        response = await test_app.post(
+            f"{PREFIX}/enrollments/{enrollment_id}/reveal", headers=headers
+        )
+        assert response.status_code == 409
+        assert "together" in response.json()["detail"]
+    manager_rows = await test_app.get(f"{PREFIX}/manager/enrollments", headers=MANAGER)
+    assert {r["reveal_policy"] for r in manager_rows.json()} == {"HOUSEHOLD"}
+
+
+@pytest.mark.asyncio
+async def test_holdout_stays_closed_for_everyone_until_every_checkpoint_exists(
+    test_app: Any, group: dict[str, Any]
+) -> None:
+    first, second = (v["enrollment_id"] for v in group["views"])
+    await _insert_checkpoint(first, minutes_ago=60)
+
+    for enrollment_id in (first, second):
+        view = await _view(test_app, enrollment_id)
+        closed = _closed_sample(view)
+        refused = await test_app.post(
+            _exposure_url(closed), json={"stage": "BLOTTER"}, headers=RECORDER
+        )
+        assert refused.status_code == 409
+        assert "every evaluator in this group" in refused.json()["detail"]
+    readiness = await test_app.get(
+        f"{PREFIX}/programs/{group['program_id']}/readiness", headers=MANAGER
+    )
+    body = readiness.json()
+    assert body["blotter_mode"] == "SHARED_GROUP"
+    assert body["reveal_policy"] == "HOUSEHOLD"
+    assert body["enrollments_missing_checkpoint"] == [second]
+    assert body["holdouts_open_program_wide"] is False
+    rows = {r["enrollment_id"]: r for r in body["enrollments"]}
+    assert rows[first]["missing_checkpoint"] is False
+    assert rows[second]["missing_checkpoint"] is True
+    assert not rows[first]["holdouts_open"]
+    assert not rows[second]["holdouts_open"]
+    managed = await test_app.get(f"{PREFIX}/manager/enrollments", headers=MANAGER)
+    assert {r["holdouts_open"] for r in managed.json()} == {False}
+
+    await _insert_checkpoint(second, minutes_ago=50)
+
+    readiness = await test_app.get(
+        f"{PREFIX}/programs/{group['program_id']}/readiness", headers=MANAGER
+    )
+    assert readiness.json()["enrollments_missing_checkpoint"] == []
+    assert readiness.json()["holdouts_open_program_wide"] is True
+    for enrollment_id in (first, second):
+        view = await _view(test_app, enrollment_id)
+        assert all(p["available"] for p in view["presentations"])
+
+
+@pytest.mark.asyncio
+async def test_holdout_instant_before_checkpoint_is_a_422(
+    test_app: Any, group: dict[str, Any]
+) -> None:
+    """A holdout smelled on paper before the last checkpoint is not prospective."""
+    first, second = (v["enrollment_id"] for v in group["views"])
+    closed = _closed_sample(await _view(test_app, first))
+    await _insert_checkpoint(first, minutes_ago=120)
+    await _insert_checkpoint(second, minutes_ago=30)
+
+    before = await test_app.post(
+        _exposure_url(closed),
+        json={"stage": "BLOTTER", "at": _at(minutes=60)},
+        headers=RECORDER,
+    )
+    assert before.status_code == 422
+    assert "pre-date the checkpoint" in before.json()["detail"]
+    observation = await test_app.post(
+        f"{PREFIX}/presentations/{closed['id']}/observations",
+        json={
+            "stage": "BLOTTER",
+            "detected": True,
+            "liking": 5,
+            "observed_at": _at(minutes=60),
+        },
+        headers=RECORDER,
+    )
+    assert observation.status_code == 422
+    after = await test_app.post(
+        _exposure_url(closed),
+        json={"stage": "BLOTTER", "at": _at(minutes=5)},
+        headers=RECORDER,
+    )
+    assert after.status_code == 200, after.text
+
+
+@pytest.mark.asyncio
+async def test_a_group_refuses_a_new_evaluator_once_holdouts_open(
+    test_app: Any, group: dict[str, Any]
+) -> None:
+    late = await _post(test_app, "/api/v1/reviewers", {"name": "Late"})
+    for view in group["views"]:
+        await _insert_checkpoint(view["enrollment_id"], minutes_ago=30)
+
+    refused = await _enroll(test_app, group["program_id"], late["id"])
+
+    assert refused.status_code == 409
+    assert "already open" in refused.json()["detail"]
