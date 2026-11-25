@@ -30,6 +30,16 @@ work rather than a second catalog.
 - Holdout identities remain hidden until their own blotter stage is locked. Their ratings
   remain excluded from training across ordinary and controlled workflows. V1 intentionally
   has no release-to-training switch.
+- A holdout sample is closed until a checkpoint exists for its enrollment: the server refuses
+  its exposure, observations, stage locks, a session start, and a session ranking with a 409
+  that does not name the role, and the participant payload marks it `available: false`.
+  Programs without holdouts are unaffected.
+- A program's `reveal_policy` is `ENROLLMENT` (the default, per-evaluator reveal as above) or
+  `HOUSEHOLD`, chosen while the program is a draft. A `HOUSEHOLD` program refuses the
+  per-evaluator reveal; a manager reveals every enrollment together, atomically, once each one
+  has its baseline locked, its skin plan finalized, a checkpoint, and its holdout stages locked.
+  `reveal_blocker` then adds `CHECKPOINT`, `HOLDOUT`, and `HOUSEHOLD_WAIT` (this evaluator is
+  done, another is not). A revealed household takes no new enrollments.
 - Already revealed versions encountered in another program are marked PREVIOUSLY_REVEALED;
   they are not silently treated as naive training observations.
 
@@ -122,8 +132,12 @@ liking predictor or confidence estimate.
 
 Manager checkpoint endpoints store algorithm version, timestamp, exact input values and source
 feature snapshots, and supplied predictions. Prospective checkpoint creation closes once that
-enrollment has any holdout response. Results can be retrieved without reconstructing mutated
-source data. Automatic checkpoint scheduling, calibrated predictions, active learning, reliability
+enrollment has any holdout response; on a `HOUSEHOLD` program it also waits for the blind
+baseline (skin plan, blotters, planned skin stages). `GET /programs/{id}/readiness` reports each
+enrollment's `checkpoint_blocker` and `reveal_blocker`, and `POST /programs/{id}/checkpoints`
+freezes a checkpoint for every ready enrollment that has none, with one prospective prediction per
+program holdout from a registered model, in one transaction. Results can be retrieved without
+reconstructing mutated source data. Automatic checkpoint scheduling, calibrated predictions, active learning, reliability
 statistics and validation dashboards remain follow-up work. Selection metadata and generic groups
 are stored now, but no active-learning algorithm is claimed.
 

@@ -168,6 +168,9 @@ async def test_controlled_lifecycle_authorization_and_reveal(test_app):
             "reveal_eligible": False,
             "reveal_blocker": "SKIN_PLAN",
             "revealed": False,
+            "reveal_policy": "ENROLLMENT",
+            "checkpoint_count": 0,
+            "checkpoint_blocker": "SKIN_PLAN",
         }
     ]
     denied_overview = await test_app.get(
@@ -621,6 +624,11 @@ async def test_participant_facing_payloads_never_expose_membership_internals(tes
     assert view.status_code == 200
     presentation_ids = [item["id"] for item in view.json()["presentations"]]
     assert len(presentation_ids) == 3
+    # F1 holdout gate: the holdout opens only after a checkpoint is frozen.
+    checkpoint = await test_app.post(
+        f"{url}/checkpoints", json={"algorithm_version": "test"}, headers=MANAGER
+    )
+    assert checkpoint.status_code == 201
 
     for presentation_id in presentation_ids:
         presentation_url = f"{PREFIX}/presentations/{presentation_id}"

@@ -660,6 +660,12 @@ async def test_only_a_manager_decides_or_reads_linkage(
 async def test_the_linkage_names_role_and_repeat_per_observation(
     test_app: AsyncClient, world: dict[str, Any], captured: list[dict[str, Any]]
 ) -> None:
+    # F1 holdout gate: the holdout takes a response only after a checkpoint.
+    await _post(
+        test_app,
+        f"{PREFIX}/enrollments/{world['enrollment_id']}/checkpoints",
+        {"algorithm_version": "test"},
+    )
     rows = [await _observe(test_app, p) for p in world["presentation_ids"]]
 
     response = await test_app.get(

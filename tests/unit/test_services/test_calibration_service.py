@@ -26,6 +26,7 @@ from fragrance_rater.schemas.calibration import (
     ResponseInput,
 )
 from fragrance_rater.services.calibration_service import CalibrationService
+from fragrance_rater.services.checkpoint_service import CheckpointService
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 
@@ -947,6 +948,12 @@ async def test_holdout_remains_blind_after_baseline_reveal_until_own_lock(protoc
     await service.db.flush()
     await service.reveal(enrollment.id, "family-recorder", admin=False)
     target = next(row for row in presentations if row.membership_id == holdout.id)
+    # F1 holdout gate: the reveal alone does not open the holdout.
+    with pytest.raises(HTTPException, match="not open yet"):
+        await service.observe(
+            target.id, ResponseInput(stage="BLOTTER"), "family-recorder", admin=False
+        )
+    await CheckpointService(service.db).create(enrollment, "test", [], "manager")
     with pytest.raises(HTTPException, match="not been revealed"):
         await service.observe(
             target.id,

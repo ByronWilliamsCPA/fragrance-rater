@@ -31,8 +31,10 @@ from fragrance_rater.schemas.calibration import (
     EnrollmentInput,
     ExposureInput,
     MembershipInput,
+    ProgramCheckpointsInput,
     ProgramInput,
     ResponseInput,
+    RevealPolicyInput,
     SessionEndInput,
     SessionStartInput,
     SkinPlanInput,
@@ -44,8 +46,12 @@ from fragrance_rater.services.calibration_service import (
     activation_instrument_version,
     reject,
 )
-from fragrance_rater.services.checkpoint_service import CheckpointService
+from fragrance_rater.services.checkpoint_service import (
+    CheckpointService,
+    freeze_program_checkpoints,
+)
 from fragrance_rater.services.consent import ConsentService, load_consent_text
+from fragrance_rater.services.disclosure_gate import HOUSEHOLD, DisclosureGate
 from fragrance_rater.services.evaluation_service import EvaluationService
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
@@ -78,7 +84,13 @@ async def programs(db: DB, identity: Identity) -> list[dict[str, object]]:
             if username in e.recorder_usernames
         }
     return [
-        {"id": p.id, "name": p.name, "version": p.version, "status": p.status}
+        {
+            "id": p.id,
+            "name": p.name,
+            "version": p.version,
+            "status": p.status,
+            "reveal_policy": p.reveal_policy,
+        }
         for p in result
         if admin or p.id in allowed
     ]
@@ -100,6 +112,28 @@ async def create_program(
     db.add(obj)
     await db.flush()
     return {"id": obj.id}
+
+
+@router.put("/programs/{program_id}/reveal-policy")
+async def set_reveal_policy(
+    program_id: str, data: RevealPolicyInput, db: DB, identity: Identity
+) -> dict[str, str]:
+    """Choose per-evaluator or household reveal while the program is a draft."""
+    username = manager(identity)
+    obj = await CalibrationService(db).program(program_id)
+    if obj.status != "draft":
+        reject("Program definition is locked")
+    obj.reveal_policy = data.reveal_policy
+    await db.flush()
+    log_audit_event(
+        logger,
+        action="program_reveal_policy",
+        actor=username,
+        target_type="calibration_program",
+        target_id=program_id,
+        reveal_policy=data.reveal_policy,
+    )
+    return {"id": obj.id, "reveal_policy": obj.reveal_policy}
 
 
 @router.post("/programs/{program_id}/members", status_code=201)
@@ -277,6 +311,7 @@ async def enroll(
 ) -> dict[str, str]:
     """Assign and randomize the program for one shared reviewer."""
     username = manager(identity)
+    await DisclosureGate(db).require_enrollment_open(program_id)
     obj = await CalibrationService(db).enroll(program_id, data)
     log_audit_event(
         logger,
@@ -349,26 +384,19 @@ async def enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
 async def manager_enrollments(db: DB, identity: Identity) -> list[dict[str, object]]:
     """Summarize evaluator progress and reveal readiness for pilot operations."""
     manager(identity)
-    service = CalibrationService(db)
+    gate = DisclosureGate(db)
     result: list[dict[str, object]] = []
     for item in await db.scalars(select(Enrollment).order_by(Enrollment.id)):
         program = await db.get(Program, item.program_id)
         reviewer = await db.get(Reviewer, item.reviewer_id)
         assert program is not None
         assert reviewer is not None
-        presentations = await service.presentations(item.id)
-        members = {
-            member.id: member
-            for member in await db.scalars(
-                select(Membership).where(
-                    Membership.id.in_({p.membership_id for p in presentations})
-                )
-            )
-        }
+        state = await gate.state(item)
+        presentations = state.presentations
         blotter_complete = sum(p.blotter_locked_at is not None for p in presentations)
         skin_planned = [p for p in presentations if p.skin_reason is not None]
         skin_complete = sum(p.skin_locked_at is not None for p in skin_planned)
-        blocker = service.reveal_blocker(item, presentations, members)
+        blocker = await gate.reveal_blocker(item)
         result.append(
             {
                 "id": item.id,
@@ -383,6 +411,9 @@ async def manager_enrollments(db: DB, identity: Identity) -> list[dict[str, obje
                 "reveal_eligible": blocker is None,
                 "reveal_blocker": blocker,
                 "revealed": item.revealed_at is not None,
+                "reveal_policy": program.reveal_policy,
+                "checkpoint_count": state.checkpoint_count,
+                "checkpoint_blocker": state.checkpoint_blocker(),
             }
         )
     return sorted(
@@ -696,6 +727,8 @@ async def checkpoint(
     )
     if seen:
         reject("Holdout observations already exist; prospective checkpoint closed")
+    # HOUSEHOLD programs freeze only after the blind baseline is complete.
+    await DisclosureGate(db).require_checkpoint_ready(obj)
     # R8 (M-07, M-08, X-17): manifest and digest from v_training_rows, every
     # reproduction column, a feature snapshot, and typed predictions.
     run = await CheckpointService(db).create(
@@ -713,6 +746,116 @@ async def checkpoint(
         feature_snapshot_id=run.feature_snapshot_id,
     )
     return {"id": run.id}
+
+
+@router.get("/programs/{program_id}/readiness")
+async def program_readiness(
+    program_id: str, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Report each enrollment's checkpoint and reveal readiness to a manager."""
+    manager(identity)
+    gate = DisclosureGate(db)
+    policy = await gate.policy(program_id)
+    rows: list[dict[str, object]] = []
+    own_done = True
+    for state in await gate.readiness(program_id):
+        enrollment = state.enrollment
+        # The enrollment's foreign key guarantees the row; no assert (bandit B101).
+        reviewer = await db.get(Reviewer, enrollment.reviewer_id)
+        if policy == HOUSEHOLD and state.household_blocker() is not None:
+            own_done = False
+        rows.append(
+            {
+                "enrollment_id": enrollment.id,
+                "reviewer_id": enrollment.reviewer_id,
+                "reviewer_name": reviewer.name if reviewer is not None else None,
+                "checkpoint_count": state.checkpoint_count,
+                "checkpoint_blocker": state.checkpoint_blocker(),
+                "reveal_blocker": None
+                if enrollment.revealed_at
+                else await gate.reveal_blocker(enrollment),
+                "revealed": enrollment.revealed_at is not None,
+            }
+        )
+    return {
+        "program_id": program_id,
+        "reveal_policy": policy,
+        "household_reveal_ready": policy == HOUSEHOLD
+        and bool(rows)
+        and own_done
+        and not all(row["revealed"] for row in rows),
+        "household_revealed": policy == HOUSEHOLD
+        and bool(rows)
+        and all(row["revealed"] for row in rows),
+        "enrollments": rows,
+    }
+
+
+@router.post("/programs/{program_id}/checkpoints", status_code=201)
+async def program_checkpoints(
+    program_id: str, data: ProgramCheckpointsInput, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Freeze a checkpoint for every ready enrollment that has none, atomically."""
+    username = manager(identity)
+    await CalibrationService(db).program(program_id)
+    result = await freeze_program_checkpoints(
+        db,
+        program_id,
+        algorithm_version=data.algorithm_version,
+        freeze_predictions=data.freeze_predictions,
+        recorded_by=username,
+    )
+    for row in result.created:
+        log_audit_event(
+            logger,
+            action="checkpoint_create",
+            actor=username,
+            target_type="model_checkpoint",
+            target_id=row.checkpoint_id,
+            enrollment_id=row.enrollment_id,
+            algorithm_version=result.algorithm_version,
+            predictions_frozen=row.predictions_frozen,
+        )
+    return {
+        "program_id": program_id,
+        "algorithm_version": result.algorithm_version,
+        "created": [
+            {
+                "enrollment_id": row.enrollment_id,
+                "checkpoint_id": row.checkpoint_id,
+                "predictions_frozen": row.predictions_frozen,
+                "predictions_skipped": row.predictions_skipped,
+            }
+            for row in result.created
+        ],
+        "skipped": [
+            {"enrollment_id": enrollment_id, "reason": reason}
+            for enrollment_id, reason in result.skipped
+        ],
+    }
+
+
+@router.post("/programs/{program_id}/reveal")
+async def household_reveal(
+    program_id: str, db: DB, identity: Identity
+) -> dict[str, object]:
+    """Reveal every enrollment of a HOUSEHOLD program together (manager only)."""
+    username = manager(identity)
+    revealed, at = await DisclosureGate(db).reveal_household(program_id, username)
+    log_audit_event(
+        logger,
+        action="household_reveal",
+        actor=username,
+        target_type="calibration_program",
+        target_id=program_id,
+        enrollment_ids=revealed,
+    )
+    return {
+        "program_id": program_id,
+        "revealed": True,
+        "revealed_at": at.isoformat(),
+        "enrollment_ids": revealed,
+    }
 
 
 @router.get("/enrollments/{enrollment_id}/mapping")

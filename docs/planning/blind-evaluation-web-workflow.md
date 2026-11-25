@@ -214,8 +214,9 @@ stage locks and delayed identity reveal. It does not implement this instrument:
 description; `ResponseInput` uses 0-10 liking/wear/buy and Boolean detection;
 `lock_stage()` requires one detection answer, not scheduled-task completion;
 `reveal_blocker()` blocks the `reveal()` transition only on skin-plan, blotter
-and skin lock completion, not on this instrument's richer missing-task closure
-rules; controlled history and ML evaluation label observations 0-10. Skin-plan
+and skin lock completion (plus checkpoint, holdout locks and the rest of the
+household on a `HOUSEHOLD` reveal-policy program), not on this instrument's
+richer missing-task closure rules; controlled history and ML evaluation label observations 0-10. Skin-plan
 actions currently use recorder/enrollment authorization. A new UI alone cannot
 correct these storage and gate differences.
 

@@ -18,6 +18,8 @@ Role = Literal[
     "OTHER",
 ]
 Stage = Literal["BLOTTER", "SKIN"]
+# Keep in sync with models.calibration.REVEAL_POLICIES (a unit test pins them).
+RevealPolicy = Literal["ENROLLMENT", "HOUSEHOLD"]
 # R7b input vocabularies. ``models.calibration`` holds the stored codes; a unit
 # test pins each of these to its tuple so the two cannot drift.
 ResponseStatus = Literal[
@@ -79,6 +81,13 @@ class ProgramInput(StrictInput):
     name: str = Field(min_length=1, max_length=200)
     version: str = Field(min_length=1, max_length=50)
     description: str | None = Field(default=None, max_length=10000)
+    reveal_policy: RevealPolicy = "ENROLLMENT"
+
+
+class RevealPolicyInput(StrictInput):
+    """Change how a draft program releases identity."""
+
+    reveal_policy: RevealPolicy
 
 
 class MembershipInput(StrictInput):
@@ -356,3 +365,17 @@ class CheckpointInput(StrictInput):
 
     algorithm_version: str = Field(min_length=1, max_length=200)
     predictions: list[dict[str, str | float | None]] = Field(default_factory=list)
+
+
+class ProgramCheckpointsInput(StrictInput):
+    """Freeze a checkpoint for every enrollment of a program that is ready.
+
+    ``algorithm_version`` names a registered model (``ml.registry``); when
+    omitted the registry's default model is used. With ``freeze_predictions``
+    the server runs that model and freezes one prospective prediction per
+    program holdout, linked to the new checkpoint, in the same transaction, so
+    no holdout opens before its prediction exists.
+    """
+
+    algorithm_version: str | None = Field(default=None, min_length=1, max_length=200)
+    freeze_predictions: bool = True

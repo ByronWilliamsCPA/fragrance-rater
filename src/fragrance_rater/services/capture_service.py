@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from fragrance_rater.models.calibration import (
     CalibrationSession,
+    Membership,
     Observation,
     Presentation,
     QualityFlag,
@@ -20,7 +21,12 @@ from fragrance_rater.models.calibration import (
     RankEvent,
 )
 from fragrance_rater.schemas.capture import QualityFlagInput
-from fragrance_rater.services.calibration_service import CalibrationService, reject
+from fragrance_rater.services.calibration_service import (
+    CalibrationService,
+    post_reveal_entry,
+    reject,
+)
+from fragrance_rater.services.disclosure_gate import DisclosureGate
 from fragrance_rater.services.non_blind import NON_BLIND_CODE, active_non_blind_flag
 from fragrance_rater.services.training_eligibility import (
     TrainingEligibilityService,
@@ -95,6 +101,17 @@ class CaptureService:
                 .order_by(Presentation.position)
             )
         )
+        members = {
+            member.id: member
+            for member in await self.db.scalars(
+                select(Membership).where(
+                    Membership.id.in_({p.membership_id for p in presentations})
+                )
+            )
+        }
+        await DisclosureGate(self.db).require_open(
+            enrollment, [members[p.membership_id].role for p in presentations]
+        )
         latest = await self._latest_by_presentation(
             [p.id for p in presentations], data.stage
         )
@@ -109,7 +126,11 @@ class CaptureService:
             if latest[p.id].detected is True
             and latest[p.id].response_status not in _UNRANKABLE_STATUSES
         }
-        phase = self._phase(enrollment.revealed_at is not None, latest)
+        identity_shown = any(
+            post_reveal_entry(enrollment, members[p.membership_id], p)
+            for p in presentations
+        )
+        phase = self._phase(identity_shown, latest)
         await self._check_ranking_state(session, data, phase, eligible)
         event = RankEvent(
             session_id=session.id,
@@ -138,9 +159,31 @@ class CaptureService:
         return event, len(eligible)
 
     @staticmethod
-    def _phase(revealed: bool, latest: dict[str, Observation]) -> str:
-        """Return the disclosure state a ranking was made in."""
-        if revealed:
+    def _phase(identity_shown: bool, latest: dict[str, Observation]) -> str:
+        """Return the disclosure state a ranking was made in.
+
+        A ranking is ``POST_REVEAL`` only when the evaluator could see the
+        identity of at least one sample in the session at ranking time
+        (``post_reveal_entry``), not merely because the enrollment was revealed:
+        a holdout stays concealed after a per-evaluator reveal until its own
+        blind response is locked, so ranking an unlocked holdout session is
+        still blind.
+
+        # #CRITICAL: data-integrity: a blind holdout ranking mislabelled
+        # POST_REVEAL drops out of every pre-reveal reader, and an informed one
+        # labelled PRE_REVEAL contaminates them. Any visible identity in the
+        # session makes the whole ranking POST_REVEAL (the conservative side).
+        # #VERIFY: test_holdout_ranking_* in
+        # tests/unit/test_services/test_disclosure_gate.py.
+
+        Args:
+            identity_shown (bool): Whether any sample's identity was visible.
+            latest (dict[str, Observation]): Latest observation per sample.
+
+        Returns:
+            str: ``POST_REVEAL``, ``PREVIOUSLY_REVEALED``, or ``PRE_REVEAL``.
+        """
+        if identity_shown:
             return "POST_REVEAL"
         if any(o.phase == "PREVIOUSLY_REVEALED" for o in latest.values()):
             return "PREVIOUSLY_REVEALED"
