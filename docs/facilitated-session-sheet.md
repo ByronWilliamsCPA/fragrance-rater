@@ -9,10 +9,12 @@ tags:
   - evaluation
 ---
 
-Sheet version: `facilitated-session-sheet v1.0`
+Sheet version: `facilitated-session-sheet v2.0`
 
-Print one sheet per evaluator for each blotter session. The manager pre-prints that evaluator's physical blind
-codes in the sample header row and nothing else that identifies a fragrance. Do not write the fragrance
+Print one sheet per evaluator for each blotter session. The manager pre-prints the physical blind codes in the sample
+header row, and the blotter mode in Part A, and nothing else that identifies a fragrance. In group blotter mode (the
+F1 mode) every evaluator's header carries the same three codes in the same order; in individual mode each evaluator's
+header carries their own. Do not write the fragrance
 identity, experimental role, repeat relationship, holdout status, or mapping anywhere on this sheet. The
 facilitator keeps completed sheets as private evidence and enters them through the authenticated application.
 Nobody discusses a sample or a score with anyone until the household reveal.
@@ -32,14 +34,24 @@ ceiling wording, or a rule is a new version id (v1.1 for a wording-only fix that
 change to what is recorded), and sheets of two versions are never mixed inside one program without recording both
 in the declaration. A sheet that does not show a version id is not used.
 
+**Version history.** `v1.0` was the first draft (one tray of three blotters per evaluator, a provisional 5 minute
+spray-to-first-smell ceiling). `v2.0` (2026-11-25) adds the **Blotter mode** row to Part A, which is a newly recorded
+field (it records which mode the paper session was run in, so the transcriber can check it against the program's
+blotter mode in the application), and changes the ceiling to 2 minutes and the blotter handling to the group procedure. The 2 minute spray-to-first-smell ceiling is not the
+2 minute clean-air interval between samples; they are different numbers.
+
 ## Rules for the evaluator
 
 1. Work silently. Do not discuss samples, scores, or reactions with anyone, including other evaluators, until the
    household reveal. The facilitator will announce the reveal after every evaluator has finished every session. Until
    then, talk only about logistics (a window, a pen, a break).
 2. Smell each blotter as soon as you receive it and write the time you first smell it. The facilitator sprays and
-   writes the spray time; the provisional ceiling from spray to first smell is 5 minutes, so do not wait. Complete
-   one sample column at a time, left to right, then write the finish time and initial the **Column complete** row.
+   writes the spray time on your sheet. The provisional ceiling from a blotter's spray to your first smell is
+   2 minutes, so do not wait and do not hold the blotter. In group blotter mode there is one blotter per sample and it
+   is passed around the room in a fixed seat order: smell it once, write the first-smelled time, and pass it to the
+   next seat as the facilitator directs. If the facilitator replaces the blotter because the window would be missed,
+   smell the new one; the facilitator writes that blotter's spray time on your sheet. Complete one sample column at a
+   time, left to right, then write the finish time and initial the **Column complete** row.
 3. After initialing, never change that column, even if a later sample changes your mind.
 4. Leave an answer blank when you are not answering it. A circled zero is a real answer.
 5. If you cannot smell a sample, circle **No** for Detected and leave the rest of that column blank.
@@ -52,7 +64,8 @@ in the declaration. A sheet that does not show a version id is not used.
 
 | Field | Entry |
 | --- | --- |
-| Sheet version | facilitated-session-sheet v1.0 |
+| Sheet version | facilitated-session-sheet v2.0 |
+| Blotter mode (pre-printed) | ☐ Group blotter (one blotter per sample, passed around; shared codes and order) ☐ Individual trays |
 | Paper record ID (pre-printed; the conditions slip, if any, carries the same ID) | ______________________________ |
 | Data classification | ☐ Synthetic rehearsal ☐ Approved family pilot |
 | Assigned evaluator reference | _______________________________________________ |
@@ -73,7 +86,7 @@ Circle one value per row. Anchors: the lowest value and the highest value are na
 | Row | Scale | Sample 1 | Sample 2 | Sample 3 |
 | --- | --- | --- | --- | --- |
 | Blind code (pre-printed) | | | | |
-| Time sprayed (facilitator writes, hh:mm:ss) | | | | |
+| Time sprayed (facilitator writes, hh:mm:ss; the spray time of the blotter you smelled) | | | | |
 | Time first smelled (hh:mm:ss) | | | | |
 | Time this column finished (hh:mm:ss) | | | | |
 | Detected | Yes or No | Yes / No | Yes / No | Yes / No |
@@ -163,7 +176,9 @@ pressing Save, because a saved observation cannot be edited.
 | Blind code printed on the paper confirmed against the application before saving, each column (type or read the code; do not save on a mismatch) | ☐ Sample 1 ☐ Sample 2 ☐ Sample 3 |
 | Ambiguous marks entered as blank plus a flag | ☐ Yes ☐ None |
 | Elapsed minutes entered as whole minutes from spray to column finished; exact times stay on this sheet | ☐ Yes |
-| Any spray-to-first-smell time over the declared ceiling (provisional 5 minutes, confirmed in P6.3) flagged as a deviation, not silently dropped | ☐ Yes ☐ None over |
+| Blotter mode printed on this sheet matches the program's blotter mode in the application (`SHARED_GROUP` for group blotter mode; the `group_shared_blotter` session flag is raised automatically at enrollment, so nothing is set at transcription) | ☐ Yes |
+| Time sprayed on this sheet is the spray time of the blotter this evaluator smelled (a replacement blotter has its own, later spray time) | ☐ Yes |
+| Any spray-to-first-smell time over the declared ceiling (provisional 2 minutes, confirmed in P6.3) flagged as a deviation, not silently dropped | ☐ Yes ☐ None over |
 | Sheet scanned and original filed (see the run sheet, paper retention) | ☐ Yes |
 | Samples 1, 2 and 3 entered and each stage locked | ☐ Yes |
 | Ranking entered | ☐ Yes ☐ Skipped ☐ Could not tell apart |
@@ -175,4 +190,4 @@ Correction or explanation: ____________________________________________________
 _______________________________________________________________________________
 ```
 
-Sheet version: facilitated-session-sheet v1.0
+Sheet version: facilitated-session-sheet v2.0

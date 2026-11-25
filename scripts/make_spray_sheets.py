@@ -1,7 +1,9 @@
 """Build facilitator spray sheets and per-evaluator blind-code headers from a local mapping.
 
-The facilitator in a six-evaluator session sprays vials onto coded blotters and
-hands one tray of three to each evaluator. This tool turns the facilitator's
+The facilitator in a six-evaluator session sprays vials onto coded blotters.
+In individual mode each evaluator gets their own tray of three; in group
+blotter mode (the F1 mode) the facilitator passes one blotter per sample around
+the six evaluators in a fixed seat order. This tool turns the facilitator's
 private mapping into two kinds of output:
 
 * Facilitator-only spray sheets (one per session) that list, per vial, which
@@ -9,8 +11,8 @@ private mapping into two kinds of output:
   evaluator tray, with blank time columns. These carry vial numbers and must
   never leave the facilitator's hands.
 * Evaluator-facing header files (one per evaluator per session) carrying only
-  the sheet version, a random paper record ID, the evaluator reference and the
-  three blind codes in tray order. These never carry a vial number, a session
+  the sheet version, the blotter mode, a random paper record ID, the evaluator
+  reference and the three blind codes in tray order. These never carry a vial number, a session
   key, or any identity. The paper record ID links the score sheet to the
   separate conditions slip and is random, so it reveals nothing.
 
@@ -32,17 +34,33 @@ keys). One row per evaluator tray position:
   here, because a code that differs from the application's would defeat the
   transcription check.
 * ``persistent`` (optional): ``yes`` marks a persistent or aversive vial, so the
-  spray sheet reminds the facilitator to extend clean air to about 5 minutes.
+  spray sheet reminds the facilitator to extend the clean-air interval to about
+  5 minutes. That interval (between the last sniff of one sample and the first
+  sniff of the next) is a different number from the spray-to-first-smell
+  ceiling, which is 2 minutes and is printed separately.
 * ``paper_record_id`` (optional): reuse an existing paper record ID; otherwise a
   random one is generated for each evaluator and session.
 
 Within one session every evaluator must hold the same set of vials (shared
 triples) in a full tray of ``--tray-size`` positions, positions must be
-``1..tray-size`` with no gaps, and blind codes must be unique across the file.
+``1..tray-size`` with no gaps.
+
+Modes (``--mode``):
+
+* ``individual`` (default): blind codes must be unique across the file, so each
+  evaluator's blotters carry that evaluator's own codes.
+* ``group``: one blotter per sample is passed around the evaluators. Every
+  evaluator must hold the SAME blind code for a given vial in a session and the
+  SAME vial at each position (same order), and a code may belong to only one
+  vial in one session. The seat order is the order in which evaluators first
+  appear in the mapping. Scores from such sessions are marked as group-blotter
+  scores in the application (session flag ``group_shared_blotter``, raised at
+  enrollment of a ``SHARED_GROUP`` program); this tool does not set it.
 
 Usage:
     uv run python scripts/make_spray_sheets.py --mapping /secure/mapping.csv \\
-        [--output-dir tmp_cleanup/spray-sheets] [--tray-size 3]
+        [--output-dir tmp_cleanup/spray-sheets] [--tray-size 3] \\
+        [--mode individual|group]
 
 The default output directory ``tmp_cleanup/spray-sheets`` is gitignored. The
 tool refuses to write inside a git repository unless git reports the directory
@@ -66,7 +84,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-SHEET_VERSION = "facilitated-session-sheet v1.0"
+SHEET_VERSION = "facilitated-session-sheet v2.0"
+MODES = ("individual", "group")
+DEFAULT_MODE = "individual"
+# Spray-to-first-smell ceiling, provisional until P6.3. It is NOT the clean-air
+# interval between samples (ADR-005: at least 2 minutes, about 5 after a
+# persistent sample), which is a different number.
+SPRAY_TO_SMELL_CEILING_MINUTES = 2
+MODE_LABELS = {
+    "individual": "Individual trays",
+    "group": "Group blotter (one blotter per sample, passed around; shared codes and order)",
+}
 DEFAULT_TRAY_SIZE = 3
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "tmp_cleanup" / "spray-sheets"
@@ -192,24 +220,77 @@ def parse_mapping(path: Path) -> list[TrayRow]:
     return rows
 
 
-def validate(rows: list[TrayRow], tray_size: int) -> None:
+def _check_group_codes(rows: list[TrayRow]) -> None:
+    """Check the group-blotter rules on codes and order.
+
+    Every evaluator in a session must hold the same code for a vial and the same
+    vial at each position, and a code may belong to one vial in one session only.
+
+    Args:
+        rows: Parsed tray rows.
+
+    Raises:
+        MappingError: If a code or the order differs between evaluators.
+    """
+    code_of: dict[tuple[str, str], set[str]] = defaultdict(set)
+    vial_at: dict[tuple[str, int], set[str]] = defaultdict(set)
+    for row in rows:
+        code_of[(row.session, row.vial)].add(row.blind_code.upper())
+        vial_at[(row.session, row.position)].add(row.vial)
+    for (session, vial), codes in sorted(code_of.items()):
+        if len(codes) > 1:
+            message = (
+                f"group mode: session {session} vial {vial} must carry one blind "
+                "code for every evaluator"
+            )
+            raise MappingError(message)
+    for (session, position), vials in sorted(vial_at.items()):
+        if len(vials) > 1:
+            message = (
+                f"group mode: session {session} position {position} must hold the "
+                "same vial for every evaluator (same order)"
+            )
+            raise MappingError(message)
+    owners: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for (session, vial), codes in code_of.items():
+        for code in codes:
+            owners[code].add((session, vial))
+    shared = sorted(code for code, vials in owners.items() if len(vials) > 1)
+    if shared:
+        message = (
+            "blind codes must be unique per vial, repeated across vials: "
+            f"{', '.join(shared)}"
+        )
+        raise MappingError(message)
+
+
+def validate(rows: list[TrayRow], tray_size: int, mode: str = DEFAULT_MODE) -> None:
     """Check the shared-triple and uniqueness rules.
 
     Args:
         rows: Parsed tray rows.
         tray_size: Positions expected on every tray.
+        mode: ``individual`` (codes unique across the file) or ``group``
+            (one code per vial and one order for every evaluator).
 
     Raises:
-        MappingError: If the mapping is empty or breaks a rule.
+        MappingError: If the mapping is empty, the mode is unknown or a rule is
+            broken.
     """
+    if mode not in MODES:
+        message = f"unknown mode '{mode}'; choose one of {', '.join(MODES)}"
+        raise MappingError(message)
     if not rows:
         message = "mapping has no rows"
         raise MappingError(message)
-    codes = [r.blind_code.upper() for r in rows]
-    duplicates = sorted({c for c in codes if codes.count(c) > 1})
-    if duplicates:
-        message = f"blind codes must be unique, repeated: {', '.join(duplicates)}"
-        raise MappingError(message)
+    if mode == "group":
+        _check_group_codes(rows)
+    else:
+        codes = [r.blind_code.upper() for r in rows]
+        duplicates = sorted({c for c in codes if codes.count(c) > 1})
+        if duplicates:
+            message = f"blind codes must be unique, repeated: {', '.join(duplicates)}"
+            raise MappingError(message)
     trays: dict[tuple[str, str], list[TrayRow]] = defaultdict(list)
     for row in rows:
         trays[(row.session, row.evaluator)].append(row)
@@ -286,17 +367,20 @@ def evaluator_header(
     record_id: str,
     tray: list[TrayRow],
     sheet_version: str,
+    mode: str = DEFAULT_MODE,
 ) -> str:
     """Render the evaluator-facing header for one tray.
 
-    It carries only the sheet version, the paper record ID, the evaluator
-    reference and the blind codes in tray order: no vial, session key or identity.
+    It carries only the sheet version, the blotter mode, the paper record ID, the
+    evaluator reference and the blind codes in tray order: no vial, session key
+    or identity.
 
     Args:
         evaluator: The opaque evaluator reference.
         record_id: The paper record ID.
         tray: The evaluator's tray rows for the session.
         sheet_version: The printed sheet version id.
+        mode: The blotter mode, ``individual`` or ``group``.
 
     Returns:
         Markdown text for printing.
@@ -307,14 +391,47 @@ def evaluator_header(
         f"Sheet version: {sheet_version}\n\n"
         "| Field | Entry |\n| --- | --- |\n"
         f"| Paper record ID | {record_id} |\n"
-        f"| Assigned evaluator reference | {evaluator} |\n\n"
+        f"| Assigned evaluator reference | {evaluator} |\n"
+        f"| Blotter mode (pre-printed) | {MODE_LABELS[mode]} |\n\n"
         "| Row | Sample 1 | Sample 2 | Sample 3 |\n| --- | --- | --- | --- |\n"
         f"| Blind code (pre-printed) | {codes} |\n"
     )
 
 
-def spray_sheet(session: str, tray_size: int, rows: list[TrayRow]) -> str:
-    """Render the facilitator-only spray sheet for one session.
+def _seat_order(rows: list[TrayRow]) -> list[str]:
+    """Return evaluators in order of first appearance (the group seat order).
+
+    Args:
+        rows: Tray rows in file order.
+
+    Returns:
+        Each evaluator reference once.
+    """
+    return list(dict.fromkeys(r.evaluator for r in rows))
+
+
+def _trays_by_evaluator(rows: list[TrayRow]) -> list[str]:
+    """Render the per-evaluator tray list for a facilitator spray sheet.
+
+    Args:
+        rows: Every tray row in the session.
+
+    Returns:
+        Markdown lines, one bullet per evaluator.
+    """
+    by_eval: dict[str, list[TrayRow]] = defaultdict(list)
+    for row in rows:
+        by_eval[row.evaluator].append(row)
+    lines: list[str] = []
+    for evaluator in sorted(by_eval):
+        tray = sorted(by_eval[evaluator], key=lambda r: r.position)
+        cells = "; ".join(f"{r.position}: {r.blind_code} (vial {r.vial})" for r in tray)
+        lines.append(f"- {evaluator} ({tray[0].paper_record_id}): {cells}")
+    return lines
+
+
+def _individual_spray_sheet(session: str, tray_size: int, rows: list[TrayRow]) -> str:
+    """Render the individual-mode facilitator sheet.
 
     Args:
         session: The facilitator's session key.
@@ -329,8 +446,10 @@ def spray_sheet(session: str, tray_size: int, rows: list[TrayRow]) -> str:
         "",
         "FACILITATOR ONLY. Contains vial numbers. Never show, commit or email.",
         "",
-        "Spray one round at a time (one blotter per evaluator). Write the sprayed time",
-        "on each evaluator's sheet. Provisional ceiling from spray to first smell: 5 minutes.",
+        "Mode: individual trays. Spray one round at a time (one blotter per evaluator).",
+        "Write the sprayed time on each evaluator's sheet. Ceiling from spray to first",
+        f"smell: {SPRAY_TO_SMELL_CEILING_MINUTES} minutes (provisional). The clean-air interval between samples is a",
+        "different number: at least 2 minutes, about 5 after a persistent sample.",
         "",
     ]
     for position in range(1, tray_size + 1):
@@ -350,16 +469,105 @@ def spray_sheet(session: str, tray_size: int, rows: list[TrayRow]) -> str:
             for r in in_round
         ]
         lines.append("")
-    lines += ["## Trays by evaluator", ""]
-    by_eval: dict[str, list[TrayRow]] = defaultdict(list)
-    for row in rows:
-        by_eval[row.evaluator].append(row)
-    for evaluator in sorted(by_eval):
-        tray = sorted(by_eval[evaluator], key=lambda r: r.position)
-        cells = "; ".join(f"{r.position}: {r.blind_code} (vial {r.vial})" for r in tray)
-        lines.append(f"- {evaluator} ({tray[0].paper_record_id}): {cells}")
-    lines.append("")
+    lines += ["## Trays by evaluator", "", *_trays_by_evaluator(rows), ""]
     return "\n".join(lines)
+
+
+def _group_spray_sheet(
+    session: str, tray_size: int, rows: list[TrayRow], seats: list[str]
+) -> str:
+    """Render the group-blotter facilitator sheet: one blotter per sample.
+
+    Args:
+        session: The facilitator's session key.
+        tray_size: Positions per tray (samples in the session).
+        rows: Every tray row in that session.
+        seats: Evaluators in the fixed seat order.
+
+    Returns:
+        Markdown text. It contains vial numbers and is facilitator-only.
+    """
+    ceiling = SPRAY_TO_SMELL_CEILING_MINUTES
+    lines = [
+        f"# Spray sheet, session {session} (group blotter)",
+        "",
+        "FACILITATOR ONLY. Contains vial numbers. Never show, commit or email.",
+        "",
+        "Group blotter mode: ONE blotter per sample, one sample at a time, passed round",
+        "the evaluators in the seat order below. Every evaluator holds the same code and",
+        "order. Scores are marked as group-blotter scores (session flag",
+        "group_shared_blotter); that flag is raised by the application, not here.",
+        "",
+        f"Ceiling: {ceiling} minutes from a blotter's spray to each evaluator's first smell",
+        "(provisional, tested in P6.3). If an evaluator could not smell the blotter within",
+        f"{ceiling} minutes of its spray time, spray a NEW blotter of the same sample (same",
+        "blind code), record its spray time below and hand it to that evaluator and every",
+        "remaining one. On each evaluator's sheet, Time sprayed is the spray time of the",
+        "blotter THAT evaluator smelled.",
+        "",
+        "The clean-air interval between samples is a DIFFERENT number: at least 2 minutes",
+        "after the last sniff, about 5 after a persistent sample.",
+        "",
+        "## Seat order",
+        "",
+        "| Seat | Evaluator | Paper record ID |",
+        "| --- | --- | --- |",
+    ]
+    record = {r.evaluator: r.paper_record_id for r in rows}
+    lines += [f"| {n} | {e} | {record[e]} |" for n, e in enumerate(seats, start=1)]
+    lines.append("")
+    window = f"Window ends (spray + {ceiling}:00)"
+    blotter_header = (
+        f"| Blotter | Sprayed (hh:mm:ss) | Smelled by seats | {window} | Last sniff |"
+    )
+    for position in range(1, tray_size + 1):
+        sample = sorted(
+            (r for r in rows if r.position == position), key=lambda r: r.evaluator
+        )
+        first = sample[0]
+        persistent = (
+            "yes, extend clean air to about 5 min"
+            if any(r.persistent for r in sample)
+            else "no"
+        )
+        lines += [
+            f"## Sample {position}: vial {first.vial}, blind code {first.blind_code}",
+            "",
+            f"Persistent: {persistent}",
+            "",
+            blotter_header,
+            "| --- | --- | --- | --- | --- |",
+            "| Original | | | | |",
+            "| Replacement 1 | | | | |",
+            "| Replacement 2 | | | | |",
+            "",
+        ]
+    lines += ["## Trays by evaluator", "", *_trays_by_evaluator(rows), ""]
+    return "\n".join(lines)
+
+
+def spray_sheet(
+    session: str,
+    tray_size: int,
+    rows: list[TrayRow],
+    mode: str = DEFAULT_MODE,
+    seats: list[str] | None = None,
+) -> str:
+    """Render the facilitator-only spray sheet for one session.
+
+    Args:
+        session: The facilitator's session key.
+        tray_size: Positions per tray.
+        rows: Every tray row in that session.
+        mode: ``individual`` or ``group``.
+        seats: Seat order for group mode; defaults to order of first appearance.
+
+    Returns:
+        Markdown text. It contains vial numbers and is facilitator-only.
+    """
+    if mode == "group":
+        return _group_spray_sheet(session, tray_size, rows, seats or _seat_order(rows))
+    return _individual_spray_sheet(session, tray_size, rows)
 
 
 def refuse_unignored_repo_path(directory: Path) -> None:
@@ -407,6 +615,7 @@ def write_outputs(
     output_dir: Path,
     tray_size: int,
     sheet_version: str,
+    mode: str = DEFAULT_MODE,
 ) -> list[Path]:
     """Write every output file.
 
@@ -415,6 +624,7 @@ def write_outputs(
         output_dir: Where to write; must be ignored if inside a repository.
         tray_size: Positions per tray.
         sheet_version: The printed sheet version id.
+        mode: ``individual`` or ``group``.
 
     Returns:
         The files written.
@@ -430,10 +640,12 @@ def write_outputs(
     for row in rows:
         by_session[row.session].append(row)
         trays[(row.session, row.evaluator)].append(row)
+    seats = _seat_order(rows)
     for session, session_rows in by_session.items():
         sheet = facilitator / f"spray-sheet-session-{_slug(session)}.md"
         sheet.write_text(
-            spray_sheet(session, tray_size, session_rows), encoding="utf-8"
+            spray_sheet(session, tray_size, session_rows, mode, seats),
+            encoding="utf-8",
         )
         written.append(sheet)
     index = facilitator / "paper-record-index.csv"
@@ -449,7 +661,9 @@ def write_outputs(
         name = f"{_slug(tray[0].paper_record_id)}-{_slug(evaluator)}.md"
         header = evaluators / name
         header.write_text(
-            evaluator_header(evaluator, tray[0].paper_record_id, tray, sheet_version),
+            evaluator_header(
+                evaluator, tray[0].paper_record_id, tray, sheet_version, mode
+            ),
             encoding="utf-8",
         )
         written.append(header)
@@ -476,6 +690,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--tray-size", type=int, default=DEFAULT_TRAY_SIZE)
     parser.add_argument("--sheet-version", default=SHEET_VERSION)
+    parser.add_argument(
+        "--mode",
+        choices=MODES,
+        default=DEFAULT_MODE,
+        help="individual trays (default) or group blotter (shared codes and order)",
+    )
     return parser
 
 
@@ -491,9 +711,13 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         rows = parse_mapping(args.mapping)
-        validate(rows, args.tray_size)
+        validate(rows, args.tray_size, args.mode)
         written = write_outputs(
-            assign_record_ids(rows), args.output_dir, args.tray_size, args.sheet_version
+            assign_record_ids(rows),
+            args.output_dir,
+            args.tray_size,
+            args.sheet_version,
+            args.mode,
         )
     except MappingError as error:
         sys.stderr.write(f"error: {error}\n")

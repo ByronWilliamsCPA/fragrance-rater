@@ -78,9 +78,9 @@ feedback revisions, sampling, outcome linkage, reporting, and operational failur
 
 If F1 will run in the facilitated six-evaluator format, P6.3 must also rehearse paper plus transcription in that
 format: six synthetic evaluators on shared triples, printed sheets and slips, one recorder login, the non-blind holder
-flag, a manager checkpoint before the holdouts, and a household reveal. It must confirm the provisional 5-minute
-spray-to-first-smell ceiling, the spray-round interpretation (one blotter per evaluator per round) and the
-paper-retention period. See the
+flag, a manager checkpoint before the holdouts, and a household reveal. It must confirm the provisional 2-minute
+spray-to-first-smell ceiling by having six people rotate one blotter within it (including a replacement blotter), the
+group blotter procedure (one blotter per sample, shared codes and order) and the paper-retention period. See the
 [P6 gate](../planning/gates/p6.md#facilitated-format-scope-for-p62-and-p63-added-2026-11-25) and the [rehearsal log](../planning/evidence/p6-synthetic-rehearsal.md). A change to the sheet, the slip or the
 participant-facing build after the rehearsal voids it for the changed parts, so the merged code is the rehearsed
 instrument.

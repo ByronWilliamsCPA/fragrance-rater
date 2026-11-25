@@ -181,9 +181,20 @@ three fragrances for all six, in a rotated order per evaluator) and one paper sh
 sample columns. Session conditions go on a separate slip, not the score page, because the approved consent
 text promises that these answers are kept apart from the ratings. Consent is recorded once in the application
 before session 1, with the evaluator present. Facilitated sessions have no skin tests. The provisional
-spray-to-first-smell ceiling is 5 minutes, to be confirmed in P6.3; actual sprayed, first-smelled and
-column-finished times are written on the sheet, and a breach is a recorded deviation. All six sheets for a
-session are transcribed before the next session starts.
+spray-to-first-smell ceiling was set at 5 minutes on 2026-11-24 and changed to 2 minutes on 2026-11-25 (still
+provisional, to be confirmed in P6.3); actual sprayed, first-smelled and column-finished times are written on the
+sheet, and a breach is a recorded deviation. All six sheets for a session are transcribed before the next session
+starts.
+
+*Amendment, 2026-11-25 (group blotter mode).* The owner decided that F1 group sessions pass one physical blotter per
+sample around the six evaluators, one blotter at a time (eighteen blotters at once is too strong a smell). This
+replaces the per-evaluator tray, the per-evaluator rotated order and the evaluator-specific blind codes above for
+group sessions: all evaluators share the blind code for a sample and see the same order within a session, the owner
+accepts that limitation, and the scores carry the informational session flag `group_shared_blotter` (they remain
+eligible for training, and pooled reliability is reported both ways). The 2 minute ceiling runs from a blotter's spray
+to each evaluator's first smell; if it would be exceeded the facilitator sprays a new blotter of the same sample and
+the remaining evaluators smell that one. The 2 minute clean-air interval between samples (ADR-005) is a different
+number and is unchanged. Procedure: the [run sheet](../facilitated-run-sheet.md#group-blotter-mode-f1).
 
 **Transcription.** For each column the recorder enters the paper's values into the evaluator's enrollment.
 The sheet's version id is recorded. An ambiguous mark is entered as blank plus a flag, never resolved by

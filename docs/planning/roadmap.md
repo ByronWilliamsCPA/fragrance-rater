@@ -42,10 +42,12 @@ six-evaluator facilitated format (shared session triples, random blind codes, on
 non-blind holder only, one household reveal after the holdouts); its work items are listed in
 [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) and gate F1.
 No milestone status changes, and F1 stays blocked on P6. As of 2026-11-25 the enrollment, non-blind flag, holdout gate
-and household reveal, and sheet work items are merged (#211, #213, #214, #215), the session-scoped wizard (#216) is open, and transcription timing is not merged.
-Holdouts now need a manager checkpoint in any program that has them, including the P6 rehearsal path, until the wizard adds a
-button. P6.3 must rehearse paper plus transcription in the six-person format; the merged code is the rehearsed
-instrument. R9-R12 are maintainability sprints and gate nothing, and
+and household reveal, sheet, guides, session-scoped wizard and transcription timing work items are merged (PRs 211, 213,
+214, 215, 216, 217 and 218). Holdouts need a manager checkpoint in any program that has them, including the P6
+rehearsal path; the merged wizard (#216) has a checkpoint panel in Program setup. The owner also decided group blotter
+mode on 2026-11-25 (one blotter per sample passed round the six evaluators, shared codes and order, a provisional
+2 minute spray-to-first-smell ceiling); its code pull request (PR 220) is merged and its documentation pull request (PR 219) is merging after it. P6.3 must rehearse paper plus
+transcription in the six-person format; the merged code is the rehearsed instrument. R9-R12 are maintainability sprints and gate nothing, and
 R14's documentation items gate nothing. R8 may land after the P6 go decision but must land before F1.
 
 ## Immediate queue
