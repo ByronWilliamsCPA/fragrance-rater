@@ -22,6 +22,7 @@ from fragrance_rater.models.fragrance import Fragrance
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.schemas.calibration import ResponseInput
 from fragrance_rater.services.calibration_service import CalibrationService
+from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -50,7 +51,9 @@ async def _presentation(
     )
     session.add(enrollment)
     await session.flush()
-    calibration = CalibrationSession(enrollment_id=enrollment.id)
+    calibration = CalibrationSession(
+        enrollment_id=enrollment.id, created_at=now_naive_utc() - timedelta(days=3)
+    )
     member = Membership(
         program_id=program.id, fragrance_id=fragrance.id, role="UNIVERSAL_BASELINE"
     )
@@ -82,7 +85,7 @@ async def _observe(
 
 async def test_the_capture_fields_are_stored(async_session: AsyncSession) -> None:
     presentation = await _presentation(async_session)
-    observed = datetime(2026, 10, 30, 14, 5, 0)  # noqa: DTZ001
+    observed = (now_naive_utc() - timedelta(hours=2)).replace(microsecond=0)
 
     observation = await _observe(
         async_session,

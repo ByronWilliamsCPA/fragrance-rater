@@ -534,8 +534,13 @@ async def post_reveal(
 async def exposure(
     presentation_id: str, data: ExposureInput, db: DB, identity: Identity
 ) -> dict[str, object]:
-    """Stamp the first blotter smell or skin application of a sample."""
-    obj = await CalibrationService(db).record_exposure(
+    """Stamp the first blotter smell or skin application of a sample.
+
+    ``at`` is the paper's first-smell time when a facilitator transcribes a
+    sheet. With ``sprayed_at`` too, a first smell past the ceiling is recorded
+    and flagged (``ceiling_flag_id`` names the flag), never refused.
+    """
+    obj, flag = await CalibrationService(db).record_exposure_checked(
         presentation_id, data, *actor(identity)
     )
     return {
@@ -543,6 +548,7 @@ async def exposure(
         "presented_at": obj.presented_at,
         "applied_at": obj.applied_at,
         "application_timezone": obj.application_timezone,
+        "ceiling_flag_id": flag.id if flag is not None else None,
     }
 
 
