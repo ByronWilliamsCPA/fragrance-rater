@@ -89,8 +89,8 @@ drafts until the P6.3 rehearsal.
 | Facilitated guides, P6.2 and P6.3 scope, F1 declaration template (#217) | Merged |
 | Session-scoped wizard (skin-plan step removed from the blotter flow, per-session ranking, holdout sequence, manager checkpoint and household reveal panel) (#216) | Merged |
 | Transcription timing (paper first-smell, finished and session times, whole-minute elapsed time) and the blind-code confirmation guard (#218) | Merged |
-| Group blotter mode in the application (program `blotter_mode`, shared codes and order, `group_shared_blotter` flag, 2 minute ceiling) | Code pull request pending; number in [PROJECT-PLAN.md section 11a](../planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) |
-| Group blotter procedure: sheet v2.0, run sheet, spray-sheet `--mode group`, guides, gates | This documentation pull request, pending the code pull request |
+| Group blotter mode in the application (program `blotter_mode`, shared codes and order, `group_shared_blotter` flag, 2 minute ceiling) | Open: #220 (see [PROJECT-PLAN.md section 11a](../planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24)) |
+| Group blotter procedure: sheet v2.0, run sheet, spray-sheet `--mode group`, guides, gates | This documentation pull request (#219), merging after #220 |
 
 A merged item is not gate evidence: none of this has been rehearsed in P6.3. Until the group blotter code merges, the
 application still checks a 5 minute ceiling and has no `blotter_mode`; re-read this table against the merged pull
@@ -106,7 +106,7 @@ requests before relying on it.
    `shared-triples-latin-rotation-v1`: standard labels are refused with it, and blind codes are random and specific to
    each evaluator, because with shared triples a label that names the session would reveal session identity and
    holdout status. For F1 group blotter mode the program's blotter mode is `SHARED_GROUP` (set at creation, or with
-   `PUT /api/v1/calibration/programs/{program_id}/blotter-mode` while the program is a draft; it locks at the first
+   `PUT /api/v1/calibration/programs/{program_id}/blotter-mode` before the first enrollment; it locks at the first
    enrollment) and the algorithm is `shared-triples-group-blotter-v1`, which gives every evaluator the same random
    blind code per sample and the same order inside each session. Both names are from the code pull request, which has
    not merged yet; verify them against the merged code.
