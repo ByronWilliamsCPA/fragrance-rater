@@ -116,6 +116,7 @@ path = [
     "docker-entrypoint.sh",  # Container entrypoint script
     "scripts/**/*.sh",  # Shell scripts for automation
     "scripts/**/*.md",  # Script documentation
+    "scripts/**/*.css",  # Print stylesheet for the paper forms
     "tmp_cleanup/**/*.txt",  # Temporary text files
     "tmp_cleanup/.gitkeep",  # Directory placeholder
     "sonar-project.properties",  # SonarCloud/SonarQube configuration
