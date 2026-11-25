@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ProgramSetupPage } from '../pages/ProgramSetupPage'
 
@@ -170,5 +170,38 @@ describe('shared-session enrollment', () => {
     await waitFor(() => expect(form.getByLabelText('Evaluator')).toHaveValue(''))
     expect(form.getByLabelText('Session order')).toHaveValue(SHARED)
     expect(form.getByLabelText('Samples per session')).toHaveValue(1)
+  })
+
+  it('drops a preview whose inputs changed, including a late response', async () => {
+    let resolvePreview: (value: { data: typeof preview }) => void = () => undefined
+    post.mockImplementation((path: string) =>
+      path.endsWith('/session-template/preview')
+        ? new Promise((resolve) => {
+            resolvePreview = resolve
+          })
+        : Promise.resolve({ data: { id: 'enrollment' } })
+    )
+    const form = renderPage()
+    fireEvent.change(form.getByLabelText('Session order'), { target: { value: SHARED } })
+    const previewButton = form.getByRole('button', { name: 'Preview session plan' })
+    // Loading the members keeps the shared task busy; wait until it settles.
+    await waitFor(() => expect(previewButton).toBeEnabled())
+    fireEvent.click(previewButton)
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1))
+    // The size changes while the request is still in flight.
+    fireEvent.change(form.getByLabelText('Samples per session'), { target: { value: '1' } })
+    await act(async () => resolvePreview({ data: preview }))
+    expect(form.queryByLabelText('Session plan preview')).toBeNull()
+
+    post.mockImplementation((path: string) =>
+      path.endsWith('/session-template/preview')
+        ? Promise.resolve({ data: preview })
+        : Promise.resolve({ data: { id: 'enrollment' } })
+    )
+    fireEvent.click(form.getByRole('button', { name: 'Preview session plan' }))
+    await form.findByLabelText('Session plan preview')
+    // Changing the persistent samples invalidates the shown plan too.
+    fireEvent.change(form.getByLabelText(/persistent or animalic/))
+    expect(form.queryByLabelText('Session plan preview')).toBeNull()
   })
 })

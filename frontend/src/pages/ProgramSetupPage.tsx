@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type {
   FragellaUsage,
@@ -77,6 +77,9 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
   const [fragellaUsage, setFragellaUsage] = useState<FragellaUsage | null>(null)
   const [algorithm, setAlgorithm] = useState(INDEPENDENT_SHUFFLE)
   const [templatePreview, setTemplatePreview] = useState<SessionTemplatePreview | null>(null)
+  // Bumped whenever the preview's inputs change, so a response to an older
+  // request cannot restore a plan for a different program or session size.
+  const previewRequest = useRef(0)
   const task = useTask()
   const selectedProgram = programs.find((program) => program.id === programId)
   const reviewerNames = useMemo(
@@ -97,7 +100,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
     // new program's members; this is the fetch-on-dependency-change pattern.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMembers([])
-    setTemplatePreview(null)
+    invalidatePreview()
     if (!programId) return
     let current = true
     void task.run(async () => {
@@ -175,11 +178,19 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
     }
   }
 
+  function invalidatePreview() {
+    previewRequest.current += 1
+    setTemplatePreview(null)
+  }
+
   async function previewSessionPlan(form: HTMLFormElement) {
+    previewRequest.current += 1
+    const request = previewRequest.current
     const response = await api.post<SessionTemplatePreview>(
       `/calibration/programs/${programId}/session-template/preview`,
       sharedTemplateOptions(form)
     )
+    if (request !== previewRequest.current) return
     setTemplatePreview(response.data)
     task.setNotice(`Session plan ready: ${response.data.sessions.length} shared sessions.`)
   }
@@ -211,7 +222,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
       // Keep the shared settings for the next evaluator; clear only who.
       const reviewer = form.elements.namedItem('reviewer_id')
       if (reviewer instanceof HTMLSelectElement) reviewer.value = ''
-      setTemplatePreview(null)
+      invalidatePreview()
     } else {
       form.reset()
     }
@@ -535,7 +546,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
                 min="1"
                 max="20"
                 defaultValue="3"
-                onChange={() => setTemplatePreview(null)}
+                onChange={invalidatePreview}
               />
             </label>
             <label>
@@ -545,7 +556,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
                 value={algorithm}
                 onChange={(event) => {
                   setAlgorithm(event.target.value)
-                  setTemplatePreview(null)
+                  invalidatePreview()
                 }}
               >
                 <option value={INDEPENDENT_SHUFFLE}>Independent shuffle per evaluator</option>
@@ -562,7 +573,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
                 </p>
                 <label>
                   Exceptionally persistent or animalic samples (at most one per session)
-                  <select name="persistent_membership_ids" multiple>
+                  <select name="persistent_membership_ids" multiple onChange={invalidatePreview}>
                     {members
                       .filter((member) => member.role !== 'HIDDEN_REPEAT')
                       .map((member) => (

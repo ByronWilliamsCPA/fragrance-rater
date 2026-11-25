@@ -351,14 +351,34 @@ def _chunk(items: Sequence[str], size: int) -> Template:
     return [list(items[i : i + size]) for i in range(0, len(items), size)]
 
 
+def _repeat_slot_gap(session_size: int) -> int:
+    """Canonical slots a generated repeat must follow its original by.
+
+    A repeat ``d`` sessions after its original is at least
+    ``d * size - (size - 1)`` positions later under the worst rotation
+    (original smelled last, repeat first). The smallest ``d`` meeting the
+    ``2 * size`` separation is 3 for sessions of two or more and 2 for
+    single-sample sessions, where there is only one rotation.
+
+    Args:
+        session_size (int): Samples per full session.
+
+    Returns:
+        int: The minimum canonical slot distance, a whole number of sessions.
+    """
+    sessions_apart = -(-(3 * session_size - 1) // session_size)
+    return sessions_apart * session_size
+
+
 def generate_template(
     members: Sequence[TemplateMember], session_size: int, seed: str
 ) -> Template:
     """Build a valid template deterministically from ``seed``.
 
     The non-repeat, non-holdout stimuli are ordered by a seeded hash, each
-    hidden repeat is inserted at least three full sessions after its original
-    (so the separation survives every within-session rotation), and the
+    hidden repeat is inserted enough full sessions after its original that
+    the separation survives every within-session rotation (see
+    :func:`_repeat_slot_gap`), and the
     holdouts follow as a separately ordered last block. A candidate that
     breaks any rule is discarded and the next attempt tried; the result is
     then checked by :func:`validate_template`.
@@ -378,7 +398,7 @@ def generate_template(
     singles = [m.id for m in members if not m.is_repeat and not m.is_holdout]
     repeats = [m for m in members if m.is_repeat]
     holdouts = [m.id for m in members if m.is_holdout]
-    gap = 3 * session_size
+    gap = _repeat_slot_gap(session_size)
     for attempt in range(GENERATION_ATTEMPTS):
         order = sorted(singles, key=lambda mid: _rank(seed, attempt, "order", mid))
         placed = True

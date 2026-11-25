@@ -318,3 +318,10 @@ def test_missing_original_is_rejected():
 def test_generation_fails_loudly_when_repeats_cannot_be_separated():
     with pytest.raises(TemplateError, match="Could not build"):
         generate_template(f1_members(3, 1, 0), 3, "0123456789abcdef")
+
+
+def test_single_sample_sessions_need_only_two_sessions_of_separation():
+    """One rotation means the canonical two-slot gap is already the worst case."""
+    template = generate_template(f1_members(2, 1, 0), 1, "0123456789abcdef")
+    assert template == [["b00"], ["b01"], ["r00"]]
+    validate_template(template, f1_members(2, 1, 0), 1)
