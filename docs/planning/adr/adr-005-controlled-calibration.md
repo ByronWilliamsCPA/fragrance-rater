@@ -214,7 +214,7 @@ cues, not a blind one.
 | Repeat consistency | Pooled, wide-uncertainty benchmark; no individual reliability figure | Same, and reported descriptively only. No exclusion threshold is declared, including for the three novices; everyone is included | Six pairs per evaluator give 5 degrees of freedom and are not an individual reliability figure, so a pass/fail cut on them would be statistically unsupported. This supersedes the earlier idea of a declared threshold. |
 | Reveal | Per enrollment, after that evaluator's baseline, repeat and planned skin stages | One household (program-level) reveal, available only after every enrollment has locked its baseline, repeat and planned skin stages, the skin plans are finalized, a checkpoint exists for each enrollment and all holdouts are locked. All enrollments are then revealed together. Per-enrollment reveal stays the default for existing programs | A per-enrollment reveal would let one evaluator learn identities that the shared triples still show the others. |
 | Phase order | Baseline, then skin, then reveal, then holdouts | All six complete baseline including hidden repeats; skin plans finalized (empty for five); a checkpoint per enrollment; holdouts; one household reveal. All six must be captured before the next session starts | Holdouts are smelled before the household reveal, so the checkpoint must be frozen first; checkpoint creation closes after any holdout response (ADR-009). |
-| Timing | No elapsed-time rule beyond the clean-air interval | No fixed interval. Record the actual sprayed, first-smelled and column-finished times. A provisional 5-minute ceiling from spray to first smell applies, to be confirmed in P6.3; a breach is recorded as a deviation, never silently dropped | Blotters age; the ceiling bounds the exposure variation the facilitator cannot otherwise control. The 5 minutes is a provisional working value, not a researched one. |
+| Timing | No elapsed-time rule beyond the clean-air interval | No fixed interval. Record the actual sprayed, first-smelled and column-finished times. A provisional 5-minute ceiling from spray to first smell applies, to be confirmed in P6.3; a breach is recorded as a deviation, never silently dropped. **Changed to 2 minutes on 2026-11-25, see the amendment below** | Blotters age; the ceiling bounds the exposure variation the facilitator cannot otherwise control. The 5 minutes is a provisional working value, not a researched one. |
 | Session conditions | Recorded per session on the score page | Recorded on a separate slip, not the score page | The approved consent text promises that session-context answers are kept apart from the ratings. |
 | Consent | Recorded per participant | Recorded once in the application before session 1, with the evaluator present; the server stamps `occurred_at` and the record persists per scope until withdrawn | Not recorded per sitting. |
 
@@ -253,6 +253,42 @@ evaluators were skin-absent by design.
   filtered: the pooled repeat benchmark is expected to widen, which makes ADR-009's decision rule
   (clear the upper bound of the pooled interval) more conservative, not less. This expectation is
   inferred, not measured.
+
+## 2026-11-25 amendment: group blotter mode, shared codes and order, 2 minute ceiling
+
+The product owner decided on 2026-11-25 how F1 group sessions handle the physical blotters. This amendment records
+the protocol consequences. It amends the 2026-11-24 amendment above; the text above is left as written and is
+superseded where it conflicts. It marks no gate as passed, and the ceiling is still provisional.
+
+- **Group blotter mode.** The facilitator passes **one physical blotter per sample** around the six evaluators,
+  one blotter at a time, in a fixed seat order. Eighteen blotters at once (six trays of three) is too strong a smell.
+  This replaces "each evaluator has their own tray of three coded blotters" for F1 group sessions. Individual
+  trays remain available as individual mode.
+- **Shared code and order.** All evaluators therefore share the same blind code for a sample and see the same
+  sample order within a session. This supersedes, for group sessions, the 2026-11-24 rows "Order within a session"
+  (per-session Latin-square rotation across evaluators) and "Blind codes" (evaluator-specific codes). The `random`
+  scheme is still required (a standard `S` number would still disclose session and holdout status). Position balance
+  per evaluator across sessions is unchanged (each full session of 3 still puts one sample in each position), but the
+  balance of a fragrance's position across the six evaluators is lost: order and seat position are confounded with
+  the score. The owner accepts this limitation.
+- **Flag only.** Scores from group sessions are marked by the informational session flag `group_shared_blotter`. They
+  **remain eligible for training**, and the pooled repeat benchmark and per-evaluator metrics are reported both
+  ways (with and without them). The flag exists so the decision to keep them can be reversed later. The new risk,
+  recorded here rather than hidden: keeping them in training can let the order and seat-position confound reach a
+  learned model.
+- **Ceiling.** The spray-to-first-smell ceiling becomes **2 minutes**, measured from a blotter's spray to each
+  evaluator's first smell of that blotter (it was 5 minutes in the 2026-11-24 amendment). It is still provisional:
+  P6.3 tests whether six people can rotate within 2 minutes. If the window would be exceeded, the facilitator
+  sprays a **new blotter of the same sample** (same blind code) and the remaining evaluators smell that one; each
+  sheet's "Time sprayed" is the spray time of the blotter that evaluator smelled.
+- **Not the clean-air interval.** The inter-stimulus interval (at least 2 minutes of clean air between the last
+  sniff of one sample and the first sniff of the next, about 5 minutes after a persistent sample) is a different
+  number and is unchanged. The two must not be conflated.
+- **Implementation state.** The sheet (`facilitated-session-sheet v2.0`), the run sheet and the spray-sheet generator
+  describe the procedure; the application support (program `blotter_mode`, shared codes and order at enrollment, the
+  flag, the 2 minute check) is a code work item in
+  [PROJECT-PLAN.md section 11a](../PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24). Until it
+  merges the application still checks 5 minutes and cannot give evaluators the same code and order.
 
 ## 2026-11-24 amendment: `would_buy` stays on the blind skin form (pending owner confirmation)
 

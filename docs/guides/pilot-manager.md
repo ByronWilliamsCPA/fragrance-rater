@@ -62,8 +62,10 @@ software parts are merged is stated here and nowhere else in this guide; do not 
 - Six evaluators, one facilitator. The facilitator is the declared mapping holder, is also an evaluator, sprays,
   times, transcribes, verifies and controls the reveal. The holder's rows are flagged non-blind, excluded from
   blind-baseline training and retained in evaluation. The observations are single-blind with observer cues.
-- Evaluators work in silent, parallel sessions on paper: one sheet per evaluator per session, three sample columns,
-  no logins and no phones. The facilitator transcribes every sheet through **one recorder login**. This departs from
+- Evaluators work in silent sessions on paper: one sheet per evaluator per session, three sample columns, no logins
+  and no phones. In **group blotter mode** (the F1 mode, decided 2026-11-25) you pass one physical blotter per sample
+  around the six evaluators, one blotter at a time, because eighteen blotters at once is too strong a smell. See
+  [Group blotter mode](#group-blotter-mode) below. The facilitator transcribes every sheet through **one recorder login**. This departs from
   the rule in the rest of this guide that evaluator and recorder identities stay distinct; the F1 pre-exposure
   declaration must say so.
 - All six evaluators are captured in the application before the next session starts.
@@ -80,17 +82,19 @@ drafts until the P6.3 rehearsal.
 
 | Part | State |
 | :--- | :--- |
-| Shared-triple enrollment, Latin-square order, random codes, session-plan preview (#211) | Merged |
+| Shared-triple enrollment, Latin-square order, random codes, session-plan preview (#211); the Latin-square order is for individual mode, group blotter mode gives every evaluator the same order | Merged |
 | Non-blind quality flag and the `/non-blind` call (#213) | Merged |
 | Holdout gate, household reveal, `reveal_policy`, manager checkpoints (#214) | Merged |
 | Paper sheet, conditions slip, run sheet, spray-sheet generator (#215) | Merged |
-| Session-scoped wizard (skin-plan step removed from the blotter flow, per-session ranking, holdout sequence) | Open: #216 |
-| Transcription timing and the blind-code confirmation guard | Pending; no pull request number at the time of writing |
+| Facilitated guides, P6.2 and P6.3 scope, F1 declaration template (#217) | Merged |
+| Session-scoped wizard (skin-plan step removed from the blotter flow, per-session ranking, holdout sequence, manager checkpoint and household reveal panel) (#216) | Merged |
+| Transcription timing (paper first-smell, finished and session times, whole-minute elapsed time) and the blind-code confirmation guard (#218) | Merged |
+| Group blotter mode in the application (program `blotter_mode`, shared codes and order, `group_shared_blotter` flag, 2 minute ceiling) | Code pull request pending; number in [PROJECT-PLAN.md section 11a](../planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) |
+| Group blotter procedure: sheet v2.0, run sheet, spray-sheet `--mode group`, guides, gates | This documentation pull request, pending the code pull request |
 
-Until #216 merges, the evaluator screens still carry the older wizard behaviour. Until the transcription work
-merges, the application does not take the paper's first-smell time as the presentation time, so the timing fields
-cannot be entered as this guide describes. Re-read this table against the merged pull requests before relying on
-either.
+A merged item is not gate evidence: none of this has been rehearsed in P6.3. Until the group blotter code merges, the
+application still checks a 5 minute ceiling and has no `blotter_mode`; re-read this table against the merged pull
+requests before relying on it.
 
 ### Enroll with shared triples
 
@@ -98,9 +102,14 @@ either.
    draft program (at creation, or with `PUT /api/v1/calibration/programs/{program_id}/reveal-policy` while the
    program is still a draft). The default `ENROLLMENT` reveals each evaluator separately and leaks across
    evaluators who share triples.
-2. In **Program setup**, choose the shared-triples algorithm (`shared-triples-latin-rotation-v1`). Standard labels
-   are refused with it: blind codes are random and specific to each evaluator, because with shared triples a label
-   that names the session would reveal session identity and holdout status.
+2. In **Program setup**, choose the shared-triples algorithm. For individual mode that is
+   `shared-triples-latin-rotation-v1`: standard labels are refused with it, and blind codes are random and specific to
+   each evaluator, because with shared triples a label that names the session would reveal session identity and
+   holdout status. For F1 group blotter mode the program's blotter mode is `SHARED_GROUP` (set at creation, or with
+   `PUT /api/v1/calibration/programs/{program_id}/blotter-mode` while the program is a draft; it locks at the first
+   enrollment) and the algorithm is `shared-triples-group-blotter-v1`, which gives every evaluator the same random
+   blind code per sample and the same order inside each session. Both names are from the code pull request, which has
+   not merged yet; verify them against the merged code.
 3. Name any exceptionally persistent or animalic samples. The manager supplies them; the template allows at most one
    per session and generates nothing about persistence itself.
 4. Use **Preview session plan** before the first enrollment. It shows the session composition the next evaluator
@@ -108,7 +117,8 @@ either.
    until you enroll) and which rotation the next evaluator takes. The preview names fragrances, so it is
    manager-only and stays in a closed disclosure; do not show it to an evaluator. Check that holdouts sit in the last
    sessions and that each hidden repeat sits at least twice the session size in positions after its original, then
-   enroll the six evaluators one by one. Enrollment fixes the order within each session for that evaluator; the actual order is stored.
+   enroll the six evaluators one by one. Enrollment fixes the order within each session for that evaluator (in group
+   blotter mode it is the same for all six); the actual order is stored.
 5. Generate the manager-only mapping and print the blind labels. Build the facilitator spray sheets and each
    evaluator's pre-printed code row with `scripts/make_spray_sheets.py`; its output is facilitator-only, goes to the
    gitignored `tmp_cleanup/spray-sheets/` by default, and is never committed.
@@ -133,7 +143,7 @@ create the checkpoints as a manager:
   prediction snapshot per program holdout. Skipped enrollments are listed with a reason.
 
 This holds in every program with holdouts, including the P6 synthetic rehearsal, until a manager checkpoint button
-exists in the wizard (expected from #216, which is open and not merged). Whether F1 requires a linked prediction per
+exists in the wizard; #216 (merged) adds a checkpoint and household reveal panel in **Program setup**. Whether F1 requires a linked prediction per
 holdout is an open owner decision; the call freezes predictions by default, and the declaration should state what was
 frozen.
 
@@ -154,15 +164,42 @@ evaluator's conditions answers from reads and the evidence export, so decide how
 
 Enter one evaluator at a time through the single recorder login and compare each column on screen with the paper
 before saving, because a saved observation cannot be edited. Enter an ambiguous mark as blank plus a flag. A column
-first smelled after the provisional 5-minute ceiling is entered with a `spray_to_smell_ceiling_exceeded` flag. Keep
+first smelled after the provisional 2-minute ceiling (counted from the spray time of the blotter that evaluator smelled)
+is entered with a `spray_to_smell_ceiling_exceeded` flag. Enter each evaluator's own spray time: after a replacement
+blotter it differs between evaluators of one session. Keep
 the original sheets and slips, scan them, and store the scans outside the repository; the retention period is an open
 owner decision (see below). Record each sheet's version id and the conditions slip's version id in the declaration.
+
+### Group blotter mode
+
+Decided by the product owner on 2026-11-25; follow the [run sheet](../facilitated-run-sheet.md#group-blotter-mode-f1)
+for the procedure. In short:
+
+- **One blotter per sample, one at a time.** You spray it, write its spray time, and pass it round the six evaluators in
+  a fixed seat order. Every evaluator holds the **same blind code** for the sample and sees the **same order** within a
+  session. Print the sheets with `scripts/make_spray_sheets.py --mode group`.
+- **Ceiling.** The spray-to-first-smell ceiling is **2 minutes** from a blotter's spray to each evaluator's first smell.
+  It is provisional; P6.3 tests whether six people can rotate within it. If the window would be exceeded, spray a new
+  blotter of the same sample (same blind code); the remaining evaluators smell that one, and each sheet's **Time
+  sprayed** is the spray time of the blotter that evaluator smelled.
+- **Not the clean-air interval.** The 2 minute clean-air interval between samples (about 5 minutes after a persistent
+  sample, ADR-005) is a different number and is unchanged.
+- **The flag.** Scores from these sessions carry the informational session flag `group_shared_blotter`, raised
+  automatically at enrollment of a `SHARED_GROUP` program. It is a flag only: the scores **remain eligible for
+  training** and pooled reliability is reported both ways (with and without them), so the choice can be reversed
+  later. Nothing is set at transcription.
+- **Shared-code limitation (accepted by the owner).** Because the code and order are shared, an evaluator may infer
+  that others are smelling the same sample, and order and seat position are confounded with the score. Keeping the
+  scores in training adds the risk that this confound leaks into a learned model; the flag is there to reverse it.
+  State the limitation in the pre-exposure declaration.
 
 ### Open owner decisions for this variant
 
 These are not decided here: the confirmation of `would_buy` staying on the blind skin form, the sign-off of the scale
 wording, the paper retention period, the spray distance and count (the repository defines neither; fix them in the
-declaration), whether F1 requires a linked prediction per holdout, and the withdrawn-evaluator procedure.
+declaration), whether F1 requires a linked prediction per holdout, the withdrawn-evaluator procedure (a withdrawn
+evaluator probably blocks the household reveal, which is unverified), and whether the seat order is rotated between
+sessions.
 
 ## Measure and close the workflow
 

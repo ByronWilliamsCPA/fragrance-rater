@@ -51,7 +51,9 @@ evidence yet.
 | Shared-triple enrollment of six synthetic evaluators | Same session composition, per-session Latin-square rotation, random codes, preview matches stored plan | Pending | Pending |
 | Paper session for six evaluators | Silent parallel sheets completed for at least one full session on paper, then one evaluator at a time transcribed through one recorder login | Pending | Pending |
 | Blind-code confirmation and ambiguous marks | A mismatched code is not saved; an ambiguous mark enters as blank plus a flag | Pending | Pending |
-| Spray rounds and ceiling | One blotter per evaluator per round; actual sprayed, first-smelled and column-finished times recorded; provisional 5-minute ceiling confirmed or replaced; breaches flagged | Pending | Pending |
+| Group blotter rotation and ceiling | One blotter per sample passed round six evaluators in a fixed seat order; shared codes and order; actual sprayed, first-smelled and column-finished times recorded; provisional 2-minute ceiling confirmed or replaced; breaches flagged | Pending | Pending |
+| Replacement blotter | At least one rehearsed replacement (new blotter, same blind code); each sheet's Time sprayed is the spray time of the blotter that evaluator smelled; transcription enters each evaluator's own spray time; count of replacements recorded | Pending | Pending |
+| Group-blotter flag | Every session of a `SHARED_GROUP` program carries `group_shared_blotter`; flagged rows stay training-eligible; pooled reliability reported both ways | Pending | Pending |
 | Non-blind holder | Holder's enrollment flagged non-blind; training eligibility excludes it and evaluation keeps it | Pending | Pending |
 | Checkpoints before holdouts | A holdout write is refused before the checkpoint and accepted after; checkpoints created by a manager | Pending | Pending |
 | Household reveal | Refused until every enrollment is ready; one atomic reveal after the holdouts | Pending | Pending |

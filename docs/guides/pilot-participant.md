@@ -53,15 +53,20 @@ about signing in, blind calibration on screen, and skin observations do not appl
 
 1. **No logins and no phones.** Phones stay outside the room or switched off. The facilitator, who is also an
    evaluator, types your answers into the application afterward.
-2. **One paper sheet per session.** You get a tray of three coded blotters and one sheet with three sample columns.
-   The codes printed on the sheet match the codes on your blotters. Write only what you perceive. Never write what
-   a sample might be.
-3. **Same samples, different order.** Everyone in a session smells the same three samples, but your order may differ
-   from your neighbour's. Do not compare. Work silently until the facilitator announces the reveal, and do not talk
-   about any sample or score to anyone, in or out of the room, until then.
+2. **One paper sheet per session.** You get one sheet with three sample columns. The codes printed on the sheet are
+   the codes of the blotters you will smell. Write only what you perceive. Never write what a sample might be.
+3. **One blotter, passed around.** In the group format the facilitator sprays one blotter at a time and it goes round
+   everyone in a fixed seat order. You smell it once, write the time you first smell it, and pass it on in silence.
+   Everyone in a session smells the same three samples, in the same order, and everyone's sheet shows the same codes.
+   That is a known limitation of this format: do not try to match codes or guess what others are smelling, and do not
+   compare. Work silently until the facilitator announces the reveal, and do not talk about any sample or score to
+   anyone, in or out of the room, until then. Your scores are marked as group-blotter scores; that is a label for the
+   analysis, not a judgement of your answers.
 4. **Smell as soon as you are handed a blotter** and write the time you first smell it. A provisional ceiling of
-   5 minutes from spray to first smell applies; it is confirmed in the rehearsal. If it is exceeded, say so by
-   writing the time you actually smelled. Nothing is thrown away and nobody re-sprays a blotter.
+   2 minutes from a blotter's spray to your first smell applies; it is confirmed in the rehearsal. If the window would
+   be missed, the facilitator sprays a new blotter of the same sample and you smell that one; its spray time is the one
+   written on your sheet. If you still smell late, write the time you actually smelled. Nothing is thrown away. The
+   short wait between samples for clean air is a separate thing and is not your 2 minute window.
 5. **A zero is a real answer; blank means "not answering".** Do not guess a mark. If you cannot smell a sample,
    circle **No** under Detected and leave the rest of that column blank. If a mark is ambiguous the facilitator enters
    it as blank with a flag.
@@ -82,7 +87,7 @@ non-pilot samples first. Everyone is included. Your repeat answers are described
 threshold is applied.
 
 **Your paper.** The original sheet and slip are kept and scanned by the facilitator under the retention period fixed
-for the pilot. The sheet carries a version id (`facilitated-session-sheet v1.0` at the time of writing, still a
+for the pilot. The sheet carries a version id (`facilitated-session-sheet v2.0` at the time of writing, still a
 draft); a sheet with no version id is not used.
 
 Printed forms: [session sheet](../facilitated-session-sheet.md), [conditions slip](../facilitated-conditions-slip.md).

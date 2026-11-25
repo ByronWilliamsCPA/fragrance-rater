@@ -83,7 +83,8 @@ def test_outputs_are_written_and_evaluator_files_leak_nothing(tmp_path: Path) ->
     ]
     for header in headers:
         text = header.read_text(encoding="utf-8")
-        assert "facilitated-session-sheet v1.0" in text
+        assert "facilitated-session-sheet v2.0" in text
+        assert "Individual trays" in text
         assert "Blind code (pre-printed)" in text
         for token in forbidden:
             assert token not in text
@@ -206,3 +207,148 @@ def test_refuses_unignored_directory_inside_a_repository(tmp_path: Path) -> None
     (repo / ".gitignore").write_text("private-out/\n", encoding="utf-8")
     assert tool.main(["--mapping", str(mapping), "--output-dir", str(out)]) == 0
     assert (out / "facilitator-only" / "paper-record-index.csv").is_file()
+
+
+def group_rows() -> list[list[str]]:
+    """Build a two-session mapping where every evaluator shares codes and order."""
+    rows: list[list[str]] = []
+    counter = 0
+    for session, vials in VIALS.items():
+        codes = {}
+        for vial in vials:
+            counter += 1
+            codes[vial] = f"GG{counter:04d}"
+        for evaluator in EVALUATORS:
+            for position, vial in enumerate(vials, start=1):
+                persistent = "yes" if vial == "V02" else ""
+                rows.append(
+                    [session, vial, evaluator, str(position), codes[vial], persistent]
+                )
+    return rows
+
+
+def test_group_mode_accepts_shared_codes_and_order(tmp_path: Path) -> None:
+    """Group mode prints the same codes on every header and one blotter per sample."""
+    rows = group_rows()
+    mapping = write_csv(tmp_path / "mapping.csv", rows)
+    out = tmp_path / "out"
+    args = ["--mapping", str(mapping), "--output-dir", str(out), "--mode", "group"]
+    assert tool.main(args) == 0
+
+    headers = sorted((out / "evaluator-headers").glob("*.md"))
+    assert len(headers) == 6
+    forbidden = [
+        *(v for vials in VIALS.values() for v in vials),
+        "persistent",
+        "extend",
+    ]
+    texts = [h.read_text(encoding="utf-8") for h in headers]
+    for text, header in zip(texts, headers, strict=True):
+        assert "facilitated-session-sheet v2.0" in text
+        assert "Group blotter" in text
+        for token in forbidden:
+            assert token not in text
+        assert "session" not in header.name.lower()
+    session_a_codes = [r[4] for r in rows if r[0] == "A" and r[2] == "E1"]
+    line = f"| Blind code (pre-printed) | {' | '.join(session_a_codes)} |"
+    assert sum(line in text for text in texts) == len(EVALUATORS)
+
+    sheet = (out / "facilitator-only" / "spray-sheet-session-A.md").read_text(
+        encoding="utf-8"
+    )
+    assert "FACILITATOR ONLY" in sheet
+    assert "ONE blotter per sample" in sheet
+    assert "## Seat order" in sheet
+    assert "| 1 | E1 |" in sheet
+    assert "## Sample 1: vial V01" in sheet
+    assert "## Sample 2: vial V02" in sheet
+    assert "extend clean air to about 5 min" in sheet
+    assert "Replacement 1" in sheet
+    assert "spray + 2:00" in sheet
+    assert "DIFFERENT number" in sheet
+    assert "5 minutes from" not in sheet
+
+
+@pytest.mark.parametrize(
+    ("mutate", "fragment"),
+    [
+        (lambda rows: rows[0].__setitem__(4, "DIFF01"), "one blind code"),
+        (
+            lambda rows: [
+                r.__setitem__(4, "GG0001") for r in rows if r[:2] == ["A", "V02"]
+            ],
+            "unique per vial",
+        ),
+        (
+            lambda rows: (
+                rows[0].__setitem__(1, "V02"),
+                rows[0].__setitem__(4, rows[1][4]),
+                rows[1].__setitem__(1, "V01"),
+                rows[1].__setitem__(4, "GG0001"),
+            ),
+            "same vial for every evaluator",
+        ),
+    ],
+)
+def test_group_mode_rejects_differing_codes_or_order(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    mutate: object,
+    fragment: str,
+) -> None:
+    """Group mode requires one code per vial, one order and no code shared by vials."""
+    rows = group_rows()
+    assert callable(mutate)
+    mutate(rows)
+    mapping = write_csv(tmp_path / "mapping.csv", rows)
+    out = tmp_path / "out"
+    args = ["--mapping", str(mapping), "--output-dir", str(out), "--mode", "group"]
+    assert tool.main(args) == 2
+    assert fragment in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_individual_mode_still_rejects_shared_codes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Shared codes are valid only in group mode; the default stays strict."""
+    mapping = write_csv(tmp_path / "mapping.csv", group_rows())
+    out = tmp_path / "out"
+    assert tool.main(["--mapping", str(mapping), "--output-dir", str(out)]) == 2
+    assert "unique" in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_group_mode_output_is_still_refused_in_an_unignored_repository(
+    tmp_path: Path,
+) -> None:
+    """Group mode keeps the git-ignore guard on facilitator-only output."""
+    subprocess.run(  # noqa: S603 - fixed argv, test-only
+        ["git", "init", "-q", str(tmp_path / "repo")],  # noqa: S607
+        check=True,
+    )
+    mapping = write_csv(tmp_path / "mapping.csv", group_rows())
+    out = tmp_path / "repo" / "private-out"
+    args = ["--mapping", str(mapping), "--output-dir", str(out), "--mode", "group"]
+    assert tool.main(args) == 2
+    assert not (out / "facilitator-only").exists()
+
+
+def test_unknown_mode_is_rejected(tmp_path: Path) -> None:
+    """validate() rejects a mode that is not individual or group."""
+    rows = tool.parse_mapping(write_csv(tmp_path / "m.csv", synthetic_rows()))
+    with pytest.raises(tool.MappingError, match="unknown mode"):
+        tool.validate(rows, 3, "pair")
+
+
+def test_individual_spray_sheet_states_both_numbers(tmp_path: Path) -> None:
+    """The individual sheet names the 2 minute ceiling and the separate clean-air interval."""
+    mapping = write_csv(tmp_path / "mapping.csv", synthetic_rows())
+    out = tmp_path / "out"
+    assert tool.main(["--mapping", str(mapping), "--output-dir", str(out)]) == 0
+    text = (out / "facilitator-only" / "spray-sheet-session-A.md").read_text(
+        encoding="utf-8"
+    )
+    assert "2 minutes (provisional)" in text
+    assert "different number" in text
+    assert "5 minutes" not in text.split("different number")[0]
