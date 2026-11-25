@@ -53,7 +53,12 @@ from fragrance_rater.services.checkpoint_service import (
     freeze_program_checkpoints,
 )
 from fragrance_rater.services.consent import ConsentService, load_consent_text
-from fragrance_rater.services.disclosure_gate import HOUSEHOLD, DisclosureGate
+from fragrance_rater.services.disclosure_gate import (
+    GROUP_NEEDS_HOUSEHOLD_REVEAL,
+    HOUSEHOLD,
+    DisclosureGate,
+    effective_reveal_policy,
+)
 from fragrance_rater.services.evaluation_service import EvaluationService
 from fragrance_rater.services.fragella_client import FragellaClient, FragellaError
 from fragrance_rater.services.fragella_lookup_service import FragellaLookupService
@@ -91,7 +96,7 @@ async def programs(db: DB, identity: Identity) -> list[dict[str, object]]:
             "name": p.name,
             "version": p.version,
             "status": p.status,
-            "reveal_policy": p.reveal_policy,
+            "reveal_policy": effective_reveal_policy(p),
             "blotter_mode": p.blotter_mode,
         }
         for p in result
@@ -126,6 +131,11 @@ async def set_reveal_policy(
     obj = await CalibrationService(db).program(program_id)
     if obj.status != "draft":
         reject("Program definition is locked")
+    if obj.blotter_mode == "SHARED_GROUP" and data.reveal_policy != "HOUSEHOLD":
+        # #CRITICAL: security: a shared blotter's blind code is the same for
+        # every evaluator, so a per-evaluator reveal would unblind the rest.
+        # #VERIFY: test_reveal_policy_enrollment_is_refused_for_a_shared_group.
+        reject(GROUP_NEEDS_HOUSEHOLD_REVEAL)
     obj.reveal_policy = data.reveal_policy
     await db.flush()
     log_audit_event(
@@ -496,8 +506,9 @@ async def manager_enrollments(db: DB, identity: Identity) -> list[dict[str, obje
                 "reveal_eligible": blocker is None,
                 "reveal_blocker": blocker,
                 "revealed": item.revealed_at is not None,
-                "reveal_policy": program.reveal_policy,
+                "reveal_policy": effective_reveal_policy(program),
                 "blotter_mode": program.blotter_mode,
+                "holdouts_open": await gate.holdouts_open(item),
                 "checkpoint_count": state.checkpoint_count,
                 "checkpoint_blocker": state.checkpoint_blocker(),
             }
@@ -848,6 +859,11 @@ async def program_readiness(
     manager(identity)
     gate = DisclosureGate(db)
     policy = await gate.policy(program_id)
+    program = await CalibrationService(db).program(program_id)
+    # A SHARED_GROUP holdout blotter serves every evaluator, so holdouts open
+    # only when no enrollment is missing a checkpoint; INDIVIDUAL programs
+    # open per enrollment, and this list only reports who has none yet.
+    missing = await gate.missing_checkpoints(program_id)
     rows: list[dict[str, object]] = []
     own_done = True
     for state in await gate.readiness(program_id):
@@ -863,6 +879,8 @@ async def program_readiness(
                 "reviewer_name": reviewer.name if reviewer is not None else None,
                 "checkpoint_count": state.checkpoint_count,
                 "checkpoint_blocker": state.checkpoint_blocker(),
+                "missing_checkpoint": enrollment.id in missing,
+                "holdouts_open": await gate.holdouts_open(enrollment),
                 "reveal_blocker": None
                 if enrollment.revealed_at
                 else await gate.reveal_blocker(enrollment),
@@ -872,6 +890,11 @@ async def program_readiness(
     return {
         "program_id": program_id,
         "reveal_policy": policy,
+        "blotter_mode": program.blotter_mode,
+        "holdouts_open_program_wide": program.blotter_mode == "SHARED_GROUP"
+        and bool(rows)
+        and not missing,
+        "enrollments_missing_checkpoint": missing,
         "household_reveal_ready": policy == HOUSEHOLD
         and bool(rows)
         and own_done

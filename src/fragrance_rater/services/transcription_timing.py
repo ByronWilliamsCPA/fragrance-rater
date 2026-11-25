@@ -43,8 +43,12 @@ SPRAY_TO_SMELL_CEILING = timedelta(minutes=2)
 
 # The flag raised when a first smell breaches the ceiling, and the rule that
 # raises it, so an automatic flag names the version of the rule it applied.
+# v2: the ceiling became 2 minutes and is judged per evaluator (first smell
+# against that evaluator's own spray); v1 was the single 5-minute ceiling.
+# Flags already stored name v1 and stay readable: the column is free text and
+# nothing validates or branches on the value.
 CEILING_FLAG_CODE = "spray_to_smell_ceiling_exceeded"
-CEILING_RULE_VERSION = "spray-to-smell-ceiling-v1"
+CEILING_RULE_VERSION = "spray-to-smell-ceiling-v2"
 
 # #ASSUME: timing-dependency: a paper sheet is transcribed within days, never
 # weeks (all six sheets of a sitting are entered before the next sitting). An
