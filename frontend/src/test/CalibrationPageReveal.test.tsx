@@ -3,6 +3,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CalibrationPage } from '../pages/CalibrationPage'
 import type { Enrollment, EnrollmentSummary } from '../api/types'
+import { assignmentLinkFor, assignmentQuery } from '../routing/routes'
 
 const { get, post } = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
 vi.mock('axios', () => ({
@@ -111,6 +112,44 @@ describe('guided reveal', () => {
     expect(screen.getByText(/Reveal complete\./)).toBeInTheDocument()
     expect(screen.getByText(/House.*Signature.*EDP/)).toBeInTheDocument()
     expect(screen.queryByText('Nothing new is assigned right now.')).not.toBeInTheDocument()
+  })
+
+  it('in manual browse, lists a closed sample without offering it and leaves a household reveal to the manager', async () => {
+    const household: Enrollment = {
+      ...beforeReveal,
+      reveal_policy: 'HOUSEHOLD',
+      presentations: [
+        presentation,
+        {
+          ...presentation,
+          id: 's2',
+          session_id: 'sess2',
+          blind_code: 'BBB2',
+          blotter_locked: false,
+          available: false,
+        },
+      ],
+    }
+    get.mockResolvedValue({ data: household })
+    render(
+      <CalibrationPage
+        assignments={[summary(false)]}
+        programs={[]}
+        reviewers={[]}
+        access={{ username: 'recorder', manager: false }}
+        navigate={vi.fn()}
+        reload={vi.fn()}
+        initialAssignmentId={assignmentLinkFor(assignmentQuery('e1'), ['e1']).initialAssignmentId}
+      />
+    )
+
+    const closed = await screen.findByRole('button', { name: /BBB2/ })
+    expect(closed).toBeDisabled()
+    expect(closed).toHaveTextContent('Not open yet')
+    expect(screen.getByRole('button', { name: /AAA1/ })).toHaveTextContent('Locked')
+    expect(screen.getByText(/reveals every evaluator together/)).toBeInTheDocument()
+    expect(screen.getByText(/reveals the whole household together/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reveal completed baseline' })).toBeDisabled()
   })
 
   it('still lets the person leave the revealed view and browse', async () => {
