@@ -130,6 +130,13 @@ export type Sample = {
   }
   observations: Observation[]
   /**
+   * When the blotter was first smelled (naive UTC, no zone suffix), once the
+   * exposure is stamped; null before. In the facilitated format it is the
+   * paper's own time, so a resumed column must not ask for it again. Optional
+   * only because servers older than the transcription rules omit it.
+   */
+  presented_at?: string | null
+  /**
    * False only while the server's holdout gate holds this sample closed (no
    * checkpoint yet for the enrollment). The client must not offer a closed
    * sample; it says nothing about lock state. Optional only because servers

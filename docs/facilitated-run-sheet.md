@@ -140,8 +140,9 @@ weaker sample.
   of that evaluator's ranking.
 - If any evaluator needs to step away (discomfort), pause that evaluator's next spray, extend the clean-air interval
   for them, and note the time. Other evaluators wait for the next round together; do not run ahead.
-- A breach of the spray-to-first-smell ceiling is recorded as a deviation. Enter it in the application as a quality
-  flag when transcribing.
+- A breach of the spray-to-first-smell ceiling is recorded as a deviation. The application raises the
+  `spray_to_smell_ceiling_exceeded` flag itself when you type the first-smell time; the evidence is kept and nothing
+  is dropped. Also keep the breach in the deviation log.
 
 ## Transcription window
 
@@ -150,12 +151,18 @@ starts. The gap of at least 3 hours between same-day sessions is the transcripti
 finished, the next sitting waits.
 
 1. Enter one evaluator at a time through the single recorder login: confirm the enrollment and paper record ID, then
-   check the blind code printed on the paper against the code on screen for each column before saving. Do not save on a
-   mismatch.
-2. Send the paper's first-smell time as the presented time, the paper's column-finished time as the observed time, and
-   elapsed minutes as whole minutes from spray to column finished. The exact times stay on the paper.
+   type the blind code printed on the paper into the "Blind code printed on the sheet" box for each column. The
+   application refuses to save when it is not the code of the sample on screen, so a mismatch means the wrong sheet or
+   the wrong evaluator: stop and check.
+2. Type the paper's spray time, first-smell time (asked once per sample) and column-finished time. The application
+   stores the first smell as the presented time and the column-finished time as the observed time, and works out
+   elapsed minutes as whole minutes from spray to column finished; you never type them. The session start, session
+   end and ranking times are typed from the sheet in the same way. A time in the future, before the session existed or
+   more than 7 days ago is refused as a probable typing error. The exact times stay on the paper.
 3. Enter an ambiguous mark as blank plus a flag. Never guess.
-4. Enter the conditions slip into the session-context form only for an evaluator who accepted the consent.
+4. Consent is recorded once per evaluator, on their first session, with a note of where it was written (for example,
+   signed on the paper sheet). Enter the conditions slip into the session-context form only for an evaluator who
+   accepted it; later sessions never ask again.
 5. A saved observation cannot be edited, so compare each column on screen with the paper before pressing Save, then
    complete Part E on the sheet and sign it.
 6. Do not discuss what you just typed with anyone.

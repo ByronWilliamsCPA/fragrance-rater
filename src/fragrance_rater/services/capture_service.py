@@ -32,6 +32,7 @@ from fragrance_rater.services.training_eligibility import (
     TrainingEligibilityService,
     Transition,
 )
+from fragrance_rater.services.transcription_timing import check_instant
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
@@ -94,6 +95,8 @@ class CaptureService:
         session, enrollment = await self.calibration.session_target(
             session_id, username, admin
         )
+        if data.ranked_at is not None:
+            check_instant(data.ranked_at, session, "The ranking time")
         presentations = list(
             await self.db.scalars(
                 select(Presentation)

@@ -15,6 +15,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,13 @@ from fragrance_rater.services.evidence_export import (
 )
 
 PREFIX = "/api/v1/calibration"
+
+
+def _hours_ago(hours: int) -> str:
+    """A paper time inside the transcription window and after the sessions began."""
+    return (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
+
+
 MANAGER = {"X-Authentik-Username": "manager"}
 RECORDER = {"X-Authentik-Username": "recorder"}
 
@@ -68,7 +76,7 @@ async def _ok(response: Any, status: int = 200) -> Any:
 
 @pytest.mark.asyncio
 async def test_a_full_session_exports_every_captured_field(
-    test_app: Any, tmp_path: Path
+    test_app: Any, tmp_path: Path, backdate_sessions: Any
 ) -> None:
     reviewer = await _ok(
         await test_app.post(
@@ -128,7 +136,10 @@ async def test_a_full_session_exports_every_captured_field(
     view = await _ok(
         await test_app.get(f"{PREFIX}/enrollments/{enrollment['id']}", headers=RECORDER)
     )
+    await backdate_sessions()
     first, second, third = (p["id"] for p in view["presentations"])
+    blotter_finished = _hours_ago(4)
+    skin_finished = _hours_ago(1)
     session_id = view["presentations"][0]["session_id"]
 
     # Consent, then the session opens and its conditions are recorded.
@@ -175,7 +186,7 @@ async def test_a_full_session_exports_every_captured_field(
         await _ok(
             await test_app.post(
                 f"{PREFIX}/presentations/{presentation_id}/exposure",
-                json={"stage": "BLOTTER"},
+                json={"stage": "BLOTTER", "at": _hours_ago(5)},
                 headers=RECORDER,
             )
         )
@@ -191,7 +202,7 @@ async def test_a_full_session_exports_every_captured_field(
                     "response_status": "completed" if detected else "not_detected",
                     "recognition": "vaguely_familiar",
                     "owned_or_worn": "no",
-                    "observed_at": "2026-10-30T14:00:00Z",
+                    "observed_at": blotter_finished,
                 },
                 headers=RECORDER,
             ),
@@ -246,7 +257,7 @@ async def test_a_full_session_exports_every_captured_field(
                 "first_not_detected_elapsed_min": 480,
                 "season_fit": ["spring", "fall"],
                 "setting_fit": ["home"],
-                "observed_at": "2026-10-30T22:00:00Z",
+                "observed_at": skin_finished,
             },
             headers=RECORDER,
         ),

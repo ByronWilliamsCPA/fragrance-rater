@@ -248,12 +248,46 @@ class ResponseInput(StrictInput):
     idempotency_key: str | None = Field(
         default=None, min_length=8, max_length=64, pattern=r"^[A-Za-z0-9_-]+$"
     )
+    # F1 facilitated transcription. Neither is stored on the observation.
+    # ``sprayed_at`` is the paper's spray time: with ``observed_at`` (column
+    # finished) it fixes ``elapsed_minutes`` as whole minutes, computed when the
+    # caller omits it and validated when given. ``confirmed_blind_code`` is the
+    # code the facilitator read off the paper; the server refuses the write if
+    # it is not this sample's code, so a column cannot be keyed to the wrong
+    # enrollment or sample unnoticed.
+    sprayed_at: datetime | None = None
+    confirmed_blind_code: str | None = Field(default=None, min_length=1, max_length=24)
 
-    @field_validator("observed_at")
+    @field_validator("observed_at", "sprayed_at")
     @classmethod
-    def observed_at_is_naive_utc(cls, value: datetime | None) -> datetime | None:
+    def instant_is_naive_utc(cls, value: datetime | None) -> datetime | None:
         """Store the evidence timestamp as naive UTC, never in the future."""
         return None if value is None else to_naive_utc(value)
+
+    @model_validator(mode="after")
+    def validate_spray_to_finish(self) -> "ResponseInput":
+        """Derive or check elapsed minutes from the spray and finish times."""
+        if self.sprayed_at is None:
+            return self
+        if self.stage != "BLOTTER":
+            message = "sprayed_at applies to a blotter column only"
+            raise ValueError(message)
+        if self.observed_at is None:
+            message = "sprayed_at needs observed_at, the time the column finished"
+            raise ValueError(message)
+        if self.observed_at < self.sprayed_at:
+            message = "The column cannot finish before the blotter was sprayed"
+            raise ValueError(message)
+        minutes = int((self.observed_at - self.sprayed_at).total_seconds() // 60)
+        if "elapsed_minutes" not in self.model_fields_set:
+            self.elapsed_minutes = minutes
+        elif self.elapsed_minutes != minutes:
+            message = (
+                f"elapsed_minutes is {self.elapsed_minutes} but the spray and "
+                f"finish times give {minutes} whole minutes"
+            )
+            raise ValueError(message)
+        return self
 
     @model_validator(mode="after")
     def validate_detection(self) -> "ResponseInput":
@@ -392,6 +426,14 @@ class ExposureInput(StrictInput):
     sample_opened_on: date | None = None
     sample_batch_code: str | None = Field(default=None, max_length=100)
     physical_sample_confirmed: bool | None = None
+    # F1 facilitated transcription (blotter only). ``sprayed_at`` is the
+    # paper's spray time; a first smell later than the spray-to-first-smell
+    # ceiling is kept and flagged as a deviation, never refused or dropped.
+    # Only the flag records it; the exact time stays on the paper.
+    # ``confirmed_blind_code`` is the code read off the paper (see
+    # ``ResponseInput``).
+    sprayed_at: datetime | None = None
+    confirmed_blind_code: str | None = Field(default=None, min_length=1, max_length=24)
 
     @field_validator("timezone")
     @classmethod
@@ -399,11 +441,27 @@ class ExposureInput(StrictInput):
         """Refuse a name the IANA database does not know."""
         return None if value is None else validate_timezone(value)
 
-    @field_validator("at")
+    @field_validator("at", "sprayed_at")
     @classmethod
     def at_is_naive_utc(cls, value: datetime | None) -> datetime | None:
         """Store the instant as naive UTC, never in the future."""
         return None if value is None else to_naive_utc(value)
+
+    @model_validator(mode="after")
+    def spray_precedes_first_smell(self) -> "ExposureInput":
+        """A spray time needs the first-smell time and cannot follow it."""
+        if self.sprayed_at is None:
+            return self
+        if self.stage != "BLOTTER":
+            message = "sprayed_at applies to a blotter exposure only"
+            raise ValueError(message)
+        if self.at is None:
+            message = "sprayed_at needs at, the time the blotter was first smelled"
+            raise ValueError(message)
+        if self.at < self.sprayed_at:
+            message = "A blotter cannot be first smelled before it was sprayed"
+            raise ValueError(message)
+        return self
 
     @model_validator(mode="after")
     def application_details_are_skin_only(self) -> "ExposureInput":

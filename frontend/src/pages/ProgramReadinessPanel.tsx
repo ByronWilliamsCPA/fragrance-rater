@@ -12,6 +12,7 @@ import { FeedbackBanner } from '../components/FeedbackBanner'
 import { checkpointBlockerLabel, revealBlockerLabel } from '../content/revealBlockers'
 import { useTask } from '../hooks/useTask'
 import { isOpen, sessionsOf } from '../routing/wizardSteps'
+import { NonBlindPanel } from './NonBlindPanel'
 
 type ProgressRow = { enrollmentId: string; name: string; cells: string[] }
 
@@ -226,6 +227,7 @@ export function ProgramReadinessPanel({
           </button>
         </div>
       )}
+      {enrollments.length > 0 && <NonBlindPanel enrollments={enrollments} task={task} />}
       {progress && progress.length > 0 && (
         <div
           className="log-scroll"

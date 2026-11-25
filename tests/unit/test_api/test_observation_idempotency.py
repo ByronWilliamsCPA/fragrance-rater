@@ -8,9 +8,11 @@ not match the request; a new key, or no key, appends as before.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import pytest
+import pytest_asyncio
 from sqlalchemy import func, select
 
 from fragrance_rater.core.database import get_db
@@ -32,12 +34,32 @@ __all__ = ["calibration_manager", "world"]
 KEY = "a1b2c3d4-key-0001"
 
 
+def _hours_ago(hours: int) -> str:
+    """A paper time inside the transcription window and after the sessions began."""
+    return (datetime.now(UTC) - timedelta(hours=hours)).isoformat()
+
+
+# Computed once so every call in a test sends the same instant (a retry must
+# repeat the first submission exactly).
+OBSERVED_AT = _hours_ago(2)
+LATER_OBSERVED_AT = _hours_ago(1)
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _sitting_began_earlier(
+    calibration_manager: None, world: dict[str, Any], backdate_sessions: Any
+) -> None:
+    """Backdate the sessions so the explicit paper times above are plausible."""
+    del calibration_manager, world
+    await backdate_sessions()
+
+
 def _body(**fields: Any) -> dict[str, Any]:
     return {
         "stage": "SKIN" if fields.get("stage") == "SKIN" else "BLOTTER",
         "detected": True,
         "liking": 6,
-        "observed_at": "2026-10-30T14:00:00Z",
+        "observed_at": OBSERVED_AT,
         "idempotency_key": KEY,
         **fields,
     }
@@ -121,7 +143,7 @@ async def test_a_retry_without_observed_at_matches_the_server_stamp(
     "change",
     [
         {"liking": 7},
-        {"observed_at": "2026-10-30T15:00:00Z"},
+        {"observed_at": LATER_OBSERVED_AT},
         {"comments": "different"},
         {"stage": "SKIN"},
     ],

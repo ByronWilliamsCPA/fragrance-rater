@@ -5,6 +5,7 @@ import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { LoadingState } from '../components/PageState'
 import { revealBlockerLabel } from '../content/revealBlockers'
+import { isTranscribed } from '../content/transcription'
 import { useTask } from '../hooks/useTask'
 import {
   isOpen,
@@ -16,6 +17,7 @@ import {
 import { SampleObservationPanel } from './SampleObservationPanel'
 import { FlagProblem } from './FlagProblem'
 import { RankingStep } from './RankingStep'
+import { SessionBoundaryStep } from './SessionBoundaryStep'
 import { SessionIntroStep } from './SessionIntroStep'
 
 /** Another enrollment the same recorder can switch the wizard to. */
@@ -189,6 +191,8 @@ export function GuidedCalibrationFlow({
   }
 
   const step = nextWizardStep(enrollment, progress)
+  // The facilitated format: a facilitator copies paper sheets in afterwards.
+  const transcription = isTranscribed(enrollment.reveal_policy)
   const sessions = sessionsOf(enrollment)
   const closedRemain = enrollment.presentations.some((item) => !isOpen(item))
   const refreshButton = (
@@ -241,6 +245,7 @@ export function GuidedCalibrationFlow({
           sessionId={step.sessionId}
           task={task}
           onDone={() => mark('introduced', step.sessionId)}
+          transcription={transcription}
         />
       </WizardShell>
     )
@@ -296,6 +301,7 @@ export function GuidedCalibrationFlow({
           setDetected={setDetected}
           task={task}
           refresh={refresh}
+          transcription={transcription}
         />
       )}
       {step.kind === 'session_ranking' && (
@@ -305,21 +311,17 @@ export function GuidedCalibrationFlow({
           sessionId={step.sessionId}
           task={task}
           onDone={() => mark('ranked', step.sessionId)}
+          transcription={transcription}
         />
       )}
       {step.kind === 'session_boundary' && (
-        <>
-          <p className="notice" role="status">
-            Session complete. Wait for the facilitator.
-          </p>
-          <p>
-            Every sample in this session is saved. The next part starts only when the facilitator
-            continues.
-          </p>
-          <button onClick={() => mark('acknowledged', step.sessionId)}>
-            Facilitator: continue
-          </button>
-        </>
+        <SessionBoundaryStep
+          key={step.sessionId}
+          sessionId={step.sessionId}
+          task={task}
+          onContinue={() => mark('acknowledged', step.sessionId)}
+          transcription={transcription}
+        />
       )}
       {step.kind === 'skin_plan' && (
         <>

@@ -10,6 +10,8 @@ import {
   type Choice,
 } from '../content/calibrationScales'
 import { contextPayload } from '../content/contextPayload'
+import { toInstant } from '../content/transcription'
+import { sessionsOf } from '../routing/wizardSteps'
 import type { useTask } from '../hooks/useTask'
 
 type ConsentText = { version: string; approved: boolean; text: string }
@@ -48,12 +50,20 @@ function ChoiceSelect({
  * is shown exactly as the server holds it; while that wording is an unapproved
  * draft the screen says so and offers no way to agree, because the server
  * refuses a grant against a draft.
+ *
+ * In the facilitated format (`transcription`) a facilitator types a paper
+ * sheet in on the evaluator's behalf. Consent is then asked ONCE per
+ * evaluator, on their first session, with a note saying where it is written
+ * (the paper sheet); later sessions never re-ask, and show conditions only if
+ * consent was granted then. The session start time is the one written on the
+ * sheet, not the moment the facilitator typed it.
  */
 export function SessionIntroStep({
   enrollment,
   sessionId: requestedSessionId,
   task,
   onDone,
+  transcription = false,
 }: {
   enrollment: Enrollment
   /**
@@ -63,11 +73,18 @@ export function SessionIntroStep({
   sessionId?: string
   task: ReturnType<typeof useTask>
   onDone: () => void
+  /** Facilitated format: consent once, with a note; start time from the paper sheet. */
+  transcription?: boolean
 }) {
   const sessionId = requestedSessionId ?? enrollment.presentations[0]?.session_id
+  // Consent is per evaluator, so only their first session may ask for it.
+  const firstSession = sessionsOf(enrollment)[0]?.id === sessionId
+  const askConsent = !transcription || firstSession
   const [text, setText] = useState<ConsentText | null>(null)
   const [consent, setConsent] = useState<string>('none')
   const [context, setContext] = useState<ContextRead | null>(null)
+  const [consentNote, setConsentNote] = useState('')
+  const [startedAt, setStartedAt] = useState('')
 
   async function load() {
     const [wording, state, read] = await Promise.all([
@@ -89,10 +106,18 @@ export function SessionIntroStep({
   }, [enrollment.id, sessionId])
 
   async function record(eventType: 'granted' | 'withdrawn') {
+    const note = consentNote.trim()
+    if (transcription && eventType === 'granted' && !note) {
+      task.setError(
+        'Say where the evaluator wrote their consent (for example: signed on the paper sheet) before recording it.'
+      )
+      return
+    }
     await api.post(`/calibration/reviewers/${enrollment.reviewer_id}/consent`, {
       scope: 'session_context',
       event_type: eventType,
       enrollment_id: enrollment.id,
+      ...(transcription && note ? { note } : {}),
     })
     await load()
     task.setNotice(
@@ -101,11 +126,17 @@ export function SessionIntroStep({
   }
 
   async function continueToSamples() {
+    // In the facilitated format the start is the time written on the sheet.
+    const paperStart = transcription ? toInstant(startedAt) : null
+    if (transcription && !paperStart) {
+      task.setError('Enter the start time written on the sheet before continuing.')
+      return
+    }
     if (sessionId) {
       try {
         await api.post(`/calibration/sessions/${sessionId}/start`, {
           evaluator_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          started_at: new Date().toISOString(),
+          started_at: paperStart ?? new Date().toISOString(),
         })
       } catch (reason) {
         // A session that already started is fine; anything else is real.
@@ -122,23 +153,39 @@ export function SessionIntroStep({
         Before you begin: please read how your answers are used. Taking part never depends on saying
         yes, and you can still evaluate every sample whatever you choose.
       </p>
-      {text && (
+      {text && askConsent && (
         <section aria-label="Consent wording" className="consent-text">
           <pre className="consent-text__body">{text.text}</pre>
         </section>
       )}
-      {text && !text.approved && (
+      {text && askConsent && !text.approved && (
         <p className="notice" role="status">
           This wording is still being finalized, so questions about your conditions are switched off
           for now. You can go straight to the samples.
         </p>
       )}
-      {text?.approved && consent !== 'granted' && (
+      {text?.approved && askConsent && consent !== 'granted' && (
         <div className="fields fields-compact">
+          {transcription && (
+            <label>
+              Where the evaluator wrote their consent
+              <input
+                value={consentNote}
+                onChange={(event) => setConsentNote(event.target.value)}
+                placeholder="For example: signed on the paper sheet"
+              />
+            </label>
+          )}
           <button disabled={task.busy} onClick={() => void task.run(() => record('granted'))}>
             I agree to answer questions about my conditions
           </button>
         </div>
+      )}
+      {!askConsent && consent !== 'granted' && (
+        <p className="notice" role="status">
+          Consent to answer questions about conditions is asked once, before the first session. It
+          was not given, so conditions are not recorded for this session.
+        </p>
       )}
       {consent === 'granted' && context?.recorded === false && (
         <form
@@ -202,6 +249,16 @@ export function SessionIntroStep({
         >
           Withdraw my consent
         </button>
+      )}
+      {transcription && (
+        <label>
+          Session start time written on the sheet
+          <input
+            type="datetime-local"
+            value={startedAt}
+            onChange={(event) => setStartedAt(event.target.value)}
+          />
+        </label>
       )}
       <button disabled={task.busy} onClick={() => void task.run(continueToSamples)}>
         Continue to the samples
