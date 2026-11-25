@@ -30,6 +30,7 @@ from fragrance_rater.models.calibration import (
     Observation,
     Presentation,
 )
+from fragrance_rater.services.non_blind import non_blind_enrollment_ids
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -253,7 +254,10 @@ def _is_locked(presentation: Presentation, stage: str) -> bool:
 
 
 async def repeat_pairs(
-    session: AsyncSession, reviewer_id: str | None = None
+    session: AsyncSession,
+    reviewer_id: str | None = None,
+    *,
+    exclude_non_blind: bool = False,
 ) -> list[RepeatPair]:
     """Pair each hidden repeat with its original blind encounter.
 
@@ -267,6 +271,10 @@ async def repeat_pairs(
         session (AsyncSession): Open database session.
         reviewer_id (str | None): Restrict to one evaluator; ``None`` pools
             every evaluator.
+        exclude_non_blind (bool): Drop every evaluator carrying an active
+            ``non_blind`` flag (the F1 mapping holder). Pairs are read from the
+            observations themselves, so the default keeps them: non-blind rows
+            leave blind-baseline training, not evaluation.
 
     Returns:
         list[RepeatPair]: Pairs ordered by evaluator, version and stage,
@@ -283,6 +291,10 @@ async def repeat_pairs(
     )
     if reviewer_id is not None:
         statement = statement.where(Enrollment.reviewer_id == reviewer_id)
+    if exclude_non_blind:
+        non_blind = await non_blind_enrollment_ids(session)
+        if non_blind:
+            statement = statement.where(Enrollment.id.not_in(non_blind))
     # The four-entity select returns untyped Rows; naming the tuple shape
     # once here keeps the loop below fully typed instead of Any.
     rows = cast(
@@ -409,6 +421,30 @@ def reliability_report(pairs: Sequence[RepeatPair]) -> ReliabilityReport:
     )
 
 
+async def pooled_reliability_both_ways(
+    session: AsyncSession,
+) -> dict[str, ReliabilityReport]:
+    """Report the pooled repeat benchmark with and without non-blind evaluators.
+
+    ADR-009 2026-09-21 amendment: the pooled benchmark is reported both ways so
+    a reader can see whether including the mapping holder's repeat pairs moves
+    it. With no non-blind evaluator the two reports are identical.
+
+    Args:
+        session (AsyncSession): Open database session.
+
+    Returns:
+        dict[str, ReliabilityReport]: ``including_non_blind`` (every evaluator)
+            and ``excluding_non_blind`` (blind evaluators only).
+    """
+    return {
+        "including_non_blind": reliability_report(await repeat_pairs(session)),
+        "excluding_non_blind": reliability_report(
+            await repeat_pairs(session, exclude_non_blind=True)
+        ),
+    }
+
+
 __all__ = [
     "MIN_PAIRS",
     "RELIABILITY_NOTE",
@@ -418,6 +454,7 @@ __all__ = [
     "bootstrap_interval",
     "mean_absolute_difference",
     "pearson",
+    "pooled_reliability_both_ways",
     "reliability_report",
     "repeat_pairs",
     "spearman",

@@ -13,10 +13,12 @@ from fragrance_rater.ml.reliability import (
     bootstrap_interval,
     mean_absolute_difference,
     pearson,
+    pooled_reliability_both_ways,
     reliability_report,
     repeat_pairs,
     spearman,
 )
+from fragrance_rater.models.calibration import QualityFlag
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 
@@ -280,6 +282,104 @@ class TestRepeatPairs:
     @pytest.mark.asyncio
     async def test_no_observations_at_all(self, program):
         assert await repeat_pairs(program["session"]) == []
+
+
+class TestNonBlindRepeatPairs:
+    """F1: the mapping holder's pairs stay in evaluation, reportable both ways."""
+
+    @staticmethod
+    def _flag(session, calibration_session, **fields):
+        flag = QualityFlag(
+            session_id=calibration_session.id,
+            action=fields.pop("action", "raised"),
+            code="non_blind",
+            severity="info",
+            source="manager",
+            disposition="include",
+            recorded_by="manager",
+            **fields,
+        )
+        session.add(flag)
+        return flag
+
+    @staticmethod
+    async def _add_pair(session, program, observation_factory):
+        session.add_all(
+            [
+                observation_factory(program["presentations"]["UNIVERSAL_BASELINE"]),
+                observation_factory(
+                    program["presentations"]["HIDDEN_REPEAT"], liking=6
+                ),
+            ]
+        )
+        await session.flush()
+
+    @pytest.mark.asyncio
+    async def test_a_non_blind_flag_does_not_remove_pairs_by_default(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        calibration_session = program["calibration_session"]
+        self._flag(session, calibration_session)
+        await session.flush()
+
+        assert len(await repeat_pairs(session)) == 1
+
+    @pytest.mark.asyncio
+    async def test_excluding_non_blind_drops_the_holders_pairs(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        self._flag(session, program["calibration_session"])
+        await session.flush()
+
+        assert await repeat_pairs(session, exclude_non_blind=True) == []
+
+    @pytest.mark.asyncio
+    async def test_an_invalidated_flag_no_longer_excludes(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        raised = self._flag(session, program["calibration_session"])
+        await session.flush()
+        self._flag(
+            session,
+            program["calibration_session"],
+            action="invalidated",
+            supersedes_id=raised.id,
+        )
+        await session.flush()
+
+        assert len(await repeat_pairs(session, exclude_non_blind=True)) == 1
+
+    @pytest.mark.asyncio
+    async def test_both_ways_reports_each_denominator(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+        self._flag(session, program["calibration_session"])
+        await session.flush()
+
+        both = await pooled_reliability_both_ways(session)
+
+        assert both["including_non_blind"].n_pairs == 1
+        assert both["excluding_non_blind"].n_pairs == 0
+
+    @pytest.mark.asyncio
+    async def test_both_ways_agree_without_a_non_blind_evaluator(
+        self, program, observation_factory
+    ):
+        session = program["session"]
+        await self._add_pair(session, program, observation_factory)
+
+        both = await pooled_reliability_both_ways(session)
+
+        assert both["including_non_blind"].n_pairs == 1
+        assert both["excluding_non_blind"].n_pairs == 1
 
 
 class TestReliabilityReport:

@@ -149,6 +149,11 @@ FIT_DIMENSIONS: tuple[str, ...] = ("season", "setting")
 FIT_CODE_CHECK = f"(dimension = 'season' AND code IN ({quoted(SEASON_FIT_CODES)})) OR (dimension = 'setting' AND code IN ({quoted(SETTING_FIT_CODES)}))"
 # Capture assessment 13.6 (deviations) and 13.3 (mistimed evidence). A flag
 # describes what happened; it never removes or rewrites the flagged evidence.
+# ``non_blind`` marks an evaluator who also holds the identity mapping (F1,
+# ADR-009 2026-09-21 amendment); ``spray_to_smell_ceiling_exceeded`` is F1's
+# deviation for a sample first smelled past the provisional spray-to-first-smell
+# ceiling. Migration d7f3a91c5b28 writes the same list literally (same
+# #ASSUME/#VERIFY as the R7a block above).
 QUALITY_FLAG_CODES: tuple[str, ...] = (
     "out_of_order_presentation",
     "outside_planned_window",
@@ -164,6 +169,8 @@ QUALITY_FLAG_CODES: tuple[str, ...] = (
     "recorder_assistance",
     "instrument_fault",
     "evaluator_reported_problem",
+    "non_blind",
+    "spray_to_smell_ceiling_exceeded",
     "other",
 )
 # Append-only lifecycle: a flag is raised once; a later row resolves it (with a

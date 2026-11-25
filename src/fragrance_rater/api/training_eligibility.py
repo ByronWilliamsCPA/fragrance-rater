@@ -19,6 +19,7 @@ from fragrance_rater.core.database import get_db
 from fragrance_rater.services.calibration_service import CalibrationService
 from fragrance_rater.services.training_eligibility import (
     ManagerDecision,
+    NonBlindEvidenceError,
     TrainingEligibilityService,
     manager_linkage,
 )
@@ -74,7 +75,8 @@ async def decide(
         dict[str, str]: The row, its previous code, and its code now.
 
     Raises:
-        HTTPException: 404 when the row does not exist.
+        HTTPException: 404 when the row does not exist; 409 when the row is
+            non-blind evidence and ``eligible`` was requested.
     """
     username = manager(identity)
     try:
@@ -89,6 +91,8 @@ async def decide(
         raise HTTPException(status_code=404, detail=f"{target_type} not found") from (
             error
         )
+    except NonBlindEvidenceError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     return {
         "target_type": target_type,
         "target_id": target_id,

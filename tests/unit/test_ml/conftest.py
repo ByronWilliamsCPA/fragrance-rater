@@ -98,7 +98,8 @@ async def program(async_session):
     """Create an enrolled evaluator with one membership per role.
 
     Returns:
-        dict: ``session``, ``program``, ``enrollment``, ``memberships`` and
+        dict: ``session``, ``program``, ``enrollment``, ``calibration_session``,
+            ``memberships`` and
             ``presentations`` keyed by role name (the hidden repeat is
             ``HIDDEN_REPEAT`` and points at ``UNIVERSAL_BASELINE``).
     """
@@ -181,6 +182,7 @@ async def program(async_session):
         "session": async_session,
         "program": protocol,
         "enrollment": enrollment,
+        "calibration_session": session,
         "memberships": memberships,
         "presentations": presentations,
     }
