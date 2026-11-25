@@ -823,6 +823,29 @@ service, take the client tools from the same image as the server rather than fro
 
 ---
 
+### The markdownlint pre-commit hook cannot build its environment, so it blocks every commit
+
+**Priority**: Medium
+
+**Issue**: The generated `.pre-commit-config.yaml` uses the `markdownlint-cli` hook without a `language_version`, so
+pre-commit asks `nodeenv` for the newest Node release. When that is a pre-release such as `27.0.0-alpha.0.1.1`,
+`nodeenv` fails with `ValueError: invalid literal for int() with base 10: '0-alpha'` and the hook never installs.
+Because the hook runs at commit time, the commit aborts for every contributor, and the only ways past it are to skip
+the hook or bypass hooks entirely.
+
+**Context**: Found on 2026-11-24 while committing a docs-only change. The same failure appeared on two unrelated
+repositories on one machine, so the cause is the unpinned Node version rather than the repository.
+
+**Suggested Fix**: Add `default_language_version: node: system` (or a pinned LTS such as `22.12.0`) to the generated
+`.pre-commit-config.yaml` so the hook never resolves a pre-release Node. Renovate can then raise the pin as a
+reviewable change.
+
+**Affected Files**:
+
+- `{{cookiecutter.project_slug}}/.pre-commit-config.yaml` (markdownlint hook, no `default_language_version`)
+
+---
+
 ## Submitting Feedback
 
 Once you've collected feedback, you can:
