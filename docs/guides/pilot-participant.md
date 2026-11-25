@@ -46,6 +46,47 @@ repeat relationship, holdout status, or manager mapping.
 Do not infer identities from bottle order, labels, browser history, or another participant. Do not
 photograph or share the manager's mapping sheet before reveal.
 
+## Facilitated paper sessions (six-evaluator variant)
+
+If your manager runs the facilitated variant of the pilot, you do not sign in during sessions. The sections above
+about signing in, blind calibration on screen, and skin observations do not apply to you. Instead:
+
+1. **No logins and no phones.** Phones stay outside the room or switched off. The facilitator, who is also an
+   evaluator, types your answers into the application afterward.
+2. **One paper sheet per session.** You get a tray of three coded blotters and one sheet with three sample columns.
+   The codes printed on the sheet match the codes on your blotters. Write only what you perceive. Never write what
+   a sample might be.
+3. **Same samples, different order.** Everyone in a session smells the same three samples, but your order may differ
+   from your neighbour's. Do not compare. Work silently until the facilitator announces the reveal, and do not talk
+   about any sample or score to anyone, in or out of the room, until then.
+4. **Smell as soon as you are handed a blotter** and write the time you first smell it. A provisional ceiling of
+   5 minutes from spray to first smell applies; it is confirmed in the rehearsal. If it is exceeded, say so by
+   writing the time you actually smelled. Nothing is thrown away and nobody re-sprays a blotter.
+5. **A zero is a real answer; blank means "not answering".** Do not guess a mark. If you cannot smell a sample,
+   circle **No** under Detected and leave the rest of that column blank. If a mark is ambiguous the facilitator enters
+   it as blank with a flag.
+6. **Separate conditions slip.** If you accepted the session-context consent, you also complete a short conditions
+   slip alone before the first spray and hand it back face down. It is filed apart from your score sheet and linked
+   only by a random record ID. Consent was recorded once with you present before session 1; you can withdraw it at
+   any time.
+7. **Rank at the end, then hand in the sheet.** Rank only after all three columns are initialed, then give the sheet
+   to the facilitator and stay silent.
+8. **Everyone finishes before the next session.** The facilitator has to enter all six sheets first, so expect a gap
+   of at least three hours between sessions on the same day.
+
+**Skin tests.** Facilitated sessions have no skin tests. For the pilot, only the facilitator does skin tests, on
+separate days. If you are not the facilitator, you are skin-absent by design; that is not a missed step.
+
+**Novices.** If you are new to fragrance, the facilitator will show you the sheet and run one practice session with
+non-pilot samples first. Everyone is included. Your repeat answers are described, not graded, and no exclusion
+threshold is applied.
+
+**Your paper.** The original sheet and slip are kept and scanned by the facilitator under the retention period fixed
+for the pilot. The sheet carries a version id (`facilitated-session-sheet v1.0` at the time of writing, still a
+draft); a sheet with no version id is not used.
+
+Printed forms: [session sheet](../facilitated-session-sheet.md), [conditions slip](../facilitated-conditions-slip.md).
+
 ## Review recommendations
 
 Open **Recommendations** to create a new set or reopen a saved set. Record interest before

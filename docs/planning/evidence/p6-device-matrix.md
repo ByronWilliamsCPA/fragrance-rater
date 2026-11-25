@@ -31,6 +31,11 @@ ratings, blind calibration, recommendation feedback, recorder recovery, manager 
 metrics export, keyboard use, portrait and landscape layout, and browser print preview. Direct API
 and container-address requests must fail outside the trusted route.
 
+If F1 runs in the facilitated six-evaluator format (see the [P6 gate](../gates/p6.md)), the recorder journey on the
+facilitator's device also covers one recorder login transcribing six evaluators one at a time, and the manager
+journey covers the session-plan preview, the non-blind call, program checkpoints, the readiness view and the
+household reveal. Result: Pending.
+
 **Supported-device decision:** Pending
 
 **Reviewer and UTC date:** Pending

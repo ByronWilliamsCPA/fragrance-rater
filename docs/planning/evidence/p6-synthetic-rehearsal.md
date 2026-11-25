@@ -42,6 +42,22 @@ private artifact reference for each step.
 | Record failure and recovery | Status identifies and then clears the affected evaluator | Pending | Pending |
 | Interrupt and retry | Saved state resumes without duplicate data or transition | Pending | Pending |
 
+These rows are required when F1 runs in the facilitated format (see the [P6 gate](../gates/p6.md)). All rows are pending; none is
+evidence yet.
+
+| Step | Required result | Result | Evidence reference |
+| :--- | :--- | :--- | :--- |
+| Sheet and slip versions rehearsed | Version id of the paper sheet and of the conditions slip recorded; equals the ids F1 will name | Pending | Pending |
+| Shared-triple enrollment of six synthetic evaluators | Same session composition, per-session Latin-square rotation, random codes, preview matches stored plan | Pending | Pending |
+| Paper session for six evaluators | Silent parallel sheets completed for at least one full session on paper, then one evaluator at a time transcribed through one recorder login | Pending | Pending |
+| Blind-code confirmation and ambiguous marks | A mismatched code is not saved; an ambiguous mark enters as blank plus a flag | Pending | Pending |
+| Spray rounds and ceiling | One blotter per evaluator per round; actual sprayed, first-smelled and column-finished times recorded; provisional 5-minute ceiling confirmed or replaced; breaches flagged | Pending | Pending |
+| Non-blind holder | Holder's enrollment flagged non-blind; training eligibility excludes it and evaluation keeps it | Pending | Pending |
+| Checkpoints before holdouts | A holdout write is refused before the checkpoint and accepted after; checkpoints created by a manager | Pending | Pending |
+| Household reveal | Refused until every enrollment is ready; one atomic reveal after the holdouts | Pending | Pending |
+| Skin-absent by design | Five evaluators finalize an empty plan; completeness denominators count skin only for evaluators with a plan | Pending | Pending |
+| Paper retention | Scans stored privately; retention period fixed by the owner is recorded | Pending | Pending |
+
 Attach a redacted metrics export manifest containing its filename, SHA-256 hash, byte count,
 redaction reviewer, and private location. Do not commit the export itself.
 

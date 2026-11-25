@@ -76,6 +76,15 @@ exact versions, repeats and holdouts, activation, enrollment, labels, blind obse
 skin planning, reveal, post-reveal entry, ordinary history, recommendation runs, explanations,
 feedback revisions, sampling, outcome linkage, reporting, and operational failure/recovery.
 
+If F1 will run in the facilitated six-evaluator format, P6.3 must also rehearse paper plus transcription in that
+format: six synthetic evaluators on shared triples, printed sheets and slips, one recorder login, the non-blind holder
+flag, a manager checkpoint before the holdouts, and a household reveal. It must confirm the provisional 5-minute
+spray-to-first-smell ceiling, the spray-round interpretation (one blotter per evaluator per round) and the
+paper-retention period. See the
+[P6 gate](../planning/gates/p6.md#facilitated-format-scope-for-p62-and-p63-added-2026-11-25) and the [rehearsal log](../planning/evidence/p6-synthetic-rehearsal.md). A change to the sheet, the slip or the
+participant-facing build after the rehearsal voids it for the changed parts, so the merged code is the rehearsed
+instrument.
+
 Perform an interruption after a saved response and a retry of one consequential action. Confirm
 that the saved state remains correct and no duplicate impression, response revision, or reveal
 transition appears.

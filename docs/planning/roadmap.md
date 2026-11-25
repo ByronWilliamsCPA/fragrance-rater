@@ -41,7 +41,11 @@ F1 also requires R2, R5, R6, R7a, R7b, and R8 merged. On 2026-11-24 the product 
 six-evaluator facilitated format (shared session triples, random blind codes, one recorder login, skin for the
 non-blind holder only, one household reveal after the holdouts); its work items are listed in
 [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) and gate F1.
-No milestone status changes, and F1 stays blocked on P6. R9-R12 are maintainability sprints and gate nothing, and
+No milestone status changes, and F1 stays blocked on P6. As of 2026-11-25 the enrollment, non-blind flag, holdout gate
+and household reveal, and sheet work items are merged (#211, #213, #214, #215), the session-scoped wizard (#216) is open, and transcription timing is not merged.
+Holdouts now need a manager checkpoint in any program that has them, including the P6 rehearsal path, until the wizard adds a
+button. P6.3 must rehearse paper plus transcription in the six-person format; the merged code is the rehearsed
+instrument. R9-R12 are maintainability sprints and gate nothing, and
 R14's documentation items gate nothing. R8 may land after the P6 go decision but must land before F1.
 
 ## Immediate queue
