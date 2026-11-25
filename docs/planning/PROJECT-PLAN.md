@@ -588,9 +588,9 @@ Each item is marked done only when its pull request is merged, with the PR numbe
 household reveal (#214), sheet materials (#215), the session-scoped wizard (#216, `699a513`), the facilitated guides
 and P6.3 scope (#217, `b027e0f`) and transcription timing (#218, `65202bd`) are merged. On 2026-11-25 the owner also
 decided **group blotter mode** for F1 group sessions (one physical blotter per sample passed round the six evaluators,
-shared codes and order, a 2 minute spray-to-first-smell ceiling, flag only); its code (#220, merged as `6774525`) and
-documentation (#219) pull requests are listed below and are not merged unless the table says so. A merged item is not gate evidence: no P6 or F1 gate
-changes because of it.
+shared codes and order, a 2 minute spray-to-first-smell ceiling, flag only); its code (#220, merged as `6774525`),
+documentation (#219) and server-side safeguards (#221, merged as `2bcd3cc`) pull requests are listed below. A merged item
+is not gate evidence: no P6 or F1 gate changes because of it.
 
 | Item | Scope | Status |
 | :--- | :--- | :--- |
@@ -604,8 +604,20 @@ changes because of it.
 | Guides and rehearsal scope | Manager and participant guides for the facilitated variant; P6.2 and P6.3 scope for a six-person paper-plus-transcription rehearsal; template feedback | Merged (#217, `b027e0f`): guides, P6.2 and P6.3 scope, F1 declaration template, this plan, template feedback; not gate evidence |
 | Group blotter mode, code | Program `blotter_mode` (`INDIVIDUAL` default, `SHARED_GROUP`), enrollment algorithm `shared-triples-group-blotter-v1` giving all evaluators the same blind code and order, automatic informational session flag `group_shared_blotter`, spray-to-first-smell ceiling 2 minutes (was 5) with each evaluator's sprayed/first-smell pair checked against it, `scripts/make_spray_sheets.py` is in the documentation row below | Merged: #220 (`6774525`). Also adds the `group_shared_blotter` flag as automatic and not hand-raisable, `ml.reliability.pooled_reliability_group_blotter_both_ways` (not yet called by any report or export), and a migration chained after `a7f3c2d91e04` |
 | Group blotter mode, documentation and spray sheets | Sheet `facilitated-session-sheet v2.0`, run sheet group procedure and replacement-blotter rule, `scripts/make_spray_sheets.py --mode group`, guides, F1 and P6 gates, ADR-005 and ADR-009 amendments, calibration-v1 and blind-evaluation-workflow notes | Merged with this change: #219 (`docs/f1-group-blotter-procedure`, after #220); not gate evidence |
+| Group safeguards, server side | In `SHARED_GROUP` programs: holdouts open only when every enrollment has a checkpoint; new enrollments refused once they have; holdout evidence times earlier than the opening checkpoint refused (422); `SHARED_GROUP` forces a `HOUSEHOLD` reveal; ceiling rule version `spray-to-smell-ceiling-v2`; readiness reports `blotter_mode`, `holdouts_open_program_wide` and `enrollments_missing_checkpoint` | Merged: #221 (`2bcd3cc`), no migration. Server cannot see when a blotter was physically smelled, so "no holdout smelled before every checkpoint exists" is a facilitator procedure (run sheet). Not rehearsed in P6.3; not gate evidence |
 
 Known gaps and questions carried by these items, not yet resolved:
+
+- Follow-ups left open after #221 (all OPEN, none done): `ml.reliability.pooled_reliability_*` has no caller in any
+  report or export; `training_manifest` (`preference_history.py`) ignores `training_eligibility`; the skin-plan
+  endpoint (`POST /presentations/{id}/skin-plan`) has no server-side manager-role check; the wizard's `isOpen`
+  (`frontend/src/routing/wizardSteps.ts`) treats a missing `available` as open; `docs/api/openapi.json` and
+  `frontend/src/client/types.gen.ts` are stale against the merged API; the frontend reveal-policy dropdown may still
+  offer `ENROLLMENT` for group programs (the server refuses it).
+- Open owner decisions from #221 review: there is no way to withdraw an enrollment and a withdrawn evaluator blocks the
+  household reveal for everyone (verified in `DisclosureGate.household_blocker`); in group mode every enrollment shares
+  the blind code, so a sheet entered under the wrong evaluator is not detected, and an initials or seat check would
+  change a recorded field and the sheet version. Both are listed in the F1 gate and the P6.3 scope.
 
 - The `would_buy` removal that DEC-03 planned was not carried out (R7b row, owner decision 2026-10-30; see
   the ADR-005 and ADR-009 2026-11-24 amendments, pending owner confirmation of the leakage and analysis
@@ -624,8 +636,9 @@ Known gaps and questions carried by these items, not yet resolved:
   reach a model. The flag lets the decision be reversed; pooled reliability is reported both ways.
 - Undecided owner items (none decided here): the scale-wording sign-off, the `would_buy` amendment confirmation, the
   paper retention period (12 months is inferred from the consent text), spray distance and count, whether F1 requires
-  a linked prediction per holdout, the withdrawn-evaluator procedure (a withdrawn evaluator probably blocks the
-  household reveal; unverified), and whether the seat order is rotated between sessions.
+  a linked prediction per holdout, the withdrawn-evaluator procedure (a withdrawn evaluator blocks the household
+  reveal; verified in code, see above), the wrong-evaluator filing gap in group mode, and whether the seat order is
+  rotated between sessions.
 
 ## 11b. Integration status as of 2026-11-07
 
