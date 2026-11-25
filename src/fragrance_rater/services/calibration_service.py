@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import secrets
-from datetime import UTC, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, NoReturn, cast
 from zoneinfo import ZoneInfo
 
@@ -42,12 +42,18 @@ from fragrance_rater.services.shared_triples import (
     validate_template,
 )
 from fragrance_rater.services.training_eligibility import TrainingEligibilityService
+from fragrance_rater.services.transcription_timing import (
+    check_instant,
+    raise_ceiling_flag,
+    seconds_over_ceiling,
+)
 from fragrance_rater.utils.gtin import normalize_gtin
 from fragrance_rater.utils.timestamps import now_naive_utc
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from fragrance_rater.models.calibration import QualityFlag
     from fragrance_rater.schemas.calibration import (
         EnrollmentInput,
         ExposureInput,
@@ -90,6 +96,32 @@ _SAMPLE_FACTS = (
     "sample_batch_code",
     "physical_sample_confirmed",
 )
+
+
+# Request-only fields of a transcribed column: they validate or derive stored
+# values (elapsed minutes, the exposure flag) but are not stored themselves.
+_TRANSIENT_RESPONSE_FIELDS = {"sprayed_at", "confirmed_blind_code"}
+
+
+def confirm_blind_code(presentation: Presentation, confirmed: str | None) -> None:
+    """Refuse a write whose confirmed blind code is not this sample's code.
+
+    The facilitator reads the code off the paper column; a mismatch means the
+    column is open on the wrong sample or the wrong evaluator's enrollment.
+
+    Args:
+        presentation (Presentation): The sample being written.
+        confirmed (str | None): The code the caller read, or ``None`` when the
+            caller does not confirm (ordinary, non-transcribed entry).
+    """
+    # #CRITICAL: data-integrity: a transcribed column keyed to the wrong sample
+    # is silent corruption (observations are append-only and locked).
+    # #VERIFY: a transcription client always sends confirmed_blind_code; tests
+    # cover a mismatch (409), a case-insensitive match, and omission.
+    if confirmed is not None and (
+        confirmed.strip().upper() != presentation.blind_code.strip().upper()
+    ):
+        reject("The blind code entered does not match this sample")
 
 
 def activation_instrument_version(configured: str | None) -> str:
@@ -774,7 +806,13 @@ class CalibrationService:
         submitted = cast(
             "dict[str, object]",
             data.model_dump(
-                exclude={"idempotency_key", "observed_at", "season_fit", "setting_fit"}
+                exclude={
+                    "idempotency_key",
+                    "observed_at",
+                    "season_fit",
+                    "setting_fit",
+                    *_TRANSIENT_RESPONSE_FIELDS,
+                }
             ),
         )
         same = all(
@@ -822,6 +860,7 @@ class CalibrationService:
                 existed (a replay; nothing was written).
         """
         obj, enrollment = await self.target(presentation_id, username, admin)
+        confirm_blind_code(obj, data.confirmed_blind_code)
         # #ASSUME: concurrency: target() holds the enrollment row lock, so two
         # concurrent requests with one key run this check one after the other
         # and the second sees the first's committed row.
@@ -847,6 +886,7 @@ class CalibrationService:
                 data.stage == "SKIN" and obj.skin_locked_at
             ):
                 reject("Stage is locked; original responses are retained")
+            await self._check_observation_times(obj, data)
         prior_exposure = await self.db.scalar(
             select(Enrollment.id)
             .join(CalibrationSession, CalibrationSession.enrollment_id == Enrollment.id)
@@ -880,6 +920,7 @@ class CalibrationService:
                 "liking",
                 "season_fit",
                 "setting_fit",
+                *_TRANSIENT_RESPONSE_FIELDS,
             }
         )
         # #ASSUME: timing-dependency: observed_at is the client's clock at submit
@@ -921,6 +962,36 @@ class CalibrationService:
         await self.db.flush()
         return observation, False
 
+    async def _check_observation_times(
+        self, presentation: Presentation, data: ResponseInput
+    ) -> None:
+        """Validate the explicit times of a transcribed blotter column.
+
+        Only times the caller supplied are checked (a missing ``observed_at``
+        is stamped with the server's receipt time, which is always in range).
+        The column cannot finish before the blotter was first smelled.
+        """
+        session = await self.db.get(CalibrationSession, presentation.session_id)
+        if session is None:
+            reject("Session not found", 404)
+        for label, instant in (
+            ("The column-finished time", data.observed_at),
+            ("The spray time", data.sprayed_at),
+        ):
+            if instant is not None:
+                check_instant(instant, session, label)
+        # #ASSUME: timing-dependency: presented_at (first smell) was stamped from
+        # the same paper sheet, so a later column cannot end before it.
+        # #VERIFY: tests/unit/test_services/test_transcription_timing.py.
+        if (
+            data.stage == "BLOTTER"
+            and data.observed_at is not None
+            and presentation.presented_at is not None
+            and data.observed_at < presentation.presented_at
+        ):
+            message = "The column cannot finish before the blotter was first smelled"
+            raise HTTPException(status_code=422, detail=message)
+
     async def session_target(
         self, session_id: str, username: str, admin: bool
     ) -> tuple[CalibrationSession, Enrollment]:
@@ -960,6 +1031,8 @@ class CalibrationService:
         await gate.require_open(enrollment, await gate.session_roles(session.id))
         if session.started_at is not None:
             reject("Session already started")
+        if data.started_at is not None:
+            check_instant(data.started_at, session, "The session start time")
         started = data.started_at or now_naive_utc()
         session.started_at = started
         session.evaluator_timezone = data.evaluator_timezone
@@ -996,6 +1069,8 @@ class CalibrationService:
         # wrong client clock. Capture assessment 13.3 keeps mistimed evidence and
         # flags it rather than refusing it, so it is stored as given.
         # #VERIFY: a quality flag (timestamp_inconsistent) is how a reviewer marks it.
+        if data.ended_at is not None:
+            check_instant(data.ended_at, session, "The session end time")
         session.ended_at = data.ended_at or now_naive_utc()
         await self.db.flush()
         return session
@@ -1065,7 +1140,32 @@ class CalibrationService:
         Returns:
             Presentation: The presentation with its exposure facts set.
         """
+        obj, _ = await self.record_exposure_checked(
+            presentation_id, data, username, admin
+        )
+        return obj
+
+    async def record_exposure_checked(
+        self, presentation_id: str, data: ExposureInput, username: str, admin: bool
+    ) -> tuple[Presentation, QualityFlag | None]:
+        """Stamp an exposure and report a spray-to-first-smell deviation.
+
+        With ``data.sprayed_at`` set, a first smell later than the ceiling is
+        recorded and flagged ``spray_to_smell_ceiling_exceeded`` in the same
+        transaction; the exposure is never refused or dropped for it.
+
+        Args:
+            presentation_id (str): The presentation.
+            data (ExposureInput): The stage, instants, and sample facts.
+            username (str): The verified caller.
+            admin (bool): Whether the caller is a manager.
+
+        Returns:
+            tuple[Presentation, QualityFlag | None]: The presentation, and the
+                ceiling flag when this exposure breached the ceiling.
+        """
         obj, enrollment = await self.target(presentation_id, username, admin)
+        confirm_blind_code(obj, data.confirmed_blind_code)
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
         await DisclosureGate(self.db).require_open(enrollment, [member.role])
@@ -1073,11 +1173,16 @@ class CalibrationService:
             reject("Blind collection ended at reveal")
         session = await self.db.get(CalibrationSession, obj.session_id)
         assert session is not None
+        for label, instant in (
+            ("The first-smell time", data.at),
+            ("The spray time", data.sprayed_at),
+        ):
+            if instant is not None:
+                check_instant(instant, session, label)
         at = data.at or now_naive_utc()
+        flag: QualityFlag | None = None
         if data.stage == "BLOTTER":
-            if obj.presented_at is not None:
-                reject("Blotter exposure already recorded")
-            obj.presented_at = at
+            flag = await self._stamp_blotter(obj, data, at, username)
         else:
             if obj.skin_reason is None:
                 reject("Skin test must be planned")
@@ -1096,7 +1201,25 @@ class CalibrationService:
                 reject(f"{name} is already recorded for this sample")
             setattr(obj, name, value)
         await self.db.flush()
-        return obj
+        return obj, flag
+
+    async def _stamp_blotter(
+        self, presentation: Presentation, data: ExposureInput, at: datetime, actor: str
+    ) -> QualityFlag | None:
+        """Set the first-smell time once; flag a breach of the spray ceiling."""
+        if presentation.presented_at is not None:
+            reject("Blotter exposure already recorded")
+        presentation.presented_at = at
+        if data.sprayed_at is None or seconds_over_ceiling(data.sprayed_at, at) <= 0:
+            return None
+        await self.db.flush()
+        return await raise_ceiling_flag(
+            self.db,
+            presentation,
+            sprayed_at=data.sprayed_at,
+            smelled_at=at,
+            actor=actor,
+        )
 
     async def lock_stage(
         self, presentation_id: str, stage: str, username: str, admin: bool
@@ -1233,6 +1356,12 @@ class CalibrationService:
                 "skin_planned": obj.skin_reason is not None,
                 "blotter_locked": obj.blotter_locked_at is not None,
                 "skin_locked": obj.skin_locked_at is not None,
+                # When the blotter was first smelled (the paper's time, set by
+                # the exposure call); null until then. Lets a transcribing
+                # client resume a column without stamping the exposure twice.
+                "presented_at": obj.presented_at.isoformat()
+                if obj.presented_at
+                else None,
             }
             observations = observations_by_presentation[obj.id]
             row["observations"] = [observation_payload(o) for o in observations]

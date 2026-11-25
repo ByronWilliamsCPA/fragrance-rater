@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import pytest
 import pytest_asyncio
@@ -13,6 +15,13 @@ from fragrance_rater.services import consent as consent_module
 from fragrance_rater.services.consent import ConsentText, load_consent_text
 
 PREFIX = "/api/v1/calibration"
+
+
+def _hours_ago(hours: int) -> datetime:
+    """A whole-second paper time inside the transcription window."""
+    return (datetime.now(UTC) - timedelta(hours=hours)).replace(microsecond=0)
+
+
 MANAGER = {"X-Authentik-Username": "manager"}
 RECORDER = {"X-Authentik-Username": "recorder"}
 OUTSIDER = {"X-Authentik-Username": "outsider"}
@@ -39,7 +48,7 @@ def approved_consent(monkeypatch: pytest.MonkeyPatch) -> ConsentText:
 
 
 @pytest_asyncio.fixture
-async def world(test_app: Any) -> dict[str, str]:
+async def world(test_app: Any, backdate_sessions: Any) -> dict[str, str]:
     """One reviewer, one active program, one enrollment with a recorder."""
     reviewer = await test_app.post(
         "/api/v1/reviewers", json={"name": "Evaluator"}, headers=MANAGER
@@ -81,6 +90,7 @@ async def world(test_app: Any) -> dict[str, str]:
     enrollment_id = enrollment.json()["id"]
     view = await test_app.get(f"{PREFIX}/enrollments/{enrollment_id}", headers=RECORDER)
     presentation = view.json()["presentations"][0]
+    await backdate_sessions()
     return {
         "reviewer_id": reviewer.json()["id"],
         "enrollment_id": enrollment_id,
@@ -467,20 +477,23 @@ async def test_unknown_session_is_404(test_app: Any) -> None:
 async def test_start_records_time_zone_and_the_local_date(
     test_app: Any, world: dict[str, str]
 ) -> None:
+    started = _hours_ago(5)
     response = await test_app.post(
         f"{PREFIX}/sessions/{world['session_id']}/start",
         json={
             "evaluator_timezone": "America/Denver",
-            "started_at": "2026-10-30T02:30:00Z",
+            "started_at": started.isoformat(),
         },
         headers=RECORDER,
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["started_at"].startswith("2026-10-30T02:30:00")
-    # 02:30 UTC on the 30th is still the evening of the 29th in Denver.
-    assert body["occurred_on"] == "2026-10-29"
+    assert body["started_at"].startswith(started.strftime("%Y-%m-%dT%H:%M:%S"))
+    # The local date is the date in the evaluator's own time zone, which can
+    # differ from the UTC date.
+    local = started.astimezone(ZoneInfo("America/Denver")).date().isoformat()
+    assert body["occurred_on"] == local
     assert body["evaluator_timezone"] == "America/Denver"
 
 
@@ -568,12 +581,15 @@ async def test_a_blotter_exposure_is_stamped_once(
     test_app: Any, world: dict[str, str]
 ) -> None:
     url = f"{PREFIX}/presentations/{world['presentation_id']}/exposure"
-    body = {"stage": "BLOTTER", "at": "2026-10-30T15:00:00Z"}
+    smelled = _hours_ago(3)
+    body = {"stage": "BLOTTER", "at": smelled.isoformat()}
 
     first = await test_app.post(url, json=body, headers=RECORDER)
 
     assert first.status_code == 200
-    assert first.json()["presented_at"].startswith("2026-10-30T15:00:00")
+    assert first.json()["presented_at"].startswith(
+        smelled.strftime("%Y-%m-%dT%H:%M:%S")
+    )
     assert first.json()["applied_at"] is None
     assert (await test_app.post(url, json=body, headers=RECORDER)).status_code == 409
 
@@ -584,9 +600,10 @@ async def test_a_skin_application_needs_a_plan_then_records_method_and_zone(
 ) -> None:
     presentation = world["presentation_id"]
     url = f"{PREFIX}/presentations/{presentation}/exposure"
+    applied = _hours_ago(3)
     body = {
         "stage": "SKIN",
-        "at": "2026-10-30T15:00:00Z",
+        "at": applied.isoformat(),
         "timezone": "America/Chicago",
         "application_method": "spray",
         "application_dose_sprays": 2,
@@ -602,7 +619,9 @@ async def test_a_skin_application_needs_a_plan_then_records_method_and_zone(
     response = await test_app.post(url, json=body, headers=RECORDER)
 
     assert response.status_code == 200
-    assert response.json()["applied_at"].startswith("2026-10-30T15:00:00")
+    assert response.json()["applied_at"].startswith(
+        applied.strftime("%Y-%m-%dT%H:%M:%S")
+    )
     assert response.json()["application_timezone"] == "America/Chicago"
     assert (await test_app.post(url, json=body, headers=RECORDER)).status_code == 409
 

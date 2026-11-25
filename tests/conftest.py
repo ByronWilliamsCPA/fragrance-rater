@@ -540,3 +540,32 @@ async def test_app(tmp_path, monkeypatch: pytest.MonkeyPatch):
 
     # Cleanup: the SQLite file lives under pytest's tmp_path and is removed with it
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def backdate_sessions(test_app: Any):
+    """Return a coroutine function that moves every session's creation into the past.
+
+    The transcription rules refuse an evidence time earlier than the session's
+    own creation, and a fixture creates its sessions a moment ago. A test that
+    transcribes paper times from earlier in the sitting backdates the sessions
+    first, as a real enrollment made the day before the sitting would be.
+    """
+    from datetime import timedelta
+
+    from sqlalchemy import update
+
+    from fragrance_rater.core.database import get_db
+    from fragrance_rater.main import app
+    from fragrance_rater.models.calibration import CalibrationSession
+    from fragrance_rater.utils.timestamps import now_naive_utc
+
+    async def backdate(days: float = 3) -> None:
+        async for db in app.dependency_overrides[get_db]():
+            await db.execute(
+                update(CalibrationSession).values(
+                    created_at=now_naive_utc() - timedelta(days=days)
+                )
+            )
+
+    return backdate
