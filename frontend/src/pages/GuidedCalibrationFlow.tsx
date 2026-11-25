@@ -256,9 +256,16 @@ export function GuidedCalibrationFlow({
     step.kind === 'blotter' || step.kind === 'skin'
       ? enrollment.presentations.find((item) => item.id === step.presentationId)
       : undefined
-  const planCandidates = enrollment.presentations.filter(
-    (item) => isOpen(item) && !item.skin_planned
-  )
+  // In the facilitated (household) format, choosing who gets a skin test is the
+  // organizer's call, so only a manager sees the per-sample planning form there.
+  // #ASSUME: Security: this is a UI restriction only; the skin-plan endpoint
+  // still accepts any recorder of the enrollment.
+  // #VERIFY: a server-side role check on POST /presentations/{id}/skin-plan for
+  // HOUSEHOLD programs if recorders other than the organizer ever get logins.
+  const canPlanSkin = isManager || enrollment.reveal_policy !== 'HOUSEHOLD'
+  const planCandidates = canPlanSkin
+    ? enrollment.presentations.filter((item) => isOpen(item) && !item.skin_planned)
+    : []
   const plannedSkin = enrollment.presentations.filter((item) => item.skin_planned)
 
   return (
@@ -397,8 +404,8 @@ export function GuidedCalibrationFlow({
             This evaluator is finished. Wait for the facilitator.
           </p>
           <p>
-            Identities are revealed for everyone in the household together, once every evaluator
-            has finished.
+            Identities are revealed for everyone in the household together, once every evaluator has
+            finished.
           </p>
           {isManager ? (
             <HouseholdOutstanding programId={enrollment.program_id} />

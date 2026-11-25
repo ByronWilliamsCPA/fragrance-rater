@@ -464,10 +464,10 @@ describe('GuidedCalibrationFlow', () => {
 
   it('never offers a closed final sample before the checkpoint', async () => {
     routeGets(
-      household(
-        [...sessionA('done'), ...sessionB('done'), ...sessionC('done'), ...finalClosed],
-        { skin_plan_locked: true, reveal_blocker: 'CHECKPOINT' }
-      ),
+      household([...sessionA('done'), ...sessionB('done'), ...sessionC('done'), ...finalClosed], {
+        skin_plan_locked: true,
+        reveal_blocker: 'CHECKPOINT',
+      }),
       { rankings: { sessC: [ranked] } }
     )
     renderFlow()
@@ -484,10 +484,14 @@ describe('GuidedCalibrationFlow', () => {
 
   it('finalizes the skin plan as its own step after the baseline', async () => {
     routeGets(household([...sessionA('done'), ...finalClosed]), { rankings: { sessA: [ranked] } })
-    renderFlow()
+    renderFlow({ isManager: true })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Finalize skin-test plan' }))
+    // Only open samples can be planned; a closed one is not even listed.
+    expect(await screen.findByLabelText(/skin test for CODE-A1/)).toBeInTheDocument()
+    expect(screen.queryByText(/CODE-H1/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Finalize skin-test plan' }))
     expect(
       screen.getByText(/no skin tests planned means this evaluator has none/)
     ).toBeInTheDocument()
@@ -496,8 +500,27 @@ describe('GuidedCalibrationFlow', () => {
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith('/calibration/enrollments/e1/lock-skin-plan')
     )
-    // Only open samples can be planned; a closed one is not even listed.
-    expect(screen.queryByText(/CODE-H1/)).not.toBeInTheDocument()
+  })
+
+  it('leaves skin-test choices to a manager in a household program', async () => {
+    routeGets(household([...sessionA('done'), ...finalClosed]), { rankings: { sessA: [ranked] } })
+    renderFlow()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    expect(
+      await screen.findByRole('button', { name: 'Finalize skin-test plan' })
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText(/skin test for CODE-A1/)).not.toBeInTheDocument()
+  })
+
+  it('still lets any recorder plan skin tests in a per-evaluator program', async () => {
+    routeGets(baseEnrollment({ presentations: [done('s1', 'sess1', 1)] }), {
+      rankings: { sess1: [ranked] },
+    })
+    renderFlow()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
+    expect(await screen.findByLabelText(/skin test for CODE-S1/)).toBeInTheDocument()
   })
 
   it('tells a manager who is outstanding while the household waits', async () => {
@@ -559,9 +582,7 @@ describe('GuidedCalibrationFlow', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Facilitator: continue' }))
 
-    expect(
-      await screen.findByText(/who is still outstanding in Program setup/)
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/who is still outstanding in Program setup/)).toBeInTheDocument()
     expect(get).not.toHaveBeenCalledWith('/calibration/programs/p1/readiness')
   })
 

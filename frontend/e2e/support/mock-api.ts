@@ -187,8 +187,14 @@ export function recommendationRunFixture(interested = false) {
  * reviewer's current `session_context` state.
  */
 export function sessionIntroRoutes(
-  options: { approved?: boolean; consent?: 'none' | 'granted' | 'withdrawn' } = {}
+  options: {
+    approved?: boolean
+    consent?: 'none' | 'granted' | 'withdrawn'
+    /** The session being opened; each session has its own context and start. */
+    sessionId?: string
+  } = {}
 ): MockRoutes {
+  const session = options.sessionId ?? 'sess1'
   return {
     '/calibration/consent/text': {
       version: 'family-consent-v1',
@@ -199,8 +205,8 @@ export function sessionIntroRoutes(
       state: { session_context: options.consent ?? 'none' },
       events: [],
     },
-    '/calibration/sessions/sess1/context': { recorded: false },
-    '/calibration/sessions/sess1/start': { id: 'sess1' },
-    '/calibration/sessions/sess1/rankings': [],
+    [`/calibration/sessions/${session}/context`]: { recorded: false },
+    [`/calibration/sessions/${session}/start`]: { id: session },
+    [`/calibration/sessions/${session}/rankings`]: [],
   }
 }

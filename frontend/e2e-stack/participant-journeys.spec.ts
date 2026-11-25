@@ -22,10 +22,22 @@ async function pastConsent(page: Page) {
   await expect(page.getByRole('heading', { name: 'Guided calibration' })).toBeVisible()
 }
 
-async function finalizeSkinPlan(page: Page) {
+/** The session opens straight on its first sample: no skin-test plan first. */
+async function onFirstSample(page: Page) {
+  await expect(page.getByRole('heading', { name: /Blind code/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Finalize skin-test plan' })).toHaveCount(0)
+}
+
+/** The facilitator passes the end-of-session boundary; nothing auto-advances. */
+async function pastBoundary(page: Page) {
+  await expect(page.getByText('Session complete. Wait for the facilitator.')).toBeVisible()
+  await page.getByRole('button', { name: 'Facilitator: continue' }).click()
+}
+
+/** The skin-test plan is its own step after the blind baseline; empty means none. */
+async function finalizeEmptySkinPlan(page: Page) {
   await page.getByRole('button', { name: 'Finalize skin-test plan' }).click()
   await page.getByRole('button', { name: 'Confirm final plan' }).click()
-  await expect(page.getByRole('heading', { name: /Blind code/ })).toBeVisible()
 }
 
 async function saveDetectedObservation(page: Page) {
@@ -43,7 +55,7 @@ test.describe('Blind calibration, end to end', () => {
     await pastConsent(page)
     await expect(page.getByText(seeded.fragranceName)).toHaveCount(0)
 
-    await finalizeSkinPlan(page)
+    await onFirstSample(page)
     // Blind: the sample is a code, not a name.
     await expect(page.getByText(seeded.fragranceName)).toHaveCount(0)
     await expect(page.getByText(seeded.fragranceBrand)).toHaveCount(0)
@@ -57,6 +69,9 @@ test.describe('Blind calibration, end to end', () => {
     // One sample means nothing to rank; the step says so and moves on.
     await expect(page.getByText(/nothing to rank/i)).toBeVisible()
     await page.getByRole('button', { name: 'Continue' }).click()
+
+    await pastBoundary(page)
+    await finalizeEmptySkinPlan(page)
 
     await expect(page.getByText(seeded.fragranceName)).toHaveCount(0)
     await page.getByRole('button', { name: 'Reveal completed baseline' }).click()
@@ -86,7 +101,7 @@ test.describe('Blind calibration, end to end', () => {
   }) => {
     await startGuided(page, 'retry')
     await pastConsent(page)
-    await finalizeSkinPlan(page)
+    await onFirstSample(page)
 
     // The first attempt to save fails at the network, as a flaky connection would.
     let attempts = 0
@@ -113,7 +128,7 @@ test.describe('Blind calibration, end to end', () => {
   test('a stage that was locked stays locked after a reload', async ({ page }) => {
     await startGuided(page, 'lock')
     await pastConsent(page)
-    await finalizeSkinPlan(page)
+    await onFirstSample(page)
     await saveDetectedObservation(page)
     await expect(page.getByText(/observation saved/i)).toBeVisible()
     await page.getByRole('button', { name: /lock blotter responses/i }).click()

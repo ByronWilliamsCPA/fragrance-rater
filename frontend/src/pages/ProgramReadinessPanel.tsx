@@ -124,8 +124,8 @@ export function ProgramReadinessPanel({
         <div>
           <h3>Checkpoints and reveal</h3>
           <p>
-            {program.name} · {program.version}. Final samples open for an evaluator only after
-            their checkpoint is frozen.
+            {program.name} · {program.version}. Final samples open for an evaluator only after their
+            checkpoint is frozen.
           </p>
         </div>
         <button disabled={task.busy} onClick={() => void task.run(loadReadiness)}>

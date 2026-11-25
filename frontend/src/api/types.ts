@@ -157,16 +157,11 @@ export type RevealPolicy = 'ENROLLMENT' | 'HOUSEHOLD'
  * than letting the client mistake it for a known one.
  */
 export type RevealBlocker =
-  | 'SKIN_PLAN'
-  | 'BLOTTER'
-  | 'SKIN'
-  | 'CHECKPOINT'
-  | 'HOLDOUT'
-  | 'HOUSEHOLD_WAIT'
-  | (string & {})
+  'SKIN_PLAN' | 'BLOTTER' | 'SKIN' | 'CHECKPOINT' | 'HOLDOUT' | 'HOUSEHOLD_WAIT' | (string & {})
 
 /** Why a checkpoint cannot be frozen yet; null when ready. */
-export type CheckpointBlocker = 'HOLDOUT_OBSERVED' | 'SKIN_PLAN' | 'BLOTTER' | 'SKIN' | (string & {})
+export type CheckpointBlocker =
+  'HOLDOUT_OBSERVED' | 'SKIN_PLAN' | 'BLOTTER' | 'SKIN' | (string & {})
 
 export type Enrollment = Assignment & {
   revealed: boolean

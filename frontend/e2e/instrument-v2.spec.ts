@@ -145,11 +145,14 @@ test.describe('Observation form', () => {
     const { sent, record } = recorder()
     await mockApi(page, {
       ...bootstrapRoutes(),
+      ...sessionIntroRoutes({ approved: true, consent: 'granted' }),
       '/calibration/enrollments/enr1': enrollment({}),
       '/calibration/presentations/samp1/observations': record('observe', { id: 'o1' }),
     })
 
     await page.goto('/calibration')
+    // An unstarted session opens on its intro, then its first sample.
+    await page.getByRole('button', { name: 'Continue to the samples' }).click()
     await expect(page.getByRole('heading', { name: 'CODE-1' })).toBeVisible()
     await page.getByLabel('Detected').selectOption('yes')
     await page.getByLabel(/do you recognize this/i).selectOption('vaguely_familiar')
@@ -183,10 +186,14 @@ test.describe('Observation form', () => {
         reveal_blocker: 'SKIN',
         presentations: [planned],
       }),
+      '/calibration/sessions/sess1/rankings': [{ response_status: 'completed' }],
       '/calibration/presentations/samp1/observations': record('observe', { id: 'o2' }),
     })
 
     await page.goto('/calibration')
+    // Skin tests are their own day: the blotter session's boundary comes first.
+    await expect(page.getByText('Session complete. Wait for the facilitator.')).toBeVisible()
+    await page.getByRole('button', { name: 'Facilitator: continue' }).click()
     await page.getByLabel('Timepoint').selectOption('240')
     await page.getByLabel(/did you wash it off/i).selectOption('yes')
     await page.getByLabel(/minutes until you washed/i).fill('90')
@@ -254,6 +261,10 @@ test.describe('Ranking and problem flag', () => {
         { presentation_id: 'c', rank_position: 3 },
       ],
     })
+    // Every session ends on a boundary the facilitator passes; then the reveal.
+    await expect(page.getByText('Session complete. Wait for the facilitator.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Reveal completed baseline' })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Facilitator: continue' }).click()
     await expect(page.getByRole('button', { name: 'Reveal completed baseline' })).toBeVisible()
   })
 
@@ -261,11 +272,13 @@ test.describe('Ranking and problem flag', () => {
     const { sent, record } = recorder()
     await mockApi(page, {
       ...bootstrapRoutes(),
+      ...sessionIntroRoutes({ approved: true, consent: 'granted' }),
       '/calibration/enrollments/enr1': enrollment({}),
       '/calibration/quality-flags': record('flag', { id: 'f1' }),
     })
 
     await page.goto('/calibration')
+    await page.getByRole('button', { name: 'Continue to the samples' }).click()
     await page.getByRole('button', { name: 'Flag a problem' }).click()
     await page.getByLabel('What is it about?').selectOption('samp1')
     await page.getByLabel('What happened?').selectOption('sample_spill')

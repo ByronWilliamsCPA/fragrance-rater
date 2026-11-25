@@ -293,7 +293,10 @@ export function CalibrationPage({
               }
             />
             {householdReveal && !enrollment.revealed && (
-              <p>This program reveals every evaluator together; a manager reveals it from Program setup.</p>
+              <p>
+                This program reveals every evaluator together; a manager reveals it from Program
+                setup.
+              </p>
             )}
             <ConfirmAction
               actionLabel="Reveal completed baseline"
