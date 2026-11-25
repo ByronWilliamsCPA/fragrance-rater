@@ -52,6 +52,13 @@ async def _enroll(client: AsyncClient, program_id: str, name: str) -> dict[str, 
             "session_size": 2,
         },
     )
+    # The holdout opens only after this evaluator's checkpoint (the F1 holdout
+    # gate); an ENROLLMENT-policy program may freeze it at any time.
+    await _post(
+        client,
+        f"{PREFIX}/enrollments/{enrollment['id']}/checkpoints",
+        {"algorithm_version": "test"},
+    )
     view = (
         await client.get(f"{PREFIX}/enrollments/{enrollment['id']}", headers=RECORDER)
     ).json()

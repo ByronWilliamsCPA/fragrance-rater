@@ -327,6 +327,15 @@ CHECKPOINT_TARGET_SCALES: tuple[tuple[str, str], ...] = (
 CHECKPOINT_TARGETS: tuple[str, ...] = tuple(t for t, _ in CHECKPOINT_TARGET_SCALES)
 PREDICTION_SCALES: tuple[str, ...] = ("0-10", "1-5")
 
+# How identity disclosure is released for a program (F1 decision 1).
+# ``ENROLLMENT``: each evaluator's own reveal, by an assigned recorder, once
+# that evaluator's blind baseline is locked (the behaviour before F1).
+# ``HOUSEHOLD``: one manager action reveals every enrollment together, and only
+# after every enrollment has finished its blind work, checkpoint and holdouts
+# included, because the evaluators share samples and talk to each other.
+REVEAL_POLICIES: tuple[str, ...] = ("ENROLLMENT", "HOUSEHOLD")
+DEFAULT_REVEAL_POLICY = "ENROLLMENT"
+
 
 class Program(Base):
     """Immutable protocol definition once activated.
@@ -336,6 +345,10 @@ class Program(Base):
             anchors, requiredness, skip logic) in force when the program was
             activated, written once by activation (capture assessment 13.2).
             NULL on programs activated before R7a and on every draft.
+
+    F1 column:
+        reveal_policy: One of ``REVEAL_POLICIES``. Programs created before it
+            existed hold ``ENROLLMENT``, their actual behaviour.
     """
 
     __tablename__ = "calibration_programs"
@@ -352,6 +365,11 @@ class Program(Base):
             "instrument_version IS NULL OR TRIM(instrument_version) <> ''",
             name="instrument_version_nonblank",
         ),
+        # A misspelled policy would silently fall back to per-evaluator reveal.
+        CheckConstraint(
+            in_check("reveal_policy", REVEAL_POLICIES, nullable=False),
+            name="reveal_policy_valid",
+        ),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=identifier)
     name: Mapped[str] = mapped_column(String(200))
@@ -361,6 +379,9 @@ class Program(Base):
     created_at: Mapped[datetime] = mapped_column(default=now_naive_utc)
     locked_at: Mapped[datetime | None]
     instrument_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    reveal_policy: Mapped[str] = mapped_column(
+        String(20), default=DEFAULT_REVEAL_POLICY, server_default=DEFAULT_REVEAL_POLICY
+    )
 
 
 MEMBERSHIP_ROLES: tuple[str, ...] = (

@@ -27,7 +27,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
@@ -35,15 +35,18 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from fragrance_rater.ml.feature_space import FEATURE_SPACE_VERSION
-from fragrance_rater.ml.registry import MODELS
+from fragrance_rater.ml.predict import predict_and_freeze
+from fragrance_rater.ml.registry import DEFAULT_MODEL_KEY, MODELS, available
 from fragrance_rater.ml.training_view import FILTERS, read_training
 from fragrance_rater.models.calibration import (
     CHECKPOINT_TARGET_SCALES,
     CheckpointPrediction,
+    Enrollment,
     Membership,
     ModelCheckpoint,
 )
 from fragrance_rater.models.feature_snapshot import FeatureSnapshot
+from fragrance_rater.services.disclosure_gate import DisclosureGate
 from fragrance_rater.services.preference_history import PreferenceHistoryService
 from fragrance_rater.services.vocabulary import NOTE_MAPPING_VERSION
 
@@ -51,8 +54,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from sqlalchemy.ext.asyncio import AsyncSession
-
-    from fragrance_rater.models.calibration import Enrollment
 
 _SCALE_FOR_TARGET = dict(CHECKPOINT_TARGET_SCALES)
 _SCALE_BOUNDS = {"0-10": (0.0, 10.0), "1-5": (1.0, 5.0)}
@@ -189,7 +190,15 @@ class CheckpointService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def _holdouts(self, program_id: str) -> set[str]:
+    async def holdouts(self, program_id: str) -> set[str]:
+        """Return the fragrance versions a program holds out.
+
+        Args:
+            program_id (str): The program.
+
+        Returns:
+            set[str]: Fragrance ids with the ``HOLDOUT`` role.
+        """
         return set(
             await self.db.scalars(
                 select(Membership.fragrance_id).where(
@@ -210,6 +219,10 @@ class CheckpointService:
 
         Returns:
             FeatureSnapshot: A new row, or the existing row with the same hash.
+
+        Raises:
+            IntegrityError: When the insert collides on something other than a
+                concurrent twin (no row with the same hash can be re-read).
         """
         features: dict[str, object] = {
             str(row["fragrance_id"]): row["source_features"]
@@ -281,7 +294,7 @@ class CheckpointService:
             ModelCheckpoint: The flushed checkpoint.
         """
         typed = typed_predictions(
-            predictions, await self._holdouts(enrollment.program_id)
+            predictions, await self.holdouts(enrollment.program_id)
         )
         read = await read_training(self.db, enrollment.reviewer_id)
         exclusions = sorted(
@@ -319,3 +332,139 @@ class CheckpointService:
             )
         await self.db.flush()
         return checkpoint
+
+
+HAS_CHECKPOINT = "HAS_CHECKPOINT"
+"""Skip reason: the enrollment already has a checkpoint (holdouts are open)."""
+
+
+@dataclass(frozen=True)
+class FrozenCheckpoint:
+    """One checkpoint frozen by ``freeze_program_checkpoints``.
+
+    Attributes:
+        enrollment_id (str): The enrollment.
+        checkpoint_id (str): The new checkpoint.
+        predictions_frozen (int): Prediction snapshots linked to it.
+        predictions_skipped (int): Holdouts the model run skipped.
+    """
+
+    enrollment_id: str
+    checkpoint_id: str
+    predictions_frozen: int
+    predictions_skipped: int
+
+
+@dataclass
+class ProgramCheckpointRun:
+    """Outcome of freezing checkpoints across a program.
+
+    Attributes:
+        algorithm_version (str): The model named on every checkpoint.
+        created (list[FrozenCheckpoint]): One per newly frozen enrollment.
+        skipped (list[tuple[str, str]]): ``(enrollment_id, reason)``; the
+            reason is ``HAS_CHECKPOINT`` or a ``checkpoint_blocker`` value.
+    """
+
+    algorithm_version: str
+    created: list[FrozenCheckpoint] = field(default_factory=list)
+    skipped: list[tuple[str, str]] = field(default_factory=list)
+
+
+async def freeze_program_checkpoints(
+    db: AsyncSession,
+    program_id: str,
+    *,
+    algorithm_version: str | None,
+    freeze_predictions: bool,
+    recorded_by: str,
+) -> ProgramCheckpointRun:
+    """Freeze one checkpoint for every ready enrollment of a program lacking one.
+
+    Ready means ``EnrollmentState.checkpoint_blocker()`` is ``None``: blind
+    baseline and repeat blotters locked, skin plan finalized, planned
+    non-holdout skin locked, no holdout observed. With ``freeze_predictions``
+    the registered model is run for each enrollment's reviewer over the
+    program's holdouts and every prediction snapshot is linked to the new
+    checkpoint, in this same transaction. A holdout the model skips is
+    reported per checkpoint in ``predictions_skipped``: ``existing-prediction``
+    means an outcome-free snapshot for that model and pair already exists, so
+    the prospective prediction survives but is not linked to this checkpoint.
+
+    # #ASSUME: data-integrity: the holdout gate opens on the checkpoint alone,
+    # not on prediction coverage, matching the per-enrollment checkpoint route
+    # and the P6 path; coverage is the manager's to read from the response.
+    # #VERIFY: predictions_skipped is 0 for every created checkpoint before an
+    # F1 session; a non-zero count names holdouts to review before opening.
+
+    # #CRITICAL: data-integrity: a checkpoint is what opens an enrollment's
+    # holdouts (DisclosureGate.require_open). Every enrollment row is locked
+    # FOR UPDATE in id order before its readiness is read, and the caller's
+    # request transaction commits all checkpoints or none.
+    # #VERIFY: test_program_checkpoints_* in
+    # tests/unit/test_services/test_disclosure_gate.py.
+
+    Args:
+        db (AsyncSession): The request's session; not committed here.
+        program_id (str): The program.
+        algorithm_version (str | None): Registered model key; ``None`` means
+            ``DEFAULT_MODEL_KEY``.
+        freeze_predictions (bool): Whether to run the model and freeze
+            prospective predictions for each new checkpoint.
+        recorded_by (str): The manager.
+
+    Returns:
+        ProgramCheckpointRun: What was created and what was skipped, and why.
+
+    Raises:
+        HTTPException: 422 for an unregistered model when predictions are
+            requested; 409 when the model run refuses (holdout leakage).
+    """
+    version = algorithm_version or DEFAULT_MODEL_KEY
+    if freeze_predictions and version not in MODELS:
+        msg = f"Unknown model {version!r}; known models: {', '.join(available())}"
+        raise HTTPException(status_code=422, detail=msg)
+    holdouts = sorted(await CheckpointService(db).holdouts(program_id))
+    gate = DisclosureGate(db)
+    run = ProgramCheckpointRun(algorithm_version=version)
+    enrollments = await db.scalars(
+        select(Enrollment)
+        .where(Enrollment.program_id == program_id)
+        .order_by(Enrollment.id)
+        .with_for_update()
+    )
+    for enrollment in list(enrollments):
+        state = await gate.state(enrollment)
+        if state.checkpoint_count:
+            run.skipped.append((enrollment.id, HAS_CHECKPOINT))
+            continue
+        blocker = state.checkpoint_blocker()
+        if blocker is not None:
+            run.skipped.append((enrollment.id, blocker))
+            continue
+        checkpoint = await CheckpointService(db).create(
+            enrollment, version, [], recorded_by
+        )
+        frozen = skipped = 0
+        if freeze_predictions:
+            try:
+                prediction = await predict_and_freeze(
+                    db,
+                    model_key=version,
+                    reviewer_id=enrollment.reviewer_id,
+                    fragrance_ids=holdouts,
+                    checkpoint_id=checkpoint.id,
+                    recorded_by=recorded_by,
+                )
+            except ValueError as error:
+                raise HTTPException(status_code=409, detail=str(error)) from error
+            frozen, skipped = len(prediction.created), len(prediction.skipped)
+        run.created.append(
+            FrozenCheckpoint(
+                enrollment_id=enrollment.id,
+                checkpoint_id=checkpoint.id,
+                predictions_frozen=frozen,
+                predictions_skipped=skipped,
+            )
+        )
+    return run

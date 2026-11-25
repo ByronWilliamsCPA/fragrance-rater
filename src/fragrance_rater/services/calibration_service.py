@@ -27,6 +27,7 @@ from fragrance_rater.models.fragrance import Fragrance, FragranceGtin
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.models.soft_delete import is_live
 from fragrance_rater.services.consent import ConsentService
+from fragrance_rater.services.disclosure_gate import DisclosureGate
 from fragrance_rater.services.llm_service import get_llm_service
 from fragrance_rater.services.shared_triples import (
     SHARED_TRIPLES_ALGORITHM,
@@ -832,6 +833,7 @@ class CalibrationService:
             return replay, True
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
+        await DisclosureGate(self.db).require_open(enrollment, [member.role])
         identity_visible = post_reveal_entry(enrollment, member, obj)
         if post_reveal:
             if not identity_visible:
@@ -953,7 +955,9 @@ class CalibrationService:
         Returns:
             CalibrationSession: The session with its timing set.
         """
-        session, _ = await self.session_target(session_id, username, admin)
+        session, enrollment = await self.session_target(session_id, username, admin)
+        gate = DisclosureGate(self.db)
+        await gate.require_open(enrollment, await gate.session_roles(session.id))
         if session.started_at is not None:
             reject("Session already started")
         started = data.started_at or now_naive_utc()
@@ -1064,6 +1068,7 @@ class CalibrationService:
         obj, enrollment = await self.target(presentation_id, username, admin)
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
+        await DisclosureGate(self.db).require_open(enrollment, [member.role])
         if post_reveal_entry(enrollment, member, obj):
             reject("Blind collection ended at reveal")
         session = await self.db.get(CalibrationSession, obj.session_id)
@@ -1100,6 +1105,7 @@ class CalibrationService:
         obj, enrollment = await self.target(presentation_id, username, admin)
         member = await self.db.get(Membership, obj.membership_id)
         assert member is not None
+        await DisclosureGate(self.db).require_open(enrollment, [member.role])
         if enrollment.revealed_at is not None and member.role != "HOLDOUT":
             reject("Blind collection ended at reveal")
         if stage not in {"BLOTTER", "SKIN"} or (
@@ -1128,8 +1134,13 @@ class CalibrationService:
         await self.db.flush()
 
     async def reveal(self, enrollment_id: str, username: str, admin: bool) -> None:
-        """Reveal only after baseline, repeats, and the finalized skin plan are locked."""
+        """Reveal only after baseline, repeats, and the finalized skin plan are locked.
+
+        ``HOUSEHOLD`` programs refuse this per-evaluator reveal; their manager
+        reveals every enrollment together (``DisclosureGate.reveal_household``).
+        """
         enrollment = await self.enrollment(enrollment_id, username, admin)
+        await DisclosureGate(self.db).require_enrollment_reveal_allowed(enrollment)
         if enrollment.revealed_at:
             return
         presentations = await self.presentations(enrollment_id)
@@ -1183,6 +1194,8 @@ class CalibrationService:
             )
         }
         presentation_ids = {obj.id for obj in presentations}
+        gate = DisclosureGate(self.db)
+        holdouts_open = await gate.checkpoint_count(enrollment.id) > 0
         observations_by_presentation: dict[str, list[Observation]] = {
             presentation_id: [] for presentation_id in presentation_ids
         }
@@ -1224,6 +1237,9 @@ class CalibrationService:
             observations = observations_by_presentation[obj.id]
             row["observations"] = [observation_payload(o) for o in observations]
             member = members[obj.membership_id]
+            # False only while the holdout gate holds this sample closed; the
+            # client must not offer it. Says nothing about lock state.
+            row["available"] = holdouts_open or member.role != "HOLDOUT"
             # The server, not the client, says which entry form applies
             # (architecture review F-15); it is true exactly when the identity
             # below is disclosed, so it carries no information beyond it.
@@ -1253,9 +1269,7 @@ class CalibrationService:
                 }
             result.append(row)
         reveal_blocker = (
-            None
-            if enrollment.revealed_at
-            else self.reveal_blocker(enrollment, presentations, members)
+            None if enrollment.revealed_at else await gate.reveal_blocker(enrollment)
         )
         return {
             "id": enrollment.id,
@@ -1266,5 +1280,6 @@ class CalibrationService:
             and enrollment.revealed_at is None,
             "reveal_blocker": reveal_blocker,
             "skin_plan_locked": enrollment.skin_plan_locked_at is not None,
+            "reveal_policy": await gate.policy(enrollment.program_id),
             "presentations": result,
         }

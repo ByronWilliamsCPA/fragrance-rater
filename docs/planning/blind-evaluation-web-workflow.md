@@ -199,9 +199,10 @@ a checkpoint is created per enrollment; the holdouts follow; then one household 
 has locked its baseline, repeat and planned skin stages, the skin plans are finalized, each enrollment has a
 checkpoint and all holdouts are locked. It then reveals every enrollment together. This resolves the earlier
 statement that one enrollment's reveal flag cannot establish the release policy, for this program type only.
-The wording of the policy is a requirement on the household-reveal work item; the repository does not yet
-implement it. Holdout sessions must stay unavailable until the enrollment's checkpoint exists, because
-checkpoint creation closes after the first holdout response.
+The repository implements it as the program's `HOUSEHOLD` reveal policy, chosen while the program is a draft,
+with a manager-only readiness view and reveal action. The server also keeps holdout sessions unavailable until
+the enrollment's checkpoint exists, because checkpoint creation closes after the first holdout response. The
+paper transcription, skin-day and facilitator workflows above remain separate, unimplemented work items.
 
 **What does not change.** Server-side disclosure rules, role-neutral errors, append-only observations, stage
 locks and the rule that a mapping-aware manager does not regain blindness by switching to a participant view.
@@ -214,8 +215,9 @@ stage locks and delayed identity reveal. It does not implement this instrument:
 description; `ResponseInput` uses 0-10 liking/wear/buy and Boolean detection;
 `lock_stage()` requires one detection answer, not scheduled-task completion;
 `reveal_blocker()` blocks the `reveal()` transition only on skin-plan, blotter
-and skin lock completion, not on this instrument's richer missing-task closure
-rules; controlled history and ML evaluation label observations 0-10. Skin-plan
+and skin lock completion (plus checkpoint, holdout locks and the rest of the
+household on a `HOUSEHOLD` reveal-policy program), not on this instrument's
+richer missing-task closure rules; controlled history and ML evaluation label observations 0-10. Skin-plan
 actions currently use recorder/enrollment authorization. A new UI alone cannot
 correct these storage and gate differences.
 
