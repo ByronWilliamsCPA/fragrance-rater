@@ -46,7 +46,7 @@ and household reveal, sheet, guides, session-scoped wizard and transcription tim
 214, 215, 216, 217 and 218). Holdouts need a manager checkpoint in any program that has them, including the P6
 rehearsal path; the merged wizard (#216) has a checkpoint panel in Program setup. The owner also decided group blotter
 mode on 2026-11-25 (one blotter per sample passed round the six evaluators, shared codes and order, a provisional
-2 minute spray-to-first-smell ceiling); its code (PR 220) and documentation (PR 219) pull requests are open and not merged. P6.3 must rehearse paper plus
+2 minute spray-to-first-smell ceiling); its code pull request (PR 220) is merged and its documentation pull request (PR 219) is merging after it. P6.3 must rehearse paper plus
 transcription in the six-person format; the merged code is the rehearsed instrument. R9-R12 are maintainability sprints and gate nothing, and
 R14's documentation items gate nothing. R8 may land after the P6 go decision but must land before F1.
 

@@ -125,10 +125,10 @@ What this means for the sheets and the data:
   (raised automatically at enrollment of a `SHARED_GROUP` program, so nothing is set at transcription). The flag is
   informational only: these scores **remain eligible for training**, and pooled reliability is reported both ways
   (with and without them). The flag lets that choice be reversed later.
-- **Pending code.** The application behaviour above (program `blotter_mode`, the `shared-triples-group-blotter-v1`
-  enrollment algorithm, the flag and the 2 minute check) is implemented by a code pull request that is not merged at
-  the time of writing; see the [project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24)
-  for its number and state.
+- **Application support.** The application behaviour above (program `blotter_mode`, the
+  `shared-triples-group-blotter-v1` enrollment algorithm, the flag and the 2 minute check) is implemented by merged
+  code pull request #220; see the
+  [project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) for its state.
 
 ### Seat order and who does what
 
