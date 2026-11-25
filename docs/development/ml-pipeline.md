@@ -113,8 +113,32 @@ one `non_blind` quality flag per session through the ordinary flag path. Effects
   the non-blind evaluator's pairs (`repeat_pairs(..., exclude_non_blind=True)` is the building block).
 
 `spray_to_smell_ceiling_exceeded` is the companion deviation code for a sample first smelled past
-F1's provisional spray-to-first-smell ceiling; it is raised through `POST
-/api/v1/calibration/quality-flags` like any other deviation.
+F1's provisional spray-to-first-smell ceiling (2 minutes, from the blotter's spray to each
+evaluator's first smell); it is raised through `POST /api/v1/calibration/quality-flags` like any
+other deviation.
+
+## Group-blotter programs (the F1 group session)
+
+A program with `blotter_mode = SHARED_GROUP` has the facilitator pass ONE physical blotter per sample
+around the evaluators. They share each sample's blind code (`calibration_presentations.shared_blind_code`)
+and the session order, and enroll with the `shared-triples-group-blotter-v1` algorithm. The mode is
+chosen with `PUT /api/v1/calibration/programs/{id}/blotter-mode` (or at creation) and locks when the
+first evaluator is enrolled. Every session of such a program carries an automatic
+`group_shared_blotter` quality flag. Unlike `non_blind`, that flag is informational:
+
+- It never changes eligibility. The rows stay in `v_training_rows` and `ml.training_view`; raising,
+  closing or resolving the flag moves no row (`services.group_blotter.INFORMATIONAL_FLAG_CODES`
+  lists the codes the eligibility rules skip). It cannot be raised or closed by hand, except that an
+  admin may invalidate it (raised in error).
+- Evaluation is unchanged, and the export marks `enrollment.group_shared_blotter`.
+- `ml.reliability.pooled_reliability_group_blotter_both_ways` returns the pooled repeat benchmark
+  including and excluding the group-blotter evaluators' pairs
+  (`repeat_pairs(..., exclude_group_blotter=True)` is the building block). Report both: order and
+  circle position are confounded in a group session, so the with-and-without comparison is how a
+  reader sees whether that matters.
+- Each evaluator's own `sprayed_at` and first smell must stay within the spray-to-smell ceiling. When
+  the window would be exceeded, the facilitator sprays a new blotter of the same sample (same blind
+  code); the transcription records that evaluator's own spray time.
 
 ## Notebook use
 
