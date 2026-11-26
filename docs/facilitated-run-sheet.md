@@ -81,7 +81,9 @@ non-pilot samples only (never a fragrance from the pilot set, so that nothing in
 afterwards):
 
 1. Show the paper sheet and a conditions slip, and walk through every row and scale, including that a circled zero is a
-   real answer and that blank means "not answering".
+   real answer and that blank means "not answering". Hand each novice the property guide
+   (`facilitated-property-guide v1.0`). Explain only what the rows mean; do not add examples or say what a typical
+   score looks like.
 2. Run one practice session of three non-pilot blotters on a practice sheet, with the same silence, timing and
    ranking rules.
 3. Do not coach answers, do not say what a "good" rating looks like, and do not tell the evaluator what a sample
