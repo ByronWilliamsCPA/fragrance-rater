@@ -48,14 +48,14 @@ evidence yet.
 | Step | Required result | Result | Evidence reference |
 | :--- | :--- | :--- | :--- |
 | Sheet and slip versions rehearsed | Version id of the paper sheet and of the conditions slip recorded; equals the ids F1 will name | Pending | Pending |
-| Shared-triple enrollment of six synthetic evaluators | Same session composition, per-session Latin-square rotation, random codes, preview matches stored plan | Pending | Pending |
+| Shared-triple enrollment of six synthetic evaluators | `INDIVIDUAL` blotter mode; same session composition, per-session Latin-square rotation, random per-evaluator codes, preview matches stored plan | Pending | Pending |
 | Paper session for six evaluators | Silent parallel sheets completed for at least one full session on paper, then one evaluator at a time transcribed through one recorder login | Pending | Pending |
-| Blind-code confirmation and ambiguous marks | A mismatched code is not saved; an ambiguous mark enters as blank plus a flag | Pending | Pending |
-| Group blotter rotation and ceiling | One blotter per sample passed round six evaluators in a fixed seat order; shared codes and order; actual sprayed, first-smelled and column-finished times recorded; provisional 2-minute ceiling confirmed or replaced; breaches flagged | Pending | Pending |
-| Replacement blotter | At least one rehearsed replacement (new blotter, same blind code); each sheet's Time sprayed is the spray time of the blotter that evaluator smelled; transcription enters each evaluator's own spray time; count of replacements recorded | Pending | Pending |
-| Group-blotter flag | Every session of a `SHARED_GROUP` program carries `group_shared_blotter`; flagged rows stay training-eligible; pooled reliability reported both ways | Pending | Pending |
+| Blind-code confirmation and ambiguous marks | A mismatched code is not saved, including one sheet deliberately entered under the wrong evaluator (expected 409 with per-evaluator codes; record honestly if it is not caught); an ambiguous mark enters as blank plus a flag | Pending | Pending |
+| Individual blotter flow and ceiling | One blotter per evaluator per sample, each evaluator spraying their own; the facilitator organizes and does not evaluate; actual sprayed, first-smelled and column-finished times recorded; provisional 2-minute ceiling counted from each evaluator's own spray confirmed or replaced; breaches flagged | Pending | Pending |
+| Fresh blotter | At least one rehearsed fresh blotter (same sample, same blind code, sprayed when that evaluator's own window passed unsmelled); each sheet's Time sprayed is the spray time of the blotter that evaluator smelled; transcription enters each evaluator's own spray time; count of fresh blotters recorded | Pending | Pending |
+| No group flag | No session carries `group_shared_blotter` (group blotter mode is built and unused); pooled reliability has the holder split only | Pending | Pending |
 | Non-blind holder | Holder's enrollment flagged non-blind; training eligibility excludes it and evaluation keeps it | Pending | Pending |
-| Checkpoints before holdouts | A holdout write is refused before the checkpoint and accepted after; checkpoints created by a manager | Pending | Pending |
+| Checkpoints before holdouts | A holdout write is refused before that evaluator's own checkpoint (409) and accepted after; an explicit evidence time before the checkpoint is refused (422); checkpoints created by a manager | Pending | Pending |
 | Household reveal | Refused until every enrollment is ready; one atomic reveal after the holdouts | Pending | Pending |
 | Skin-absent by design | Five evaluators finalize an empty plan; completeness denominators count skin only for evaluators with a plan | Pending | Pending |
 | Paper retention | Scans stored privately; retention period fixed by the owner is recorded | Pending | Pending |

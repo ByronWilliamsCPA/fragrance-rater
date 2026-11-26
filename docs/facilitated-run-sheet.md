@@ -10,10 +10,12 @@ tags:
 ---
 
 This is the facilitator's operating procedure for the six-evaluator format: six people working silently on paper, one
-sample at a time. In **group blotter mode** (the F1 mode, decided 2026-11-25) the facilitator passes one physical
-blotter per sample around the six evaluators; in **individual mode** each evaluator has their own tray of three coded
-blotters. It pairs with the
-[facilitated session sheet](facilitated-session-sheet.md) (version `facilitated-session-sheet v2.0`) and the
+sample at a time, **each with their own blotters**. Each evaluator has their own tray of three coded blotters, sprays
+their own blotter, and smells it themselves. The facilitator helps the other five keep their blotters, trays and sheets
+organized and does not evaluate in those sessions. (A group blotter procedure, one blotter per sample passed round all
+six, was tried physically on 2026-11-25 and abandoned: it got two evaluators through in two minutes. See
+[Group blotter mode: built, not used](#group-blotter-mode-built-not-used).) It pairs with the
+[facilitated session sheet](facilitated-session-sheet.md) (version `facilitated-session-sheet v2.1`) and the
 [conditions slip](facilitated-conditions-slip.md) (version `facilitated-conditions-slip v1.0`).
 
 Everything here is a draft for the P6.3 rehearsal. Numbers marked **provisional** are confirmed or changed by that
@@ -23,45 +25,57 @@ rehearsal, and any change is recorded in the F1 pre-exposure declaration (see th
 
 | Name | Value | From where to where | Source |
 | :--- | :--- | :--- | :--- |
-| **Spray-to-first-smell ceiling** | **2 minutes**, provisional (P6.3 tests it) | One blotter's spray to each evaluator's first smell of that blotter | Owner decision 2026-11-25 (replaces the earlier 5 minutes) |
+| **Spray-to-first-smell ceiling** | **2 minutes**, provisional (P6.3 tests it) | An evaluator's own spray of their own blotter to that evaluator's own first smell of it | Owner decision 2026-11-25 (replaces the earlier 5 minutes; kept at 2 minutes after the group attempt, now per own blotter) |
 | **Clean-air interval** | **At least 2 minutes**, about 5 minutes after a persistent or aversive sample | The last sniff of one sample to the first sniff of the next | ADR-005, unchanged |
 
-The first limits how stale a blotter may be when someone smells it. The second limits carryover between samples. They
+The first limits how stale a blotter may be when its own evaluator smells it. The second limits carryover between samples. They
 happen to share the figure 2; they are checked separately and written down separately.
 
 ## Checkpoint rule: no holdout is sprayed or smelled before its checkpoint exists
 
 This is the one rule that cannot be repaired afterwards, so check it before the first holdout blotter of the program.
 
-- **Group mode (`SHARED_GROUP`, the F1 mode).** Do not spray or smell any holdout blotter until the manager has created
-  a checkpoint for **every enrollment in the program** (all six) and the manager's readiness view shows
-  `holdouts_open_program_wide` true with `enrollments_missing_checkpoint` empty. One physical holdout blotter reaches
-  all six evaluators, so a single missing checkpoint holds the holdouts back for everyone.
-- **Individual mode.** Do not spray or smell an evaluator's holdout blotters until that evaluator's own checkpoint
-  exists (`holdouts_open` true on that evaluator's readiness row).
+**What the server does (individual blotters, verified in `disclosure_gate.py`).** The holdout gate is **per
+enrollment**: an evaluator's holdout samples open only when that evaluator's own checkpoint exists, and the server
+refuses a holdout exposure, observation, lock, session start or ranking for an evaluator who has none (409). It also
+refuses (422) an explicit evidence time on a holdout that is earlier than that evaluator's own latest checkpoint. The
+manager's readiness view shows `holdouts_open` on each evaluator's row; use that row value. In an individual program
+`holdouts_open_program_wide` is always false and `enrollments_missing_checkpoint` only lists who has no checkpoint yet:
+neither of them gates anything.
 
-Why: a holdout smelled on paper before its checkpoint exists cannot be made prospective afterwards. The server now
-refuses holdout evidence whose times are earlier than the checkpoint that opened the holdouts, but it cannot know when
-a blotter was physically smelled, so keeping to this order is a procedure the facilitator owns, not something the
-application enforces. If a holdout is smelled early by mistake, do not transcribe it as if it were prospective: record
-it in the deviation log and tell the manager before entering anything; no merged procedure covers this case.
+**What the facilitator does.** The six evaluators sit the same sitting together, so the server's per-evaluator gate is
+not enough on its own: an evaluator without a checkpoint who smells a holdout at the table has smelled it too early,
+and the server will then refuse to record it. Do not run a holdout sitting until the manager has created a checkpoint
+for **every one of the six** and `holdouts_open` is true on all six rows. This is a procedure the facilitator owns, not
+something the application enforces for the group. The facilitator's own evaluator enrollment is one of the six.
+
+Why: a holdout smelled on paper before its checkpoint exists cannot be made prospective afterwards. The server cannot
+know when a blotter was physically smelled, so keeping to this order is a procedure. If a holdout is smelled early by
+mistake, do not transcribe it as if it were prospective: record it in the deviation log and tell the manager before
+entering anything; no merged procedure covers this case.
 
 Before the first holdout, write the **checkpoint-created time of every enrollment** in the F1 pre-exposure declaration
 (see the [F1 gate](planning/gates/f1.md)). The readiness view shows which enrollments are missing a checkpoint but not
-the time each was created, so note the clock time when the manager creates them.
+the time each was created, so note the clock time when the manager creates them. When the program's reveal policy is
+`HOUSEHOLD` (the owner's plan for F1; the server allows it with individual blotters), a checkpoint is also refused
+until that evaluator's baseline blotters and planned skin tests are locked, and the single program-level reveal waits
+until all six have finished baseline, checkpoint and holdouts.
 
 ## Roles and blinding
 
-- The facilitator is the declared mapping holder. The facilitator retrieves the blind-to-identity mapping, labels and
-  sprays the vials, writes spray times, collects sheets, transcribes them through the single recorder login, verifies
-  them, and controls the household reveal. The facilitator is also an evaluator, so those rows are not blind: they
-  are flagged non-blind, excluded from blind-baseline training, and retained in evaluation.
-- Because the facilitator knows what is on every tray, this is single-blind with observer cues. Control the cues:
-  neutral face, no comment on any sample, no hint when a blotter is handed over, the same handing-over routine for
-  every blotter.
-- The facilitator takes a seat in the fixed seat order and smells the same blotter by the same routine as everyone
-  else, and fills in a sheet like everyone else. Do not look at the vial mapping while you are scoring. In individual
-  mode the facilitator's own tray is sprayed and handed over by the same routine.
+- The facilitator is the declared mapping holder. The facilitator retrieves the blind-to-identity mapping, prepares the
+  coded blotters for each evaluator's tray, helps the other five keep their blotters, trays and sheets organized,
+  enforces silence and the clean-air interval, collects sheets, transcribes them through the single recorder login,
+  verifies them, and controls the household reveal. **The facilitator does not evaluate during those sessions.**
+- The facilitator's own evaluations run in **separate sessions**, with the same sheet, the same ceiling and the same
+  routine. Because the facilitator knows what is on every tray, those are single-blind with observer cues: the rows are
+  flagged non-blind, excluded from blind-baseline training, and retained in evaluation. Do not look at the vial mapping
+  while you are scoring.
+- Because the facilitator knows what is on every tray, control the cues in the five evaluators' sessions too: neutral
+  face, no comment on any sample, no hint when a blotter card is handed over, the same handing-over routine for every
+  blotter.
+- Each evaluator sprays their own blotter and writes their own spray time and first-smelled time. The facilitator does
+  not spray for them and does not write their times.
 - The identity mapping and the facilitator spray sheets never enter an evaluator's sight and never enter the repository
   (see [Spray sheets](#spray-sheets)).
 
@@ -97,18 +111,17 @@ choice too; only evaluators who accepted it get a conditions slip.
 
 ## Room setup and ventilation
 
-Eighteen blotters is six people times three, which is too strong a smell to have in the room at once. Group blotter
-mode keeps one sprayed blotter in the room at a time (see the procedure below).
+Each evaluator sprays one blotter at a time, so up to six sprayed blotters are in the room at once, a stronger room
+than a single shared blotter would give. Ventilation and prompt removal of used blotters carry the weight here.
 
 - Use a room with no competing odour: no cooking, candles, air fresheners, cleaning products, flowers or plug-ins on
   the day. Run ventilation (a window plus a fan, or an extractor) from at least 15 minutes before the first spray, and
   keep it running throughout.
 - Seat evaluators apart, facing away from one another or behind simple screens, so nobody sees a face or a sheet. Allow
-  roughly 1.5 m between seats. The blotter moves seat to seat in the fixed order: evaluators pass it on silently, or
-  the facilitator carries it if the seats are too far apart (P6.3 decides which works inside 2 minutes). A table surface per person, a pen, the sheet on a clipboard, a clock visible to everyone.
-- A lidded jar or sealed bag outside the room for finished blotters. In group blotter mode a blotter leaves the room as
-  soon as the last evaluator has smelled it; in individual mode as soon as its column is initialed. Do not leave used
-  blotters on the table.
+  roughly 1.5 m between seats. Each seat has a table surface, a pen, the sheet on a clipboard, the evaluator's own tray
+  of three coded blotters, and a clock visible to everyone. Sprays point away from faces and from other blotters.
+- A lidded jar or sealed bag outside the room for finished blotters. A blotter leaves the room as soon as its column is
+  initialed. Do not leave used blotters on the table.
 - Water for comfort only. No coffee beans (ADR-005 removed them) and no sniffing own skin as a reset.
 - Read the room thermometer and hygrometer at the start of each sitting; the readings go on the conditions slips.
 - Everyone, facilitator included, wears no fragrance and no scented products that day. If anyone has, note it on that
@@ -125,68 +138,72 @@ Generate the facilitator spray sheets and each evaluator's pre-printed header ro
 `scripts/make_spray_sheets.py` from a local mapping file. Its default output directory is `tmp_cleanup/spray-sheets/`,
 which is gitignored and local-only. The spray sheets contain vial numbers and are facilitator-only. The per-evaluator
 header files contain only blind codes, the blotter mode, the evaluator reference, a random paper record ID and the
-sheet version. Run it with `--mode group` for group blotter mode (every evaluator may then hold the same code and
-order for a sample; the spray sheet becomes one blotter per sample with the seat order and the 2 minute window) and
-without it, or with `--mode individual`, for individual trays. Never
+sheet version. Run it without `--mode`, or with `--mode individual`, for individual trays (each evaluator holds their
+own codes; this is the F1 mode). The `--mode group` option is kept for the unused group blotter mode. Never
 commit, upload or email the mapping file or the facilitator-only output. Print the header files and put the
 facilitator sheets in a folder that stays with you.
 
-## Group blotter mode (F1)
+## Individual blotters (F1)
 
-Decided by the product owner on 2026-11-25. Eighteen blotters smelling at once is too strong, so the facilitator
-passes **one physical blotter per sample** around the six evaluators, **one blotter at a time**.
+Decided by the product owner on 2026-11-25, after the group blotter procedure was tried physically and abandoned (see
+[Group blotter mode: built, not used](#group-blotter-mode-built-not-used)). Everyone does the procedure on their own;
+the facilitator helps the other five keep their blotters, trays and sheets organized and does not evaluate in those
+sessions.
 
-What this means for the sheets and the data:
+What this means for the sheets and the data (verified in `shared_triples.py` and `calibration_service.py`):
 
-- **Shared code.** Every evaluator holds the same blind code for a given sample, printed on every evaluator's header
-  (the generator prints the same three codes in the same order on all six).
-- **Same order for everyone.** Within a session all six evaluators smell the three samples in the same order. The
-  per-session Latin-square rotation of the earlier plan is not used in this mode.
-- **Accepted limitation.** Because the code and the order are shared, one evaluator can in principle see or infer
-  that another is smelling the same sample, and the order and the seat position are confounded with the score.
-  The owner accepts this. The scores are marked as **group-blotter scores** by the session flag `group_shared_blotter`
-  (raised automatically at enrollment of a `SHARED_GROUP` program, so nothing is set at transcription). The flag is
-  informational only: these scores **remain eligible for training**, and pooled reliability is reported both ways
-  (with and without them). The flag lets that choice be reversed later.
-- **Application support.** The application behaviour above (program `blotter_mode`, the
-  `shared-triples-group-blotter-v1` enrollment algorithm, the flag and the 2 minute check) is implemented by merged
-  code pull request #220, and by #221, which adds the server-side holdout and reveal safeguards described under
-  [Checkpoint rule](#checkpoint-rule-no-holdout-is-sprayed-or-smelled-before-its-checkpoint-exists); see the
-  [project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) for its state.
+- **Own codes.** Each evaluator holds their own blind code for each sample. The program's blotter mode is `INDIVIDUAL`
+  (the application default). Codes are drawn at random, are unique across the whole database, and differ between
+  evaluators for the same sample.
+- **Enrollment algorithm.** For the six to smell the same three samples in a sitting, enroll them with
+  `shared-triples-latin-rotation-v1`: every evaluator receives the same sessions in the same session order, and the
+  order inside each session is a Williams balanced Latin-square row chosen by that evaluator's enrollment ordinal and
+  the session number, so across six evaluators each sample sits in each position twice per session of three. That
+  algorithm refuses the readable `E01-S1-2` labels, because the session number in a readable label would name which
+  evaluators hold the same fragrance. The default independent shuffle (`system-random-shuffle-v1`) gives each evaluator
+  different sessions and is not suited to a shared sitting. The manager chooses the algorithm at enrollment; every
+  enrollment of a program must use the same shared algorithm, and the blotter mode is locked once an evaluator is
+  enrolled.
+- **Seat positions.** The per-evaluator order differs, so which sample an evaluator smells first is not tied to a seat
+  or to what the neighbour is smelling.
+- **No group flag.** The `group_shared_blotter` session flag is raised only for group blotter mode, so none of these
+  sessions carries it, and every ordinary eligibility rule applies unchanged.
+- **Reveal.** Reveal policy `HOUSEHOLD` is allowed with individual blotters (the owner's plan): all six finish baseline,
+  checkpoints and holdouts, then one program-level reveal.
 
-### Seat order and who does what
+### Who does what
 
-- Fix one **seat order** (seat 1 to seat 6, the facilitator's own seat included) before the first session and use it
-  for every sample in a session. Name it in the F1 pre-exposure declaration. Seat order is a private facilitator
-  record; it is not printed on a sheet. (Whether to rotate it between sessions is an open owner decision, because the
-  first seat always gets the freshest blotter.)
-- The **facilitator sprays and times**. The facilitator writes the spray time (hh:mm:ss) and watches a clock visible
-  to the facilitator.
-- Evaluators write only their own first-smelled time and column details, and pass the blotter on in silence.
+- Each **evaluator** sprays their own blotter for the current sample, writes their own spray time (hh:mm:ss), smells it
+  once, writes their own first-smelled time, completes the column and initials it. Nobody passes a blotter to anyone.
+- The **facilitator** helps keep blotters, trays and sheets organized and in the right order, keeps the clock, signals
+  each round, enforces silence and the clean-air interval, and removes finished blotters to the jar. The facilitator
+  does not score and does not write an evaluator's times.
+- **Spray method (proposed, pending owner confirmation, not decided):** one spray from about 15 cm (6 in), pointed away
+  from faces and other blotters, the same for every blotter. This is an instruction to each evaluator. The values the
+  owner confirms are written in the F1 pre-exposure declaration; until then treat these as proposals.
+- **Open, not decided:** how each evaluator reaches the vial for their own spray (one vial per sample at every
+  station, or one vial moved between stations) is not settled. Whatever is chosen must never show an evaluator a vial
+  number or any identity, and P6.3 should test it inside the 2 minute window.
 
-### The 2 minute window and the replacement blotter
+### The 2 minute window and the fresh blotter
 
-The ceiling is **2 minutes from a blotter's spray to each evaluator's first smell** of that blotter. It is provisional;
-P6.3 tests whether six people can rotate within it. Judge it at every hand-over:
+The ceiling is **2 minutes from an evaluator's own spray to that evaluator's own first smell**. It is provisional; P6.3
+tests whether it holds for all six evaluators and how often a fresh blotter was needed.
 
-1. Spray the blotter and write its spray time. Hand it to seat 1; each evaluator smells it once, writes the
-   first-smelled time at once, and passes it to the next seat.
-2. Before handing the blotter to the next evaluator, look at the clock. If that evaluator could not be expected to
-   smell it within 2 minutes of its spray time, do not hand it over. Spray a **new blotter of the same sample** (the
-   same blind code) and write the new spray time. That evaluator and every remaining evaluator smell the new blotter.
-3. The new blotter has its own 2 minute window, counted from its own spray time. If it is again too slow, repeat.
-4. **How it is written on paper.** The row **Time sprayed** on an evaluator's sheet is the spray time of the blotter
-   *that evaluator smelled*. Evaluators who smelled the original have the original's spray time; evaluators who
-   smelled a replacement have the replacement's later spray time. The blind code is the same on every sheet. Write
-   each spray time on the sheets of the evaluators it applies to, and note the replacement in the deviation log
-   (log it as information, not a failure: P6.3 needs to know how often it happened).
-5. If the window is **missed anyway** (an evaluator first smells more than 2 minutes after the spray time of the
-   blotter they smelled), the evaluator writes the true first-smelled time. Nothing is dropped, nothing is
-   adjusted, and the blotter is not re-sprayed to repair that evaluator's column. The application raises the
-   `spray_to_smell_ceiling_exceeded` flag when the time is entered; also note it in the deviation log. Then use the
-   replacement rule for any evaluators who have not yet smelled.
-6. In the application each evaluator's own sprayed time and first-smelled time must fall within 2 minutes of each
-   other (that evaluator's own pair), which is why the sprayed time on the sheet must be the blotter they smelled.
+1. The evaluator sprays their own blotter, writes the spray time, and smells it at once, writing the first-smelled
+   time.
+2. If an evaluator's 2 minutes pass before they have smelled that blotter, they do not smell it: they spray a **fresh
+   blotter of the same sample** (the same blind code) and write the new spray time. The new blotter has its own 2
+   minute window, counted from its own spray. Note each fresh blotter in the deviation log as information, not a
+   failure: P6.3 needs to know how often it happened.
+3. **How it is written on paper.** The row **Time sprayed** on an evaluator's sheet is the spray time of the blotter
+   *that evaluator smelled*, in their own hand. The blind code is unchanged.
+4. If the window is **missed anyway** (the evaluator smelled more than 2 minutes after the spray time of the blotter
+   they smelled), they write the true first-smelled time and tell the facilitator. Nothing is dropped, nothing is
+   adjusted, and the blotter is not re-sprayed to repair that column. The application raises the
+   `spray_to_smell_ceiling_exceeded` flag when the time is entered; also note it in the deviation log.
+5. In the application each evaluator's own sprayed time and first-smelled time must fall within 2 minutes of each
+   other, which is why the sprayed time on the sheet must be the blotter they smelled.
 
 ## Order of operations for one session
 
@@ -195,34 +212,29 @@ first smelled, column finished) on the sheet. A breach is flagged as a deviation
 
 | Step | Who | What | Time note |
 | --- | --- | --- | --- |
-| 1 | Facilitator | Ventilate the room; print sheets (with pre-printed shared codes and the blotter mode) and, for consenting evaluators, slips; set out six seats in the fixed seat order and the unsprayed blotter cards for the three samples, in the session's order, out of the room | Before anyone arrives |
-| 2 | Evaluators | Sit in seat order, silence phones, complete the conditions slip alone if they accepted the consent, hand it back face down | Before the first spray |
+| 1 | Facilitator | Ventilate the room; print sheets (with pre-printed own codes and the blotter mode) and, for consenting evaluators, slips; set out six seats, each with the evaluator's own tray of three unsprayed coded blotters in that evaluator's session order | Before anyone arrives |
+| 2 | Evaluators | Sit, silence phones, complete the conditions slip alone if they accepted the consent, hand it back face down | Before the first spray |
 | 3 | Facilitator | Read the room thermometer and hygrometer, file slips apart from sheets, start the clock | Write the date and start time |
-| 4 | Facilitator | Sample 1: spray one blotter at the declared distance and count (the same for every blotter, fixed in the declaration), write the spray time, hand it to seat 1 by the same routine every time | Spray time, hh:mm:ss |
-| 5 | Evaluators | Smell once, write the first-smelled time, pass the blotter to the next seat in silence, then complete the column and initial **Column complete** | Each first smell within 2 minutes of the spray time of the blotter smelled; otherwise the replacement rule |
-| 6 | Facilitator | Apply the replacement rule at each hand-over; when the last evaluator has smelled, remove the blotter to the lidded jar outside the room | Note the time of the last sniff |
-| 7 | Facilitator | Clean air: spray the next blotter only when every evaluator has initialed the previous column and the clean-air interval has passed since the last sniff | At least 2 minutes after the last sniff; about 5 after a persistent or aversive sample |
-| 8 | Facilitator | Samples 2 and 3: repeat steps 4 to 7, one sample and one blotter at a time. Do not start the next spray while any evaluator is still writing | Same rules each round |
+| 4 | Evaluators | On the facilitator's signal (proposed pacing, P6.3 confirms), each sprays their own blotter for sample 1 as instructed (proposed: one spray from about 15 cm, away from faces and other blotters, the same for every blotter; fixed in the declaration once the owner confirms), and writes their own spray time | Spray time, hh:mm:ss, in their own hand |
+| 5 | Evaluators | Smell once, write the first-smelled time, then complete the column and initial **Column complete** | Own first smell within 2 minutes of own spray; otherwise the fresh-blotter rule |
+| 6 | Facilitator | Help anyone whose blotter, tray or sheet is out of order; apply the fresh-blotter rule where an evaluator's window has passed unsmelled; as each column is initialed, remove that blotter to the lidded jar outside the room | Note the time of the last sniff in the round |
+| 7 | Facilitator | Clean air: signal the next round only when every evaluator has initialed the previous column and the clean-air interval has passed since the last sniff in the round | At least 2 minutes after the last sniff; about 5 after a persistent or aversive sample |
+| 8 | Evaluators and facilitator | Samples 2 and 3: repeat steps 4 to 7, one sample and one blotter each at a time. Nobody sprays the next blotter while anyone is still writing | Same rules each round |
 | 9 | Evaluators | Rank the samples in Part D, then hand the whole sheet to the facilitator and stay silent | Ranking after all three columns are initialed |
 | 10 | Facilitator | Collect all six sheets, check each is complete enough to enter and that no column was changed after initials, then end the sitting | Note the end time |
 | 11 | Facilitator | Hand over: say only that the sitting is finished and when the next one is. No discussion of any sample or score | Silence rules still apply |
 
-An evaluator sniffs the blotter once, in their turn. Do not describe a blotter. Do not hint at a stronger or weaker
-sample. Do not spray all three samples at the start: it breaks the window and the clean-air rule at once.
+An evaluator sniffs their blotter once. Do not describe a blotter. Do not hint at a stronger or weaker sample. Do not
+spray all three samples at the start: it breaks the window and the clean-air rule at once.
 
-### Individual mode (not the F1 mode)
-
-In individual mode each evaluator has their own tray of three coded blotters with their own codes and order, and the
-facilitator sprays in rounds of one blotter per evaluator so the ceiling can hold for every column. The same 2 minute
-ceiling applies from each blotter's spray to its evaluator's first smell, and the clean-air interval is unchanged.
-Individual mode is the default in the application (`blotter_mode` `INDIVIDUAL`) and is kept for rehearsal and any
-future program; F1 uses group blotter mode.
+The facilitator's own evaluations are not part of these sittings. They run in separate sessions, one evaluator, same
+sheet and rules, flagged non-blind.
 
 ### Clean air
 
 - Minimum 2 minutes of clean air between the last sniff of one sample and the first sniff of the next, as set by
   ADR-005. This is the clean-air interval and is not the spray-to-first-smell ceiling (also 2 minutes, a different
-  thing; see the table at the top). In group blotter mode it runs from the last evaluator's sniff. Extend it to
+  thing; see the table at the top). It runs from the last sniff in the round by any evaluator. Extend it to
   about 5 minutes after a persistent or aversive sample (a persistent stimulus, an evaluator scoring Discomfort high,
   or one who stepped away). The facilitator spray sheet can mark a vial as persistent so the
   longer interval is not forgotten.
@@ -236,16 +248,15 @@ future program; F1 uses group blotter mode.
   corridor, in the kitchen, between sessions and on the way home.
 - If someone talks, stop the round, note the time and what was said in the deviation log without correcting anyone,
   and flag the sheets that may be affected. Do not discard data.
-- If an evaluator is interrupted before finishing a column, they tick **Interrupted**, the facilitator writes the time on
-  the sheet, and the column is not redone with the same blotter. The facilitator never replaces or re-sprays a blotter to
-  rescue an interrupted or undetected column. (The replacement blotter in group blotter mode is only for a blotter whose
-  2 minute window would otherwise be missed for evaluators who have not yet smelled it.)
+- If an evaluator is interrupted before finishing a column, they tick **Interrupted**, the evaluator writes the time on
+  the sheet, and the column is not redone with the same blotter. Nobody replaces or re-sprays a blotter to rescue an
+  interrupted or undetected column. (The fresh blotter is only for a blotter whose own 2 minute window passed before its
+  evaluator smelled it.)
 - If an evaluator cannot smell a sample, they circle **No** under Detected and leave the rest of that column blank. Do
   not suggest a second sniff, a different blotter, or a different technique. A sample that was not detected is left out
   of that evaluator's ranking.
-- If any evaluator needs to step away (discomfort), pause the next spray, extend the clean-air interval, and note the
-  time. In group blotter mode the whole room waits, because there is one blotter at a time; do not run ahead. In
-  individual mode the other evaluators wait for the next round together.
+- If any evaluator needs to step away (discomfort), pause the next round, extend the clean-air interval, and note the
+  time. The other evaluators wait for the next round together; nobody runs ahead.
 - A breach of the 2 minute spray-to-first-smell ceiling is recorded as a deviation. The application raises the
   `spray_to_smell_ceiling_exceeded` flag itself when you type the first-smell time; the evidence is kept and nothing
   is dropped. Also keep the breach in the deviation log.
@@ -259,17 +270,18 @@ finished, the next sitting waits.
 1. Enter one evaluator at a time through the single recorder login: confirm the enrollment and paper record ID, then
    type the blind code printed on the paper into the "Blind code printed on the sheet" box for each column. The
    application refuses to save when it is not the code of the sample on screen, so a mismatch means the wrong sheet or
-   the wrong evaluator: stop and check. In group blotter mode the six sheets of a session carry the same codes, so the
-   code alone no longer tells the evaluators apart: confirm the enrollment and the paper record ID first. The
-   application cannot catch a sheet entered under the wrong evaluator in this mode, because every enrollment shares the
-   blind code, so this check is yours.
+   the wrong evaluator: stop and check. With individual blotters every evaluator's codes are their own, so a sheet
+   entered under the wrong evaluator carries a code that is not on that evaluator's schedule and the guard refuses it
+   (409). That holds only when the code is typed from the paper column, so still confirm the enrollment and the paper
+   record ID first. The guard is not evidence of which evaluator wrote the sheet; it is a check that this sheet's codes
+   belong to the enrollment on screen.
 2. Type the paper's spray time, first-smell time (asked once per sample) and column-finished time. The application
    stores the first smell as the presented time and the column-finished time as the observed time, and works out
    elapsed minutes as whole minutes from spray to column finished; you never type them. The session start, session
    end and ranking times are typed from the sheet in the same way. A time in the future, before the session existed or
    more than 7 days ago is refused as a probable typing error. The exact times stay on the paper.
 3. Enter an ambiguous mark as blank plus a flag. Never guess. Type each evaluator's own **Time sprayed** from their
-   own sheet: after a replacement blotter it differs between evaluators of the same session.
+   own sheet: it is that evaluator's own spray, so it differs between evaluators and after a fresh blotter.
 4. Consent is recorded once per evaluator, on their first session, with a note of where it was written (for example,
    signed on the paper sheet). Enter the conditions slip into the session-context form only for an evaluator who
    accepted it; later sessions never ask again.
@@ -299,3 +311,16 @@ finished, the next sitting waits.
 
 The reveal is a program-level event after every evaluator has finished baseline, repeats and holdouts. Until then,
 no one is told what any sample was, even after their own session. The facilitator controls the reveal and announces it.
+The application allows the `HOUSEHOLD` reveal policy with individual blotters (verified in `disclosure_gate.py` and
+`api/calibration.py`); the manager's readiness view reports `household_reveal_ready` once all six enrollments have
+finished baseline, a checkpoint and their holdouts.
+
+## Group blotter mode: built, not used
+
+A group blotter mode (program `blotter_mode` `SHARED_GROUP`, one blotter per sample passed around the six evaluators,
+shared blind codes, one shared order, the `group_shared_blotter` session flag and the server-side group safeguards of
+pull requests #220 and #221) is merged in the application and **not used by F1**. On 2026-11-25 the owner tried the
+procedure physically and could get through only two evaluators in two minutes, so F1 returned to one blotter per
+evaluator. The code is retained, unused, and individual blotters remain the application default. The spray-sheet
+generator still accepts `--mode group` for the same reason. Nothing on the printed sheet refers to it other than the
+unused second option of the Part A **Blotter mode** row.

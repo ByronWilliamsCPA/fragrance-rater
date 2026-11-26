@@ -260,6 +260,11 @@ The product owner decided on 2026-11-25 how F1 group sessions handle the physica
 the protocol consequences. It amends the 2026-11-24 amendment above; the text above is left as written and is
 superseded where it conflicts. It marks no gate as passed, and the ceiling is still provisional.
 
+> **Superseded for F1 later the same day.** The owner tried the group procedure physically and abandoned it; F1 uses
+> one blotter per evaluator again. See the
+> [individual-blotters addendum](#2026-11-25-addendum-group-blotter-mode-abandoned-for-f1-individual-blotters-return)
+> below. The text of this amendment is kept as the record of what was decided first.
+
 - **Group blotter mode.** The facilitator passes **one physical blotter per sample** around the six evaluators,
   one blotter at a time, in a fixed seat order. Eighteen blotters at once (six trays of three) is too strong a smell.
   This replaces "each evaluator has their own tray of three coded blotters" for F1 group sessions. Individual
@@ -284,7 +289,7 @@ superseded where it conflicts. It marks no gate as passed, and the ceiling is st
 - **Not the clean-air interval.** The inter-stimulus interval (at least 2 minutes of clean air between the last
   sniff of one sample and the first sniff of the next, about 5 minutes after a persistent sample) is a different
   number and is unchanged. The two must not be conflated.
-- **Implementation state.** The sheet (`facilitated-session-sheet v2.0`), the run sheet and the spray-sheet generator
+- **Implementation state.** The sheet (`facilitated-session-sheet v2.0` at that time; `v2.1` after the addendum below), the run sheet and the spray-sheet generator
   describe the procedure. The application support (program `blotter_mode`, shared codes and order at enrollment, the
   flag, the 2 minute check) merged in #220, and the server-side safeguards below merged in #221; see
   [PROJECT-PLAN.md section 11a](../PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24). Merged code is
@@ -319,6 +324,44 @@ unchanged.
   blind code, the blind-code guard cannot detect a sheet entered under the wrong evaluator; a seat or initials check
   would change a recorded field and therefore the sheet version. Both are open owner decisions in the
   [F1 gate](../gates/f1.md).
+
+### 2026-11-25 addendum: group blotter mode abandoned for F1, individual blotters return
+
+On 2026-11-25 the owner tried the group blotter procedure physically (one blotter per sample passed round six
+evaluators) and could get through only **two evaluators in two minutes**. Group mode is abandoned for F1 and F1 returns
+to individual blotters. The owner's words, in intent: everyone does it on their own, the facilitator helps the children
+keep theirs organized and does their own evaluations separately. This addendum records the protocol consequences; it
+marks no gate as passed.
+
+- **Code retained, unused.** Group blotter mode (`blotter_mode` `SHARED_GROUP`, `group_blotter.py`, the
+  `shared-triples-group-blotter-v1` algorithm, the `group_shared_blotter` flag and the #221 safeguards) stays merged and
+  is not used by F1. `INDIVIDUAL` is the default and F1 uses it.
+- **One blotter per evaluator per sample.** Each evaluator has their own coded blotters, **sprays their own** (spray
+  distance and count are an instruction to each evaluator; the proposed values, one spray from about 15 cm pointed
+  away from faces and other blotters, are not yet confirmed by the owner), and writes their own spray time. Up to six
+  sprayed blotters are in the room at once, which the run sheet handles with ventilation and prompt removal of used
+  blotters.
+- **Ceiling kept at 2 minutes, now per own blotter.** It is counted from an evaluator's own spray to that evaluator's
+  own first smell. The two mirrored constants are unchanged. An evaluator whose own window passes unsmelled sprays a
+  fresh blotter of the same sample and writes the new spray time. It is still provisional and is not the clean-air
+  interval.
+- **Roles.** The mapping holder facilitates (helps the other five keep blotters, trays and sheets organized, enforces
+  silence and clean air) and does not evaluate during those sessions. The holder's own evaluations run in separate
+  sessions, single-blind with observer cues, flagged non-blind. The holder still transcribes all six sheets through one
+  recorder login, and skin tests stay holder-only.
+- **What the code does with individual blotters (verified).** Enrollment with `shared-triples-latin-rotation-v1` gives
+  every evaluator the same sessions with a Williams Latin-square order per evaluator and random evaluator-specific codes,
+  so the 2026-11-24 rows on rotated order and evaluator-specific codes apply again and the shared-code confound
+  accepted above does not arise. No session carries `group_shared_blotter`, so the pooled benchmark has only the holder
+  split. The blind-code guard compares the code typed from the paper with the sample on screen, and because codes are
+  now per evaluator it refuses a sheet entered under the wrong evaluator (409); the earlier statement that it cannot
+  applied only to shared codes. `reveal_policy` `HOUSEHOLD` is allowed with `INDIVIDUAL` (the owner's plan: all six
+  finish baseline, checkpoints and holdouts, then one program-level reveal). The holdout gate is per enrollment, the
+  checkpoint of the evaluator concerned opens that evaluator's holdouts, and a holdout evidence time before that
+  checkpoint is refused (422); the facilitator still runs no holdout sitting until all six checkpoints exist, which is
+  procedure. The readiness view reports `holdouts_open` per row, and `holdouts_open_program_wide` is always false.
+- **Sheet.** `facilitated-session-sheet v2.1` is a wording-only change that records no new field; the Part A Blotter
+  mode row stays and records Individual.
 
 ## 2026-11-24 amendment: `would_buy` stays on the blind skin form (pending owner confirmation)
 

@@ -1,10 +1,11 @@
 """Build facilitator spray sheets and per-evaluator blind-code headers from a local mapping.
 
-The facilitator in a six-evaluator session sprays vials onto coded blotters.
-In individual mode each evaluator gets their own tray of three; in group
-blotter mode (the F1 mode) the facilitator passes one blotter per sample around
-the six evaluators in a fixed seat order. This tool turns the facilitator's
-private mapping into two kinds of output:
+In a six-evaluator session the facilitator holds the vials and prepares coded
+blotters. In individual mode (the F1 mode, and the default) each evaluator gets
+their own tray of three and sprays their own blotters; in group blotter mode
+(built, not used by F1 after the 2026-11-25 physical attempt) one blotter per
+sample is passed around the six evaluators in a fixed seat order. This tool
+turns the facilitator's private mapping into two kinds of output:
 
 * Facilitator-only spray sheets (one per session) that list, per vial, which
   blind code goes on which evaluator's tray and position, plus the same data per
@@ -84,7 +85,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-SHEET_VERSION = "facilitated-session-sheet v2.0"
+SHEET_VERSION = "facilitated-session-sheet v2.1"
 MODES = ("individual", "group")
 DEFAULT_MODE = "individual"
 # Spray-to-first-smell ceiling, provisional until P6.3. It is NOT the clean-air

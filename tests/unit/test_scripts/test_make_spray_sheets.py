@@ -83,7 +83,7 @@ def test_outputs_are_written_and_evaluator_files_leak_nothing(tmp_path: Path) ->
     ]
     for header in headers:
         text = header.read_text(encoding="utf-8")
-        assert "facilitated-session-sheet v2.0" in text
+        assert "facilitated-session-sheet v2.1" in text
         assert "Individual trays" in text
         assert "Blind code (pre-printed)" in text
         for token in forbidden:
@@ -244,7 +244,7 @@ def test_group_mode_accepts_shared_codes_and_order(tmp_path: Path) -> None:
     ]
     texts = [h.read_text(encoding="utf-8") for h in headers]
     for text, header in zip(texts, headers, strict=True):
-        assert "facilitated-session-sheet v2.0" in text
+        assert "facilitated-session-sheet v2.1" in text
         assert "Group blotter" in text
         for token in forbidden:
             assert token not in text
