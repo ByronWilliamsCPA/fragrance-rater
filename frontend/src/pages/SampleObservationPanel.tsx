@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type { Enrollment, Sample } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -18,6 +18,13 @@ import {
   unansweredReasons,
   type ScaleGroup,
 } from '../content/calibrationScales'
+import {
+  applyDraftFields,
+  clearDraft,
+  collectDraftFields,
+  loadDraft,
+  saveDraft,
+} from '../content/recorderState'
 import { submissionFor, type PendingSubmission } from '../content/submissionKey'
 import {
   blindCodeMatches,
@@ -114,6 +121,12 @@ export type SampleObservationPanelProps = {
    * ordinary form.
    */
   transcription?: boolean
+  /**
+   * The signed-in account, which turns on keeping a paper column's unsaved
+   * fields across a page reload (sessionStorage; see content/recorderState).
+   * Omitted: nothing is stored.
+   */
+  draftOwner?: string
 }
 
 export function SampleObservationPanel({
@@ -128,6 +141,7 @@ export function SampleObservationPanel({
   stageFixed = false,
   allowSkinPlanning = true,
   transcription = false,
+  draftOwner,
 }: SampleObservationPanelProps) {
   // The submission a failed save left behind, so pressing Save again on the
   // same answers retries it under the same idempotency key (D-22).
@@ -138,6 +152,42 @@ export function SampleObservationPanel({
   // Bumped after each saved column so the paper fields start empty again.
   const [saved, setSaved] = useState(0)
   const paper = transcription && stage === 'BLOTTER' && !sample.post_reveal_entry
+  const formElement = useRef<HTMLFormElement>(null)
+  const detectedSelect = useRef<HTMLSelectElement>(null)
+
+  /** Which stored draft belongs to the column on screen; null when none is kept. */
+  function draftScope() {
+    if (draftOwner === undefined || !paper) return null
+    return {
+      owner: draftOwner,
+      programId: enrollment.program_id,
+      enrollmentId: enrollment.id,
+      sessionId: sample.session_id,
+      presentationId: sample.id,
+    }
+  }
+
+  // The column typed before a reload. Only a freshly loaded page has one to restore:
+  // once a column has been saved here, what is stored was typed on this screen.
+  const restored = useMemo(
+    () =>
+      draftOwner !== undefined && paper && saved === 0
+        ? loadDraft({
+            owner: draftOwner,
+            programId: enrollment.program_id,
+            enrollmentId: enrollment.id,
+            sessionId: sample.session_id,
+            presentationId: sample.id,
+          })
+        : null,
+    [draftOwner, paper, enrollment.program_id, enrollment.id, sample.session_id, sample.id, saved]
+  )
+
+  useEffect(() => {
+    if (!restored || !formElement.current) return
+    applyDraftFields(formElement.current, restored.fields)
+    if (restored.detected !== '') setDetected(restored.detected)
+  }, [restored, setDetected])
 
   /**
    * Checks the paper fields and stamps the first smell, returning what the
@@ -249,6 +299,8 @@ export function SampleObservationPanel({
     data.idempotency_key = submission.key
     await api.post(path, data)
     pending.current = null
+    const scope = draftScope()
+    if (scope) clearDraft(scope)
     form.reset()
     setDetected('')
     setSaved((count) => count + 1)
@@ -324,6 +376,15 @@ export function SampleObservationPanel({
       )}
       <form
         key={`${sample.id}-${stage}-${saved}`}
+        ref={formElement}
+        onChange={(event) => {
+          const scope = draftScope()
+          if (!scope) return
+          saveDraft(scope, {
+            detected: detectedSelect.current?.value ?? detected,
+            fields: collectDraftFields(event.currentTarget),
+          })
+        }}
         onSubmit={(event) => {
           event.preventDefault()
           const form = event.currentTarget
@@ -344,6 +405,7 @@ export function SampleObservationPanel({
             <PaperSheetFields
               sample={sample}
               defaultSprayed={sprayMemory[sample.id] ?? ''}
+              restored={restored?.fields}
               groupBlotter={enrollment.blotter_mode === 'SHARED_GROUP'}
             />
           )}
@@ -367,7 +429,11 @@ export function SampleObservationPanel({
             )}
             <label>
               Detected
-              <select value={detected} onChange={(event) => setDetected(event.target.value)}>
+              <select
+                ref={detectedSelect}
+                value={detected}
+                onChange={(event) => setDetected(event.target.value)}
+              >
                 <option value="">Unanswered</option>
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
@@ -485,6 +551,8 @@ export function SampleObservationPanel({
           onConfirm={() =>
             void task.run(async () => {
               await api.post(`/calibration/presentations/${sample.id}/lock/${stage}`)
+              const scope = draftScope()
+              if (scope) clearDraft(scope)
               await refresh()
             })
           }
