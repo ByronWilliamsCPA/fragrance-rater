@@ -585,6 +585,9 @@ Counted and recorded during this sitting:
 
 - Spray to first smell for each evaluator and sample against the **2 minute ceiling** (from that evaluator's own spray to
   their own first smell). Do not confuse it with the clean-air interval.
+- Vial access (owner decision, 2026-11-26): evaluators walk up to the vials as they are ready; the facilitator does not
+  schedule or control turns at the vials. Record how often evaluators queued or crowded at the vials. If the walk-up
+  approach had to be changed, note it in the rehearsal log (that would be a new owner decision).
 - **At least one fresh blotter**: tell one evaluator (E4) to let the 2 minutes pass before smelling sample 1. They must
   not smell it, spray a fresh blotter of the same sample (same blind code), write the new spray time on the sheet, and
   smell that one. Count it.
@@ -810,6 +813,7 @@ owner, after the evening**, from `$EVID`. This runbook does not fill it and mark
 | Blind-code confirmation, ambiguous marks | `failure-1.txt`, and how the ambiguous mark was entered |
 | Individual blotter flow and ceiling | spray-to-first-smell for each evaluator and sample, count of breaches, whether 2 minutes held |
 | Fresh blotter | count of fresh blotters and which evaluator |
+| Vial access | how often evaluators queued or crowded at the vials, and whether the walk-up approach had to be changed |
 | No group flag | the export summary |
 | Non-blind holder | `non-blind-call.txt` and the export flag |
 | Checkpoints before holdouts | `checkpoint-times.txt`, `failure-4.txt` (409), `failure-3.txt` (422) |

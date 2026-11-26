@@ -181,9 +181,13 @@ What this means for the sheets and the data (verified in `shared_triples.py` and
 - **Spray method (owner decision, 2026-11-25):** one spray from about 15 cm (6 in), pointed away from faces and other
   blotters, the same for every blotter. This is an instruction to each evaluator. The values are written in the F1
   pre-exposure declaration.
-- **Open, not decided:** how each evaluator reaches the vial for their own spray (one vial per sample at every
-  station, or one vial moved between stations) is not settled. Whatever is chosen must never show an evaluator a vial
-  number or any identity, and P6.3 should test it inside the 2 minute window.
+- **Vial access (owner decision, 2026-11-26):** evaluators walk up to the vials as they are ready to spray their own
+  blotter. The facilitator does not schedule or control turns at the vials. The facilitator still helps keep blotters
+  and sheets organized and does not evaluate in these sessions. No evaluator is shown a vial number or any identity.
+  Because the spray time is each evaluator's own, the 2 minute rule below applies unchanged: if an evaluator misses the
+  window, they spray a fresh blotter of the same sample. P6.3 observes this: how often evaluators queued or crowded at
+  the vials, and how many fresh blotters were needed. If the walk-up approach had to be changed, note it in the
+  rehearsal log; that would be a new owner decision.
 
 ### The 2 minute window and the fresh blotter
 
