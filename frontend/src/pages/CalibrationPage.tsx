@@ -8,6 +8,7 @@ import { useTask } from '../hooks/useTask'
 import { followRouteLink, pathFor, type AssignmentId, type Navigate } from '../routing/routes'
 import { calibrationEntryFor } from '../routing/calibrationEntry'
 import { isOpen } from '../routing/wizardSteps'
+import { discardStaleRecorderState, loadEvaluator, saveEvaluator } from '../content/recorderState'
 import { revealGuidance } from '../content/revealBlockers'
 import { CalibrationChoiceScreen } from './CalibrationChoiceScreen'
 import { GuidedCalibrationFlow } from './GuidedCalibrationFlow'
@@ -66,7 +67,12 @@ export function CalibrationPage({
   // The enrollment a recorder switched the wizard to. One facilitator can
   // transcribe for a whole household, and the entry routing alone would always
   // reopen the same in-progress enrollment.
-  const [switchedTo, setSwitchedTo] = useState('')
+  // A reload reopens the evaluator the recorder was on; the server cannot say which
+  // of several started enrollments that was.
+  const [switchedTo, setSwitchedTo] = useState(() => {
+    discardStaleRecorderState(access.username)
+    return loadEvaluator(access.username, assignments)
+  })
   const entry = calibrationEntryFor(assignments)
   const sample = enrollment?.presentations.find((presentation) => presentation.id === selected)
   const householdReveal = enrollment?.reveal_policy === 'HOUSEHOLD'
@@ -137,6 +143,9 @@ export function CalibrationPage({
   const guidedEnrollmentId = assignments.some((assignment) => assignment.id === switchedTo)
     ? switchedTo
     : routedEnrollmentId
+  const guidedProgramId = assignments.find(
+    (assignment) => assignment.id === guidedEnrollmentId
+  )?.program_id
   if (!initialAssignmentId && !unresolvedAssignmentId && !manualBrowse && guidedEnrollmentId) {
     return (
       <GuidedCalibrationFlow
@@ -156,8 +165,15 @@ export function CalibrationPage({
             assignment.reviewer_id
           } · ${assignment.program_name}`,
         }))}
-        onSwitchEnrollment={setSwitchedTo}
+        onSwitchEnrollment={(id) => {
+          setSwitchedTo(id)
+          const chosen = assignments.find((assignment) => assignment.id === id)
+          if (chosen) saveEvaluator(access.username, chosen.program_id, id)
+        }}
         isManager={access.manager}
+        recorder={
+          guidedProgramId ? { owner: access.username, programId: guidedProgramId } : undefined
+        }
       />
     )
   }

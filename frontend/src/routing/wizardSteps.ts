@@ -46,9 +46,10 @@ function started(session: SessionGroup): boolean {
 }
 
 /**
- * What the wizard has already moved past in this visit. Nothing here is
- * persisted: a reload re-derives the step from the enrollment and, at most,
- * shows a session's ranking check and boundary once more.
+ * What the wizard has already moved past in this visit. A reload re-derives
+ * the step from the enrollment and, at most, shows a session's ranking check
+ * and boundary once more. The facilitated format keeps this set for the tab
+ * (content/recorderState.ts) so its recorder does not lose their place.
  */
 export type WizardProgress = {
   /** Sessions whose opening screen (consent, conditions, start) was completed. */

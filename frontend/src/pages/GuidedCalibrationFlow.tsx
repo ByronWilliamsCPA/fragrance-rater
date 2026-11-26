@@ -5,6 +5,12 @@ import { ConfirmAction } from '../components/ConfirmAction'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { LoadingState } from '../components/PageState'
 import { revealBlockerLabel } from '../content/revealBlockers'
+import {
+  clearEnrollmentState,
+  loadProgress,
+  saveProgress,
+  type RecorderScope,
+} from '../content/recorderState'
 import { isTranscribed } from '../content/transcription'
 import { useTask } from '../hooks/useTask'
 import {
@@ -104,6 +110,7 @@ export function GuidedCalibrationFlow({
   switchOptions = [],
   onSwitchEnrollment,
   isManager = false,
+  recorder,
 }: {
   enrollmentId: string
   onExitToManualBrowse: () => void
@@ -124,14 +131,28 @@ export function GuidedCalibrationFlow({
   onSwitchEnrollment?: (enrollmentId: string) => void
   /** Managers see who is outstanding while a household waits. */
   isManager?: boolean
+  /**
+   * The signed-in account and this enrollment's program. Given, a facilitator
+   * who reloads the page keeps the screens already passed and the unsaved
+   * fields of the column being typed (sessionStorage; see content/recorderState).
+   * Omitted: nothing is stored.
+   */
+  recorder?: { owner: string; programId: string }
 }) {
   const [enrollment, setEnrollment] = useState<Enrollment | null>(null)
   const [detected, setDetected] = useState('')
-  const [progress, setProgress] = useState<WizardProgress>({
-    introduced: new Set(),
-    ranked: new Set(),
-    acknowledged: new Set(),
-  })
+  const scope: RecorderScope | null = recorder
+    ? { owner: recorder.owner, programId: recorder.programId, enrollmentId }
+    : null
+  const [progress, setProgress] = useState<WizardProgress>(
+    () =>
+      (scope && loadProgress(scope)) || {
+        introduced: new Set(),
+        ranked: new Set(),
+        acknowledged: new Set(),
+      }
+  )
+  const progressNow = useRef(progress)
   const task = useTask()
   // #CRITICAL: Timing Dependencies: enrollmentId can change, or refresh() can
   // be called again (e.g. after a lock/reveal action), before an in-flight
@@ -154,7 +175,11 @@ export function GuidedCalibrationFlow({
   }, [enrollmentId])
 
   function mark(key: keyof WizardProgress, sessionId: string) {
-    setProgress((previous) => ({ ...previous, [key]: new Set(previous[key]).add(sessionId) }))
+    const next = { ...progressNow.current, [key]: new Set(progressNow.current[key]).add(sessionId) }
+    progressNow.current = next
+    setProgress(next)
+    // Only the facilitated format is worth keeping: its recorder has a long sitting to lose.
+    if (scope && enrollment && isTranscribed(enrollment.reveal_policy)) saveProgress(scope, next)
   }
 
   const switcher =
@@ -302,6 +327,7 @@ export function GuidedCalibrationFlow({
           task={task}
           refresh={refresh}
           transcription={transcription}
+          draftOwner={recorder?.owner}
         />
       )}
       {step.kind === 'session_ranking' && (
@@ -352,6 +378,7 @@ export function GuidedCalibrationFlow({
             onConfirm={() =>
               void task.run(async () => {
                 await api.post(`/calibration/enrollments/${enrollment.id}/lock-skin-plan`)
+                if (scope) clearEnrollmentState(scope)
                 await refresh()
               })
             }
@@ -445,6 +472,7 @@ export function GuidedCalibrationFlow({
             onConfirm={() =>
               void task.run(async () => {
                 await api.post(`/calibration/enrollments/${enrollment.id}/reveal`)
+                if (scope) clearEnrollmentState(scope)
                 await refresh()
                 await onRevealed()
               })

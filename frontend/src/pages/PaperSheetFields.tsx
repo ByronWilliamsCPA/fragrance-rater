@@ -27,6 +27,7 @@ export function PaperSheetFields({
   sample,
   defaultSprayed,
   groupBlotter = false,
+  restored,
 }: {
   sample: Sample
   /** The spray time last typed for this sample, so later columns start from it. */
@@ -37,10 +38,12 @@ export function PaperSheetFields({
    * that of the blotter this evaluator smelled, not of the first blotter.
    */
   groupBlotter?: boolean
+  /** The times typed before a page reload, which start the three time fields. */
+  restored?: Record<string, string>
 }) {
-  const [sprayed, setSprayed] = useState(defaultSprayed)
-  const [smelled, setSmelled] = useState('')
-  const [finished, setFinished] = useState('')
+  const [sprayed, setSprayed] = useState(restored?.sprayed_at ?? defaultSprayed)
+  const [smelled, setSmelled] = useState(restored?.first_smelled_at ?? '')
+  const [finished, setFinished] = useState(restored?.observed_at ?? '')
   const recorded = sample.presented_at ? fromServerInstant(sample.presented_at) : null
   const elapsed = elapsedWholeMinutes(sprayed, finished)
   const gap = recorded ? null : sprayToSmellMinutes(sprayed, smelled)
