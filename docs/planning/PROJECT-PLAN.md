@@ -473,7 +473,11 @@ before any family member evaluates an actual pilot perfume.
   decision for F1.
 
 P6 closes only when every criterion passes and the recorded decision is `go`. Any failed
-criterion or `no-go` decision keeps F1 blocked.
+criterion or `no-go` decision keeps F1 blocked. For the family pilot the owner recorded a **family MVP profile on
+2026-11-25** that scales what "every criterion" requires (P1.4 and the P1.1 second check waived, one device, one light
+synthetic dry run, one timed restore, a one-paragraph signed decision); the profile is the recorded owner change to
+this sentence, it closes no gate and completes no evidence, and P6.6 `go` is still required. See
+[`gates/p6.md`](gates/p6.md#family-mvp-profile-owner-decision-2026-11-25).
 
 ### Interim evidence: production deployment incident, 2026-09-18
 
@@ -598,6 +602,7 @@ is not gate evidence: no P6 or F1 gate changes because of it.
 
 | Item | Scope | Status |
 | :--- | :--- | :--- |
+| Family MVP profile and F1 sign-offs (owner decision 2026-11-25) | The owner's scaled P6.1 to P6.6 scope for the family pilot (what is kept, what is waived, what is not scaled), the sign-offs now decided (scale wording, `would_buy` stays, paper retention 12 months, spray one spray from about 15 cm, no linked prediction required per holdout, no seat order, withdrawn and wrong-evaluator handling, minors consent without a guardian clause, 2-minute ceiling kept), and the trimmed pre-exposure declaration | Recorded in [`gates/p6.md`](gates/p6.md#family-mvp-profile-owner-decision-2026-11-25), [`gates/f1.md`](gates/f1.md) and [`gates/p1.md`](gates/p1.md) by the docs change that adds this row; **not gate evidence**: no P6, P1 or F1 item is closed by it, the P1.4 and P1.1 second-check waivers are recorded as owner decisions, and P6.6 `go` is still required |
 | Docs: protocol amendments | ADR-005 and ADR-009 amendments, calibration-v1 and baseline-evidence randomisation wording, the F1 gate declaration, this plan, the blind-evaluation workflow | Merged (#212); not itself gate evidence |
 | Non-blind quality flag | A quality-flag code for the holder's rows (needs a CHECK-constraint migration) and honoring it in the evidence export and training eligibility | Merged (#213), with the `spray_to_smell_ceiling_exceeded` code; the holder's rows leave blind-baseline training and stay in evaluation. Follow-up: `ml.reliability.pooled_reliability_both_ways` is not yet called by any report or export |
 | Shared-triple enrollment | A manager-supplied session composition with per-session Latin-square rotation, random evaluator-specific codes, holdouts last, repeat separation validated, actual order persisted; the persistent-or-animalic limit enforced if the needed data exists | Merged (#211; the Latin-square order applies to individual mode, which F1 uses again; the unused group blotter mode below gives all evaluators the same order): `shared-triples-latin-rotation-v1`, manager-supplied session composition and persistent-sample list, random evaluator-specific codes (standard labels refused), a manager-only session-plan preview, actual order persisted; no migration |
@@ -618,8 +623,9 @@ Known gaps and questions carried by these items, not yet resolved:
   (`frontend/src/routing/wizardSteps.ts`) treats a missing `available` as open; `docs/api/openapi.json` and
   `frontend/src/client/types.gen.ts` are stale against the merged API; the frontend reveal-policy dropdown may still
   offer `ENROLLMENT` for group programs (the server refuses it; moot while F1 does not use group mode).
-- Open owner decisions from #221 review: there is no way to withdraw an enrollment and a withdrawn evaluator blocks the
-  household reveal for everyone (verified in `DisclosureGate.household_blocker`). The second gap (in group mode a sheet
+- Gaps from the #221 review, with the owner's 2026-11-25 decision: there is no way to withdraw an enrollment and a
+  withdrawn evaluator blocks the household reveal for everyone (verified in `DisclosureGate.household_blocker`); the
+  owner decided no code change, the reveal waits and the owner decides what to do at that time. The second gap (in group mode a sheet
   entered under the wrong evaluator is not detected, because every enrollment shares the blind code) no longer
   applies to F1: with individual blotters the codes are per evaluator, so the blind-code guard refuses such a sheet
   (verified in code, `confirm_blind_code`; P6.3 attacks it). The withdrawal gap is listed in the F1 gate and the P6.3
@@ -628,7 +634,8 @@ Known gaps and questions carried by these items, not yet resolved:
 - The `would_buy` removal that DEC-03 planned was not carried out (R7b row, owner decision 2026-10-30; see
   the ADR-005 and ADR-009 2026-11-24 amendments, pending owner confirmation of the leakage and analysis
   implications). In the facilitated format only the holder has a skin stage.
-- The scale wording remains a draft and needs owner sign-off; this plan does not record it as signed off.
+- The scale wording on the session sheet (v2.1) and the property guide (v1.0) was accepted by the owner on 2026-11-25
+  (see the [F1 gate](gates/f1.md)); the formal sign-off record belongs in the private declaration.
 - Not yet scoped: an evaluator-by-session progress view for the manager, room-contamination flags, more than
   four seeded reviewer records, a UI for the `model_training` and `aggregate_reporting` consent scopes, and a
   check that training paths honor `model_training` consent (today only the evidence export checks it).
@@ -640,10 +647,13 @@ Known gaps and questions carried by these items, not yet resolved:
 - History: group blotter mode would have kept `group_shared_blotter` scores in training (flag only, owner decision
   2026-11-25, later the same day abandoned for F1). Its shared-code confound (order and seat position confounded with
   the score) does not arise with individual blotters, so no group-flag training or reliability split applies to F1.
-- Undecided owner items (none decided here): the scale-wording sign-off, the `would_buy` amendment confirmation, the
-  paper retention period (12 months is inferred from the consent text), spray distance and count (proposed: one spray from about 15 cm, away from faces and other blotters; not confirmed),
-  how each evaluator reaches the vial for their own spray, whether F1 requires a linked prediction per holdout, and the
-  withdrawn-evaluator procedure (a withdrawn evaluator blocks the household reveal; verified in code, see above).
+- Owner decisions of 2026-11-25 (recorded in the [F1 gate](gates/f1.md)): the scale wording accepted, `would_buy` stays
+  on the blind skin form, paper retention 12 months (the consent text's period), spray one spray from about 15 cm,
+  pointed away from faces and other blotters, no linked prediction required per holdout, seat order not applicable,
+  no code change for a withdrawn evaluator (the household reveal waits and the owner decides at that time), no change
+  for a wrong-evaluator sheet beyond the blind-code confirmation and the facilitator's check, and no guardian clause
+  added to the consent text. Not covered by those decisions and still to be confirmed in P6.3: how each evaluator
+  reaches the vial for their own spray.
 
 ## 11b. Integration status as of 2026-11-07
 
