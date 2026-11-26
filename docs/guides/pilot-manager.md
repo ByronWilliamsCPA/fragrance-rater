@@ -73,7 +73,8 @@ software parts are merged is stated here and nowhere else in this guide; do not 
   does skin tests; the other five evaluators are skin-absent by design.
 
 The printed materials are the [session sheet](../facilitated-session-sheet.md), the
-[conditions slip](../facilitated-conditions-slip.md), and the
+[conditions slip](../facilitated-conditions-slip.md), the
+[property guide handout](../facilitated-property-guide.md) (give it to each evaluator before the first session), and the
 [facilitator run sheet](../facilitated-run-sheet.md). Follow the run sheet for room setup, ventilation, round
 timing, silent work, interruptions, paper handling and the transcription window. The run sheet and both forms are
 drafts until the P6.3 rehearsal.

@@ -90,7 +90,8 @@ threshold is applied.
 for the pilot. The sheet carries a version id (`facilitated-session-sheet v2.0` at the time of writing, still a
 draft); a sheet with no version id is not used.
 
-Printed forms: [session sheet](../facilitated-session-sheet.md), [conditions slip](../facilitated-conditions-slip.md).
+Printed forms: [session sheet](../facilitated-session-sheet.md), [conditions slip](../facilitated-conditions-slip.md),
+[property guide](../facilitated-property-guide.md) (what the "What you perceived" rows mean, in plain words).
 
 ## Review recommendations
 
