@@ -147,8 +147,8 @@ create the checkpoints as a manager:
   prediction snapshot per program holdout. Skipped enrollments are listed with a reason.
 
 This holds in every program with holdouts, including the P6 synthetic rehearsal, until a manager checkpoint button
-exists in the wizard; #216 (merged) adds a checkpoint and household reveal panel in **Program setup**. Whether F1 requires a linked prediction per
-holdout is an open owner decision; the call freezes predictions by default, and the declaration should state what was
+exists in the wizard; #216 (merged) adds a checkpoint and household reveal panel in **Program setup**. The owner decided on 2026-11-25 that F1 does not require a
+linked prediction per holdout; the call freezes predictions by default, and the declaration should state what was
 frozen.
 
 With individual blotters the holdout gate is per enrollment: an evaluator's holdouts open when that evaluator's own
@@ -168,8 +168,9 @@ evaluator who is done while another is not. Reveal only after all six have finis
 **Withdrawn-evaluator caveat.** An evaluator who withdraws stays enrolled in the program, so the household reveal
 keeps waiting for them: an enrollment that cannot finish blocks everyone's reveal (verified in code; the `HOUSEHOLD` policy
 the owner plans for F1 cannot reveal any other way). No merged procedure covers this
-(neither dropping an enrollment from the program nor revealing without them). It is an open owner decision; settle it
-before F1 and write the decision into the declaration. A withdrawn `session_context` consent also withholds that
+(neither dropping an enrollment from the program nor revealing without them). The owner decided on 2026-11-25 that
+there is no code change: the household reveal waits and the owner decides what to do at that time. Write whatever is
+decided into the declaration. A withdrawn `session_context` consent also withholds that
 evaluator's conditions answers from reads and the evidence export, so decide how their rows are handled before the reveal.
 
 ### Transcribe, verify and retain
@@ -180,8 +181,8 @@ first smelled after the provisional 2-minute ceiling (counted from that evaluato
 is entered with a `spray_to_smell_ceiling_exceeded` flag. Enter each evaluator's own spray time: it is their own and
 differs between evaluators, and after a fresh blotter. Type the blind code from the paper column for each column: with
 individual blotters the codes are per evaluator, so a sheet entered under the wrong evaluator is refused (409). Keep
-the original sheets and slips, scan them, and store the scans outside the repository; the retention period is an open
-owner decision (see below). Record each sheet's version id and the conditions slip's version id in the declaration.
+the original sheets and slips, scan them, and store the scans outside the repository; the retention period is 12 months after
+the evaluation ends, decided by the owner on 2026-11-25 (see below). Record each sheet's version id and the conditions slip's version id in the declaration.
 
 ### Individual blotters (F1)
 
@@ -199,16 +200,19 @@ for the procedure. In short:
   sample, ADR-005) is a different number and is unchanged.
 - **No group flag.** No session carries `group_shared_blotter`, and pooled reliability has only the holder split.
 - **Spray method.** One spray from about 15 cm (6 in), pointed away from faces and other blotters, the same for every
-  blotter, is proposed; the owner has not confirmed it, so fix the values in the declaration.
+  blotter (owner decision, 2026-11-25); write the values in the declaration.
 - **Group blotter mode is unused.** It was built and merged (#220, #221) and abandoned for F1 after the owner's
   physical attempt on 2026-11-25 got two evaluators through in two minutes. Do not enable it.
 
-### Open owner decisions for this variant
+### Owner decisions for this variant (2026-11-25)
 
-These are not decided here: the confirmation of `would_buy` staying on the blind skin form, the sign-off of the scale
-wording, the paper retention period, the spray distance and count (the repository defines neither; fix them in the
-declaration), how each evaluator reaches the vial for their own spray, whether F1 requires a linked prediction per
-holdout, and the withdrawn-evaluator procedure (a withdrawn evaluator blocks the household reveal).
+The owner decided on 2026-11-25: the scale wording is accepted, `would_buy` stays on the blind skin form, paper is kept
+12 months after the evaluation ends and destroyed with the database and its backups, spray is one spray from about 15 cm,
+no linked prediction is required per holdout, a withdrawn evaluator needs no code change (the household reveal waits
+and the owner decides then), and no guardian clause is added to the consent text (the application is for the owner's
+household only). The full record is in the [F1 gate](../planning/gates/f1.md). How each evaluator reaches the vial for
+their own spray is not part of those decisions; confirm it in the P6.3 rehearsal and never show an evaluator a vial
+number or any identity.
 
 ## Measure and close the workflow
 

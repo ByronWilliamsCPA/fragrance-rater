@@ -129,8 +129,8 @@ than a single shared blotter would give. Ventilation and prompt removal of used 
 
 ## Who may be in the room
 
-Only the six evaluators and the facilitator. No children, pets, visitors, observers or partners. No phones; phones
-are left outside or switched off and put away. If anyone enters, treat it as an interruption (see below) and note it.
+Only the six evaluators and the facilitator are in the room: no onlookers, visitors, pets or partners. The evaluators
+themselves may be children or adults. No phones; phones are left outside or switched off and put away. If anyone enters, treat it as an interruption (see below) and note it.
 
 ## Spray sheets
 
@@ -178,9 +178,9 @@ What this means for the sheets and the data (verified in `shared_triples.py` and
 - The **facilitator** helps keep blotters, trays and sheets organized and in the right order, keeps the clock, signals
   each round, enforces silence and the clean-air interval, and removes finished blotters to the jar. The facilitator
   does not score and does not write an evaluator's times.
-- **Spray method (proposed, pending owner confirmation, not decided):** one spray from about 15 cm (6 in), pointed away
-  from faces and other blotters, the same for every blotter. This is an instruction to each evaluator. The values the
-  owner confirms are written in the F1 pre-exposure declaration; until then treat these as proposals.
+- **Spray method (owner decision, 2026-11-25):** one spray from about 15 cm (6 in), pointed away from faces and other
+  blotters, the same for every blotter. This is an instruction to each evaluator. The values are written in the F1
+  pre-exposure declaration.
 - **Open, not decided:** how each evaluator reaches the vial for their own spray (one vial per sample at every
   station, or one vial moved between stations) is not settled. Whatever is chosen must never show an evaluator a vial
   number or any identity, and P6.3 should test it inside the 2 minute window.
@@ -215,7 +215,7 @@ first smelled, column finished) on the sheet. A breach is flagged as a deviation
 | 1 | Facilitator | Ventilate the room; print sheets (with pre-printed own codes and the blotter mode) and, for consenting evaluators, slips; set out six seats, each with the evaluator's own tray of three unsprayed coded blotters in that evaluator's session order | Before anyone arrives |
 | 2 | Evaluators | Sit, silence phones, complete the conditions slip alone if they accepted the consent, hand it back face down | Before the first spray |
 | 3 | Facilitator | Read the room thermometer and hygrometer, file slips apart from sheets, start the clock | Write the date and start time |
-| 4 | Evaluators | On the facilitator's signal (proposed pacing, P6.3 confirms), each sprays their own blotter for sample 1 as instructed (proposed: one spray from about 15 cm, away from faces and other blotters, the same for every blotter; fixed in the declaration once the owner confirms), and writes their own spray time | Spray time, hh:mm:ss, in their own hand |
+| 4 | Evaluators | On the facilitator's signal (proposed pacing, P6.3 confirms), each sprays their own blotter for sample 1 as instructed (owner decision 2026-11-25: one spray from about 15 cm, away from faces and other blotters, the same for every blotter; written in the declaration), and writes their own spray time | Spray time, hh:mm:ss, in their own hand |
 | 5 | Evaluators | Smell once, write the first-smelled time, then complete the column and initial **Column complete** | Own first smell within 2 minutes of own spray; otherwise the fresh-blotter rule |
 | 6 | Facilitator | Help anyone whose blotter, tray or sheet is out of order; apply the fresh-blotter rule where an evaluator's window has passed unsmelled; as each column is initialed, remove that blotter to the lidded jar outside the room | Note the time of the last sniff in the round |
 | 7 | Facilitator | Clean air: signal the next round only when every evaluator has initialed the previous column and the clean-air interval has passed since the last sniff in the round | At least 2 minutes after the last sniff; about 5 after a persistent or aversive sample |
@@ -295,8 +295,8 @@ finished, the next sitting waits.
   evaluation database is deleted. When it is deleted, the manager also deletes every backup copy of it." No repository
   document sets a separate period for paper, so this run sheet applies the same period to the score sheets, the
   conditions slips and the scans, and the manager destroys them at the same time as the database and its backups
-  (see [Backup and restore](deployment/backup-and-restore.md#retiring-the-evaluation-database)). Confirm this with the
-  owner before F1; it is an inference, not a stated rule.
+  (see [Backup and restore](deployment/backup-and-restore.md#retiring-the-evaluation-database)). The owner confirmed this
+  period on 2026-11-25 (see the [F1 gate](planning/gates/f1.md)).
 - After Part E is complete, scan every page of each evaluator's session sheet, all four pages (the session sheet is two
   duplex sheets: sheet 1 is the evaluator's Parts A to D, sheet 2 is the facilitator's Part E plus the instructions),
   and keep the originals. Clip sheet 2 behind that evaluator's sheet 1 (the paper record ID is in Part A on sheet 1) so
