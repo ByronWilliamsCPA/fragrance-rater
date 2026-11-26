@@ -652,8 +652,9 @@ Known gaps and questions carried by these items, not yet resolved:
   pointed away from faces and other blotters, no linked prediction required per holdout, seat order not applicable,
   no code change for a withdrawn evaluator (the household reveal waits and the owner decides at that time), no change
   for a wrong-evaluator sheet beyond the blind-code confirmation and the facilitator's check, and no guardian clause
-  added to the consent text. Not covered by those decisions and still to be confirmed in P6.3: how each evaluator
-  reaches the vial for their own spray.
+  added to the consent text. Decided separately on 2026-11-26 (recorded in the [F1 gate](gates/f1.md)): evaluators walk
+  up to the vials as they are ready to spray their own blotter and the facilitator does not schedule turns at the
+  vials; P6.3 observes it.
 
 ## 11b. Integration status as of 2026-11-07
 

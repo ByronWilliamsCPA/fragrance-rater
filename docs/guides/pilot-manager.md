@@ -210,9 +210,10 @@ The owner decided on 2026-11-25: the scale wording is accepted, `would_buy` stay
 12 months after the evaluation ends and destroyed with the database and its backups, spray is one spray from about 15 cm,
 no linked prediction is required per holdout, a withdrawn evaluator needs no code change (the household reveal waits
 and the owner decides then), and no guardian clause is added to the consent text (the application is for the owner's
-household only). The full record is in the [F1 gate](../planning/gates/f1.md). How each evaluator reaches the vial for
-their own spray is not part of those decisions; confirm it in the P6.3 rehearsal and never show an evaluator a vial
-number or any identity.
+household only). The full record is in the [F1 gate](../planning/gates/f1.md). On 2026-11-26 the owner also decided
+that evaluators walk up to the vials as they are ready to spray their own blotter; the facilitator does not schedule or
+control turns at the vials. Never show an evaluator a vial number or any identity. The P6.3 rehearsal observes this
+approach.
 
 ## Measure and close the workflow
 
