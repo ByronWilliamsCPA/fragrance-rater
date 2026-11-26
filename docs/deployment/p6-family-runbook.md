@@ -551,7 +551,8 @@ holdout sitting, transcription, and the household reveal last. The four delibera
   1.5 m apart, facing away from each other; at each: a pen, the evaluator's own sheet on a clipboard, the evaluator's own
   tray of three coded blotters in that evaluator's order (from the header), a clock everyone can see.
 - A lidded jar outside the room for finished blotters. Water for comfort only. Phones out of the room.
-- Read the room thermometer and hygrometer for the slips. Write on a facilitator sheet: date, start time, who is E1 to E6
+- Read the room thermometer for the slips if you have one (optional; a hygrometer is not needed, leave humidity blank
+  and note that no reading was taken). Write on a facilitator sheet: date, start time, who is E1 to E6
   by paper record ID only (never names next to codes).
 - Open the laptop on the application, signed in through the public URL, **Calibration**, with the evaluator selector
   ready. Confirm the readiness view still shows all six rows without a checkpoint.
