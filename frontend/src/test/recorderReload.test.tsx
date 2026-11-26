@@ -10,6 +10,17 @@ vi.mock('../api/client', () => ({
   requestErrorMessage: () => 'Request failed.',
 }))
 
+/**
+ * Every async query in this file waits up to this long, instead of Testing Library's 1000ms
+ * default, which a loaded CI runner can exceed while the page chains several awaited mocked
+ * requests. A passing query returns as soon as the element exists, so the ceiling costs
+ * nothing when the runner is fast.
+ */
+const SETTLE_MS = 5000
+const SETTLE = { timeout: SETTLE_MS }
+// Room for a few chained queries at the ceiling above, so a slow step fails on its own message.
+const TEST_TIMEOUT_MS = 6 * SETTLE_MS
+
 const SPRAYED = '2026-11-25T10:00'
 const SMELLED = '2026-11-25T10:02'
 const FINISHED = '2026-11-25T10:15'
@@ -112,10 +123,16 @@ function stored(): string {
 
 /** Passes the opening screen of the first session of the evaluator on screen. */
 async function startSession(firstCode: RegExp) {
-  await screen.findByRole('heading', { name: 'Before you begin' })
+  await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
+  // The heading appears as soon as the enrollment is in, but the opening screen then loads its
+  // own consent and context, and its Continue button is disabled until that settles. A click
+  // that lands on the disabled button is silently dropped, which is what made this file flaky:
+  // the session never started and the sample heading never came. Wait for the button to enable.
+  const proceed = screen.getByRole('button', { name: 'Continue to the samples' })
+  await waitFor(() => expect(proceed).toBeEnabled(), SETTLE)
   typeInto('Session start time written on the sheet', SPRAYED)
-  fireEvent.click(screen.getByRole('button', { name: 'Continue to the samples' }))
-  await screen.findByRole('heading', { name: firstCode })
+  fireEvent.click(proceed)
+  await screen.findByRole('heading', { name: firstCode }, SETTLE)
 }
 
 function typeColumn() {
@@ -147,34 +164,34 @@ beforeEach(() => {
   post.mockResolvedValue({ data: { id: 'o1' } })
 })
 
-describe('a reload mid-sitting', () => {
+describe('a reload mid-sitting', { timeout: TEST_TIMEOUT_MS }, () => {
   it('opens the first started evaluator when nothing was switched', async () => {
     renderPage()
-    await screen.findByRole('heading', { name: 'Before you begin' })
+    await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
     expect(screen.getByLabelText('Evaluator')).toHaveValue('e1')
   })
 
   it('reopens the evaluator the recorder switched to, not the first one', async () => {
     renderPage()
-    await screen.findByRole('heading', { name: 'Before you begin' })
+    await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
     fireEvent.change(screen.getByLabelText('Evaluator'), { target: { value: 'e2' } })
-    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/enrollments/e2'))
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/enrollments/e2'), SETTLE)
 
     reload()
 
-    await screen.findByRole('heading', { name: 'Before you begin' })
+    await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
     expect(screen.getByLabelText('Evaluator')).toHaveValue('e2')
   })
 
   it('does not reopen an evaluator saved by a different account', async () => {
     renderPage()
-    await screen.findByRole('heading', { name: 'Before you begin' })
+    await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
     fireEvent.change(screen.getByLabelText('Evaluator'), { target: { value: 'e2' } })
-    await waitFor(() => expect(screen.getByLabelText('Evaluator')).toHaveValue('e2'))
+    await waitFor(() => expect(screen.getByLabelText('Evaluator')).toHaveValue('e2'), SETTLE)
 
     reload({ username: 'someone-else', manager: false })
 
-    await screen.findByRole('heading', { name: 'Before you begin' })
+    await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
     expect(screen.getByLabelText('Evaluator')).toHaveValue('e1')
     expect(stored()).toBe('')
   })
@@ -185,7 +202,7 @@ describe('a reload mid-sitting', () => {
 
     reload()
 
-    expect(await screen.findByRole('heading', { name: /E1A1/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /E1A1/ }, SETTLE)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Before you begin' })).toBeNull()
   })
 
@@ -195,12 +212,12 @@ describe('a reload mid-sitting', () => {
       { id: 'o1', phase: 'BLOTTER', stage: 'BLOTTER', elapsed_minutes: 5 },
     ] as Sample['observations']
     renderPage()
-    expect(await screen.findByRole('heading', { name: /E1A2/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /E1A2/ }, SETTLE)).toBeInTheDocument()
     expect(screen.getByText(/Session 1 of 2/)).toBeInTheDocument()
 
     reload()
 
-    expect(await screen.findByRole('heading', { name: /E1A2/ })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /E1A2/ }, SETTLE)).toBeInTheDocument()
     expect(screen.getByText(/Session 1 of 2/)).toBeInTheDocument()
     // Nothing about the position had to be stored.
     expect(stored()).not.toMatch(/E1A2|e1-s2/)
@@ -213,8 +230,8 @@ describe('a reload mid-sitting', () => {
 
     reload()
 
-    await screen.findByRole('heading', { name: /E1A1/ })
-    await waitFor(() => expect(screen.getByLabelText('Detected')).toHaveValue('yes'))
+    await screen.findByRole('heading', { name: /E1A1/ }, SETTLE)
+    await waitFor(() => expect(screen.getByLabelText('Detected')).toHaveValue('yes'), SETTLE)
     expect(screen.getByLabelText('Blind code printed on the sheet')).toHaveValue('E1A1')
     expect(screen.getByLabelText('Time sprayed')).toHaveValue(SPRAYED)
     expect(screen.getByLabelText('Time first smelled')).toHaveValue(SMELLED)
@@ -232,17 +249,23 @@ describe('a reload mid-sitting', () => {
     expect(stored()).toMatch(/draft/)
 
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    await waitFor(() =>
-      expect(post).toHaveBeenCalledWith(
-        '/calibration/presentations/e1-s1/observations',
-        expect.anything()
-      )
+    await waitFor(
+      () =>
+        expect(post).toHaveBeenCalledWith(
+          '/calibration/presentations/e1-s1/observations',
+          expect.anything()
+        ),
+      SETTLE
     )
-    await screen.findByText('Observation saved. Original responses are retained.')
+    await screen.findByText(
+      'Observation saved. Original responses are retained.',
+      undefined,
+      SETTLE
+    )
 
     expect(stored()).not.toMatch(/draft/)
     reload()
-    await screen.findByRole('heading', { name: /E1A1/ })
+    await screen.findByRole('heading', { name: /E1A1/ }, SETTLE)
     expect(screen.getByLabelText('Blind code printed on the sheet')).toHaveValue('')
   })
 
@@ -251,11 +274,15 @@ describe('a reload mid-sitting', () => {
     await startSession(/E1A1/)
     typeColumn()
     reload()
-    await screen.findByRole('heading', { name: /E1A1/ })
-    await waitFor(() => expect(screen.getByLabelText('Detected')).toHaveValue('yes'))
+    await screen.findByRole('heading', { name: /E1A1/ }, SETTLE)
+    await waitFor(() => expect(screen.getByLabelText('Detected')).toHaveValue('yes'), SETTLE)
 
     fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    await screen.findByText('Observation saved. Original responses are retained.')
+    await screen.findByText(
+      'Observation saved. Original responses are retained.',
+      undefined,
+      SETTLE
+    )
 
     expect(screen.getByLabelText('Blind code printed on the sheet')).toHaveValue('')
     // The spray time is carried to the next column of the same sample by design.
@@ -277,7 +304,7 @@ describe('a reload mid-sitting', () => {
 
     reload()
 
-    await screen.findByRole('heading', { name: /E1A2/ })
+    await screen.findByRole('heading', { name: /E1A2/ }, SETTLE)
     expect(screen.getByLabelText('Blind code printed on the sheet')).toHaveValue('')
     expect(stored()).not.toMatch(/draft/)
   })
@@ -294,7 +321,7 @@ describe('a reload mid-sitting', () => {
 
     reload()
 
-    await screen.findByRole('heading', { name: 'Before you begin' })
+    await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
     expect(stored()).toBe('')
   })
 
@@ -310,7 +337,9 @@ describe('a reload mid-sitting', () => {
     reload()
 
     // Nothing was kept, so the recorder starts the session screen again, as before.
-    expect(await screen.findByRole('heading', { name: 'Before you begin' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Before you begin' }, SETTLE)
+    ).toBeInTheDocument()
   })
 
   it('stores no identity, note, spoiler or token', async () => {
