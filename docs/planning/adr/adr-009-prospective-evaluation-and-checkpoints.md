@@ -195,7 +195,8 @@ Related: [ADR-005](adr-005-controlled-calibration.md), 2026-11-24 amendment; [F1
 The product owner decided on 2026-11-25 that F1 group sessions pass one physical blotter per sample around the six
 evaluators, so all evaluators share the blind code and see the same order within a session (see the
 [ADR-005 2026-11-25 amendment](adr-005-controlled-calibration.md#2026-11-25-amendment-group-blotter-mode-shared-codes-and-order-2-minute-ceiling)).
-For prospective evaluation this changes the following, and nothing else in the 2026-11-24 amendment above.
+For prospective evaluation this changes the following, and nothing else in the 2026-11-24 amendment above. (Superseded
+for F1 the same day; see the addendum below.)
 
 - **Flag, not exclusion.** Scores from group sessions carry the informational session flag `group_shared_blotter`.
   Unlike the holder's `non_blind` flag it does **not** remove rows from training or evaluation: they remain eligible.
@@ -209,6 +210,19 @@ For prospective evaluation this changes the following, and nothing else in the 2
   accepted for now and reversible through the flag.
 - **Unchanged.** Checkpoints before holdouts, the household reveal, holdout eligibility and the decision rule are
   unchanged.
+
+### 2026-11-25 addendum: group blotter mode abandoned for F1
+
+Later the same day the owner tried the group procedure physically; it got two evaluators through in two minutes, and
+group mode is abandoned for F1 (see the
+[ADR-005 addendum](adr-005-controlled-calibration.md#2026-11-25-addendum-group-blotter-mode-abandoned-for-f1-individual-blotters-return)).
+The code is retained and unused. F1 returns to one blotter per evaluator, so the flag, the order and seat-position
+confound, the both-ways pooled reliability and the risk bullets above do not apply to F1: no F1 session carries
+`group_shared_blotter`, the Latin-square rotation of the 2026-11-24 amendment applies again, and the pooled repeat
+benchmark is reported with the holder split only (30 pairs excluding the holder, 36 including). The 2 minute
+spray-to-first-smell ceiling now applies per evaluator's own blotter. In an individual program the holdout gate is per
+enrollment: an evaluator's holdouts open when that evaluator's own checkpoint exists. Checkpoints before holdouts, the
+household reveal, holdout eligibility and the decision rule are unchanged.
 
 ## Related
 

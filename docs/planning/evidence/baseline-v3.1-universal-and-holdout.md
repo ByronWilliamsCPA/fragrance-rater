@@ -150,8 +150,8 @@ existing calibration or measurement policy in
    manager-side slot identity and is never printed on a sample: facilitated programs use random,
    evaluator-specific blind codes, because the standard `E{n}-S{k}-{pos}` scheme would disclose the
    session (and so holdout status) to every evaluator. This rule restates the source document; it
-   does not change it. Amended 2026-11-25: in the F1 group blotter mode the facilitator passes one blotter per
-   sample around all six evaluators, so they share the blind code and the order inside a session instead of
-   receiving evaluator-specific codes and a rotated order (see the
-   [ADR-005 2026-11-25 amendment](../adr/adr-005-controlled-calibration.md#2026-11-25-amendment-group-blotter-mode-shared-codes-and-order-2-minute-ceiling));
+   does not change it. Amended 2026-11-25: a group blotter mode (one blotter per sample passed around all six
+   evaluators, shared blind code and order) was decided, then abandoned the same day after a physical attempt, so F1
+   again uses evaluator-specific codes and a rotated order (see the
+   [ADR-005 2026-11-25 addendum](../adr/adr-005-controlled-calibration.md#2026-11-25-addendum-group-blotter-mode-abandoned-for-f1-individual-blotters-return));
    the random scheme is still required.

@@ -113,11 +113,16 @@ one `non_blind` quality flag per session through the ordinary flag path. Effects
   the non-blind evaluator's pairs (`repeat_pairs(..., exclude_non_blind=True)` is the building block).
 
 `spray_to_smell_ceiling_exceeded` is the companion deviation code for a sample first smelled past
-F1's provisional spray-to-first-smell ceiling (2 minutes, from the blotter's spray to each
-evaluator's first smell); it is raised through `POST /api/v1/calibration/quality-flags` like any
+F1's provisional spray-to-first-smell ceiling (2 minutes, from an evaluator's own spray to
+their own first smell); it is raised through `POST /api/v1/calibration/quality-flags` like any
 other deviation.
 
-## Group-blotter programs (the F1 group session)
+## Group-blotter programs (built, not used by F1)
+
+> Group blotter mode is merged and retained but F1 does not use it: the owner tried the procedure physically on
+> 2026-11-25, got two evaluators through in two minutes, and returned F1 to one blotter per evaluator
+> (`blotter_mode` `INDIVIDUAL`). With no `SHARED_GROUP` program, no session carries `group_shared_blotter` and the two
+> pooled reliability reports below are identical.
 
 A program with `blotter_mode = SHARED_GROUP` has the facilitator pass ONE physical blotter per sample
 around the evaluators. They share each sample's blind code (`calibration_presentations.shared_blind_code`)

@@ -84,15 +84,16 @@ for every evaluator and so discloses holdout status to all of them. Skin tests a
 facilitated sessions, and identities are revealed once for the whole program after all holdouts are
 locked. The protocol rationale is in the
 [ADR-005 2026-11-24 amendment](planning/adr/adr-005-controlled-calibration.md#2026-11-24-amendment-six-evaluator-facilitated-f1-format).
-**Group blotter mode (F1, decided 2026-11-25).** For F1 group sessions the facilitator passes one physical blotter
-per sample around the six evaluators (eighteen blotters at once is too strong a smell). All evaluators then share the
-blind code for a sample and see the same order within a session; the Latin-square rotation above is therefore an
-individual-mode feature, and the owner accepts the shared-code limitation. Scores are marked with the session flag
-`group_shared_blotter`, remain eligible for training, and pooled reliability is reported both ways. The ceiling from a
-blotter's spray to each evaluator's first smell is 2 minutes (provisional, tested in P6.3), with a replacement blotter
-of the same sample when the window would be exceeded. The 2 minute clean-air interval between samples is a different
-number and is unchanged. See the
-[ADR-005 2026-11-25 amendment](planning/adr/adr-005-controlled-calibration.md#2026-11-25-amendment-group-blotter-mode-shared-codes-and-order-2-minute-ceiling).
+**Individual blotters (F1, 2026-11-25).** F1 uses one blotter per evaluator per sample: each evaluator has their own
+coded blotters and sprays their own, the mapping holder helps the other five keep blotters, trays and sheets organized
+and does not evaluate in those sessions, and the holder's own evaluations run separately. Blind codes are
+evaluator-specific and the Latin-square rotation above applies. The ceiling from an evaluator's own spray to that
+evaluator's own first smell is 2 minutes (provisional, tested in P6.3), with a fresh blotter of the same sample when
+that evaluator's window passes unsmelled. The 2 minute clean-air interval between samples is a different number and is
+unchanged. A group blotter mode (one blotter per sample passed round the six evaluators) was decided and built earlier
+the same day, tried physically, and abandoned because it got two evaluators through in two minutes; its code is merged
+and unused. See the
+[ADR-005 2026-11-25 addendum](planning/adr/adr-005-controlled-calibration.md#2026-11-25-addendum-group-blotter-mode-abandoned-for-f1-individual-blotters-return).
 
 Enrollment support for shared triples, the household reveal and the holdout gate are work items in the
 [project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24); until each

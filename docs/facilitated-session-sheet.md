@@ -13,8 +13,8 @@ tags:
 
 | Field | Entry |
 | --- | --- |
-| Sheet version | facilitated-session-sheet v2.0 |
-| Blotter mode (pre-printed) | ☐ Group blotter (one blotter per sample, passed around; shared codes and order) ☐ Individual trays |
+| Sheet version | facilitated-session-sheet v2.1 |
+| Blotter mode (pre-printed) | ☐ Individual trays (your own blotters, your own codes) ☐ Group blotter (not used) |
 | Paper record ID (pre-printed; the conditions slip, if any, carries the same ID) | ______________________________ |
 | Data classification | ☐ Synthetic rehearsal ☐ Approved family pilot |
 | Assigned evaluator reference | _______________________________________________ |
@@ -31,7 +31,7 @@ Circle one value per row. Anchors: the lowest value and the highest value are na
 | Row | Scale | Sample 1 | Sample 2 | Sample 3 |
 | --- | --- | --- | --- | --- |
 | Blind code (pre-printed) | | | | |
-| Time sprayed (facilitator writes, hh:mm:ss; the spray time of the blotter you smelled) | | | | |
+| Time sprayed (you write, hh:mm:ss; when you sprayed the blotter you smelled) | | | | |
 | Time first smelled (hh:mm:ss) | | | | |
 | Time this column finished (hh:mm:ss) | | | | |
 | Detected | Yes or No | Yes / No | Yes / No | Yes / No |
@@ -108,7 +108,7 @@ Samples can share a place: give two samples 1, and the next sample is 3.
 
 ## Facilitator sheet: handling and instructions {.sheet-2 .print-break}
 
-Sheet version: `facilitated-session-sheet v2.0`
+Sheet version: `facilitated-session-sheet v2.1`
 
 **Print layout.** Print one set per evaluator for each blotter session, double-sided with a long-edge flip, on two
 sheets of US Letter paper (four pages). **Sheet 1** (pages 1 and 2: Parts A to D) is the evaluator sheet, the only
@@ -119,9 +119,8 @@ page 1. The rules on page 3 are the briefing text: brief from them, or hand shee
 evaluator who asks to read them before the first sample. Build the print files with `scripts/print_forms.sh`.
 
 The manager pre-prints the physical blind codes in the sample header row, and the blotter mode in Part A, and nothing
-else that identifies a fragrance. In group blotter mode (the F1 mode) every evaluator's header carries the same three
-codes in the same order; in individual mode each evaluator's header carries their own. Do not write the fragrance
-identity, experimental role, repeat relationship, holdout status, or mapping anywhere on either sheet. The
+else that identifies a fragrance. Each evaluator's header carries their own three codes, which are not the codes on any
+other evaluator's sheet. Do not write the fragrance identity, experimental role, repeat relationship, holdout status, or mapping anywhere on either sheet. The
 facilitator keeps completed sheets as private evidence and enters them through the authenticated application.
 Nobody discusses a sample or a score with anyone until the household reveal.
 
@@ -140,29 +139,33 @@ The sheet version id above is printed in the footer of every page of both sheets
 only record of which paper wording an evaluator used, because the application pins only the frontend build, not the
 paper form. The facilitator names the sheet version (and the conditions slip version) in the F1 pre-exposure
 declaration (see the [F1 gate](planning/gates/f1.md)) before the first exposure. Any change to a row, a scale, an
-anchor, the ceiling wording, or a rule is a new version id (v1.1 for a wording-only fix that changes no data field,
-v2.0 for any change to what is recorded), and sheets of two versions are never mixed inside one program without
+anchor, the ceiling wording, or a rule is a new version id (a minor number such as v2.1 for a wording-only fix that
+changes no data field, a major number such as v3.0 for any change to what is recorded), and sheets of two versions are never mixed inside one program without
 recording both in the declaration. A sheet that does not show a version id is not used.
 
 **Version history.** `v1.0` was the first draft (one tray of three blotters per evaluator, a provisional 5 minute
-spray-to-first-smell ceiling). `v2.0` (2026-11-25) adds the **Blotter mode** row to Part A, which is a newly recorded
+spray-to-first-smell ceiling). The next draft (2026-11-25) added the **Blotter mode** row to Part A, which is a newly recorded
 field (it records which mode the paper session was run in, so the transcriber can check it against the program's
-blotter mode in the application), and changes the ceiling to 2 minutes and the blotter handling to the group
-procedure. The 2 minute spray-to-first-smell ceiling is not the 2 minute clean-air interval between samples; they are
-different numbers.
+blotter mode in the application), changed the ceiling to 2 minutes, and drafted a group blotter procedure (one blotter
+per sample passed around the six evaluators). That procedure was abandoned the same day after the owner tried it
+physically and got two evaluators through in two minutes. `v2.1` (2026-11-25) returns to one blotter per evaluator
+per sample, each evaluator spraying their own, and keeps the 2 minute ceiling, now counted from an evaluator's own
+spray to their own first smell. It is a wording-only change: it records no new field, and the Blotter mode row stays
+and now records Individual. The 2 minute spray-to-first-smell ceiling is not the 2 minute clean-air interval between
+samples; they are different numbers.
 
 ## Rules for the evaluator {.sheet-2}
 
 1. Work silently. Do not discuss samples, scores, or reactions with anyone, including other evaluators, until the
    household reveal. The facilitator will announce the reveal after every evaluator has finished every session. Until
    then, talk only about logistics (a window, a pen, a break).
-2. Smell each blotter as soon as you receive it and write the time you first smell it. The facilitator sprays and
-   writes the spray time on your sheet. The provisional ceiling from a blotter's spray to your first smell is
-   2 minutes, so do not wait and do not hold the blotter. In group blotter mode there is one blotter per sample and it
-   is passed around the room in a fixed seat order: smell it once, write the first-smelled time, and pass it to the
-   next seat as the facilitator directs. If the facilitator replaces the blotter because the window would be missed,
-   smell the new one; the facilitator writes that blotter's spray time on your sheet. Complete one sample column at a
-   time, left to right, then write the finish time and initial the **Column complete** row.
+2. You have your own blotters, one for each sample, and you spray your own. Spray one blotter at a time, as you are
+   shown, and write the time you sprayed it. Smell it as soon as you have sprayed it and write the time you first smell
+   it. The provisional ceiling from your own spray to your own first smell is 2 minutes, so do not wait and do not hold
+   the blotter. If your 2 minutes pass before you have smelled it, do not smell it: spray a fresh blotter of the same
+   sample and write the new spray time. If you smelled it late, write the true time anyway and tell the facilitator.
+   The facilitator can help you keep your blotters, tray and sheet in order. Complete one sample column at a time,
+   left to right, then write the finish time and initial the **Column complete** row.
 3. After initialing, never change that column, even if a later sample changes your mind.
 4. Leave an answer blank when you are not answering it. A circled zero is a real answer.
 5. If you cannot smell a sample, circle **No** for Detected and leave the rest of that column blank.
@@ -186,8 +189,8 @@ pressing Save, because a saved observation cannot be edited.
 | Blind code printed on the paper confirmed against the application before saving, each column (type or read the code; do not save on a mismatch) | ☐ Sample 1 ☐ Sample 2 ☐ Sample 3 |
 | Ambiguous marks entered as blank plus a flag | ☐ Yes ☐ None |
 | Elapsed minutes entered as whole minutes from spray to column finished; exact times stay on this sheet | ☐ Yes |
-| Blotter mode printed on this sheet matches the program's blotter mode in the application (`SHARED_GROUP` for group blotter mode; the `group_shared_blotter` session flag is raised automatically at enrollment, so nothing is set at transcription) | ☐ Yes |
-| Time sprayed on this sheet is the spray time of the blotter this evaluator smelled (a replacement blotter has its own, later spray time) | ☐ Yes |
+| Blotter mode printed on this sheet matches the program's blotter mode in the application (`INDIVIDUAL` for individual trays; nothing is set at transcription) | ☐ Yes |
+| Time sprayed on this sheet is the spray time the evaluator wrote for the blotter they smelled (a fresh blotter has its own, later spray time) | ☐ Yes |
 | Any spray-to-first-smell time over the declared ceiling (provisional 2 minutes, confirmed in P6.3) flagged as a deviation, not silently dropped | ☐ Yes ☐ None over |
 | Sheet scanned and original filed (see the run sheet, paper retention) | ☐ Yes |
 | Samples 1, 2 and 3 entered and each stage locked | ☐ Yes |
@@ -200,4 +203,4 @@ Correction or explanation: ____________________________________________________
 _______________________________________________________________________________
 ```
 
-Sheet version: facilitated-session-sheet v2.0
+Sheet version: facilitated-session-sheet v2.1
