@@ -1,0 +1,50 @@
+/* Print stylesheet for the facilitated paper forms (see scripts/print_forms.sh).
+   The session sheet prints as two US Letter sheets, duplex long-edge: sheet 1 (pages 1-2) is the evaluator
+   sheet, sheet 2 (pages 3-4) is the facilitator sheet. Sections carry .sheet-1 or .sheet-2 (pandoc
+   --section-divs copies the heading attributes onto the section); .print-break starts a new page.
+   Named pages give each sheet its own footer. @@VERSION@@ is replaced by the script. */
+@page { size: Letter; margin: 0.5in 0.5in 0.7in 0.5in; }
+@page sheet1 {
+  @bottom-left  { content: "Sheet 1 of 2, page " counter(page) " of 4"; font: 9pt Arial, sans-serif; vertical-align: top; }
+  @bottom-right { content: "@@VERSION@@"; font: 9pt Arial, sans-serif; vertical-align: top; }
+}
+@page sheet2 {
+  @bottom-left  { content: "Sheet 2 of 2, page " counter(page) " of 4"; font: 9pt Arial, sans-serif; vertical-align: top; }
+  @bottom-right { content: "@@VERSION@@"; font: 9pt Arial, sans-serif; vertical-align: top; }
+}
+header#title-block-header, section.sheet-1 { page: sheet1; }
+section.sheet-2 { page: sheet2; }
+.print-break { break-before: page; }
+
+body { font-family: Arial, sans-serif; font-size: 9.5pt; line-height: 1.25; max-width: none; margin: 0; }
+header#title-block-header { margin: 0 0 4pt; }
+h1 { font-size: 14pt; margin: 0; }
+p.subtitle { display: none; }
+h2 { font-size: 11.5pt; margin: 7pt 0 3pt; break-after: avoid; }
+p { margin: 3pt 0; }
+ol, ul { margin: 3pt 0; padding-left: 18pt; }
+li { margin: 2pt 0; }
+table { border-collapse: collapse; width: 100%; margin: 4pt 0; break-inside: avoid; }
+tr { break-inside: avoid; }
+th, td { border: 1px solid #444; padding: 3pt 4pt; vertical-align: top; font-size: 9pt; }
+pre { white-space: pre-wrap; font-size: 9pt; margin: 4pt 0; }
+
+/* Two-column forms (Part A, Part E): wide label column. Grids (Part B): fixed columns so the three sample columns
+   are equal width. */
+.form-2col table { table-layout: fixed; }
+.form-2col table th:first-child, .form-2col table td:first-child { width: 58%; }
+.form-grid table { table-layout: fixed; }
+.form-grid table th:nth-child(1), .form-grid table td:nth-child(1) { width: 19%; }
+.form-grid table th:nth-child(2), .form-grid table td:nth-child(2) { width: 27%; }
+.form-grid table th:nth-child(n+3), .form-grid table td:nth-child(n+3) { width: 18%; }
+/* The first grid has long row labels and short scale text: swap the two widths. */
+.form-grid table:first-of-type th:nth-child(1), .form-grid table:first-of-type td:nth-child(1) { width: 28%; }
+.form-grid table:first-of-type th:nth-child(2), .form-grid table:first-of-type td:nth-child(2) { width: 18%; }
+/* Keep a table caption with its table. */
+p:has(+ table) { break-after: avoid; }
+/* Part A is filled by the manager and facilitator, so its rows may be tighter than the score grid. */
+#part-a\.-sitting td, #part-a\.-sitting th { padding-top: 2pt; padding-bottom: 2pt; }
+/* Write-in areas get more room where the page has it: note lines, the ranking row, the facilitator entries. */
+section.sheet-1 pre { line-height: 1.8; }
+section.sheet-2 pre { line-height: 2.4; }
+.tall td { padding-top: 6pt; padding-bottom: 6pt; }

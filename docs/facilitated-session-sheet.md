@@ -3,64 +3,13 @@ title: "Facilitated blind session sheet (blotter)"
 schema_type: common
 status: draft
 owner: core-maintainer
-purpose: "Give each evaluator one paper sheet per blotter session for a facilitator to enter afterward."
+purpose: "Give each evaluator one double-sided scoring sheet per blotter session, with a facilitator sheet, for a facilitator to enter afterward."
 tags:
   - guide
   - evaluation
 ---
 
-Sheet version: `facilitated-session-sheet v2.0`
-
-Print one sheet per evaluator for each blotter session. The manager pre-prints the physical blind codes in the sample
-header row, and the blotter mode in Part A, and nothing else that identifies a fragrance. In group blotter mode (the
-F1 mode) every evaluator's header carries the same three codes in the same order; in individual mode each evaluator's
-header carries their own. Do not write the fragrance
-identity, experimental role, repeat relationship, holdout status, or mapping anywhere on this sheet. The
-facilitator keeps completed sheets as private evidence and enters them through the authenticated application.
-Nobody discusses a sample or a score with anyone until the household reveal.
-
-This sheet covers blotter observations only. A skin test uses its own sheet, one per skin day. The conditions
-questions (feeling unwell, congestion, hunger and the rest) are not on this page: they go on the separate
-[conditions slip](facilitated-conditions-slip.md), which is filed apart from this sheet. The facilitator runs the
-session by the [facilitator run sheet](facilitated-run-sheet.md).
-
-## Sheet version
-
-The sheet version id above is printed on every sheet and on the footer of the last page. It is the only record of
-which paper wording an evaluator used, because the application pins only the frontend build, not the paper form.
-The facilitator names the sheet version (and the conditions slip version) in the F1 pre-exposure declaration (see
-the [F1 gate](planning/gates/f1.md)) before the first exposure. Any change to a row, a scale, an anchor, the
-ceiling wording, or a rule is a new version id (v1.1 for a wording-only fix that changes no data field, v2.0 for any
-change to what is recorded), and sheets of two versions are never mixed inside one program without recording both
-in the declaration. A sheet that does not show a version id is not used.
-
-**Version history.** `v1.0` was the first draft (one tray of three blotters per evaluator, a provisional 5 minute
-spray-to-first-smell ceiling). `v2.0` (2026-11-25) adds the **Blotter mode** row to Part A, which is a newly recorded
-field (it records which mode the paper session was run in, so the transcriber can check it against the program's
-blotter mode in the application), and changes the ceiling to 2 minutes and the blotter handling to the group procedure. The 2 minute spray-to-first-smell ceiling is not the
-2 minute clean-air interval between samples; they are different numbers.
-
-## Rules for the evaluator
-
-1. Work silently. Do not discuss samples, scores, or reactions with anyone, including other evaluators, until the
-   household reveal. The facilitator will announce the reveal after every evaluator has finished every session. Until
-   then, talk only about logistics (a window, a pen, a break).
-2. Smell each blotter as soon as you receive it and write the time you first smell it. The facilitator sprays and
-   writes the spray time on your sheet. The provisional ceiling from a blotter's spray to your first smell is
-   2 minutes, so do not wait and do not hold the blotter. In group blotter mode there is one blotter per sample and it
-   is passed around the room in a fixed seat order: smell it once, write the first-smelled time, and pass it to the
-   next seat as the facilitator directs. If the facilitator replaces the blotter because the window would be missed,
-   smell the new one; the facilitator writes that blotter's spray time on your sheet. Complete one sample column at a
-   time, left to right, then write the finish time and initial the **Column complete** row.
-3. After initialing, never change that column, even if a later sample changes your mind.
-4. Leave an answer blank when you are not answering it. A circled zero is a real answer.
-5. If you cannot smell a sample, circle **No** for Detected and leave the rest of that column blank.
-6. When all three columns are initialed, rank the samples in Part D, then hand the whole sheet to the facilitator
-   and stay silent until the facilitator says everyone has finished (you still do not discuss the samples). You
-   will not see this sheet again, including when a fragrance repeats, and you will not hear what any sample was
-   until the household reveal.
-
-## Part A. Sitting
+## Part A. Sitting {.sheet-1 .form-2col}
 
 | Field | Entry |
 | --- | --- |
@@ -75,11 +24,7 @@ blotter mode in the application), and changes the ceiling to 2 minutes and the b
 | Recorder initials | __________________ |
 | Consent on file (recorded once in the application before the first session; version) | ☐ Yes (______________) |
 
-**Conditions today** are not recorded here. If you have agreed to answer them, you complete the separate slip before
-the first blotter is sprayed, and the facilitator files it apart from this sheet. The paper record ID is the only link
-between the two.
-
-## Part B. Scores, one column per sample
+## Part B. Scores, one column per sample {.sheet-1 .form-grid}
 
 Circle one value per row. Anchors: the lowest value and the highest value are named in the **Scale** column.
 
@@ -122,7 +67,7 @@ Circle one value per row. Anchors: the lowest value and the highest value are na
 | Familiarity | 0 completely new, 5 I know this well | 0 1 2 3 4 5 | 0 1 2 3 4 5 | 0 1 2 3 4 5 |
 | **Column complete (evaluator initials)** | | | | |
 
-## Part C. Notes
+## Part C. Notes {.sheet-1}
 
 Use your own words. Do not copy a note list. Do not record passwords, medical details, or unrelated personal
 information.
@@ -150,7 +95,7 @@ Reminds me of: _______________________________________________________________
 Anything else: _______________________________________________________________
 ```
 
-## Part D. Ranking
+## Part D. Ranking {.sheet-1 .tall}
 
 Complete after all three columns are initialed. Rank only samples you could smell, 1 for the one you liked most.
 Samples can share a place: give two samples 1, and the next sample is 3.
@@ -161,7 +106,72 @@ Samples can share a place: give two samples 1, and the next sample is 3.
 
 ☐ I would rather not rank ☐ I could not tell them apart
 
-## Part E. Reconciliation by the facilitator
+## Facilitator sheet: handling and instructions {.sheet-2 .print-break}
+
+Sheet version: `facilitated-session-sheet v2.0`
+
+**Print layout.** Print one set per evaluator for each blotter session, double-sided with a long-edge flip, on two
+sheets of US Letter paper (four pages). **Sheet 1** (pages 1 and 2: Parts A to D) is the evaluator sheet, the only
+paper an evaluator holds while scoring. **Sheet 2** (pages 3 and 4: this page and Part E) is the facilitator sheet and
+stays with the facilitator. Every page carries its sheet marker and the version id in the footer, so a loose page can
+be re-paired. After the session, clip sheet 2 behind that evaluator's sheet 1; the paper record ID is in Part A on
+page 1. The rules on page 3 are the briefing text: brief from them, or hand sheet 2 to an
+evaluator who asks to read them before the first sample. Build the print files with `scripts/print_forms.sh`.
+
+The manager pre-prints the physical blind codes in the sample header row, and the blotter mode in Part A, and nothing
+else that identifies a fragrance. In group blotter mode (the F1 mode) every evaluator's header carries the same three
+codes in the same order; in individual mode each evaluator's header carries their own. Do not write the fragrance
+identity, experimental role, repeat relationship, holdout status, or mapping anywhere on either sheet. The
+facilitator keeps completed sheets as private evidence and enters them through the authenticated application.
+Nobody discusses a sample or a score with anyone until the household reveal.
+
+This sheet covers blotter observations only. A skin test uses its own sheet, one per skin day. The conditions
+questions (feeling unwell, congestion, hunger and the rest) are not on either sheet: they go on the separate
+[conditions slip](facilitated-conditions-slip.md), which is filed apart from this sheet. The facilitator runs the
+session by the [facilitator run sheet](facilitated-run-sheet.md).
+
+**Conditions today** are not recorded here. If you have agreed to answer them, you complete the separate slip before
+the first blotter is sprayed, and the facilitator files it apart from this sheet. The paper record ID is the only link
+between the two.
+
+## Sheet version {.sheet-2}
+
+The sheet version id above is printed in the footer of every page of both sheets (and in the Part A row). It is the
+only record of which paper wording an evaluator used, because the application pins only the frontend build, not the
+paper form. The facilitator names the sheet version (and the conditions slip version) in the F1 pre-exposure
+declaration (see the [F1 gate](planning/gates/f1.md)) before the first exposure. Any change to a row, a scale, an
+anchor, the ceiling wording, or a rule is a new version id (v1.1 for a wording-only fix that changes no data field,
+v2.0 for any change to what is recorded), and sheets of two versions are never mixed inside one program without
+recording both in the declaration. A sheet that does not show a version id is not used.
+
+**Version history.** `v1.0` was the first draft (one tray of three blotters per evaluator, a provisional 5 minute
+spray-to-first-smell ceiling). `v2.0` (2026-11-25) adds the **Blotter mode** row to Part A, which is a newly recorded
+field (it records which mode the paper session was run in, so the transcriber can check it against the program's
+blotter mode in the application), and changes the ceiling to 2 minutes and the blotter handling to the group
+procedure. The 2 minute spray-to-first-smell ceiling is not the 2 minute clean-air interval between samples; they are
+different numbers.
+
+## Rules for the evaluator {.sheet-2}
+
+1. Work silently. Do not discuss samples, scores, or reactions with anyone, including other evaluators, until the
+   household reveal. The facilitator will announce the reveal after every evaluator has finished every session. Until
+   then, talk only about logistics (a window, a pen, a break).
+2. Smell each blotter as soon as you receive it and write the time you first smell it. The facilitator sprays and
+   writes the spray time on your sheet. The provisional ceiling from a blotter's spray to your first smell is
+   2 minutes, so do not wait and do not hold the blotter. In group blotter mode there is one blotter per sample and it
+   is passed around the room in a fixed seat order: smell it once, write the first-smelled time, and pass it to the
+   next seat as the facilitator directs. If the facilitator replaces the blotter because the window would be missed,
+   smell the new one; the facilitator writes that blotter's spray time on your sheet. Complete one sample column at a
+   time, left to right, then write the finish time and initial the **Column complete** row.
+3. After initialing, never change that column, even if a later sample changes your mind.
+4. Leave an answer blank when you are not answering it. A circled zero is a real answer.
+5. If you cannot smell a sample, circle **No** for Detected and leave the rest of that column blank.
+6. When all three columns are initialed, rank the samples in Part D, then hand the whole sheet to the facilitator
+   and stay silent until the facilitator says everyone has finished (you still do not discuss the samples). You
+   will not see this sheet again, including when a fragrance repeats, and you will not hear what any sample was
+   until the household reveal.
+
+## Part E. Reconciliation by the facilitator {.sheet-2 .print-break .form-2col .tall}
 
 Enter the sheet through the authenticated application. Compare each column on screen with the paper before
 pressing Save, because a saved observation cannot be edited.
