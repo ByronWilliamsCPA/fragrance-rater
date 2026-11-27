@@ -1,4 +1,3 @@
-import axios from 'axios'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type {
@@ -13,6 +12,7 @@ import type {
   Person,
   Program,
   ProgramMember,
+  RevealPolicy,
   SessionTemplatePreview,
 } from '../api/types'
 import { ConfirmAction } from '../components/ConfirmAction'
@@ -20,12 +20,16 @@ import { EmptyState } from '../components/PageState'
 import { FeedbackBanner } from '../components/FeedbackBanner'
 import { useTask } from '../hooks/useTask'
 import { revealBlockerLabel } from '../content/revealBlockers'
+import { REVEAL_POLICY_PHRASES, revealPolicyOf } from '../content/revealPolicy'
+import { followRouteLink, pathFor, type Navigate } from '../routing/routes'
+import { AddEvaluatorForm } from './AddEvaluatorForm'
 import { ProgramReadinessPanel } from './ProgramReadinessPanel'
 
 type Props = {
   programs: Program[]
   reviewers: Person[]
   reload: () => Promise<void>
+  navigate: Navigate
   initialProgramId?: string
 }
 
@@ -38,8 +42,6 @@ const roles = [
   'OWNED_VALIDATION',
   'OTHER',
 ]
-
-const EVALUATOR_NAME_MAX = 100
 
 const INDEPENDENT_SHUFFLE = 'system-random-shuffle-v1'
 const SHARED_TRIPLES = 'shared-triples-latin-rotation-v1'
@@ -84,7 +86,13 @@ function formatUtcDateTime(value: string): string {
   }).format(new Date(asUtc(value)))} UTC`
 }
 
-export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId }: Props) {
+export function ProgramSetupPage({
+  programs,
+  reviewers,
+  reload,
+  navigate,
+  initialProgramId,
+}: Props) {
   const [programId, setProgramId] = useState(initialProgramId ?? '')
   const [members, setMembers] = useState<ProgramMember[]>([])
   const [catalog, setCatalog] = useState<FragranceSummary[]>([])
@@ -98,7 +106,6 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
   const [algorithm, setAlgorithm] = useState(INDEPENDENT_SHUFFLE)
   const [templatePreview, setTemplatePreview] = useState<SessionTemplatePreview | null>(null)
   const [reviewerId, setReviewerId] = useState('')
-  const [newEvaluatorName, setNewEvaluatorName] = useState('')
   // Bumped whenever the preview's inputs change, so a response to an older
   // request cannot restore a plan for a different program or session size.
   const previewRequest = useRef(0)
@@ -165,6 +172,12 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
         ? 'Group blotter session selected. It locks when the first evaluator is enrolled.'
         : 'One blotter per evaluator selected.'
     )
+  }
+
+  async function changeRevealPolicy(policy: RevealPolicy) {
+    await api.put(`/calibration/programs/${programId}/reveal-policy`, { reveal_policy: policy })
+    await reload()
+    task.setNotice(`Reveal policy saved: ${REVEAL_POLICY_PHRASES[policy]}.`)
   }
 
   async function searchCatalog(form: HTMLFormElement) {
@@ -272,36 +285,6 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
     task.setNotice('Evaluator enrolled; sessions and blind codes are ready.')
   }
 
-  async function addEvaluator() {
-    const name = newEvaluatorName.trim()
-    if (name.length < 1 || name.length > EVALUATOR_NAME_MAX) {
-      task.setError(`Enter the evaluator's name, 1 to ${EVALUATOR_NAME_MAX} characters.`)
-      return
-    }
-    let created: Person
-    try {
-      created = (await api.post<Person>('/reviewers', { name })).data
-    } catch (reason) {
-      // Only the duplicate-name conflict gets its own wording; the server's
-      // message repeats the submitted name, so it is not shown. Anything else
-      // goes through the shared request-error handling in useTask.
-      if (axios.isAxiosError(reason) && reason.response?.status === 409) {
-        task.setError('That name is already in use. Choose a different name.')
-        return
-      }
-      throw reason
-    }
-    // #ASSUME: timing-dependencies: the parent's reload() resolves only after
-    // the refreshed reviewers prop is committed, so the new option exists
-    // before it is selected.
-    // #VERIFY: if the option were missing, a controlled select would fall back
-    // to the empty "Choose evaluator" entry and the manager would pick by hand.
-    await reload()
-    setNewEvaluatorName('')
-    setReviewerId(created.id)
-    task.setNotice('Evaluator added. They can now be enrolled below.')
-  }
-
   async function loadOperations() {
     const [enrollmentResponse, eventResponse, statusResponse] = await Promise.all([
       api.get<ManagerEnrollment[]>('/calibration/manager/enrollments'),
@@ -370,11 +353,23 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
       <div className="page-heading">
         <div>
           <p className="eyebrow">Manager</p>
-          <h2>Program setup</h2>
+          <h2>Advanced program setup</h2>
         </div>
         <span className="tally">Restricted</span>
       </div>
-      <p>Build frozen programs, prepare blind labels, and monitor the family pilot.</p>
+      <p>
+        Build frozen programs, prepare blind labels, and monitor a program. The family pilot does
+        not need this page.
+      </p>
+      <p>
+        <a
+          className="inline-target-link"
+          href={pathFor('programs')}
+          onClick={(event) => followRouteLink(event, 'programs', navigate)}
+        >
+          Back to the Family pilot screen
+        </a>
+      </p>
       <FeedbackBanner error={task.error} notice={task.notice} />
 
       <div className="manager-grid">
@@ -451,6 +446,38 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
                 The mode can be changed until the first evaluator is enrolled; after that it is
                 locked.
               </p>
+              {/* Decided here, in the Definition section and before the Activate
+                  button, because activation locks it for good. */}
+              {selectedProgram?.status === 'draft' ? (
+                <>
+                  <label>
+                    Reveal policy for this program
+                    <select
+                      value={revealPolicyOf(selectedProgram)}
+                      disabled={task.busy}
+                      onChange={(event) =>
+                        void task.run(() => changeRevealPolicy(event.target.value as RevealPolicy))
+                      }
+                    >
+                      <option value="ENROLLMENT">Each evaluator separately</option>
+                      <option value="HOUSEHOLD">
+                        Whole household together, after the final samples
+                      </option>
+                    </select>
+                  </label>
+                  <p>
+                    The policy can be changed while the program is a draft; activation locks it
+                    permanently.
+                  </p>
+                </>
+              ) : (
+                selectedProgram && (
+                  <p>
+                    Reveal policy: {REVEAL_POLICY_PHRASES[revealPolicyOf(selectedProgram)]}. It was
+                    locked when the program was activated.
+                  </p>
+                )
+              )}
               <form
                 className="search-row"
                 onSubmit={(event) => {
@@ -610,7 +637,7 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
                 <ConfirmAction
                   actionLabel="Activate and lock definition"
                   confirmLabel="Confirm activation"
-                  description="Activation freezes every exact version, role, repeat, group, and evidence statement. Review the definition before continuing."
+                  description={`Activating "${selectedProgram.name}" (version ${selectedProgram.version}) is permanent and cannot be undone. It locks the reveal policy (${REVEAL_POLICY_PHRASES[revealPolicyOf(selectedProgram)]}) and all ${members.length} exact version${members.length === 1 ? '' : 's'}, with their role, repeat, group, and evidence statement. Confirm the reveal policy above is the one you want before continuing.`}
                   disabled={task.busy || members.length === 0}
                   onConfirm={() => void task.run(activate)}
                 />
@@ -621,30 +648,11 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
 
         <div>
           <h3>2. Enrollment</h3>
-          <form
-            aria-labelledby="add-evaluator-heading"
-            onSubmit={(event) => {
-              event.preventDefault()
-              void task.run(addEvaluator)
-            }}
-          >
-            <h4 id="add-evaluator-heading">Add an evaluator</h4>
-            <p id="add-evaluator-hint">
-              A new person must be added here before they can be enrolled below.
-            </p>
-            <label>
-              Evaluator name
-              <input
-                name="new_evaluator_name"
-                value={newEvaluatorName}
-                maxLength={EVALUATOR_NAME_MAX}
-                aria-describedby="add-evaluator-hint"
-                required
-                onChange={(event) => setNewEvaluatorName(event.target.value)}
-              />
-            </label>
-            <button disabled={task.busy}>Add evaluator</button>
-          </form>
+          <AddEvaluatorForm
+            task={task}
+            reload={reload}
+            onAdded={(person) => setReviewerId(person.id)}
+          />
           <hr />
           <form
             onSubmit={(event) => {
@@ -903,7 +911,12 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
       )}
 
       {programId && selectedProgram && (
-        <ProgramReadinessPanel key={programId} program={selectedProgram} reload={reload} />
+        <ProgramReadinessPanel
+          key={`${programId}:${revealPolicyOf(selectedProgram)}`}
+          program={selectedProgram}
+          reload={reload}
+          editablePolicy={false}
+        />
       )}
 
       <div className="manager-grid">

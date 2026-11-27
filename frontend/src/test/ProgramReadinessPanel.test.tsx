@@ -204,4 +204,33 @@ describe('ProgramReadinessPanel', () => {
       .map((cell) => cell.textContent)
     expect(cells).toEqual(['Done', '1 of 2', 'Not open'])
   })
+
+  it('shows the policy as text, with no select, when the page decides it elsewhere', async () => {
+    const draft: Program = { ...program, status: 'draft', reveal_policy: 'HOUSEHOLD' }
+    render(
+      <ProgramReadinessPanel
+        program={draft}
+        reload={vi.fn().mockResolvedValue(undefined)}
+        editablePolicy={false}
+      />
+    )
+    await screen.findByRole('table', { name: 'Checkpoint and reveal readiness' })
+    expect(screen.queryByLabelText('Reveal policy')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Save reveal policy' })).toBeNull()
+    expect(
+      screen.getByText(/whole household together, after the final samples/)
+    ).toBeInTheDocument()
+  })
+
+  it('can leave out the free-form non-blind panel', async () => {
+    render(
+      <ProgramReadinessPanel
+        program={program}
+        reload={vi.fn().mockResolvedValue(undefined)}
+        showNonBlind={false}
+      />
+    )
+    await screen.findByRole('table', { name: 'Checkpoint and reveal readiness' })
+    expect(screen.queryByRole('heading', { name: /holds the answer key/ })).toBeNull()
+  })
 })

@@ -59,7 +59,8 @@ const routes: { path: string; heading: string | RegExp; manager?: boolean }[] = 
   { path: '/recommendations', heading: 'Recommendations' },
   { path: '/about', heading: 'How this project learns your taste' },
   { path: '/evidence', heading: 'Why better fragrance discovery matters' },
-  { path: '/programs', heading: 'Program setup', manager: true },
+  { path: '/programs', heading: 'Family pilot', manager: true },
+  { path: '/programs/advanced', heading: 'Advanced program setup', manager: true },
 ]
 
 describe('every route has no axe violations (jsdom-checkable rules)', () => {

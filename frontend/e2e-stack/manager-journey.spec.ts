@@ -3,7 +3,7 @@ import { MANAGER, freshRecorder, signIn } from './support/stack'
 
 /*
  * The manager journey through the real stack (P5): sign in as a manager, build
- * a program draft, survive an interrupted request, and see that a non-manager
+ * a program draft in Advanced setup, survive an interrupted request, and see that a non-manager
  * is kept out. The manager role comes from the backend's allow-list, behind the
  * edge's verified identity, not from anything the browser claims.
  */
@@ -14,8 +14,9 @@ test.describe('Manager journey', () => {
     await signIn(page.context(), MANAGER)
     const name = `Stack program ${Date.now()}`
 
-    await page.goto('/programs')
-    await expect(page.getByRole('heading', { name: 'Program setup' })).toBeVisible()
+    // Creating a draft is Advanced setup; the family pilot screen never does it.
+    await page.goto('/programs/advanced')
+    await expect(page.getByRole('heading', { name: 'Advanced program setup' })).toBeVisible()
 
     // The first attempt fails at the network; the form must keep what was typed.
     let attempts = 0
@@ -43,10 +44,13 @@ test.describe('Manager journey', () => {
   test('a non-manager is kept off the manager screen', async ({ page }) => {
     await signIn(page.context(), freshRecorder('outsider'))
 
-    await page.goto('/programs')
+    for (const path of ['/programs', '/programs/advanced']) {
+      await page.goto(path)
 
-    await expect(page).not.toHaveURL(/\/programs$/)
-    await expect(page.getByRole('heading', { name: 'Program setup' })).toHaveCount(0)
+      await expect(page).not.toHaveURL(/\/programs(\/advanced)?$/)
+      await expect(page.getByRole('heading', { name: 'Family pilot' })).toHaveCount(0)
+      await expect(page.getByRole('heading', { name: 'Advanced program setup' })).toHaveCount(0)
+    }
   })
 
   test('a manager who is not signed in is sent no further than the edge', async ({ page }) => {
@@ -61,6 +65,6 @@ test.describe('Manager journey', () => {
 
     expect(statuses.length).toBeGreaterThan(0)
     expect(statuses.every((status) => status === 401)).toBe(true)
-    await expect(page.getByRole('heading', { name: 'Program setup' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Family pilot' })).toHaveCount(0)
   })
 })

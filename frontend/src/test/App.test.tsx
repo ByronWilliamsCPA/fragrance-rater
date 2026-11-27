@@ -10,6 +10,15 @@ vi.mock('axios', () => ({
   default: { create: () => ({ get, post, patch }), isAxiosError: () => false },
 }))
 
+/** From the manager nav link to the full program builder, by the link a manager would use. */
+async function openAdvancedSetup() {
+  fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+  fireEvent.click(
+    await screen.findByRole('link', { name: 'Advanced setup (not needed for the family pilot)' })
+  )
+  await screen.findByRole('heading', { name: 'Advanced program setup' })
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((complete) => {
@@ -576,7 +585,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
     expect(await screen.findByText('Bottle and batch checked')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Activate and lock definition' }))
@@ -612,7 +621,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
     // Selecting a program kicks off its own task.run() to load members;
     // the search form's button stays disabled (shared task.busy state)
@@ -711,7 +720,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
 
     // Already-checked membership: shows the recorded result, never edits
@@ -807,7 +816,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh operations' }))
     expect(await screen.findByText('1 of 2 blotter samples complete')).toBeInTheDocument()
     expect(screen.getByText('Blotter responses remain')).toBeInTheDocument()
@@ -943,7 +952,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     fireEvent.change(screen.getByLabelText('Program'), { target: { value: 'p' } })
 
     const enrollmentSection = screen.getByRole('heading', { name: '2. Enrollment' }).closest('div')!
@@ -1018,7 +1027,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh operations' }))
     await screen.findByText('Ready to reveal')
 
@@ -1076,7 +1085,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     fireEvent.click(screen.getByRole('button', { name: 'Refresh operations' }))
 
     expect(await screen.findByText('Blotter responses remain')).toBeInTheDocument()
@@ -1098,7 +1107,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     const metricsSection = screen
       .getByRole('heading', { name: '4. Recommendation metrics' })
       .closest('div')!
@@ -1137,7 +1146,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     const metricsSection = screen
       .getByRole('heading', { name: '4. Recommendation metrics' })
       .closest('div')!
@@ -1211,7 +1220,7 @@ describe('Calibration participant workflow', () => {
     })
 
     render(<App />)
-    fireEvent.click(await screen.findByRole('link', { name: 'Program setup' }))
+    await openAdvancedSetup()
     const eventsSection = screen
       .getByRole('heading', { name: '5. Operational events' })
       .closest('div')!
@@ -1349,8 +1358,13 @@ describe('program self-assign deep link', () => {
     })
   })
 
-  it('pre-selects the program named by the query parameter', async () => {
+  it('hands a deep link to a non-pilot program to the advanced page, program still selected', async () => {
     render(<App />)
+    // Program p is active but not a household-reveal program, so the family
+    // pilot page does not offer it and points to the advanced page instead.
+    expect(await screen.findByRole('heading', { name: 'Family pilot' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Open it in Advanced setup' }))
     expect(await screen.findByLabelText('Program')).toHaveValue('p')
+    expect(window.location.pathname).toBe('/programs/advanced')
   })
 })

@@ -41,6 +41,7 @@ function Harness({ reload }: { reload: () => Promise<void> }) {
           current.some((person) => person.id === NEW_PERSON.id) ? current : [...current, NEW_PERSON]
         )
       }}
+      navigate={vi.fn()}
       initialProgramId="p"
     />
   )

@@ -6,6 +6,7 @@ import {
   managerAccess,
   fragranceCatalog,
   enrollmentFixture,
+  familyPilotRoutes,
   recommendationRunFixture,
   sessionIntroRoutes,
 } from './support/mock-api'
@@ -119,7 +120,32 @@ const routeChecks: {
   },
   { path: '/about', heading: 'How this project learns your taste' },
   { path: '/evidence', heading: 'Why better fragrance discovery matters' },
-  { path: '/programs', heading: 'Program setup' },
+  {
+    // The Family pilot screen with a program loaded, so the evaluator list, the
+    // facilitator checkbox, Enroll and the readiness panel are all scanned.
+    path: '/programs',
+    heading: 'Family pilot',
+    mocks: familyPilotRoutes(),
+    populate: async (page) => {
+      await expect(page.getByRole('button', { name: 'Enroll Evaluator One' })).toBeVisible()
+    },
+  },
+  {
+    // The full page, with a draft selected so the Definition section's
+    // reveal-policy control is on screen.
+    path: '/programs/advanced',
+    heading: 'Advanced program setup',
+    mocks: {
+      ...familyPilotRoutes(),
+      '/calibration/programs': [
+        { id: 'p1', name: 'Baseline', version: '1', status: 'draft', reveal_policy: 'ENROLLMENT' },
+      ],
+    },
+    populate: async (page) => {
+      await page.getByLabel('Program').selectOption('p1')
+      await expect(page.getByLabel('Reveal policy for this program')).toBeVisible()
+    },
+  },
 ]
 
 async function setUpRoute(

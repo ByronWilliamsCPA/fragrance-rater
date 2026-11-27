@@ -36,9 +36,19 @@ function sessionCell(samples: Enrollment['presentations']): string {
 export function ProgramReadinessPanel({
   program,
   reload,
+  editablePolicy = true,
+  showNonBlind = true,
 }: {
   program: Program
   reload: () => Promise<void>
+  /**
+   * Show the reveal-policy select while the program is a draft. The family
+   * pilot page and the advanced page's Definition section decide the policy
+   * elsewhere, so they turn this off and the policy is shown as plain text.
+   */
+  editablePolicy?: boolean
+  /** Show the free-form non-blind panel; the family pilot flags at enrollment instead. */
+  showNonBlind?: boolean
 }) {
   const task = useTask()
   const [readiness, setReadiness] = useState<ProgramReadiness | null>(null)
@@ -134,7 +144,7 @@ export function ProgramReadinessPanel({
         </button>
       </div>
       <FeedbackBanner error={task.error} notice={task.notice} />
-      {program.status === 'draft' ? (
+      {editablePolicy && program.status === 'draft' ? (
         <form
           className="search-row"
           onSubmit={(event) => {
@@ -227,7 +237,9 @@ export function ProgramReadinessPanel({
           </button>
         </div>
       )}
-      {enrollments.length > 0 && <NonBlindPanel enrollments={enrollments} task={task} />}
+      {showNonBlind && enrollments.length > 0 && (
+        <NonBlindPanel enrollments={enrollments} task={task} />
+      )}
       {progress && progress.length > 0 && (
         <div
           className="log-scroll"
