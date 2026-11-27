@@ -359,13 +359,15 @@ For F1 the following are asked on the sheet, **scanned and retained, and not ent
 - **Would wear** and **would buy** (0 to 10). The application already accepts both at the blotter stage, but the blotter
   form does not ask them, and F1 keys them only after F1.
 - **Type of event** and **season.** The application refuses both at the blotter stage (they are skin-stage fields).
+  On the paper sheet, year-round, none of these and cannot judge are each tick-only: tick that box alone. Season is
+  keyed after F1 (owner decision 2026-11-27).
 - **Time zone, recorder initials and the paper record ID.** These are scan provenance and are not stored by the
   application.
 
 Do not key these, do not estimate them and do not discuss them. Capture changes after F1, does not gate P6 or F1, and
 is planned in [PROJECT-PLAN.md section 11a](planning/PROJECT-PLAN.md#post-f1-follow-up-blotter-stage-would-wear-would-buy-and-event-type-capture-proposed-2026-11-27)
 as a Proposed item. Whether the consent wording covers opinions about wearing, buying, events and seasons is an open
-owner question; this run sheet does not settle it.
+owner question (the owner's inclination is that it does, which is not a sign-off); this run sheet does not settle it.
 
 ### Facilitator tracker (proposal)
 

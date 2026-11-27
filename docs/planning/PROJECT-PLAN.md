@@ -847,8 +847,9 @@ Would buy (0 to 10, Never to Definitely) and Type of event (multi-select: work o
 formal event, outdoor activity, something else, none of these, cannot judge). The same sheet also asks Season on its
 back, with the same status (added to this item by the v3.0 procedure change set, see below): Season (`season_fit`; multi-select: spring, summer, fall, winter, year-round, none of these, cannot judge). For F1 these answers are paper only: they
 are scanned, the originals are retained under the existing paper-retention sign-off, and they are not entered in the
-application. The application is to be changed after F1 to capture them natively, and whether season is to be keyed
-after F1 is an open owner question (below).
+application. The application is to be changed after F1 to capture them natively. The owner decided on 2026-11-27 that
+season is keyed after F1 (yes) and that year-round, none of these and cannot judge are each tick-only on the paper
+sheet (the combination year-round plus another season was considered and dropped).
 
 **Scope.** Nothing in this item changes program `v3.2`, the F1 procedure, the F1 instrument or the pinned build. Any
 code from this item needs a new build and the owner's explicit decision under the build-freeze rule, so it cannot reach
@@ -878,9 +879,11 @@ No implementation starts before both.
   `season_fit` and `setting_fit`: a non-empty list on a non-skin stage is refused (`season_fit is asked at skin stage
   only`), so season is stage-gated by the schema validator at the blotter stage exactly like `setting_fit`. The options
   are `spring`, `summer`, `fall`, `winter`, `year_round`, `none` and `cannot_judge` (`SeasonFit`), a duplicate is refused,
-  and the schema makes only `none` and `cannot_judge` stand alone. Instrument v0.5 says (in its response rules) to choose individual
-  seasons OR year-round OR none OR cannot judge, so v0.5 treats `year_round` as exclusive and the schema does not; that
-  mismatch is an open question below. v0.5 also already lists `BL-SEASON` as an optional blotter worksheet item with the
+  and the schema (`schemas/calibration.py`, the `none and cannot_judge stand alone` check) currently makes only `none`
+  and `cannot_judge` stand alone, so it still accepts `year_round` beside other seasons. The owner decided on
+  2026-11-27 that `year_round`, `none` and `cannot_judge` are all tick-only, which matches instrument v0.5 line 47
+  (choose individual seasons OR year-round OR none OR cannot judge) and the sheet as drafted, so the post-F1 app change
+  must also make `year_round` exclusive (Proposed; see the change inventory and acceptance criteria below). v0.5 also already lists `BL-SEASON` as an optional blotter worksheet item with the
   same option codes and a distinct stage identity.
 - **An Intensity of 0 needs no application change.** The sheet's rule that a circled Intensity 0 means not detected is
   entered through the existing not-detected rule: `detected` false, `intensity` 0, `liking` empty and `response_status`
@@ -908,7 +911,7 @@ No implementation starts before both.
 
 | Area | Change |
 | :--- | :--- |
-| Schema (`schemas/calibration.py`) | Relax the blotter refusal for event type and, if the owner decides to key it, season; keep every other stage rule; keep the duplicate and standalone `none` and `cannot_judge` rules; decide the blotter field names so a blotter value cannot be read as a skin value |
+| Schema (`schemas/calibration.py`) | Relax the blotter refusal for event type and season (the owner decided on 2026-11-27 that season is keyed after F1); keep every other stage rule; keep the duplicate and standalone `none` and `cannot_judge` rules; and make `year_round` stand alone as well, because the owner decided it is tick-only (the schema today makes only `none` and `cannot_judge` exclusive, Proposed); decide the blotter field names so a blotter value cannot be read as a skin value |
 | ORM and migration | Wear and buy columns exist. Event type can reuse `FitChoice` (no stage CHECK), so a forward-only native option needs no table change; any late-entry option (below) needs a new column or table, a migration, and care with the append-only trigger and `v_training_rows` |
 | Service (`calibration_service.py`) | `observe_once` stage handling; for any late-entry option, a new entry type allowed after lock that must not supersede the original answer |
 | Frontend | A blotter wear, buy and event group in `blotterGroups`; the observation panel `save()` and its numeric-field loop; the paper transcription wizard and `PaperSheetFields.tsx`; `transcription.ts` completeness; existing tests `instrumentChoices.test.ts` and `SampleObservationR7b.test.tsx` |
@@ -959,9 +962,12 @@ carry the Proposed amendments. Liking stays the primary target.
 
 **Acceptance criteria (draft, for owner review).**
 
-- The blotter form captures would wear, would buy and event type (and season, if the owner decides to key it) for an
+- The blotter form captures would wear, would buy, event type and season for an
   evaluator, and the paper transcription wizard does the same, with the sheet's scale anchors, eight event codes and
   seven season codes.
+- The season answer enforces that `year_round`, `none` and `cannot_judge` each stand alone (the schema and the
+  transcription wizard refuse `year_round` combined with another season), matching the paper sheet and instrument
+  v0.5 line 47 (Proposed; this changes the shipped schema only after F1).
 - A blotter value is stored under a stage-qualified name and is not readable as a skin-stage value in
   `v_training_rows`, `ml/dataset.py`, the feature snapshot, the evidence export or the checkpoint manifest, shown by a
   test that fails if they are pooled.
@@ -986,12 +992,10 @@ build, and the owner's acceptance. None exists yet.
 - The added time and fatigue per sample. The owner's figures are about 25 answers per sample rising to 28 or more for children (not
   counted in the repository); whether that is acceptable is a facilitator and owner question the dry run can
   inform.
-- Whether season (`season_fit`) is to be keyed after F1 at all. The sheet asks it on paper, and the options and the
-  stage rule are as above. If it is keyed, whether it shares the `FitChoice` season dimension with the skin stage or has
-  its own, so that a blotter season can never be read as a skin-stage `season_fit` (the same question as for event type
-  below), and how `year_round` exclusivity is settled: v0.5 treats `year_round` as exclusive, the schema makes only `none`
-  and `cannot_judge` exclusive, and the sheet ticks `year_round` alone, so the schema either tightens or the instrument
-  loosens.
+- Whether a blotter season shares the `FitChoice` season dimension with the skin stage or has its own, so that a
+  blotter season can never be read as a skin-stage `season_fit` (the same question as for event type below). Whether
+  season is keyed after F1 (yes) and how `year_round` exclusivity is settled (tick-only, so the schema tightens) were
+  decided by the owner on 2026-11-27 and are no longer open.
 - Whether the paper-retention and scan sign-off in the F1 gate (12 months, destroyed with the database) covers these
   fields as written, or needs a wording check.
 - Whether the F1 gate's rule that the sheet and slip ids equal the P6.3-rehearsed ids (waived on 2026-11-27) needs a

@@ -18,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   position order with the typed code as confirmation; a per-evaluator tracker proposed in place of Part E. The F1 gate
   names sheet v3.0 and records the P6.3 waiver interaction as an open question. Season (`season_fit`) is added to the
   Proposed post-F1 blotter capture item, the roadmap mirror, the tech-spec note and the Proposed ADR-005 and ADR-009
-  amendments. No application change.
+  amendments. The owner decided that season is keyed after F1 and that year-round, none of these and cannot judge are
+  tick-only (matching instrument v0.5 line 47); the schema currently makes only none and cannot_judge exclusive, so the
+  post-F1 app change must also make year_round exclusive (Proposed). No application change in this PR.
 - CI: Claude Tier 0 baseline PR review caller
   (`.github/workflows/claude-baseline-review.yml`), a thin caller of the org
   reusable in `ByronWilliamsCPA/.github`. Part of the org-wide

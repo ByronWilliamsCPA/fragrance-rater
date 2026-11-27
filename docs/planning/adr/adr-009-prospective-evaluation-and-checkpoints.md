@@ -233,8 +233,9 @@ household reveal, holdout eligibility and the decision rule are unchanged.
 The F1 paper sheet (version `v3.0`) asks would wear, would buy, type of event and season (`season_fit`) at the blind
 blotter stage (owner decision 2026-11-27), and for F1 the answers stay on paper (scanned, retained, not entered in the
 application). Season is stage-gated by the schema validator at the blotter stage like `setting_fit`; whether it is keyed
-after F1 is open, and v0.5 treats `year_round` as exclusive where the schema makes only `none` and `cannot_judge`
-exclusive (an open question, not settled here). See
+after F1 (owner decision 2026-11-27: yes). The owner also decided that `year_round`, `none` and `cannot_judge` are each
+tick-only, matching instrument v0.5 line 47; the schema currently makes only `none` and `cannot_judge` exclusive, so the
+post-F1 change must also make `year_round` exclusive (Proposed). See
 [ADR-005's matching Proposed amendment](adr-005-controlled-calibration.md#2026-11-27-proposed-amendment-blotter-stage-would-wear-would-buy-and-event-type)
 for the reconciliation with the 2026-09-19, 2026-09-21 and 2026-11-24 amendments and the plan item for the options.
 
