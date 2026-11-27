@@ -74,7 +74,7 @@ test.describe('Family pilot screen', () => {
     await expect(page.getByRole('heading', { name: 'Family pilot' })).toBeVisible()
     await expect(page.getByText('Family pilot · version 3.2')).toBeVisible()
     await expect(page.getByText('33 baseline, 6 hidden repeats, 10 holdouts')).toBeVisible()
-    await expect(page.getByText(/fixed B01 to B39 and H01 to H10 bottles/)).toBeVisible()
+    await expect(page.getByText(/Their identities are not shown on this page/)).toBeVisible()
     // The blind answer key: the fixture's member names must never reach the page.
     await expect(page.getByText(/Hidden name|Hidden brand/)).toHaveCount(0)
     await expect(page.getByRole('button', { name: /create|activate/i })).toHaveCount(0)

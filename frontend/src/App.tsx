@@ -47,11 +47,7 @@ function App() {
   )
 
   const programId = useMemo(
-    () =>
-      programLinkFor(
-        query,
-        programs.map((program) => program.id)
-      ),
+    () => programLinkFor(query, programs.map((program) => program.id)),
     [programs, query]
   )
 

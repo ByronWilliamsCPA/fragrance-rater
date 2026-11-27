@@ -71,7 +71,7 @@ let enrolled: string[] = []
 
 function renderPage(
   programs: Program[] = [PILOT],
-  options: { initialProgramId?: string; navigate?: Navigate } = {}
+  options: { initialProgramId?: string; navigate?: Navigate; username?: string } = {}
 ) {
   const reload = vi.fn(() => Promise.resolve())
   const navigate = options.navigate ?? vi.fn<Navigate>()
@@ -79,7 +79,7 @@ function renderPage(
     <FamilyPilotPage
       programs={programs}
       reviewers={PEOPLE}
-      username="manager-user"
+      username={options.username ?? 'manager-user'}
       reload={reload}
       navigate={navigate}
       {...(options.initialProgramId ? { initialProgramId: options.initialProgramId } : {})}
@@ -124,16 +124,30 @@ describe('family pilot page: program', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('One per evaluator')).toBeInTheDocument()
     expect(await screen.findByText('3 baseline, 1 hidden repeats, 2 holdouts')).toBeInTheDocument()
-    expect(screen.getByText(/fixed B01 to B39 and H01 to H10 bottles/)).toBeInTheDocument()
+    expect(screen.getByText(/Their identities are not shown on this page/)).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/B01|H01/)
   })
 
   it('never renders a member fragrance, brand, or evidence', async () => {
     renderPage()
     await screen.findByText('3 baseline, 1 hidden repeats, 2 holdouts')
 
-    const text = document.body.textContent ?? ''
-    for (const hidden of ['Oak Study', 'Cedar Hour', 'Rose Ghost', 'Secret House', 'Verified']) {
-      expect(text).not.toContain(hidden)
+    // innerHTML also covers attributes, titles, ids and hidden text, not just visible text.
+    const markup = document.body.innerHTML
+    for (const hidden of [
+      'Oak Study',
+      'Cedar Hour',
+      'Amber Night',
+      'Rose Ghost',
+      'Iris Echo',
+      'Secret House',
+      'Verified',
+      'f-m1',
+      'f-m5',
+      'edt-current-2026',
+      'Baseline"',
+    ]) {
+      expect(markup).not.toContain(hidden)
     }
   })
 
@@ -309,6 +323,190 @@ describe('family pilot page: evaluators', () => {
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/reviewers', { name: 'Casey' }))
     await waitFor(() => expect(reload).toHaveBeenCalled())
+  })
+})
+
+describe('family pilot page: enroll guards and failure recovery', () => {
+  /** The row of a named evaluator. */
+  function rowOf(name: string) {
+    const row = screen.getByText(name, { selector: 'strong' }).closest('li')
+    if (!row) throw new Error(`row for ${name} missing`)
+    return row
+  }
+
+  it('disables Enroll when there is no signed-in username', async () => {
+    renderPage([PILOT], { username: '' })
+    const button = await screen.findByRole('button', { name: 'Enroll Alice' })
+
+    expect(button).toBeDisabled()
+    fireEvent.click(button)
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  it('offers no Enroll until one of several programs is chosen', async () => {
+    renderPage([PILOT, { ...PILOT, id: 'pilot-2', name: 'Family F1 again' }])
+    await screen.findByLabelText('Family pilot program')
+
+    expect(screen.queryByRole('button', { name: /^Enroll/ })).toBeNull()
+    expect(get).not.toHaveBeenCalled()
+
+    fireEvent.change(screen.getByLabelText('Family pilot program'), { target: { value: 'pilot' } })
+    expect(await screen.findByRole('button', { name: 'Enroll Alice' })).toBeEnabled()
+  })
+
+  it('keeps Enroll disabled until readiness has loaded', async () => {
+    let release: (value: { data: ProgramReadiness }) => void = () => undefined
+    get.mockImplementation((path: string) => {
+      if (path.endsWith('/members')) return Promise.resolve({ data: MEMBERS })
+      return new Promise((resolve) => {
+        release = resolve
+      })
+    })
+    renderPage()
+
+    const button = await screen.findByRole('button', { name: 'Enroll Alice' })
+    expect(button).toBeDisabled()
+
+    release({ data: readinessWith([]) })
+    await waitFor(() => expect(button).toBeEnabled())
+  })
+
+  it('posts one enrollment for a double click', async () => {
+    let finish: (value: { data: { id: string } }) => void = () => undefined
+    post.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    renderPage()
+    const button = await screen.findByRole('button', { name: 'Enroll Alice' })
+    await waitFor(() => expect(button).toBeEnabled())
+
+    fireEvent.click(button)
+    fireEvent.click(button)
+
+    expect(post).toHaveBeenCalledTimes(1)
+    enrolled = ['r1']
+    finish({ data: { id: 'enr-r1' } })
+    expect(await screen.findByRole('status')).toHaveTextContent('Alice is enrolled')
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+
+  it('still marks a facilitator non-blind when the readiness reload fails after enrolling', async () => {
+    let readinessDown = false
+    get.mockImplementation((path: string) => {
+      if (path.endsWith('/members')) return Promise.resolve({ data: MEMBERS })
+      if (readinessDown) return Promise.reject(new Error('reload failed'))
+      return Promise.resolve({ data: readinessWith(enrolled) })
+    })
+    renderPage()
+    fireEvent.click(await screen.findByLabelText('Facilitator (non-blind) for Byron'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Enroll Byron' })).toBeEnabled())
+    readinessDown = true
+    fireEvent.click(screen.getByRole('button', { name: 'Enroll Byron' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Byron is enrolled and marked non-blind.'
+    )
+    expect(post).toHaveBeenLastCalledWith('/calibration/enrollments/enr-r2/non-blind', {
+      explanation: 'Facilitator who labels and sprays the samples',
+    })
+    // The row reflects the enrollment even though the reload never came back.
+    expect(within(rowOf('Byron')).getByText('Enrolled')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Enroll Byron' })).toBeNull()
+  })
+
+  it('exposes Retry with the returned enrollment id when both the reload and the flag fail', async () => {
+    let readinessDown = false
+    get.mockImplementation((path: string) => {
+      if (path.endsWith('/members')) return Promise.resolve({ data: MEMBERS })
+      if (readinessDown) return Promise.reject(new Error('reload failed'))
+      return Promise.resolve({ data: readinessWith(enrolled) })
+    })
+    post.mockImplementation((path: string, body?: { reviewer_id?: string }) => {
+      if (path.endsWith('/enroll') && body?.reviewer_id) {
+        enrolled = [...enrolled, body.reviewer_id]
+        return Promise.resolve({ data: { id: `enr-${body.reviewer_id}` } })
+      }
+      return Promise.reject(new Error('flag failed'))
+    })
+    renderPage()
+    fireEvent.click(await screen.findByLabelText('Facilitator (non-blind) for Byron'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Enroll Byron' })).toBeEnabled())
+    readinessDown = true
+    fireEvent.click(screen.getByRole('button', { name: 'Enroll Byron' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Byron is enrolled but could NOT be marked non-blind'
+    )
+    const retry = await screen.findByRole('button', { name: 'Retry non-blind flag for Byron' })
+    expect(screen.queryByRole('button', { name: 'Enroll Byron' })).toBeNull()
+
+    post.mockResolvedValue({ data: {} })
+    fireEvent.click(retry)
+    expect(await screen.findByRole('status')).toHaveTextContent('Byron is marked non-blind.')
+    expect(post).toHaveBeenLastCalledWith('/calibration/enrollments/enr-r2/non-blind', {
+      explanation: 'Facilitator who labels and sprays the samples',
+    })
+    expect(screen.queryByRole('button', { name: /Retry non-blind flag/ })).toBeNull()
+  })
+
+  it('reloads readiness after a failed enroll and shows the server state (409)', async () => {
+    renderPage()
+    // Readiness loaded with Alice not enrolled; the server then gains her enrollment.
+    const first = await screen.findByRole('button', { name: 'Enroll Alice' })
+    await waitFor(() => expect(first).toBeEnabled())
+    enrolled = ['r1']
+    post.mockRejectedValue(new Error('Reviewer already enrolled'))
+    const readinessCalls = () =>
+      get.mock.calls.filter(([path]) => String(path).endsWith('/readiness')).length
+    const before = readinessCalls()
+
+    fireEvent.click(first)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Request failed.')
+    await waitFor(() => expect(readinessCalls()).toBeGreaterThan(before))
+    await waitFor(() => expect(within(rowOf('Alice')).getByText('Enrolled')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Enroll Alice' })).toBeNull()
+  })
+
+  it('offers Retry when a failed enroll of a ticked facilitator turns out to exist', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByLabelText('Facilitator (non-blind) for Byron'))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Enroll Byron' })).toBeEnabled())
+    // The enrollment went through, but its answer was lost to a timeout.
+    enrolled = ['r2']
+    post.mockRejectedValueOnce(new Error('timeout'))
+    fireEvent.click(screen.getByRole('button', { name: 'Enroll Byron' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Byron is enrolled, but this page cannot confirm they were marked non-blind'
+    )
+    post.mockResolvedValue({ data: {} })
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry non-blind flag for Byron' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Byron is marked non-blind.')
+    // The id comes from readiness because the POST response was lost.
+    expect(post).toHaveBeenLastCalledWith('/calibration/enrollments/enr-r2/non-blind', {
+      explanation: 'Facilitator who labels and sprays the samples',
+    })
+  })
+
+  it('does not carry facilitator ticks or pending flags to another program', async () => {
+    renderPage([PILOT, { ...PILOT, id: 'pilot-2', name: 'Family F1 again' }], {
+      initialProgramId: 'pilot',
+    })
+    const tick = await screen.findByLabelText('Facilitator (non-blind) for Byron')
+    fireEvent.click(tick)
+    expect(tick).toBeChecked()
+
+    fireEvent.change(screen.getByLabelText('Family pilot program'), {
+      target: { value: 'pilot-2' },
+    })
+
+    await waitFor(() => expect(get).toHaveBeenCalledWith('/calibration/programs/pilot-2/members'))
+    expect(await screen.findByLabelText('Facilitator (non-blind) for Byron')).not.toBeChecked()
   })
 })
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api, requestErrorMessage } from '../api/client'
 import type { Person, Program, ProgramMember, ProgramReadiness } from '../api/types'
 import { FeedbackBanner } from '../components/FeedbackBanner'
@@ -57,8 +57,8 @@ function isFamilyPilot(program: Program): boolean {
  * The program is created and activated by an operator script from a local
  * manifest, never here. This page only enrolls evaluators with the fixed
  * pilot settings and runs the steps after the sittings. It deliberately never
- * renders a program member's fragrance: the members are the fixed B01 to B39
- * and H01 to H10 bottles, and naming them would leak the blind answer key.
+ * renders a program member's fragrance, brand, or evidence: naming the members
+ * would leak the blind answer key, so only role counts are kept from them.
  */
 export function FamilyPilotPage({
   programs,
@@ -73,9 +73,14 @@ export function FamilyPilotPage({
   const [chosenId, setChosenId] = useState('')
   const [counts, setCounts] = useState<RoleCounts | null>(null)
   const [readiness, setReadiness] = useState<ProgramReadiness | null>(null)
-  // Per-evaluator "facilitator" ticks, and evaluators whose non-blind flag failed.
+  // Per-evaluator "facilitator" ticks, enrollments made from this page (reviewer id to enrollment
+  // id, so a row stays Enrolled even if the readiness reload is lost), and facilitators whose
+  // non-blind flag is not confirmed. All belong to the selected program and reset when it changes.
   const [facilitators, setFacilitators] = useState<ReadonlySet<string>>(new Set())
+  const [enrolledHere, setEnrolledHere] = useState<ReadonlyMap<string, string>>(new Map())
   const [unflagged, setUnflagged] = useState<ReadonlySet<string>>(new Set())
+  // The program id now selected, so a slow answer for a program left behind is dropped.
+  const selectedProgram = useRef<string | undefined>(undefined)
 
   const programId = [chosenId, initialProgramId, eligible.length === 1 ? eligible[0]?.id : '']
     .map((id) => eligible.find((program) => program.id === id)?.id)
@@ -88,6 +93,10 @@ export function FamilyPilotPage({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCounts(null)
     setReadiness(null)
+    setFacilitators(new Set())
+    setEnrolledHere(new Map())
+    setUnflagged(new Set())
+    selectedProgram.current = programId
     if (!programId) return
     let current = true
     void task.run(async () => {
@@ -96,7 +105,7 @@ export function FamilyPilotPage({
         api.get<ProgramReadiness>(`/calibration/programs/${programId}/readiness`),
       ])
       if (!current) return
-      // Only the counts are kept: the members' identities are never rendered here.
+      // Only the counts are kept: the member list itself is dropped right here.
       setCounts(countRoles(members.data))
       setReadiness(status.data)
     })
@@ -107,10 +116,23 @@ export function FamilyPilotPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [programId])
 
-  async function refreshReadiness() {
-    const response = await api.get<ProgramReadiness>(`/calibration/programs/${programId}/readiness`)
+  /** Reload readiness for `forProgram`; null when that program is no longer the selected one. */
+  async function refreshReadiness(forProgram: string) {
+    const response = await api.get<ProgramReadiness>(
+      `/calibration/programs/${forProgram}/readiness`
+    )
+    if (selectedProgram.current !== forProgram) return null
     setReadiness(response.data)
     return response.data
+  }
+
+  /** The same reload, but a failure only means the rows stay as they were. */
+  async function tryRefreshReadiness(forProgram: string) {
+    try {
+      return await refreshReadiness(forProgram)
+    } catch {
+      return null
+    }
   }
 
   async function flagNonBlind(enrollmentId: string) {
@@ -126,27 +148,62 @@ export function FamilyPilotPage({
     return next
   }
 
-  async function enroll(reviewer: Person) {
-    const created = await api.post<{ id: string }>(`/calibration/programs/${programId}/enroll`, {
-      reviewer_id: reviewer.id,
-      recorder_usernames: [username],
-      session_size: SAMPLES_PER_SESSION,
-      label_scheme: 'random',
-      randomization_algorithm: SHARED_TRIPLES,
-      persistent_membership_ids: [],
-      session_template: null,
-    })
-    await refreshReadiness()
-    if (!facilitators.has(reviewer.id)) {
+  /** Remember an enrollment made or found from this page, if `forProgram` is still selected. */
+  function rememberEnrollment(forProgram: string, reviewerId: string, enrollmentId: string) {
+    if (selectedProgram.current !== forProgram) return
+    setEnrolledHere((current) => new Map(current).set(reviewerId, enrollmentId))
+  }
+
+  /** Mark whether a facilitator's non-blind flag is still owed, if `forProgram` is still selected. */
+  function setFlagOwed(forProgram: string, reviewerId: string, owed: boolean) {
+    if (selectedProgram.current !== forProgram) return
+    setUnflagged((current) => setMember(current, reviewerId, owed))
+  }
+
+  async function enroll(reviewer: Person, forProgram: string) {
+    const facilitator = facilitators.has(reviewer.id)
+    let enrollmentId: string
+    try {
+      const created = await api.post<{ id: string }>(`/calibration/programs/${forProgram}/enroll`, {
+        reviewer_id: reviewer.id,
+        recorder_usernames: [username],
+        session_size: SAMPLES_PER_SESSION,
+        label_scheme: 'random',
+        randomization_algorithm: SHARED_TRIPLES,
+        persistent_membership_ids: [],
+        session_template: null,
+      })
+      enrollmentId = created.data.id
+    } catch (reason) {
+      // A timeout can lose the answer to an enrollment that went through, and a
+      // 409 means it already exists. Reload so the row shows the server's state.
+      const status = await tryRefreshReadiness(forProgram)
+      const existing = status?.enrollments.find((row) => row.reviewer_id === reviewer.id)
+      if (!existing || !facilitator) throw reason
+      // Enrolled, facilitator ticked, and nothing here proves the flag landed.
+      rememberEnrollment(forProgram, reviewer.id, existing.enrollment_id)
+      setFlagOwed(forProgram, reviewer.id, true)
+      task.setError(
+        `${reviewer.name} is enrolled, but this page cannot confirm they were marked ` +
+          `non-blind: ${requestErrorMessage(reason)} Use "Retry non-blind flag" on their row ` +
+          'before any sample is sprayed.'
+      )
+      return
+    }
+    // Remember the enrollment and the owed flag before anything else can fail:
+    // the row must offer the retry even if the readiness reload does not come back.
+    rememberEnrollment(forProgram, reviewer.id, enrollmentId)
+    if (facilitator) setFlagOwed(forProgram, reviewer.id, true)
+    await tryRefreshReadiness(forProgram)
+    if (!facilitator) {
       task.setNotice(`${reviewer.name} is enrolled with random blind labels.`)
       return
     }
     // The flag must land before the page calls this evaluator done. If it
     // fails the enrollment already exists, so say exactly that and offer a retry.
     try {
-      await flagNonBlind(created.data.id)
+      await flagNonBlind(enrollmentId)
     } catch (reason) {
-      setUnflagged((current) => setMember(current, reviewer.id, true))
       task.setError(
         `${reviewer.name} is enrolled but could NOT be marked non-blind: ` +
           `${requestErrorMessage(reason)} Use "Retry non-blind flag" on their row ` +
@@ -154,13 +211,13 @@ export function FamilyPilotPage({
       )
       return
     }
-    setUnflagged((current) => setMember(current, reviewer.id, false))
+    setFlagOwed(forProgram, reviewer.id, false)
     task.setNotice(`${reviewer.name} is enrolled and marked non-blind.`)
   }
 
-  async function retryFlag(reviewer: Person, enrollmentId: string) {
+  async function retryFlag(reviewer: Person, enrollmentId: string, forProgram: string) {
     await flagNonBlind(enrollmentId)
-    setUnflagged((current) => setMember(current, reviewer.id, false))
+    setFlagOwed(forProgram, reviewer.id, false)
     task.setNotice(`${reviewer.name} is marked non-blind.`)
   }
 
@@ -242,8 +299,8 @@ export function FamilyPilotPage({
       )}
       {program && (
         <p>
-          The members are the fixed B01 to B39 and H01 to H10 bottles. Their identities are not
-          shown on this page so the answer key stays hidden.
+          The members are the program&apos;s fixed bottles. Their identities are not shown on this
+          page so the answer key stays hidden.
         </p>
       )}
 
@@ -262,7 +319,9 @@ export function FamilyPilotPage({
           ) : (
             <ul className="data-list">
               {reviewers.map((reviewer) => {
-                const enrollmentId = enrollmentByReviewer.get(reviewer.id)
+                // An enrollment made here counts even if the readiness reload was lost.
+                const enrollmentId =
+                  enrollmentByReviewer.get(reviewer.id) ?? enrolledHere.get(reviewer.id)
                 const checkboxId = `facilitator-${reviewer.id}`
                 return (
                   <li key={reviewer.id}>
@@ -293,7 +352,7 @@ export function FamilyPilotPage({
                         </div>
                         <button
                           disabled={task.busy || !username || readiness === null}
-                          onClick={() => void task.run(() => enroll(reviewer))}
+                          onClick={() => void task.run(() => enroll(reviewer, program.id))}
                         >
                           Enroll <span className="visually-hidden">{reviewer.name}</span>
                         </button>
@@ -302,7 +361,9 @@ export function FamilyPilotPage({
                     {enrollmentId && unflagged.has(reviewer.id) && (
                       <button
                         disabled={task.busy}
-                        onClick={() => void task.run(() => retryFlag(reviewer, enrollmentId))}
+                        onClick={() =>
+                          void task.run(() => retryFlag(reviewer, enrollmentId, program.id))
+                        }
                       >
                         Retry non-blind flag{' '}
                         <span className="visually-hidden">for {reviewer.name}</span>
