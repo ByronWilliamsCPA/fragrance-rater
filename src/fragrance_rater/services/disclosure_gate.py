@@ -96,6 +96,10 @@ GROUP_NEEDS_HOUSEHOLD_REVEAL = (
     "A SHARED_GROUP program reveals every evaluator together; its reveal "
     "policy cannot be ENROLLMENT"
 )
+SHARED_LABELS_NEED_HOUSEHOLD = (
+    "Shared blind codes let one evaluator's own reveal unblind the others; "
+    "the program's reveal policy must be HOUSEHOLD"
+)
 
 
 def effective_reveal_policy(program: Program) -> str:
@@ -122,6 +126,25 @@ def effective_reveal_policy(program: Program) -> str:
 
 def _refuse(message: str, status: int = 409) -> NoReturn:
     raise HTTPException(status_code=status, detail=message)
+
+
+def require_household_for_shared_labels(program: Program) -> None:
+    """Refuse a shared-label enrollment unless the program reveals as a household.
+
+    # #CRITICAL: security: with one blind code per physical sample for every
+    # evaluator (``label_scheme="shared"``), one evaluator's own reveal would
+    # unblind that code for all the others, exactly as in ``SHARED_GROUP``.
+    # Only a program whose effective reveal policy is ``HOUSEHOLD`` reveals
+    # every evaluator together, and an active program's policy cannot change
+    # (the policy endpoint refuses once the program leaves draft).
+    # #VERIFY: test_shared_scheme_requires_household_reveal in
+    # tests/unit/test_services/test_shared_label_enrollment.py.
+
+    Args:
+        program (Program): The program being enrolled into.
+    """
+    if effective_reveal_policy(program) != HOUSEHOLD:
+        _refuse(SHARED_LABELS_NEED_HOUSEHOLD)
 
 
 @dataclass(frozen=True)

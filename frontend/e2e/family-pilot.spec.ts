@@ -105,7 +105,7 @@ test.describe('Family pilot screen', () => {
     await row.getByRole('button', { name: 'Enroll Evaluator Two' }).click()
 
     await expect(page.getByRole('status')).toContainText(
-      'Evaluator Two is enrolled with random blind labels.'
+      'Evaluator Two is enrolled with shared blind labels.'
     )
     await expect(row).toContainText('Enrolled')
     expect(sent.enroll).toEqual([
@@ -113,7 +113,7 @@ test.describe('Family pilot screen', () => {
         reviewer_id: 'r2',
         recorder_usernames: ['manager'],
         session_size: 3,
-        label_scheme: 'random',
+        label_scheme: 'shared',
         randomization_algorithm: 'shared-triples-latin-rotation-v1',
         persistent_membership_ids: [],
         session_template: null,

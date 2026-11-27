@@ -28,7 +28,10 @@ from fragrance_rater.models.fragrance import Fragrance, FragranceGtin
 from fragrance_rater.models.reviewer import Reviewer
 from fragrance_rater.models.soft_delete import is_live
 from fragrance_rater.services.consent import ConsentService
-from fragrance_rater.services.disclosure_gate import DisclosureGate
+from fragrance_rater.services.disclosure_gate import (
+    DisclosureGate,
+    require_household_for_shared_labels,
+)
 from fragrance_rater.services.group_blotter import (
     GROUP_SHARED_BLOTTER_CODE,
     GROUP_SHARED_BLOTTER_RULE_VERSION,
@@ -80,6 +83,35 @@ def reject(message: str, status: int = 409) -> NoReturn:
 
 UNPINNED_INSTRUMENT_PREFIX = "unpinned-app-"
 
+_SHARED_CODES_NEED_MAP = (
+    "The program's first shared enrollment needs membership_codes: one blind "
+    "code for every membership"
+)
+_SHARED_CODES_COVERAGE = (
+    "membership_codes must cover every membership of this program, and only those"
+)
+_SHARED_CODES_DIFFER = (
+    "membership_codes differ from the blind codes already recorded for this program"
+)
+_SHARED_CODES_NOT_SHARED = (
+    "Earlier enrollments in this program use random blind codes, so shared "
+    "codes cannot be inherited; enroll a new program for shared labels"
+)
+_SHARED_CODES_DISAGREE = (
+    "The program's earlier enrollments disagree on the blind codes of its samples"
+)
+_SHARED_CODES_UNCOVERED = (
+    "The program's recorded blind codes do not cover exactly the samples of its "
+    "session template, so they cannot be inherited"
+)
+_SHARED_CODES_REUSED = (
+    "The program's recorded blind codes give one code to more than one sample"
+)
+_SHARED_CODES_EXIST = (
+    "This program already uses shared blind codes; enroll with label_scheme 'shared'"
+)
+_SHARED_CODES_TAKEN = "These blind codes are already used by individual presentations: "
+
 _MODE_ALGORITHM_MISMATCH = (
     "A SHARED_GROUP program enrolls with shared-triples-group-blotter-v1 "
     "and no other program may use it"
@@ -117,7 +149,8 @@ def confirm_blind_code(presentation: Presentation, confirmed: str | None) -> Non
     """Refuse a write whose confirmed blind code is not this sample's code.
 
     The facilitator reads the code off the paper column; a mismatch means the
-    column is open on the wrong sample or the wrong evaluator's enrollment.
+    column is open on the wrong sample. Under per-evaluator codes it also meant
+    the wrong evaluator's enrollment; shared codes no longer carry that signal.
 
     Args:
         presentation (Presentation): The sample being written.
@@ -126,8 +159,16 @@ def confirm_blind_code(presentation: Presentation, confirmed: str | None) -> Non
     """
     # #CRITICAL: data-integrity: a transcribed column keyed to the wrong sample
     # is silent corruption (observations are append-only and locked).
+    # With label_scheme "shared" the code names the sample, not the evaluator:
+    # every evaluator's enrollment holds the same code, so this check still
+    # catches the wrong sample but no longer catches a column typed into the
+    # wrong evaluator's enrollment. Do not rely on it for that.
     # #VERIFY: a transcription client always sends confirmed_blind_code; tests
-    # cover a mismatch (409), a case-insensitive match, and omission.
+    # cover a mismatch (409), a case-insensitive match, and omission. The
+    # wrong-evaluator guard is procedural (docs/planning/gates/f1.md, sign-off
+    # 19, consequence (a)): one recorder, one evaluator's sheets at a time, and
+    # the name and paper record ID on the sheet checked against the enrollment
+    # on screen before saving.
     if confirmed is not None and (
         confirmed.strip().upper() != presentation.blind_code.strip().upper()
     ):
@@ -437,6 +478,7 @@ class CalibrationService:
             reject("Reviewer already enrolled")
         await self._require_one_algorithm(program_id, data.randomization_algorithm)
         grouped = self._require_matching_mode(program, data.randomization_algorithm)
+        self._require_label_scheme_allowed(program, data)
         get_llm_service().invalidate_reviewer_cache(data.reviewer_id)
         if grouped:
             return await self._enroll_group_blotter(program_id, data, actor)
@@ -487,8 +529,10 @@ class CalibrationService:
         session_created_at = now_naive_utc()
         # #ASSUME: Concurrency: the enrollment ordinal below is a row count, so
         # two simultaneous standard-scheme enrollments could compute the same
-        # prefix. #VERIFY: Presentation.blind_code is globally UNIQUE, so a
-        # collision fails the transaction loudly instead of duplicating labels.
+        # prefix. #VERIFY: an individual (shared_blind_code false) code is
+        # globally UNIQUE through a partial unique index, so a collision fails
+        # the transaction loudly instead of duplicating labels. Shared codes
+        # are unique per session only and do not use this prefix.
         enrollment_ordinal = (
             await self.db.scalar(select(func.count()).select_from(Enrollment)) or 1
         )
@@ -522,6 +566,17 @@ class CalibrationService:
                     )
         await self.db.flush()
         return enrollment
+
+    @staticmethod
+    def _require_label_scheme_allowed(program: Program, data: EnrollmentInput) -> None:
+        """Refuse a label scheme the program's disclosure policy cannot protect.
+
+        Args:
+            program (Program): The program being enrolled into.
+            data (EnrollmentInput): The enrollment request.
+        """
+        if data.label_scheme == "shared":
+            require_household_for_shared_labels(program)
 
     @staticmethod
     def _require_matching_mode(program: Program, algorithm: str) -> bool:
@@ -729,6 +784,96 @@ class CalibrationService:
             codes -= taken
         reject("Could not draw unique blind codes; retry the enrollment", 503)
 
+    async def _recorded_shared_codes(self, program_id: str) -> dict[str, str] | None:
+        """Return the blind code every earlier enrollment gave each membership.
+
+        Args:
+            program_id (str): The program.
+
+        Returns:
+            dict[str, str] | None: Membership id to its one recorded code, or
+            ``None`` when the program has no presentations yet.
+        """
+        rows = (
+            await self.db.execute(
+                select(
+                    Presentation.membership_id,
+                    Presentation.blind_code,
+                    Presentation.shared_blind_code,
+                )
+                .join(CalibrationSession)
+                .join(Enrollment)
+                .where(Enrollment.program_id == program_id)
+            )
+        ).all()
+        if not rows:
+            return None
+        # #CRITICAL: data-integrity: a shared code is only meaningful if every
+        # evaluator holds the same one for a sample. Earlier rows that are
+        # non-shared, or that disagree, are refused instead of guessed at.
+        # #VERIFY: test_earlier_non_shared_codes_block_a_shared_enrollment and
+        # test_earlier_enrollments_that_disagree_are_refused_not_guessed.
+        if not all(shared for _, _, shared in rows):
+            reject(_SHARED_CODES_NOT_SHARED)
+        recorded: dict[str, set[str]] = {}
+        for membership_id, code, _ in rows:
+            recorded.setdefault(membership_id, set()).add(code)
+        if any(len(codes) != 1 for codes in recorded.values()):
+            reject(_SHARED_CODES_DISAGREE)
+        assigned = {mid: next(iter(codes)) for mid, codes in recorded.items()}
+        if len(set(assigned.values())) != len(assigned):
+            reject(_SHARED_CODES_REUSED)
+        return assigned
+
+    async def _shared_label_codes(
+        self,
+        program_id: str,
+        template: Template,
+        supplied: dict[str, str] | None,
+    ) -> dict[str, str]:
+        """Resolve the one blind code per membership for a shared-label enrollment.
+
+        Later enrollments reuse the recorded codes exactly. The first one must
+        supply a code for every membership, none of which may already be an
+        individual code.
+
+        Args:
+            program_id (str): The program.
+            template (Template): The program's shared session template.
+            supplied (dict[str, str] | None): The request's ``membership_codes``.
+
+        Returns:
+            dict[str, str]: Membership id to its shared blind code.
+        """
+        ids = {mid for session in template for mid in session}
+        recorded = await self._recorded_shared_codes(program_id)
+        if recorded is not None:
+            if set(recorded) != ids:
+                reject(_SHARED_CODES_UNCOVERED)
+            if supplied is not None and supplied != recorded:
+                reject(_SHARED_CODES_DIFFER)
+            return recorded
+        if supplied is None:
+            reject(_SHARED_CODES_NEED_MAP, 422)
+        if set(supplied) != ids:
+            reject(_SHARED_CODES_COVERAGE, 422)
+        # #ASSUME: data-integrity: the schema already made the codes distinct
+        # and well formed; the only collision left is with another program's
+        # individual (non-shared) code, which the partial unique index would
+        # otherwise surface as an opaque IntegrityError at flush.
+        # #VERIFY: test_a_code_colliding_with_an_existing_individual_code_is_refused.
+        taken = sorted(
+            await self.db.scalars(
+                select(Presentation.blind_code).where(
+                    Presentation.blind_code.in_(set(supplied.values())),
+                    Presentation.shared_blind_code.is_(False),
+                )
+            )
+        )
+        if taken:
+            reject(_SHARED_CODES_TAKEN + ", ".join(taken))
+        return dict(supplied)
+
     async def _enroll_shared_triples(
         self, program_id: str, data: EnrollmentInput
     ) -> Enrollment:
@@ -736,17 +881,42 @@ class CalibrationService:
 
         Every evaluator gets the same sessions in the same order; inside each
         session the order follows a balanced Latin-square row chosen by the
-        evaluator's rotation and the session number. Codes are always random
-        and evaluator-specific.
+        evaluator's rotation and the session number. Codes are random and
+        evaluator-specific, except with ``label_scheme="shared"``, where each
+        membership carries one code for every evaluator (see
+        ``_shared_label_codes``).
         """
         # #ASSUME: concurrency: enroll() holds the program row lock
         # (SELECT ... FOR UPDATE in program()) for the whole transaction, so
         # two first enrollments cannot generate two different templates and
         # two later ones cannot take the same rotation.
         # #VERIFY: on SQLite the lock is a no-op; production runs PostgreSQL.
+        # #CRITICAL: concurrency: a shared-label enrollment reads the codes the
+        # program's earlier enrollments recorded and then writes the same ones.
+        # The program row lock above serializes two enrollments of one program,
+        # so the second reads the first's committed presentations (READ
+        # COMMITTED re-reads after the lock) and cannot record a different code.
+        # #VERIFY: PostgreSQL only; on SQLite the lock is a no-op and the unit
+        # tests exercise the same reads sequentially (test_shared_label_enrollment.py).
         template, _, rotation, generated, _ = await self.shared_template(
             program_id, data
         )
+        shared_codes: dict[str, str] | None = None
+        if data.label_scheme == "shared":
+            shared_codes = await self._shared_label_codes(
+                program_id, template, data.membership_codes
+            )
+        elif await self.db.scalar(
+            select(Presentation.id)
+            .join(CalibrationSession)
+            .join(Enrollment)
+            .where(
+                Enrollment.program_id == program_id,
+                Presentation.shared_blind_code.is_(True),
+            )
+            .limit(1)
+        ):
+            reject(_SHARED_CODES_EXIST)
         enrollment = Enrollment(
             program_id=program_id,
             reviewer_id=data.reviewer_id,
@@ -759,7 +929,11 @@ class CalibrationService:
         self.db.add(enrollment)
         await self.db.flush()
         order = evaluator_order(template, rotation)
-        codes = iter(await self._unique_codes(sum(len(s) for s in order)))
+        codes = iter(
+            await self._unique_codes(sum(len(s) for s in order))
+            if shared_codes is None
+            else []
+        )
         # Same created_at tie-break as enroll(): presentations() orders
         # sessions by (created_at, id), so each session is one microsecond
         # later than the previous one.
@@ -776,7 +950,12 @@ class CalibrationService:
                     Presentation(
                         session_id=session.id,
                         membership_id=membership_id,
-                        blind_code=next(codes),
+                        blind_code=(
+                            next(codes)
+                            if shared_codes is None
+                            else shared_codes[membership_id]
+                        ),
+                        shared_blind_code=shared_codes is not None,
                         position=position,
                         intended_position=position,
                     )

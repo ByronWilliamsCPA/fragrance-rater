@@ -20,10 +20,14 @@ type Props = {
 
 /**
  * The family pilot is one fixed design, so enrollment sends fixed values and
- * has no controls: shared sessions in a balanced Latin-square order, random
- * blind labels (a standard label's session number would say who shares a
- * fragrance), three samples per session, and no persistent or animalic flags.
- * The enroll tests pin this payload.
+ * has no controls: shared sessions in a balanced Latin-square order, shared
+ * blind labels (one code per sample, never a standard label, whose session
+ * number would say who shares a fragrance), three samples per session, and no
+ * persistent or animalic flags. The page supplies no codes: the server gives
+ * each evaluator the codes the program's existing enrollments already hold. A
+ * program's first shared enrollment, or a program whose enrollments used random
+ * codes, needs the API with `membership_codes`; this page cannot do that and
+ * shows the server's refusal. The enroll tests pin this payload.
  */
 const SHARED_TRIPLES = 'shared-triples-latin-rotation-v1'
 const SAMPLES_PER_SESSION = 3
@@ -168,7 +172,7 @@ export function FamilyPilotPage({
         reviewer_id: reviewer.id,
         recorder_usernames: [username],
         session_size: SAMPLES_PER_SESSION,
-        label_scheme: 'random',
+        label_scheme: 'shared',
         randomization_algorithm: SHARED_TRIPLES,
         persistent_membership_ids: [],
         session_template: null,
@@ -196,7 +200,7 @@ export function FamilyPilotPage({
     if (facilitator) setFlagOwed(forProgram, reviewer.id, true)
     await tryRefreshReadiness(forProgram)
     if (!facilitator) {
-      task.setNotice(`${reviewer.name} is enrolled with random blind labels.`)
+      task.setNotice(`${reviewer.name} is enrolled with shared blind labels.`)
       return
     }
     // The flag must land before the page calls this evaluator done. If it
@@ -310,7 +314,7 @@ export function FamilyPilotPage({
           <h3>Evaluators</h3>
           <p>
             Enrolling uses the pilot settings and cannot be changed here: shared sessions of{' '}
-            {SAMPLES_PER_SESSION} samples, random blind labels, and you ({username || 'signed in'})
+            {SAMPLES_PER_SESSION} samples, shared blind labels, and you ({username || 'signed in'})
             as the one recorder.
           </p>
           <AddEvaluatorForm task={task} reload={reload} />

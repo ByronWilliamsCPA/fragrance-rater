@@ -155,6 +155,9 @@ RandomizationAlgorithm = Literal[
 _SHARED_TRIPLES = "shared-triples-latin-rotation-v1"
 _GROUP_BLOTTER = "shared-triples-group-blotter-v1"
 _TEMPLATE_ALGORITHMS = (_SHARED_TRIPLES, _GROUP_BLOTTER)
+# A shared blind code is a physical atomizer label such as B07 or H02: upper-case
+# letters, digits and dashes, and short enough for ``blind_code`` String(24).
+SharedBlindCode = Annotated[str, Field(pattern=r"^[A-Z0-9-]{1,24}$")]
 SessionTemplate = list[
     Annotated[
         list[Annotated[str, Field(min_length=1, max_length=36)]],
@@ -191,9 +194,19 @@ class EnrollmentInput(SharedTemplateInput):
     # every evaluator the same blind code and the same order.
     randomization_algorithm: RandomizationAlgorithm = "system-random-shuffle-v1"
     # "standard" yields readable labels (E01-S1-2) that are easy to write on
-    # vials; "random" keeps the independent 8-hex-character codes. Unset means
-    # "standard" for the independent shuffle and "random" for shared sessions.
-    label_scheme: Literal["standard", "random"] | None = None
+    # vials; "random" keeps the independent 8-hex-character codes; "shared"
+    # (shared-triples-latin-rotation-v1 only) gives every evaluator the same
+    # blind code per physical sample, so a vial carries one label for the whole
+    # household. Unset means "standard" for the independent shuffle and
+    # "random" for shared sessions.
+    label_scheme: Literal["standard", "random", "shared"] | None = None
+    # Only with label_scheme "shared": the code for EVERY membership of the
+    # program (membership id to code). Required on the program's first shared
+    # enrollment; later enrollments inherit the recorded codes and may omit it
+    # (a supplied map must equal the recorded one).
+    membership_codes: (
+        dict[Annotated[str, Field(min_length=1, max_length=36)], SharedBlindCode] | None
+    ) = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def _shared_options_need_shared_algorithm(self) -> Self:
@@ -205,6 +218,19 @@ class EnrollmentInput(SharedTemplateInput):
         if shared and self.label_scheme == "standard":
             msg = "Shared sessions require random blind codes, not standard labels"
             raise ValueError(msg)
+        if self.label_scheme == "shared" and (
+            self.randomization_algorithm != _SHARED_TRIPLES
+        ):
+            msg = f"label_scheme 'shared' requires the {_SHARED_TRIPLES} algorithm"
+            raise ValueError(msg)
+        if self.membership_codes is not None:
+            if self.label_scheme != "shared":
+                msg = "membership_codes apply only with label_scheme 'shared'"
+                raise ValueError(msg)
+            codes = list(self.membership_codes.values())
+            if not codes or len(set(codes)) != len(codes):
+                msg = "membership_codes must be non-empty with a distinct code each"
+                raise ValueError(msg)
         if not shared and (
             self.session_template is not None or self.persistent_membership_ids
         ):

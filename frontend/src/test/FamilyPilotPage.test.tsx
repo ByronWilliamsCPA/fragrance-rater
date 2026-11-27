@@ -255,13 +255,13 @@ describe('family pilot page: evaluators', () => {
       reviewer_id: 'r1',
       recorder_usernames: ['manager-user'],
       session_size: 3,
-      label_scheme: 'random',
+      label_scheme: 'shared',
       randomization_algorithm: 'shared-triples-latin-rotation-v1',
       persistent_membership_ids: [],
       session_template: null,
     })
     expect(await screen.findByRole('status')).toHaveTextContent(
-      'Alice is enrolled with random blind labels.'
+      'Alice is enrolled with shared blind labels.'
     )
     // Enrolled now, so the row shows it and offers no second enrollment.
     expect(await screen.findByRole('button', { name: 'Enroll Byron' })).toBeInTheDocument()
