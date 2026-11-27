@@ -168,7 +168,7 @@ export function FamilyPilotPage({
         reviewer_id: reviewer.id,
         recorder_usernames: [username],
         session_size: SAMPLES_PER_SESSION,
-        label_scheme: 'random',
+        label_scheme: 'shared',
         randomization_algorithm: SHARED_TRIPLES,
         persistent_membership_ids: [],
         session_template: null,
@@ -196,7 +196,7 @@ export function FamilyPilotPage({
     if (facilitator) setFlagOwed(forProgram, reviewer.id, true)
     await tryRefreshReadiness(forProgram)
     if (!facilitator) {
-      task.setNotice(`${reviewer.name} is enrolled with random blind labels.`)
+      task.setNotice(`${reviewer.name} is enrolled with shared blind labels.`)
       return
     }
     // The flag must land before the page calls this evaluator done. If it
@@ -310,7 +310,7 @@ export function FamilyPilotPage({
           <h3>Evaluators</h3>
           <p>
             Enrolling uses the pilot settings and cannot be changed here: shared sessions of{' '}
-            {SAMPLES_PER_SESSION} samples, random blind labels, and you ({username || 'signed in'})
+            {SAMPLES_PER_SESSION} samples, shared blind labels, and you ({username || 'signed in'})
             as the one recorder.
           </p>
           <AddEvaluatorForm task={task} reload={reload} />
