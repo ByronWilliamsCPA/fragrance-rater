@@ -375,7 +375,8 @@ END BASELINE DEVELOPMENT STANDARDS
 > (R7b via the P6.3 synthetic rehearsal), R13 and R14's operations items (per their sprint-table rows),
 > and the P6 pilot-readiness gate precede F1 family perfume testing (R2 and R5-R8 also gate F1 directly).
 > As of 2026-11-07, R1-R5 are done (R4 merged as #149) and R6 PRs 1 and 2 are merged (#151, #157); the 43-version
-> alias decisions can proceed now that the P1.1 manifest is validated (2026-11-24, single-checker pass). R7a is merged (#160, #161); R7b's code is merged (#165, #167), its
+> alias decisions can proceed now that the P1.1 manifest is validated (2026-11-24, single-checker pass), but they
+> no longer gate F1 (owner decision 2026-11-26; they are a D1 prerequisite). R7a is merged (#160, #161); R7b's code is merged (#165, #167), its
 > P6.3 acceptance export is still owed, and the consent wording was approved on 2026-11-01. R8 PR 1 (schema) is merged
 > (#172); R8 PR 2 (readers on `v_training_rows`, eligibility promotion, triggers, jsonb, UTC, idempotency, checkpoint
 > reproduction) is merged (#181), as is its review follow-up (#182: flag-resolution outcome stored, snapshot race),
@@ -426,7 +427,7 @@ END BASELINE DEVELOPMENT STANDARDS
 | P3 | Role-aware routed product foundation |
 | P4 | Complete participant experience |
 | P5 | Complete manager, reporting, and operations experience |
-| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1; R1-R5, R7a, R8, R13 and R14 are done, R7b's code is merged but its P6.3 acceptance export is still owed, R6's alias decisions can now proceed against the validated P1.1 manifest |
+| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1 (R6's alias decisions excepted: a D1 prerequisite by owner decision 2026-11-26); R1-R5, R7a, R8, R13 and R14 are done, R7b's code is merged but its P6.3 acceptance export is still owed, R6's alias decisions can now proceed against the validated P1.1 manifest |
 | P6 | Deployed synthetic rehearsal and pilot-readiness decision |
 | F1 | Initial family pilot using actual perfumes |
 | D1 | Source and vocabulary foundation |
