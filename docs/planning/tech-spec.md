@@ -212,6 +212,66 @@ The unversioned compatibility routes are legacy surfaces and must be inventoried
 P2 adds versioned recommendation measurement routes. All route changes update generated OpenAPI in
 the same pull request.
 
+### Calibration enrollment and blind code contract
+
+`POST /api/v1/calibration/programs/{program_id}/enroll` is manager-only and returns `201` with the new enrollment id.
+Generated OpenAPI is the field reference; this section records the blind-code rules (ADR-005 owns the protocol).
+
+- `randomization_algorithm`: `system-random-shuffle-v1` (default), `shared-triples-latin-rotation-v1`, or
+  `shared-triples-group-blotter-v1` (`SHARED_GROUP` programs only; unused by F1).
+- `label_scheme`: `standard` (readable `E01-S1-2` labels; refused with either shared-triples algorithm), `random`
+  (independent 8-character hex code per presentation), or `shared`. Unset means `standard` for the independent shuffle
+  and `random` for shared-triples sessions. The scheme is a request value only: no column or audit field stores it. What
+  persists is `Presentation.shared_blind_code`.
+- `label_scheme: "shared"` (added in #243) requires `shared-triples-latin-rotation-v1` and a program whose effective
+  reveal policy is `HOUSEHOLD`. Every evaluator then holds one blind code per physical sample, identical across
+  evaluators, and each presentation is stored with `shared_blind_code = true`.
+- `membership_codes` (membership id to code) is accepted only with `label_scheme: "shared"`. Each code matches
+  `^[A-Z0-9-]{1,24}$` and codes are distinct. A program's first shared enrollment must supply a code for every
+  membership of the program and no others. Later shared enrollments inherit the codes already recorded by the program's
+  earlier enrollments and may omit the map; a supplied map must equal the recorded one.
+- Error cases. Schema validation returns `422` for `shared` with another algorithm, `membership_codes` without
+  `shared`, duplicate or malformed codes, and `standard` with a shared-triples algorithm. The service returns `422` when
+  a first shared enrollment omits `membership_codes` or the map does not cover exactly the program's memberships. It
+  returns `409` when the reveal policy is not `HOUSEHOLD`; when a supplied map differs from the recorded codes; when
+  earlier enrollments hold non-shared codes, disagree among themselves, give one code to two samples, or do not cover
+  the session template; when a supplied code is already an individual presentation's code; and when a program that
+  already holds shared codes is enrolled on a shared-triples algorithm without `label_scheme: "shared"`. All of these are decided before any row is
+  added.
+- Uniqueness. `UNIQUE (session_id, blind_code)` and `UNIQUE (session_id, position)` hold within a session. A partial
+  unique index on `blind_code` where `shared_blind_code` is false covers individual codes across the table. Shared codes
+  are not compared across programs, so two programs may both use a code such as one atomizer label; nothing looks a
+  presentation up by blind code across programs, and a lookup that does must be scoped by program.
+- Template provenance. `Enrollment.randomization_seed` stores `rotation=<k>;template=sha256:<digest>`, plus
+  `;generated=<seed>` when the server generated the session template (absent when a manager supplied it). It does not
+  store a manifest hash.
+- Blind-code confirmation. When a transcription client sends `confirmed_blind_code`, a write is refused with `409`
+  unless it matches the stored code (compared trimmed and case-insensitively); omitting it skips the check. With shared
+  codes the check still catches the wrong sample but cannot tell one evaluator's sheet from another's, so catching a
+  sheet entered under the wrong evaluator is procedural in such a program (F1 gate sign-off 19).
+
+### Evaluator login linkage (Proposed, post-F1)
+
+Current contract, verified against the code at `6635413`: a non-manager login acts for an evaluator only if it is listed
+in `Enrollment.recorder_usernames`, set at enrollment and not changed by any route afterward. Every listed login has the
+same rights (blind view, session start and end, observations, stage locks, skin plan, consent), `Reviewer` has no login
+column, and the server records no entry mode and no session owner. `Observation.recorded_by` is stored but is not in the
+evidence export, and observation and session writes emit no audit event. Reviewer identity and `recorded_by` stay
+independent (see the trust boundary above). Authorization matches the `X-Authentik-Username` header value exactly
+and case-sensitively; the forwarded uid and email are read but not used for it, and the backend has no token
+verification.
+
+Proposed target, not decided and not part of the F1 instrument: a link from a provider-neutral external identity (an
+(issuer, subject) pair, not an Authentik username) to the reviewer it may act for, a
+participant role with narrower rights than a recorder, a server-computed entry mode, session ownership with a manager
+hand-off, `recorded_by` and entry source in the export, audit events for those writes, and an explicit correction path
+in place of silent supersession. Options and trade-offs are in
+[PROJECT-PLAN section 11a](PROJECT-PLAN.md#post-f1-follow-up-evaluator-login-linkage-proposed-2026-11-27); the policy
+change is the Proposed amendment in
+[ADR-008](adr/adr-008-authentication-and-production-boundary.md#proposed-amendment-2026-11-27-linking-logins-to-reviewers).
+Reveal, mapping and checkpoints stay manager-only, and any token-based path must verify signatures in the backend and
+leave the forwarded-header trust boundary intact. This section changes no current contract.
+
 ## D1 source and vocabulary contract
 
 Every source or vocabulary snapshot records:

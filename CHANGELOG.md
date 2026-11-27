@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and Haiku for subagents.
 - Tag allowlist expanded with `project`, `feedback`, and `template`; the
   `template` tag is now applied to `docs/ADRs/adr-template.md`.
+- Calibration enrollment accepts `label_scheme: "shared"` and an optional
+  `membership_codes` map, so every evaluator in a program sees one shared blind
+  code per physical sample. Later enrollments inherit the recorded codes, and
+  conflicting or reused codes are refused with a 409. Requires the shared-triples
+  algorithm and a program with household reveal.
+- A fixed "Family pilot" screen at `/programs` that runs only the F1 flow
+  (enroll evaluators into the one active household-reveal program, flag a
+  facilitator non-blind, report done); the full program setup page moved to
+  `/programs/advanced`. Program setup also gained an add-evaluator form.
 
 ### Changed
 

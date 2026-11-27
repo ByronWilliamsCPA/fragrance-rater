@@ -52,7 +52,7 @@ evidence are retained in the linked gate records and PRs #70-#74.
 | Live PostgreSQL calibration migration | Fresh-schema verified; production auto-migration added 2026-09-20 | Full upgrade reaches current head on PostgreSQL 16 (single head `736b7db082fb` on `main` as of 2026-11-07 (#187); after `c5a9e2d7f1b4` the chain runs `000091664cdd` (R6 PR 1, #151), `3f14014a49cb` (R7a PR 1, #160), `cd1e2375a2e4` (R7a PR 2, #161), `f74bf7ff9c2d` (R7b PR 1, #165), `620c8c861268` (R8 PR 1, #172), `4edb5c967539` (R8 PR 2, #181), `50c1f75abb15` (#182), `52e22be935d3` (#185) and `736b7db082fb` (#187); the earlier part of the chain runs `7daf681ed339` (reverified 2026-09-19), `a3f8c1d9e2b7` (PR #125), `2c8c3971bfd8` (R2 PR 1, #135), `df2f9646a280` (R2 PR 2, #136), `b7e3d91a4c2f` and `c5a9e2d7f1b4` (house intake, #137, re-parented onto R2); `alembic check` clean against an empty PostgreSQL 16 database at R2 PR 2 on 2026-10-02); a duplicate revision-id collision briefly broke `main`'s migration chain after the P5 audit until its 2026-09-13 fix (PR #80); R2 PR 1 added a PostgreSQL parity test and an enforced naming convention that catch this class of issue in CI. Separately, production itself had no automated migration step at all: no CI step, Dockerfile instruction, or entrypoint ran `alembic upgrade head` against it, until the first manager login 500'd on missing tables and PR #111 (2026-09-20) added `docker-entrypoint.sh` to run it on container start. That closes the automation gap going forward; it is not P1.3's required backup-clone evidence (no restore, no before/after inventory, no concurrency test), so P1 still requires a production backup-clone exercise |
 | ML pipeline skeleton | Implemented, no learned model | `fragrance_rater.ml`: versioned feature space, model objects with digested parameters, dataset builder, repeat reliability, holdout scorecards, prospective prediction runner (ML structure review, Tier 2 and 3) |
 | Review remediation and ML foundation | In progress; R1-R5 done; R6 PRs 1 and 2 merged (#151, #157), alias decisions no longer gate F1 (D1 prerequisite, owner decision 2026-11-26); R7a merged (#160, #161); R7b merged (#165, #167), with the consent text approved by the owner on 2026-11-01 (`family-consent-v1`); R8 PR 1 (schema: training eligibility, `v_training_rows`, source provenance, checkpoint reproduction) merged (#172); R8 PR 2 (readers on the view, option C eligibility promotion, manager linkage, immutability triggers, jsonb, UTC, `live()`, observation idempotency key, checkpoint reproduction) merged (#181; migration `4edb5c967539`), review follow-up #182 merged (migration `50c1f75abb15`). R8 is done; R13 is done (#168, #173, #174, #175); R14 is done: PRs 1, 2 and 3a merged as #170, #171 and #179, and PR 3b merged on 2026-11-06 as #192 `381d33c` (runtime hardening S-13, `BUILD_ENV` removal S-20) and #193 `8a0d038` (digest-pinned base images, cosign signing S-12); a deployer-side `cosign verify` is still owed | Milestone R (section 11a); sprints R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), R2 and R5-R8 gate F1; R13 and R14 also gate P6 for the scope named in their table rows (see sequencing note 6); open PR state is in section 11b |
-| P6 and F1 entry (2026-11-27) | Owner waiver and `go` recorded; F1 program activated | P6.3 waived (F1 gate sign-off 18), not passed; P6.6 `go` recorded with the waivers (#239); P6.2 and P6.4 unrecorded, P6.1 and P6.5 partly done (section 11). F1 program v3.2 activated 2026-11-27 (section 12) |
+| P6 and F1 entry (2026-11-27) | Owner waiver and `go` recorded; F1 program activated | P6.3 waived (F1 gate sign-off 18), not passed; P6.6 `go` recorded with the waivers (#239); P6.2 and P6.4 unrecorded, P6.1 and P6.5 partly done (section 11). F1 program v3.2 activated 2026-11-27 (section 12), with shared atomizer-label blind codes (F1 gate sign-off 19; the enrollment path for them, #243, is merged and not recorded as deployed) |
 | Candidate discovery and catalog statistics | Planned | D1–D5 |
 
 Status terms:
@@ -498,8 +498,18 @@ done on this account.
 **F1 program.** The F1 program is `v3.2` (id `a70dab0d-8581-4d3b-9e8d-ba597d784895`), activated 2026-11-27 with
 `HOUSEHOLD` reveal policy, `INDIVIDUAL` blotters and 49 memberships, pinned to build `94f6cf22`. The `v3.1` program was
 activated with the wrong reveal policy and is inert. All six real evaluators are enrolled with
-`shared-triples-latin-rotation-v1` and random blind labels, and the holder is flagged non-blind on all sessions. The
-evaluator-to-label mapping and the evidence files stay outside git.
+`shared-triples-latin-rotation-v1`, and the holder is flagged non-blind on all sessions. The evaluator-to-label mapping
+and the evidence files stay outside git.
+
+**Shared blind codes in `v3.2` (2026-11-27).** The six enrollments were created with random per-evaluator blind codes.
+The owner then decided that all six evaluators see one code per physical sample, equal to the atomizer label, and the
+stored codes were replaced by a reviewed one-off data update ([F1 gate sign-off 19](gates/f1.md), which owns the
+record, the accepted consequences and what is still owed). For `v3.2` the wrong-evaluator sheet check is therefore
+procedural, not a server guard. PR #243 (merged 2026-11-27, `6635413`) adds the enrollment code path that sign-off 19(d)
+said was not yet made: `label_scheme: "shared"` on `shared-triples-latin-rotation-v1` enrollments, where a program's
+first shared enrollment supplies the codes and later ones inherit them, with no migration. Nothing in these documents
+records #243 as deployed: the instrument pin stays `94f6cf22`, and the build and pin decision it needs is open and is
+not made here.
 
 **Manager screen.** PR #240 (merged 2026-11-27, `08ac9f5`) replaced the manager Program setup page with a fixed Family
 pilot screen at `/programs` and moved the previous page to `/programs/advanced`. It is merged and **not deployed to
@@ -633,6 +643,7 @@ is not gate evidence: no P6 or F1 gate changes because of it.
 | Docs: protocol amendments | ADR-005 and ADR-009 amendments, calibration-v1 and baseline-evidence randomisation wording, the F1 gate declaration, this plan, the blind-evaluation workflow | Merged (#212); not itself gate evidence |
 | Non-blind quality flag | A quality-flag code for the holder's rows (needs a CHECK-constraint migration) and honoring it in the evidence export and training eligibility | Merged (#213), with the `spray_to_smell_ceiling_exceeded` code; the holder's rows leave blind-baseline training and stay in evaluation. Follow-up: `ml.reliability.pooled_reliability_both_ways` is not yet called by any report or export |
 | Shared-triple enrollment | A manager-supplied session composition with per-session Latin-square rotation, random evaluator-specific codes, holdouts last, repeat separation validated, actual order persisted; the persistent-or-animalic limit enforced if the needed data exists | Merged (#211; the Latin-square order applies to individual mode, which F1 uses again; the unused group blotter mode below gives all evaluators the same order): `shared-triples-latin-rotation-v1`, manager-supplied session composition and persistent-sample list, random evaluator-specific codes (standard labels refused), a manager-only session-plan preview, actual order persisted; no migration |
+| Shared blind labels at enrollment (#243, 2026-11-27) | `label_scheme: "shared"` for `shared-triples-latin-rotation-v1`: one blind code per physical sample for every evaluator, equal to the atomizer label; the first shared enrollment of a program supplies `membership_codes`, later enrollments inherit the recorded codes; the program's reveal policy must be `HOUSEHOLD` | Merged (#243, `6635413`): API contract in [tech-spec](tech-spec.md#calibration-enrollment-and-blind-code-contract), frontend Family pilot screen sends `label_scheme: "shared"` and holds no codes, no Alembic migration. Not recorded as deployed; the build and pin decision is open (F1 gate sign-off 19(d)). Not gate evidence |
 | Holdout gate and household reveal | Server-side gate that refuses holdout observation writes until the enrollment has a checkpoint; a manager path to create the checkpoint; a program-level reveal policy that reveals all enrollments together only after every stage, the skin plans, the checkpoints and all holdouts are locked (per-enrollment reveal stays the default); correct phase labelling of holdout rankings | Merged (#214): per-sample `available` flag, `reveal_policy` (`ENROLLMENT` default, `HOUSEHOLD`), program readiness, program checkpoints and household reveal. **Holdouts now need a manager checkpoint in any program with holdouts, including the P6 rehearsal path**, until the wizard adds a button. Follow-ups: a withdrawn evaluator blocks the household reveal with no procedure; whether F1 requires a linked prediction per holdout is an owner decision |
 | Session-scoped wizard | Frontend: no skin-plan step or inline skin-plan form in the blotter flow; session boundary screen; per-session ranking posted to the right session; holdout sequence after the checkpoint; household-reveal waiting screen; role-aware next-sample choice; corrected guidance text; a manager checkpoint action | Merged (#216, `699a513`): session-scoped screens, awaiting-checkpoint, household-wait and household-ready steps, and a manager checkpoint and household reveal panel in Program setup. Not rehearsed in P6.3 |
 | Transcription and timing | Transcription of the paper sheet with the first-smell time sent as the presentation time, the finished time as the observation time, whole-minute elapsed time, session start, end and ranked times, per-session conditions, consent recorded once, and a guard that confirms the blind code printed on the sheet before a column is saved | Merged (#218, `65202bd`): the paper's first-smell, column-finished, session and ranking times reach the backend and are validated; the blind-code confirmation is enforced server side (a mismatch is a 409); a first smell past the ceiling raises `spray_to_smell_ceiling_exceeded`. At merge the ceiling constant was 5 minutes; group blotter mode changes it to 2. Not rehearsed in P6.3 |
@@ -655,7 +666,8 @@ Known gaps and questions carried by these items, not yet resolved:
   owner decided no code change, the reveal waits and the owner decides what to do at that time. The second gap (in group mode a sheet
   entered under the wrong evaluator is not detected, because every enrollment shares the blind code) no longer
   applies to F1: with individual blotters the codes are per evaluator, so the blind-code guard refuses such a sheet
-  (verified in code, `confirm_blind_code`; P6.3 attacks it). The withdrawal gap is listed in the F1 gate and the P6.3
+  (verified in code, `confirm_blind_code`; P6.3 attacks it; amended 2026-11-27: not for `v3.2`, whose codes are
+  shared, so the check is procedural, F1 gate sign-off 19). The withdrawal gap is listed in the F1 gate and the P6.3
   scope.
 
 - The `would_buy` removal that DEC-03 planned was not carried out (R7b row, owner decision 2026-10-30; see
@@ -682,6 +694,146 @@ Known gaps and questions carried by these items, not yet resolved:
   added to the consent text. Decided separately on 2026-11-26 (recorded in the [F1 gate](gates/f1.md)): evaluators walk
   up to the vials as they are ready to spray their own blotter and the facilitator does not schedule turns at the
   vials; P6.3 observes it.
+
+### Post-F1 follow-up: evaluator login linkage (proposed 2026-11-27)
+
+**Status:** Proposed; not started; no owner design decision yet. It does not gate P6 or F1, and it changes no gate,
+sprint or milestone status. It is tracked here as its own item, not as a numbered sprint (the convention of the F1
+facilitated-format work items above), so the Milestone R sprint list stays R1-R15.
+
+**Scope.** Nothing in this item changes program `v3.2`, the F1 procedure, the F1 instrument or the pinned build. For
+F1 only the single recorder login transcribes every evaluator's sheets (owner decision, 2026-11-27, consistent with
+[F1 gate sign-off 19](gates/f1.md)). Any code from this item needs a new build and the owner's explicit decision under
+the build-freeze rule, so it cannot reach F1 participants unless the owner chooses that.
+
+**Owner requirement (2026-11-27), for after F1.** Evaluators must be linkable to their own logins, and mixed entry must
+be possible: the facilitator may enter some of an evaluator's sessions, and that evaluator may enter others herself.
+
+**Entry gate.** F1 evidence reviewed, and an owner decision on the Proposed amendment in
+[ADR-008](adr/adr-008-authentication-and-production-boundary.md#proposed-amendment-2026-11-27-linking-logins-to-reviewers).
+No implementation starts before both.
+
+**Design principle (proposed).** Link a reviewer to a provider-neutral external identity, an (issuer, subject) pair,
+not to an Authentik username. The owner's recollection (2026-11-27, not verified in the repo, recorded in ADR-008) is that
+the original reason for keeping login and reviewer independent was not wanting an app that others may eventually use to
+depend on the owner's personal Authentik account; the repo itself documents only the R3 scope trade-off.
+
+**What exists today.** Verified against the code at `6635413`; the parts not verified are listed as open questions
+below.
+
+- The only link between a non-manager login and an evaluator is `Enrollment.recorder_usernames` (a JSON list on the
+  enrollment). It is written when the enrollment is created and no route or service in `src/` changes it afterward, so a
+  change after enrollment is a manual SQL edit. The `Reviewer` model has no login column.
+- The coupling to avoid: authorization matches the `X-Authentik-Username` header value, trimmed and otherwise exact and
+  case-sensitive (`username in recorder_usernames`). The identity object also carries the `X-Authentik-Uid` and
+  `X-Authentik-Email` headers, but nothing in `src/` uses them for authorization, and there is no token, JWKS or OIDC
+  verification code in the backend.
+- `CalibrationService.enrollment` refuses a non-manager who is not listed, and the presentation- and session-keyed
+  paths (`target`, `session_target`) go through it. A manager passes the check by being on
+  `CALIBRATION_ADMIN_USERNAMES` (`core/auth.py`). The same list is the read grant for the evaluator's history (ADR-008,
+  R3 amendment, Q5).
+- Every listed login has identical rights: read the blind view, start and end sessions, write observations, lock stages,
+  plan skin tests, lock the skin plan, record and withdraw the reviewer's consent. Mapping, checkpoints and household
+  reveal are manager-only. There is no participant role.
+- The frontend decides paper-transcription mode from the program's reveal policy alone (`isTranscribed` in
+  `frontend/src/content/transcription.ts` returns true for `HOUSEHOLD`). The backend `observe_once` never reads the
+  reveal policy or any entry mode, so nothing on the server distinguishes a facilitator's transcription from an
+  evaluator's own entry.
+- A single-enrollment reveal on a `HOUSEHOLD` program is refused server-side
+  (`DisclosureGate.require_enrollment_reveal_allowed`), and the household reveal is manager-only. Under shared blind
+  codes one evaluator's reveal would unblind the others, so reveal must stay manager-controlled for any shared-code
+  program.
+- `start_session` refuses a second start, but `CalibrationSession` records no actor (it has `started_at`, `ended_at`
+  and the timezone, with no `started_by` or `recorded_by`), and a different listed login can still write observations
+  to a started session.
+- Observations have no uniqueness on presentation, stage and phase. A second submission with a new or no idempotency
+  key appends a row, and the table is append-only by database trigger. `v_training_rows` keeps the latest `PRE_REVEAL`
+  observation per presentation and stage (by `created_at`, then `id`, ignoring rows marked `invalidated`), whoever wrote
+  it, and counts a stage only once it is locked. So until the stage is locked a later entry silently supersedes an
+  earlier one.
+- `Observation.recorded_by` is stored, but `observation_payload` (used by the evidence export) omits `recorded_by`,
+  `training_eligibility` and `idempotency_key`, so the export cannot show who entered a row.
+- The audit trail (`log_audit_event`) covers program, enrollment, consent, lock, reveal, checkpoint and mapping actions.
+  The observation, exposure, session start and session end routes emit none.
+
+**Design (proposal, options and trade-offs; nothing here is decided).**
+
+1. Where the link lives. Option A: a mapping table, for example `reviewer_identities`, keyed by
+   (issuer, subject) and unique on that pair, linking an external identity to a reviewer (a reviewer may have several
+   identities, and one identity several reviewers, which a guardian with minors needs); the participant role itself
+   lives on the enrollment, so a link alone grants nothing. It is provider-neutral and fits history and recommendation
+   reads, at the cost of a new personal-data mapping with its own removal rules. Option B: a per-enrollment list beside
+   `recorder_usernames` (for example `participant_usernames`). It reuses the existing shape and scopes the grant to one
+   program, but it keeps the username coupling, repeats for every enrollment and gives no person-level view. Option C:
+   a login column on `Reviewer`. It is the simplest and the least flexible (one login per reviewer, no guardian case)
+   and it couples the reviewer row to one provider. The ADR-008 amendment asks the owner to choose; Option A is the one
+   that follows the design principle.
+2. A participant role with narrow rights: the evaluator's own blind view, start and end of her own sessions, and her own
+   observations and exposure stamps. No consent recording, reveal, skin-plan, mapping or stage lock unless a
+   justification is written down; guardian consent for minors stays with the manager.
+3. An entry mode computed on the server, independent of the reveal policy, and enforced in `observe_once`, so the
+   client cannot choose it. Whether it is stored per session or per observation is open.
+4. Session ownership stamped when a session starts (who, and self-entered versus facilitator-transcribed), with writes
+   from a different login rejected except by a manager. This is what makes mixed entry safe, at the cost of a manager
+   step to hand a session across.
+5. `recorded_by` and the entry source added to the evidence export, and audit events added for observation, exposure,
+   session start and session end writes.
+6. An explicit correction path, so that a second pre-lock entry for the same presentation and stage is never a silent
+   replacement: either refuse a second entry and offer a correction that links to the row it replaces, or keep both and
+   require a stated reason. This interacts with the `v_training_rows` supersession rule and needs review against the R8
+   dataset rules.
+7. Delivery: an Alembic migration, a backend change, a frontend change and a new frontend build. Check
+   `alembic heads` before adding the revision.
+8. The ADR-008 amendment, and a review of the [F1 gate sign-off 19](gates/f1.md) consequences afterward. Under shared
+   codes a facilitator's transcription still cannot catch a sheet entered under the wrong evaluator (the blind code is
+   the same for everyone), so that consequence stays procedural for transcribed entry; a participant identity that sees
+   only its own enrollment would remove it for self-entry.
+
+**Phasing (proposal).**
+
+- First slice: family evaluators, who are already inside the owner's Authentik, are linked through Authentik. This
+  does not conflict with the owner's concern, provided the stored key is the provider-neutral (issuer, subject) pair
+  (for Authentik, its issuer and the stable user id, not the username string) and the matching code has one seam where a
+  second provider could be added. Built in the first slice: the identity mapping table and the (issuer, subject)
+  extraction from the forwarded headers, the participant role on the enrollment, the server-computed entry mode,
+  session ownership, the export and audit changes and the correction path, with the migration and a new build.
+- Deferred until outsiders are actually in scope: a path for people outside the owner's Authentik. Options, with
+  trade-offs. Supabase Auth (the obvious candidate given the owner's earlier app): a managed hosted IdP, quick to adopt,
+  but a second system and vendor, and it would hold participants' emails. Any generic OIDC provider: provider-neutral and
+  swappable, but the backend must carry token verification and its operation. Authentik enrollment or invitation flows:
+  no new system, but it keeps outsiders inside the owner's Authentik, which is the coupling the owner wants to avoid for
+  a shared app. Designed for now (the key is (issuer, subject)), built later.
+
+**Acceptance criteria (draft, for owner review).**
+
+- An evaluator signs in as herself, sees only her own blind view, and can enter her own sessions. A different evaluator's
+  login and a manager's behave as the ownership rule says.
+- A mixed-entry program (some sessions transcribed by the facilitator, some entered by the evaluator) exports one
+  row per observation with `recorded_by` and the entry source, and no row silently replaces another.
+- Reveal, mapping, checkpoints and consent for minors remain manager-only, and a participant identity cannot reach them.
+- Reads follow ADR-008 Q5: a linked participant reads only her own reviewer's evidence.
+- Trust boundary: the forwarded-header path is unchanged and a client cannot supply identity headers through it. Any
+  token-based path verifies signature (JWKS), issuer, audience and expiry in the backend itself and is covered by tests
+  that forged, expired, wrong-audience and wrong-issuer tokens are refused.
+- Authorization-matrix and disclosure tests cover the new role on every route in the existing matrix.
+
+**Evidence (to be retained).** The ADR-008 decision, the migration and its test, the extended authorization matrix, an
+export of a mixed-entry program, and the owner's acceptance. None exists yet.
+
+**Open questions (not verified, do not assume).**
+
+- Whether Option A, B or C, and whether one identity may map to several reviewers (guardian with minors).
+- Whether entry mode and session owner are stored per session, per observation or both.
+- Which (issuer, subject) Authentik supplies in this deployment (the forwarded `X-Authentik-Uid` is read today but
+  unused, and its stability and the issuer value are not verified).
+- The trust-boundary design for any token path: where verification lives, how JWKS keys are fetched and rotated, and how
+  the path is kept separate from the forwarded-header path.
+- Privacy, for owner decision: a hosted identity provider would hold participants' emails, including minors', while the
+  fragrance and evaluation data stay in the owner's PostgreSQL (authentication only). Whether a minor may have an
+  identity of her own, and what guardian consent and the existing consent text must say about it, is open; this item
+  draws no legal conclusion.
+- Whether any tooling outside `src/` writes `recorder_usernames` (only `src/` was searched).
+- Whether the exposure route should be treated as part of the participant role.
 
 ## 11b. Integration status as of 2026-11-07
 
@@ -910,7 +1062,7 @@ values before discovery work.
 ### F1 facilitated format (decided 2026-11-24)
 
 The product owner decided on 2026-11-24 that F1 runs with six evaluators in a facilitated, paper-first
-format: shared session triples with a per-evaluator rotated order, random per-evaluator blind codes (one blotter per evaluator per sample, each evaluator spraying their own; a group blotter variant tried later on 2026-11-25 was abandoned), one recorder login
+format: shared session triples with a per-evaluator rotated order, random per-evaluator blind codes (one blotter per evaluator per sample, each evaluator spraying their own; a group blotter variant tried later on 2026-11-25 was abandoned; amended 2026-11-27: `v3.2` uses one shared code per physical sample equal to the atomizer label, F1 gate sign-off 19), one recorder login
 transcribing the paper sheets, skin tests for the non-blind holder only, and one household reveal after the
 holdouts. Protocol: ADR-005 and ADR-009, both amended 2026-11-24. Pre-exposure declaration additions:
 [`gates/f1.md`](gates/f1.md). Work items: [section 11a](#f1-facilitated-format-work-items-decided-2026-11-24).

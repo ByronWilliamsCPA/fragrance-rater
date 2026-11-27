@@ -18,7 +18,7 @@ the same pull request.
 | P5 | Manager and operations experience | Complete | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
 | P6 | Integrated pilot readiness | In progress; external execution pending. Owner waived P6.3 on 2026-11-27 (F1 gate sign-off 18; a waiver, not a pass) and the P6.6 `go` was recorded with the waivers (#239); P6.2 and P6.4 are unrecorded, P6.1 and P6.5 partly done | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
 | R | Review remediation and ML foundation | In progress; ML skeleton, affinity-v2, R1-R5 done; R6 mechanism merged (#151, #157), alias decisions can proceed against the validated manifest and no longer gate F1; R7a merged (#160, #161); R7b merged (#165, #167), its acceptance export still owed (P6.3 waived, no substitute chosen); R8 done (#172, #181, #182); R13 done (#168, #173-#175); R14 done (#170, #171, #177, #178, #179, #192, #193) | P5 complete | R1-R4, R7a-R7b, R13, and R14's secrets, topology-validator, and backup items merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 (R6's 43-version alias decisions excepted: owner decision 2026-11-26 makes them a D1 prerequisite) |
-| F1 | Initial family perfume pilot | Planned; program v3.2 activated 2026-11-27 (`HOUSEHOLD` reveal, `INDIVIDUAL` blotters, 49 memberships, build `94f6cf22`), six evaluators enrolled | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
+| F1 | Initial family perfume pilot | Planned; program v3.2 activated 2026-11-27 (`HOUSEHOLD` reveal, `INDIVIDUAL` blotters, 49 memberships, build `94f6cf22`), six evaluators enrolled on shared atomizer-label blind codes (sign-off 19) | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
 | D1 | Source and vocabulary foundation | Planned | F1 complete; R6's 43-version alias decisions made | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
 | D3 | Post-reveal exploration | Planned | D2 and P1 complete | Accessible, disclosure-safe evidence-layer profiles accepted |
@@ -39,7 +39,7 @@ P0 ┬→ P1 -------------------------------------------------------------------
 
 F1 also requires R2, R5, R6 (its mechanism; the 43-version alias decisions are a D1 prerequisite by owner
 decision on 2026-11-26), R7a, R7b, and R8 merged. On 2026-11-24 the product owner decided that F1 runs as a
-six-evaluator facilitated format (shared session triples, random blind codes, one recorder login, skin for the
+six-evaluator facilitated format (shared session triples, blind codes that were random per evaluator when decided and, for program `v3.2`, became one shared atomizer-label code per sample on 2026-11-27 (F1 gate sign-off 19; the enrollment path for shared codes, #243, is merged and not recorded as deployed), one recorder login, skin for the
 non-blind holder only, one household reveal after the holdouts); its work items are listed in
 [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24) and gate F1.
 No milestone status changes, and F1 stays blocked on P6. As of 2026-11-25 the enrollment, non-blind flag, holdout gate
@@ -64,6 +64,12 @@ R14's documentation items gate nothing. R8 may land after the P6 go decision but
    concurrency, and recovery.
 4. Run the authenticated device, synthetic workflow, quality, and operations rehearsals. As of 2026-11-27 the synthetic workflow rehearsal (P6.3) is waived by the owner, P6.2 and P6.4 are unrecorded, and P6.1 and P6.5 are partly done.
 5. Begin F1 with actual pilot perfumes only after the P6 go decision. The `go` was recorded on 2026-11-27 with the waivers; the F1 program is `v3.2` (see [PROJECT-PLAN.md section 11](PROJECT-PLAN.md)).
+6. After F1 only (proposed 2026-11-27, not started, gates neither P6 nor F1 and changes no gate): link each evaluator to
+   her own login, through a provider-neutral identity rather than an Authentik username, and allow mixed facilitator and
+   self entry. Nothing in it changes program `v3.2` or the F1 procedure;
+   it needs an owner decision on the Proposed amendment in
+   [ADR-008](adr/adr-008-authentication-and-production-boundary.md#proposed-amendment-2026-11-27-linking-logins-to-reviewers)
+   first. See [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#post-f1-follow-up-evaluator-login-linkage-proposed-2026-11-27).
 
 ## Delivered historical scope
 
