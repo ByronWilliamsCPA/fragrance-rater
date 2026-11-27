@@ -4,7 +4,8 @@
 > terminology) and 2026-09-21 (mapping-holder evaluator excluded from training, retained in
 > evaluation; `would_buy` as a post-reveal outcome), both confirmed by the product owner 2026-09-26;
 > amended 2026-11-24 (`would_buy` stays on the blind skin form, pending owner confirmation; six-evaluator
-> facilitated F1 format)
+> facilitated F1 format); a further amendment is Proposed 2026-11-27 (blotter-stage wear and buy are a
+> separate measure), not yet accepted
 >
 > **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21, 2026-11-24
 
@@ -223,6 +224,39 @@ benchmark is reported with the holder split only (30 pairs excluding the holder,
 spray-to-first-smell ceiling now applies per evaluator's own blotter. In an individual program the holdout gate is per
 enrollment: an evaluator's holdouts open when that evaluator's own checkpoint exists. Checkpoints before holdouts, the
 household reveal, holdout eligibility and the decision rule are unchanged.
+
+## 2026-11-27 proposed amendment: blotter-stage wear and buy are a separate measure
+
+> **Status of this amendment: Proposed, 2026-11-27.** Not accepted and not implemented. Every accepted amendment above
+> stands as written until the product owner accepts this one. It changes no gate and does not gate P6 or F1.
+
+The F1 paper sheet (version `v3.0`) asks would wear, would buy and type of event at the blind blotter stage (owner
+decision 2026-11-27), and for F1 the answers stay on paper (scanned, retained, not entered in the application). See
+[ADR-005's matching Proposed amendment](adr-005-controlled-calibration.md#2026-11-27-proposed-amendment-blotter-stage-would-wear-would-buy-and-event-type)
+for the reconciliation with the 2026-09-19, 2026-09-21 and 2026-11-24 amendments and the plan item for the options.
+
+Proposed consequences for this ADR:
+
+- **Not a Secondary target row for liking.** Liking stays the primary target. A blotter-stage would wear or would buy is
+  a hypothetical judgment of a smell strip, a different measure from the skin-stage `would_wear` and `would_buy` and
+  from the post-reveal decision-block outcome (offer and scenario context). The three are never pooled, never share a
+  target or feature name, and are each reported with their own n. The 2026-09-21 and 2026-11-24 statements about
+  `would_wear` as a same-observation skin-stage secondary target and `would_buy` as a post-reveal or skin-stage outcome
+  are unchanged.
+- **Checkpoint target identity.** `CHECKPOINT_TARGET_SCALES` lists `liking`, `would_wear` and `would_buy` on a 0 to 10
+  scale, and `CheckpointPrediction` identifies a target by name and scale with no stage. If a blotter-stage target is
+  ever predicted, its name must carry the stage so a blotter prediction is never scored against a skin value, and
+  holdouts and hidden repeats (blotter-stage presentations) are the presentations most exposed to the ambiguity. This
+  proposal adds no checkpoint target.
+- **F1 analysis.** The five evaluators' paper-only blotter answers are not in the database, so they appear in no F1
+  analysis, completeness count, repeat benchmark, holdout comparison or checkpoint, and nothing is imputed for them.
+  The mapping holder's blotter-stage values, once captured natively in a later program, are non-blind and outside
+  blind-baseline analysis, as the holder's other values already are.
+- **Interaction with the pending 2026-11-24 `would_buy` amendment.** This proposal neither depends on nor settles that
+  amendment's owner confirmation. If skin-stage `would_buy` stays on the form, both exist under distinct names; if it is
+  removed, the blotter-stage value is the only pre-reveal purchase signal and the separation matters more.
+- **Decision rule.** Unchanged. Nothing here adds a pre-registered comparison, and a blotter-stage secondary result
+  carries no weight in the F1 or D5 decision until a later amendment pre-registers one.
 
 ## Related
 

@@ -2,7 +2,8 @@
 
 > **Status**: Accepted; amended 2026-09-19 (protocol research reconciliation), 2026-09-21
 > (exposure cardinality and would_buy permanence), 2026-10-30 (role-neutral answers) and 2026-11-24
-> (six-evaluator facilitated F1 format)
+> (six-evaluator facilitated F1 format); a further amendment is Proposed 2026-11-27 (blotter-stage
+> would-wear, would-buy and event-type), not yet accepted
 >
 > **Date**: 2026-09-11 | **Amended**: 2026-09-19, 2026-09-21, 2026-10-30, 2026-11-24
 
@@ -450,6 +451,77 @@ Implications the owner is asked to confirm:
   `would_buy` cannot separate dislike from price and size is not resolved by keeping it.
 - **Analysis.** ADR-009 must again treat `would_buy` as a possible same-observation secondary target for
   evaluators who have a skin stage, reported with its own n, never pooled with liking.
+
+## 2026-11-27 proposed amendment: blotter-stage would-wear, would-buy and event-type
+
+> **Status of this amendment: Proposed, 2026-11-27.** Not accepted and not implemented. Every accepted amendment
+> above stands as written until the product owner accepts this one. It changes no gate, and it does not gate P6 or F1.
+
+**Owner decision that prompts it (2026-11-27).** The F1 evaluator paper sheet (version `v3.0`) asks, per sample at the
+blind blotter stage, would wear (0 to 10, Never to Definitely), would buy (0 to 10, Never to Definitely) and type of
+event (multi-select: work or school, at home, social outing, formal event, outdoor activity, something else, none of
+these, cannot judge). For F1 the answers are paper only: scanned, the originals kept under the existing paper-retention
+sign-off, and not entered in the application. The application is to be changed after F1 to capture them. Plan item:
+[PROJECT-PLAN section 11a](../PROJECT-PLAN.md#post-f1-follow-up-blotter-stage-would-wear-would-buy-and-event-type-capture-proposed-2026-11-27).
+
+**Reconciliation with the accepted text.** Verified against the code at `a2f240c` on 2026-11-27.
+
+- *2026-09-19 table and Q9.* The table's scale row keeps wear and buy on a 0 to 10 integer scale with verbal anchors at
+  0, 5 and 10, which is the scale the sheet's Never to Definitely anchors use (the sheet itself is another change set's
+  and was not checked here). The table's `would_buy` row moved `would_buy` out of the blinded per-sample core to a
+  secondary outcome after the wear phase, with price context, because without price or identity it is a different
+  construct from sensory liking; the 2026-11-24 amendment below records that the R7b removal was not carried out. A
+  blotter-stage would-buy has no price and no identity, so that construct concern applies to it in full: it is a
+  secondary, hypothetical answer and never a model target. ML Decisions Q9 keeps `season_fit` and `setting_fit` on the
+  skin stage only to limit fatigue and because blotter rows are excluded from the completeness denominator; this
+  proposal leaves that rule in place and adds a separate blotter-stage event-type question (see the proposed rule).
+- *2026-09-21 would_buy permanence.* That amendment concluded that a blind, price-free `would_buy` cannot be recovered
+  after reveal. A blotter-stage would-buy is a different, hypothetical measure, collected before reveal, so it neither
+  restores the skin-stage field the permanence argument concerned nor contradicts it. The leakage point of the 2026-11-24
+  amendment (a price-free purchase answer can still lean on brand or price recognition when an evaluator guesses the
+  sample) applies to it equally, and the 2026-09-21 reasoning that an offer-conditioned `would_buy` is necessarily
+  post-reveal is unaffected.
+- *2026-11-24 skin-stage-only text and primary target.* The "Primary target and completeness for the skin-absent
+  evaluators" text says the fields the instrument collects at the skin stage only (`season_fit`, `setting_fit`,
+  `would_wear`, `would_buy` and the skin timepoints) are absent by design for the five blind evaluators. That stands for
+  the skin-stage fields. Liking remains the primary target and the completeness denominator is unchanged. The new
+  blotter-stage answers are secondary, reported with their own n, and not part of completeness.
+- *Interaction with the pending 2026-11-24 `would_buy` amendment.* That amendment records, pending owner confirmation,
+  that `would_buy` stays on the blind skin form and asks the owner to confirm three implications (who produces it,
+  leakage, analysis). This proposal does not depend on how that confirmation resolves, and it does not settle it. If
+  the owner confirms it, skin-stage `would_buy` stays and the blotter-stage measure sits beside it under a stage-qualified
+  name. If the owner reverses it and removes `would_buy` from the skin form, the blotter-stage `would_buy` would be the
+  only pre-reveal purchase signal, which makes keeping it clearly separate, hypothetical and unpooled more important,
+  not less. Accepting this proposal does not confirm the 2026-11-24 amendment, and confirming that amendment does not
+  accept this one.
+
+**Proposed rule.** A blotter-stage would wear, would buy and event type are a distinct measure from the skin-stage
+fields of the same names, collected on the blind blotter before any skin application:
+
+- They are hypothetical judgments of a smell strip, not a wearing experience: no skin, no drydown, no wearing time.
+  Instrument v0.5 already separates the blotter and skin trial outcomes, and Q9 keeps the skin-stage fit fields off the
+  blotter for a related reason.
+- They are stored and read under stage-qualified names, so a blotter value can never be read as, pooled with, or used
+  as a target in place of a skin-stage value, in training rows, features, exports or checkpoint manifests. The existing
+  skin-stage-only rule for `season_fit` and `setting_fit` is unchanged; the blotter event type is a separate question,
+  not a relaxation of it, and whether it shares the `setting` dimension of `FitChoice` is open.
+- A blotter value gathered from the non-blind mapping holder is non-blind and excluded from blind-baseline training, as
+  that evaluator's other values already are.
+
+**What the application does today, so the rule is not read as already implemented.** The backend already accepts and
+stores blotter-stage `would_wear` and `would_buy` (no stage rule in the schema, columns or CHECK constraints), the form
+does not ask them, and it refuses event type at the blotter. A blotter value stored today would be read as a skin-stage
+value by the dataset, preference-history and checkpoint code. The plan item lists the changes and the options.
+
+**F1 treatment.** F1 paper-only values are not in the database and therefore not in any F1 analysis, export, training
+row or checkpoint. They remain on the retained scans and originals. A stage that is locked cannot take a late supplement
+through any existing path (a locked stage refuses a pre-reveal write, a post-reveal write is the wrong provenance and
+never reaches training, quality flags carry no values, and no correction route exists), so entering them later needs a
+new supplementary path that this proposal does not add.
+
+**Open questions, no legal conclusion drawn.** Whether `family-consent-v1` and the F1 consent and minors sign-offs cover
+purchase and wear opinions; the added time and fatigue per sample; whether the paper-retention and scan sign-off covers
+these fields.
 
 ## Related
 
