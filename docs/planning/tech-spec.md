@@ -272,6 +272,27 @@ change is the Proposed amendment in
 Reveal, mapping and checkpoints stay manager-only, and any token-based path must verify signatures in the backend and
 leave the forwarded-header trust boundary intact. This section changes no current contract.
 
+### Blotter-stage would wear, would buy and event type (Proposed, post-F1)
+
+Current contract, verified against the code at `a2f240c`: `would_wear` and `would_buy` are optional 0 to 10 typed columns
+on `Observation` with no stage condition, and the schema, service and evidence export accept and emit them at any stage,
+but the blotter form (`blotterGroups`) does not ask them and only the skin form does. `setting_fit` and `season_fit`
+(`FitChoice` rows) are refused at the blotter stage by `validate_capture_fields`. A pre-reveal write to a locked stage is
+refused, observations are append-only, and `v_training_rows` hides an earlier same-stage pre-reveal answer once a later
+one that is not invalidated exists. The dataset, preference-history, training-view and checkpoint code read
+`would_wear` and `would_buy` by name with no stage, so a blotter value stored today would be read as a skin-stage value.
+
+Proposed, not decided and not part of the F1 instrument (the F1 paper sheet asks these three at the blotter stage and
+the answers stay on paper): a blotter-stage would wear, would buy and event type that are a distinct measure from the
+skin-stage fields, stored and read under stage-qualified names, never pooled with them, with the observation field list,
+the blotter stage rules, the export version and the checkpoint target identity changed together. No late-entry path for
+a locked stage exists, and none is proposed here. Options and trade-offs are in
+[PROJECT-PLAN section 11a](PROJECT-PLAN.md#post-f1-follow-up-blotter-stage-would-wear-would-buy-and-event-type-capture-proposed-2026-11-27);
+the policy change is the Proposed amendment in
+[ADR-005](adr/adr-005-controlled-calibration.md#2026-11-27-proposed-amendment-blotter-stage-would-wear-would-buy-and-event-type)
+and [ADR-009](adr/adr-009-prospective-evaluation-and-checkpoints.md#2026-11-27-proposed-amendment-blotter-stage-wear-and-buy-are-a-separate-measure).
+This section changes no current contract.
+
 ## D1 source and vocabulary contract
 
 Every source or vocabulary snapshot records:

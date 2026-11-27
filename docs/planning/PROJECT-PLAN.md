@@ -835,6 +835,156 @@ export of a mixed-entry program, and the owner's acceptance. None exists yet.
 - Whether any tooling outside `src/` writes `recorder_usernames` (only `src/` was searched).
 - Whether the exposure route should be treated as part of the participant role.
 
+### Post-F1 follow-up: blotter-stage would-wear, would-buy and event-type capture (proposed 2026-11-27)
+
+**Status:** Proposed; not started; the owner has decided the F1 paper treatment (below) but not the post-F1 design. It
+does not gate P6 or F1, and it changes no gate, sprint or milestone status. It is tracked here as its own item, not as a
+numbered sprint, so the Milestone R sprint list stays R1-R15.
+
+**Owner decision (2026-11-27).** The F1 evaluator paper sheet (new version `v3.0`) asks, per sample at the blind blotter
+stage, three questions the application does not record at that stage today: Would wear (0 to 10, Never to Definitely),
+Would buy (0 to 10, Never to Definitely) and Type of event (multi-select: work or school, at home, social outing,
+formal event, outdoor activity, something else, none of these, cannot judge). For F1 these answers are paper only: they
+are scanned, the originals are retained under the existing paper-retention sign-off, and they are not entered in the
+application. The application is to be changed after F1 to capture them natively.
+
+**Scope.** Nothing in this item changes program `v3.2`, the F1 procedure, the F1 instrument or the pinned build. Any
+code from this item needs a new build and the owner's explicit decision under the build-freeze rule, so it cannot reach
+F1 participants unless the owner chooses that. The sheet and run-sheet changes themselves belong to a separate change
+set; this item records only what the application has to do about them.
+
+**Entry gate.** F1 evidence reviewed, and an owner decision on the Proposed amendments in
+[ADR-005](adr/adr-005-controlled-calibration.md#2026-11-27-proposed-amendment-blotter-stage-would-wear-would-buy-and-event-type)
+and [ADR-009](adr/adr-009-prospective-evaluation-and-checkpoints.md#2026-11-27-proposed-amendment-blotter-stage-wear-and-buy-are-a-separate-measure).
+No implementation starts before both.
+
+**What the application does today (verified against the code at `a2f240c`, 2026-11-27).**
+
+- **Would wear and would buy are accepted, stored and exported at the blotter stage already.** `ResponseInput` carries
+  both as optional integers from 0 to 10 with no stage rule; the `Observation` columns and their range CHECK
+  constraints have no stage condition; `observe_once` writes whatever the input carries; the evidence export emits both
+  whatever the stage; and a unit test stores a blotter-stage observation with `would_wear` 9 and `would_buy` 7. What is
+  missing at the blotter is the form: `blotterGroups` in `frontend/src/content/calibrationScales.ts` lists neither,
+  only `skinGroups` does, and the observation panel sends a null for a field it does not render.
+- **Type of event is refused at the blotter stage.** `validate_capture_fields` raises `setting_fit is asked at skin stage
+  only` for a non-empty `setting_fit` on a non-skin stage, and a test (`test_blotter_rows_never_carry_fit`) pins it.
+  The eight codes the sheet offers equal the existing `SettingFit` codes (`work_school`, `home`, `social_outing`,
+  `formal_event`, `outdoor_activity`, `other`, `none`, `cannot_judge`), the same standalone and duplicate rules would
+  apply, and the `FitChoice` table has no database stage CHECK (it relies on the service). So the refusal is a schema
+  rule, not a storage limit.
+- **The paper-only answers cannot be entered after F1 through any existing path.** A pre-reveal write to a locked stage
+  is refused (`Stage is locked; original responses are retained`), and F1 locks every blotter stage before the
+  household reveal. The `post-reveal` route accepts a write after reveal, but it is the wrong provenance (an informed
+  observation, not the blind answer), `v_training_rows` excludes it (only `phase = 'PRE_REVEAL'` reaches the view), and
+  it still carries `setting_fit` only under the skin-stage rule. Observations are append-only (PostgreSQL trigger
+  `fr_observation_append_only` allows only `training_eligibility` to change), and no correction route exists. A quality
+  flag carries a code and free text, not typed values, and an INFORMATIONAL flag changes nothing. Re-writing the
+  PRE_REVEAL row is not an option either: `v_training_rows` hides an earlier same-stage PRE_REVEAL answer once any later
+  one that is not `invalidated` exists, so a late row with a null liking would silently remove the original liking
+  answer from training.
+- **Entering them natively would pool two different measures unless guarded.** `ml/dataset.py` lists `would_wear` and
+  `would_buy` among `TARGETS` and `_controlled_row` reads them from the observation features whatever the stage;
+  `services/preference_history.py` includes both as features; `ml/training_view.py` forwards both; and
+  `CHECKPOINT_TARGET_SCALES` and `CheckpointPrediction` identify a target by name and scale with no stage. A blotter
+  would-wear is a hypothetical judgment of a smell strip; a skin would-wear follows wearing the sample. They must not
+  share a feature or target name. Holdouts and hidden repeats are blotter-stage presentations, so the checkpoint
+  tables are exposed to the same ambiguity. X-13 already forbids pooling the 0 to 10 observation columns with the
+  boolean recommendation-feedback fields of the same names.
+
+**What native capture needs (change inventory, not a design).**
+
+| Area | Change |
+| :--- | :--- |
+| Schema (`schemas/calibration.py`) | Relax the blotter refusal for event type; keep every other stage rule; keep the duplicate and standalone `none` and `cannot_judge` rules; decide the blotter field names so a blotter value cannot be read as a skin value |
+| ORM and migration | Wear and buy columns exist. Event type can reuse `FitChoice` (no stage CHECK), so a forward-only native option needs no table change; any late-entry option (below) needs a new column or table, a migration, and care with the append-only trigger and `v_training_rows` |
+| Service (`calibration_service.py`) | `observe_once` stage handling; for any late-entry option, a new entry type allowed after lock that must not supersede the original answer |
+| Frontend | A blotter wear, buy and event group in `blotterGroups`; the observation panel `save()` and its numeric-field loop; the paper transcription wizard and `PaperSheetFields.tsx`; `transcription.ts` completeness; existing tests `instrumentChoices.test.ts` and `SampleObservationR7b.test.tsx` |
+| Evidence export | A new `EXPORT_VERSION` if the stage-qualified fields change the row shape (it is `r7b-evidence-v1` today), with the measure named in each row |
+| Training and checkpoints | Stage-qualified feature and target names in `ml/dataset.py`, `ml/training_view.py`, `services/preference_history.py`, and the target identity in `CheckpointPrediction`; eligibility for blind-baseline training versus values from the non-blind mapping holder (the holder's rows stay `questionable` under the `non_blind` flag and never reach the view, unchanged) |
+| Tests | Schema, service, API, frontend, export, and a no-pooling test that a blotter value never reaches a skin target; the existing `test_blotter_rows_never_carry_fit` is replaced, not deleted |
+| Release | A new build, a new instrument pin, and the owner's explicit decision under the build-freeze rule |
+
+**Options and trade-offs.**
+
+- **Option A, native capture before lock, stage-qualified, forward only.** Allow the three fields on the blotter form
+  and in the schema, store them on `Observation` and `FitChoice`, qualify them by stage everywhere they are read, and
+  apply this to the next program. Evaluators answer while the blotter stage is still open, so no late path is needed.
+  Smallest change, no new table, no weakening of the append-only trigger or the supersession rule, and the pooling
+  guard is the main work. Cost: the five F1 evaluators' paper values are never in the database.
+- **Option A2, A plus a supplementary-observation entry type that may be added after lock.** Would carry F1's paper
+  values into `Observation`. It needs a new column, a migration, an exception in the lock rule and in the append-only
+  trigger, and an exemption from same-stage supersession in `v_training_rows` (otherwise the late row hides the
+  original liking answer, as above). Largest blast radius on the evidence-integrity machinery for a one-time backfill of
+  five evaluators.
+- **Option B, a separate append-only `paper_supplement` table keyed by presentation.** Holds a source of `paper`, a scan
+  reference, who entered it and when, and the three values with event-type child rows. It can be entered after lock or
+  reveal, leaves `Observation`, the trigger and `v_training_rows` untouched, and cannot pool by construction. Cost: a
+  new model, schema, service, route, transcription screen, export section, audit events, authorization-matrix rows,
+  migration and tests, used once for F1 and then redundant once Option A exists.
+- **Option C, accept paper only for F1 and capture natively from the next program.** This is Option A with no backfill,
+  and it is the owner's stated minimum.
+
+**Recommendation (proposed, for owner decision).** Option A, with Option C as its F1 treatment: native, stage-qualified
+capture before lock for later programs, and the F1 paper values stay on paper unentered and retrievable from the scans.
+It is the smallest change that does what the owner asked, it leaves the append-only and supersession machinery alone,
+and it makes the no-pooling rule structural. Option A2 is not recommended. Option B is the choice only if the owner
+later wants the five evaluators' F1 values in the database for analysis; decide that after the F1 evidence review shows
+whether the values are worth entering, and do not build it speculatively. This is a recommendation about design
+risk, not a measured result.
+
+**How F1 analysis treats the paper-only values meanwhile.** They are not in the database, not in the evidence export,
+not in any training row, not in the checkpoint manifest and not in any F1 completeness count. They exist only on the
+retained scans and originals, so any later look at them is a manual, per-evaluator reading and is reported separately,
+never merged with the skin-stage `would_wear` and `would_buy` columns.
+
+**Blotter wear and buy are a different measure.** A blotter-based hypothetical would-wear or would-buy answers "would you
+wear or buy this, from a smell strip", with no skin, no drydown and no wearing experience, while a skin-stage answer
+follows wearing the sample. Instrument v0.5 already separates the blotter and skin trial outcomes (`BL-TRY` and the
+"distinct outcomes" note) and ML Decisions Q9 keeps the skin-stage fit fields off the blotter for the same reason. The two
+measures are never pooled, never share a feature or target name, and are reported with their own n. ADR-005 and ADR-009
+carry the Proposed amendments. Liking stays the primary target.
+
+**Acceptance criteria (draft, for owner review).**
+
+- The blotter form captures would wear, would buy and event type for an evaluator, and the paper transcription wizard
+  does the same, with the sheet's scale anchors and eight event codes.
+- A blotter value is stored under a stage-qualified name and is not readable as a skin-stage value in
+  `v_training_rows`, `ml/dataset.py`, the feature snapshot, the evidence export or the checkpoint manifest, shown by a
+  test that fails if they are pooled.
+- The append-only trigger, the stage lock and the same-stage supersession rule are unchanged (Option A), or the exception
+  is the minimum the owner approved (Option A2), with a test of each.
+- Existing skin-stage behavior, including `would_buy` on the skin form and the skin-stage-only rule for `season_fit`
+  and `setting_fit`, is unchanged, and the full existing suite passes.
+- The mapping holder's blotter values are excluded from blind-baseline training exactly as the holder's other values are.
+- The F1 paper-only values are documented as unentered, with the scan location and retention period, in the F1 evidence
+  review.
+
+**Evidence (to be retained).** The owner decision on the two Proposed amendments, the migration and its test (if any
+option needs one), the no-pooling test, a sample export showing the stage-qualified fields, the new instrument pin and
+build, and the owner's acceptance. None exists yet.
+
+**Open questions (not verified, do not assume).**
+
+- Whether `src/fragrance_rater/consent/family-consent-v1.md` and the F1 gate sign-offs about consent and minors cover
+  collecting purchase and wear opinions. The consent text lists "how strong it smelled, how much you liked it, and
+  whether it felt familiar" as examples of answers and does not mention purchase, wear or event opinions; this item
+  draws no legal conclusion, and the sheet change is another change set's.
+- The added time and fatigue per sample. The owner's figures are about 25 answers per sample rising to 28 or more for children (not
+  counted in the repository); whether that is acceptable is a facilitator and owner question the dry run can
+  inform.
+- Whether the paper-retention and scan sign-off in the F1 gate (12 months, destroyed with the database) covers these
+  fields as written, or needs a wording check.
+- Whether the F1 gate's rule that the sheet and slip ids equal the P6.3-rehearsed ids (waived on 2026-11-27) needs a
+  note for a `v3.0` sheet. That gate is outside this item.
+- Whether Option B is wanted once the F1 scans exist, and whether event type at the blotter should reuse the
+  `setting` dimension of `FitChoice` or get its own dimension so it cannot be read as a skin-stage `setting_fit`.
+  ML Decisions Q9 and the instrument v0.5 divergence row both say `setting_fit` is not collected on the blotter, while
+  v0.5 lists `BL-SETTING` as optional on the blotter worksheet; that conflict is pre-existing and is not resolved here.
+- The current Alembic head was not re-verified for this item (the plan states `736b7db082fb` as of 2026-11-07); check
+  `alembic heads` before adding any migration.
+- A phrase the owner attributed to ADR-005, that a blotter smell is not a wearing experience, was not found verbatim in the
+  repository; instrument v0.5, ML Decisions Q9 and the ADR-005 2026-11-24 skin-stage-only text are the closest sources.
+
 ## 11b. Integration status as of 2026-11-07
 
 This section records state and proposes actions. It does not change any milestone gate. Items under "pending owner
