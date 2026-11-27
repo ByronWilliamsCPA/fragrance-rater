@@ -123,7 +123,9 @@ than a single shared blotter would give. Ventilation and prompt removal of used 
 - A lidded jar or sealed bag outside the room for finished blotters. A blotter leaves the room as soon as its column is
   initialed. Do not leave used blotters on the table.
 - Water for comfort only. No coffee beans (ADR-005 removed them) and no sniffing own skin as a reset.
-- Read the room thermometer and hygrometer at the start of each sitting; the readings go on the conditions slips.
+- Room readings are optional and never block a sitting. If a room thermometer is at hand, read it at the start of each
+  sitting and write the temperature on the conditions slips. A hygrometer is not needed: leave the humidity row blank
+  when there is no reading. An empty row is a valid answer, so do not estimate or guess a value.
 - Everyone, facilitator included, wears no fragrance and no scented products that day. If anyone has, note it on that
   person's slip and tell nobody which sample may be affected.
 
@@ -218,7 +220,7 @@ first smelled, column finished) on the sheet. A breach is flagged as a deviation
 | --- | --- | --- | --- |
 | 1 | Facilitator | Ventilate the room; print sheets (with pre-printed own codes and the blotter mode) and, for consenting evaluators, slips; set out six seats, each with the evaluator's own tray of three unsprayed coded blotters in that evaluator's session order | Before anyone arrives |
 | 2 | Evaluators | Sit, silence phones, complete the conditions slip alone if they accepted the consent, hand it back face down | Before the first spray |
-| 3 | Facilitator | Read the room thermometer and hygrometer, file slips apart from sheets, start the clock | Write the date and start time |
+| 3 | Facilitator | Read the room thermometer if there is one (optional; humidity may stay blank), file slips apart from sheets, start the clock | Write the date and start time |
 | 4 | Evaluators | On the facilitator's signal (proposed pacing, P6.3 confirms), each sprays their own blotter for sample 1 as instructed (owner decision 2026-11-25: one spray from about 15 cm, away from faces and other blotters, the same for every blotter; written in the declaration), and writes their own spray time | Spray time, hh:mm:ss, in their own hand |
 | 5 | Evaluators | Smell once, write the first-smelled time, then complete the column and initial **Column complete** | Own first smell within 2 minutes of own spray; otherwise the fresh-blotter rule |
 | 6 | Facilitator | Help anyone whose blotter, tray or sheet is out of order; apply the fresh-blotter rule where an evaluator's window has passed unsmelled; as each column is initialed, remove that blotter to the lidded jar outside the room | Note the time of the last sniff in the round |
