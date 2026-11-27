@@ -27,7 +27,8 @@ tags:
     so below, that is true of the rehearsal program only: in `v3.2` the blind-code check cannot catch a sheet entered
     under the wrong evaluator, and the guard is procedural (one recorder, one evaluator's sheets at a time, name and
     record ID checked against the enrollment on screen before saving). Headers with random 8-character codes are
-    obsolete for F1.
+    obsolete for F1. PR #243 adds a `shared` label scheme to enrollment (merged, not recorded as deployed), but the
+    rehearsal enrollment on Advanced setup below does not use it.
 
 ## How to read this page
 
@@ -462,7 +463,9 @@ Expected: one id. The recorded `instrument_version` is checked in the export in 
 ### 2.3 Session-plan preview and enrollment (UI)
 
 Stay on Advanced setup, because **Preview session plan** is only there. (The Family pilot screen's **Enroll** sends the
-same fixed values without the preview: shared sessions of three, random codes, you as the recorder.) In **2.
+same fixed values without the preview: shared sessions of three, `label_scheme: "shared"` from #243, you as the
+recorder. It cannot enroll the first evaluator of a new program, because the first shared enrollment needs
+`membership_codes` through the API, so a fresh rehearsal program is enrolled here on Advanced setup, with random codes.) In **2.
 Enrollment**: pick **Evaluator** `SYNTH Evaluator E1`; **Authorized recorder usernames**: the Authentik username you
 sign in with (the one `CALIBRATION_ADMIN_USERNAMES` names); **Samples per session** `3`; **Session order** option "Shared
 sessions, balanced order per evaluator (facilitated)"; press **Preview session plan** and open the "Session plan

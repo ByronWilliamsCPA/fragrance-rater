@@ -95,6 +95,7 @@ drafts until the P6.3 rehearsal.
 | Part | State |
 | :--- | :--- |
 | Shared-triple enrollment, Latin-square order, random codes, session-plan preview (#211); the Latin-square order is for individual mode, which F1 uses (the unused group blotter mode gives every evaluator the same order) | Merged |
+| Shared blind labels at enrollment, `label_scheme: "shared"` (#243): one code per sample equal to the atomizer label, inherited by later evaluators | Merged; not recorded as deployed (a build and pin decision is open, F1 gate sign-off 19(d)) |
 | Non-blind quality flag and the `/non-blind` call (#213) | Merged |
 | Holdout gate, household reveal, `reveal_policy`, manager checkpoints (#214) | Merged |
 | Paper sheet, conditions slip, run sheet, spray-sheet generator (#215) | Merged |
@@ -121,7 +122,9 @@ household reveal, individual blotters, 49 members: 33 baseline, 6 hidden repeats
 2. Every evaluator is listed as Enrolled or Not enrolled. Add a missing evaluator with **Add an evaluator**.
 3. Decide who the facilitator is **before** enrolling. Tick **Facilitator (non-blind)** on that evaluator's row only,
    then press **Enroll**. The screen enrolls with fixed values (shared sessions of three samples in a balanced
-   Latin-square order, random blind labels, no persistent or animalic flags, and you as the one recorder login) and,
+   Latin-square order, shared blind labels (one code per sample, the atomizer label, which the screen does not type: the
+   server gives each evaluator the codes the program's earlier enrollments already hold), no persistent or animalic
+   flags, and you as the one recorder login) and,
    for the facilitator, then marks the enrollment non-blind with the reason "Facilitator who labels and sprays the
    samples". If that second call fails, the screen says the evaluator is enrolled but not flagged and offers
    **Retry non-blind flag**; do not let any sample be sprayed until it succeeds.
@@ -129,6 +132,11 @@ household reveal, individual blotters, 49 members: 33 baseline, 6 hidden repeats
 5. After the sittings, use the same screen for **Freeze checkpoints**, **Reveal the household** and **Show session
    progress**. The reveal policy appears there as read-only text, and the irreversible actions keep their
    confirmations.
+
+The screen works only in a program that already holds shared codes, as `v3.2` does. It cannot give a program its first
+shared codes, and the server refuses it for a program whose earlier enrollments hold random codes (the screen shows the
+refusal); both need the API with `membership_codes`. A build that predates #243 sends random labels instead, so do not
+enroll another evaluator on such a build without reading the sign-off 19 note below.
 
 Anything else (a different label scheme or session size, persistent flags, **Preview session plan**, building or
 activating a program) is on **Advanced setup**, which F1 does not need.
@@ -146,7 +154,8 @@ This is the detail behind the fixed values above, and the route for an Advanced 
 2. In **Advanced setup**, leave the blotter mode at `INDIVIDUAL` (the default) and choose the shared-triples
    algorithm `shared-triples-latin-rotation-v1`: standard labels are refused with it, and blind codes are random and
    specific to each evaluator when enrollment generates them (for program `v3.2` the stored codes were then replaced by
-   shared atomizer-label codes, see the note under "Individual blotters (F1)"), because with shared triples a label that names the session would reveal session identity
+   shared atomizer-label codes, see the note under "Individual blotters (F1)"; `label_scheme: "shared"` from #243 enrolls
+   an evaluator on one shared code per sample directly, and Advanced setup has no field for it), because with shared triples a label that names the session would reveal session identity
    and holdout status. Every enrollment of a program must use the same shared algorithm. Do not choose `SHARED_GROUP`
    or `shared-triples-group-blotter-v1`: group blotter mode is merged (#220) but not used by F1.
 3. Name any exceptionally persistent or animalic samples. The manager supplies them; the template allows at most one
@@ -252,8 +261,9 @@ for the procedure. In short:
   to the label on the atomizer (the app screen shows the code, which is the atomizer label), so an evaluator can pull
   the right sample from the app alone. Repeats keep their own codes. The stored codes were replaced by a reviewed data
   update. Consequences: the wrong-evaluator check is procedural, one evaluator's reveal would unblind the others (the
-  `HOUSEHOLD` reveal already reveals everyone together), a later add-evaluator enrollment gets random codes and needs
-  the same update, and headers printed with the earlier random codes must not be used. See
+  `HOUSEHOLD` reveal already reveals everyone together), a later add-evaluator enrollment gets random codes until a
+  build containing #243 is deployed and pinned (then it inherits the shared codes) and otherwise needs the same update,
+  and headers printed with the earlier random codes must not be used. See
   [F1 gate sign-off 19](../planning/gates/f1.md).
 - **Group blotter mode is unused.** It was built and merged (#220, #221) and abandoned for F1 after the owner's
   physical attempt on 2026-11-25 got two evaluators through in two minutes. Do not enable it.

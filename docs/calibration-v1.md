@@ -60,7 +60,7 @@ than stored alongside the disagreement - see `fragrance_rater.utils.gtin` and
 evidence than any text-based source comparison; its absence is not itself a problem, since many
 sources never publish one. One recorder can record for several evaluators.
 Program activation freezes membership; enrollment independently randomizes presentation order
-per evaluator (the default) and assigns blind labels under one of two schemes chosen at enrollment
+per evaluator (the default) and assigns blind labels under one of three schemes chosen at enrollment
 (`label_scheme`):
 
 - `standard` (default): `E{enrollment}-S{session}-{position}`, for example `E01-S1-2`. Labels are
@@ -71,7 +71,12 @@ per evaluator (the default) and assigns blind labels under one of two schemes ch
   accepted trade-off for the default (decision recorded 2026-10-30); use `random` for any trial
   where that partition must stay hidden.
 - `random`: an independent 8-character hex code per presentation, with no structure at all.
-  Facilitated F1 programs (below) must use this scheme, not `standard`.
+  Facilitated F1 programs (below) must use this scheme or `shared`, not `standard`.
+- `shared` (added in #243, shared-triples only): one blind code per physical sample, the same for every evaluator, such
+  as an atomizer label. It needs a program whose reveal policy is `HOUSEHOLD`, because one evaluator's own reveal would
+  unblind the others. A program's first shared enrollment supplies the code for every sample (`membership_codes`, API
+  only); later enrollments inherit those codes. The contract and its refusals are in the
+  [technical specification](planning/tech-spec.md#calibration-enrollment-and-blind-code-contract).
 
 **Facilitated format (F1, decided 2026-11-24).** Independent per-evaluator shuffles remain the default
 for every program. The six-evaluator facilitated F1 format instead uses shared triples: all evaluators
@@ -98,16 +103,18 @@ and unused. See the
 **Shared codes in the F1 program (2026-11-27).** The statements above that blind codes are random and
 evaluator-specific describe what enrollment generates. For the F1 program (`v3.2`) the owner decided on 2026-11-27 that
 all six evaluators see one shared code per physical sample, equal to the label on the atomizer, with repeats keeping
-distinct codes. The stored codes were replaced in production by a reviewed one-off data update; the enrollments'
-recorded label scheme remains `random`, and there was no code change, build or deploy. The consequence for the workflow
+distinct codes. The stored codes were replaced in production by a reviewed one-off data update, with no code change,
+build or deploy (no label scheme is stored; the stored marker is `shared_blind_code`). The `shared` scheme above (#243)
+later made that shape enrollable in code; it is merged and not recorded as deployed. The consequence for the workflow
 is that the server's blind-code check can no longer tell one evaluator's sheet from another's in that program, so the
 wrong-evaluator check is procedural (one recorder, one evaluator's sheets at a time). The decision, the accepted
 consequences and what remains owed are in the [F1 gate sign-off 19](planning/gates/f1.md); the protocol note is in the
 [ADR-005 2026-11-27 note](planning/adr/adr-005-controlled-calibration.md#2026-11-27-note-shared-blind-codes-equal-to-the-atomizer-label-in-the-f1-program).
 
 Enrollment support for shared triples, the household reveal and the holdout gate are work items in the
-[project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24); until each
-merges, only the independent per-evaluator shuffle and the per-enrollment reveal described above exist.
+[project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24), which records which have
+merged (shared triples, the household reveal, the holdout gate and `label_scheme: "shared"` all have); the independent
+per-evaluator shuffle and the per-enrollment reveal remain the defaults.
 
 Repeats are interleaved with baseline stimuli with separation where the number of stimuli
 permits it. Small diagnostic/test definitions may have insufficient stimuli for the usual
