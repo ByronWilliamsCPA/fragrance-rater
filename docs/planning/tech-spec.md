@@ -277,13 +277,18 @@ leave the forwarded-header trust boundary intact. This section changes no curren
 Current contract, verified against the code at `a2f240c`: `would_wear` and `would_buy` are optional 0 to 10 typed columns
 on `Observation` with no stage condition, and the schema, service and evidence export accept and emit them at any stage,
 but the blotter form (`blotterGroups`) does not ask them and only the skin form does. `setting_fit` and `season_fit`
-(`FitChoice` rows) are refused at the blotter stage by `validate_capture_fields`. A pre-reveal write to a locked stage is
+(`FitChoice` rows; season options `spring`, `summer`, `fall`, `winter`, `year_round`, `none`, `cannot_judge`) are refused
+at the blotter stage by `validate_capture_fields`, which stage-gates season exactly as it does `setting_fit`. A circled
+Intensity 0 on the F1 paper sheet means not detected and maps to the existing rule (`detected` false, `intensity` 0,
+`liking` empty, `response_status` `not_detected`), so it needs no application change. A pre-reveal write to a locked stage is
 refused, observations are append-only, and `v_training_rows` hides an earlier same-stage pre-reveal answer once a later
 one that is not invalidated exists. The dataset, preference-history, training-view and checkpoint code read
 `would_wear` and `would_buy` by name with no stage, so a blotter value stored today would be read as a skin-stage value.
 
-Proposed, not decided and not part of the F1 instrument (the F1 paper sheet asks these three at the blotter stage and
-the answers stay on paper): a blotter-stage would wear, would buy and event type that are a distinct measure from the
+Proposed, not decided and not part of the F1 instrument (the F1 paper sheet asks these three, and season, at the blotter
+stage and the answers stay on paper; whether season is keyed after F1 is open, and v0.5 treats `year_round` as exclusive
+where the schema makes only `none` and `cannot_judge` exclusive): a blotter-stage would wear, would buy and event type
+(and season, if keyed) that are a distinct measure from the
 skin-stage fields, stored and read under stage-qualified names, never pooled with them, with the observation field list,
 the blotter stage rules, the export version and the checkpoint target identity changed together. No late-entry path for
 a locked stage exists, and none is proposed here. Options and trade-offs are in

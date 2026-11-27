@@ -647,7 +647,7 @@ is not gate evidence: no P6 or F1 gate changes because of it.
 | Holdout gate and household reveal | Server-side gate that refuses holdout observation writes until the enrollment has a checkpoint; a manager path to create the checkpoint; a program-level reveal policy that reveals all enrollments together only after every stage, the skin plans, the checkpoints and all holdouts are locked (per-enrollment reveal stays the default); correct phase labelling of holdout rankings | Merged (#214): per-sample `available` flag, `reveal_policy` (`ENROLLMENT` default, `HOUSEHOLD`), program readiness, program checkpoints and household reveal. **Holdouts now need a manager checkpoint in any program with holdouts, including the P6 rehearsal path**, until the wizard adds a button. Follow-ups: a withdrawn evaluator blocks the household reveal with no procedure; whether F1 requires a linked prediction per holdout is an owner decision |
 | Session-scoped wizard | Frontend: no skin-plan step or inline skin-plan form in the blotter flow; session boundary screen; per-session ranking posted to the right session; holdout sequence after the checkpoint; household-reveal waiting screen; role-aware next-sample choice; corrected guidance text; a manager checkpoint action | Merged (#216, `699a513`): session-scoped screens, awaiting-checkpoint, household-wait and household-ready steps, and a manager checkpoint and household reveal panel in Program setup. Not rehearsed in P6.3 |
 | Transcription and timing | Transcription of the paper sheet with the first-smell time sent as the presentation time, the finished time as the observation time, whole-minute elapsed time, session start, end and ranked times, per-session conditions, consent recorded once, and a guard that confirms the blind code printed on the sheet before a column is saved | Merged (#218, `65202bd`): the paper's first-smell, column-finished, session and ranking times reach the backend and are validated; the blind-code confirmation is enforced server side (a mismatch is a 409); a first smell past the ceiling raises `spray_to_smell_ceiling_exceeded`. At merge the ceiling constant was 5 minutes; group blotter mode changes it to 2. Not rehearsed in P6.3 |
-| Sheet and spray sheet | Paper session sheet with its own version id, a separate conditions slip, the provisional ceiling wording (5 minutes when written, 2 minutes since the 2026-11-25 owner decision), a facilitator run sheet, and a spray-sheet generator whose identity-bearing output goes only to a gitignored path | Merged (#215): `facilitated-session-sheet v1.0`, `facilitated-conditions-slip v1.0`, run sheet, `scripts/make_spray_sheets.py`; all drafts until the P6.3 rehearsal. The group blotter documentation pull request moved the sheet to `v2.0` (a Blotter mode row is added to Part A; the slip stays `v1.0`); the individual-blotters revision moves it to `v2.1` (wording only, no recorded field changes); `v2.2` (2026-11-27, F1 gate sign-off 16) adds the pre-printed Atomizer row under the blind code row on the sheet and on each generated evaluator header (the generator's mapping gains a required `atomizer` column), because samples now sit in atomizers B01-B39 and H01-H10 that evaluators spray from; it records no new field, and the six P6.3 rehearsal headers must be reprinted with it |
+| Sheet and spray sheet | Paper session sheet with its own version id, a separate conditions slip, the provisional ceiling wording (5 minutes when written, 2 minutes since the 2026-11-25 owner decision), a facilitator run sheet, and a spray-sheet generator whose identity-bearing output goes only to a gitignored path | Merged (#215): `facilitated-session-sheet v1.0`, `facilitated-conditions-slip v1.0`, run sheet, `scripts/make_spray_sheets.py`; all drafts until the P6.3 rehearsal. The group blotter documentation pull request moved the sheet to `v2.0` (a Blotter mode row is added to Part A; the slip stays `v1.0`); the individual-blotters revision moves it to `v2.1` (wording only, no recorded field changes); `v2.2` (2026-11-27, F1 gate sign-off 16) adds the pre-printed Atomizer row under the blind code row on the sheet and on each generated evaluator header (the generator's mapping gains a required `atomizer` column), because samples now sit in atomizers B01-B39 and H01-H10 that evaluators spray from; it records no new field, and the six P6.3 rehearsal headers must be reprinted with it. `facilitated-session-sheet v3.0` (owner decision 2026-11-27, drafted in a separate change set; proposed, not yet printed or used) is a major revision: one generic double-sided handwritten form, Intensity 0 meaning not detected (no Detected row), no "Not answering because" box, no consent or data classification field, and paper-only would wear, would buy, type of event and season answers. The F1 gate names it before first exposure and carries an open question on its item 4 (sheet and slip ids equal to the waived P6.3 ids) |
 | Guides and rehearsal scope | Manager and participant guides for the facilitated variant; P6.2 and P6.3 scope for a six-person paper-plus-transcription rehearsal; template feedback | Merged (#217, `b027e0f`): guides, P6.2 and P6.3 scope, F1 declaration template, this plan, template feedback; not gate evidence |
 | Group blotter mode, code (built, merged, NOT used by F1) | Program `blotter_mode` (`INDIVIDUAL` default, `SHARED_GROUP`), enrollment algorithm `shared-triples-group-blotter-v1` giving all evaluators the same blind code and order, automatic informational session flag `group_shared_blotter`, spray-to-first-smell ceiling 2 minutes (was 5) with each evaluator's sprayed/first-smell pair checked against it, `scripts/make_spray_sheets.py` is in the documentation row below | Merged: #220 (`6774525`). Also adds the `group_shared_blotter` flag as automatic and not hand-raisable, `ml.reliability.pooled_reliability_group_blotter_both_ways` (not yet called by any report or export), and a migration chained after `a7f3c2d91e04` |
 | Group blotter mode, documentation and spray sheets (history) | Sheet `facilitated-session-sheet v2.0`, run sheet group procedure and replacement-blotter rule (both superseded by the individual-blotters revision, sheet `v2.1`), `scripts/make_spray_sheets.py --mode group`, guides, F1 and P6 gates, ADR-005 and ADR-009 amendments, calibration-v1 and blind-evaluation-workflow notes | Merged with this change: #219 (`docs/f1-group-blotter-procedure`, after #220); not gate evidence |
@@ -844,9 +844,11 @@ numbered sprint, so the Milestone R sprint list stays R1-R15.
 **Owner decision (2026-11-27).** The F1 evaluator paper sheet (new version `v3.0`) asks, per sample at the blind blotter
 stage, three questions the application does not record at that stage today: Would wear (0 to 10, Never to Definitely),
 Would buy (0 to 10, Never to Definitely) and Type of event (multi-select: work or school, at home, social outing,
-formal event, outdoor activity, something else, none of these, cannot judge). For F1 these answers are paper only: they
+formal event, outdoor activity, something else, none of these, cannot judge). The same sheet also asks Season on its
+back, with the same status (added to this item by the v3.0 procedure change set, see below): Season (`season_fit`; multi-select: spring, summer, fall, winter, year-round, none of these, cannot judge). For F1 these answers are paper only: they
 are scanned, the originals are retained under the existing paper-retention sign-off, and they are not entered in the
-application. The application is to be changed after F1 to capture them natively.
+application. The application is to be changed after F1 to capture them natively, and whether season is to be keyed
+after F1 is an open owner question (below).
 
 **Scope.** Nothing in this item changes program `v3.2`, the F1 procedure, the F1 instrument or the pinned build. Any
 code from this item needs a new build and the owner's explicit decision under the build-freeze rule, so it cannot reach
@@ -872,6 +874,17 @@ No implementation starts before both.
   `formal_event`, `outdoor_activity`, `other`, `none`, `cannot_judge`), the same standalone and duplicate rules would
   apply, and the `FitChoice` table has no database stage CHECK (it relies on the service). So the refusal is a schema
   rule, not a storage limit.
+- **Season is refused at the blotter stage in the same way.** `validate_capture_fields` runs the same check for
+  `season_fit` and `setting_fit`: a non-empty list on a non-skin stage is refused (`season_fit is asked at skin stage
+  only`), so season is stage-gated by the schema validator at the blotter stage exactly like `setting_fit`. The options
+  are `spring`, `summer`, `fall`, `winter`, `year_round`, `none` and `cannot_judge` (`SeasonFit`), a duplicate is refused,
+  and the schema makes only `none` and `cannot_judge` stand alone. Instrument v0.5 says (in its response rules) to choose individual
+  seasons OR year-round OR none OR cannot judge, so v0.5 treats `year_round` as exclusive and the schema does not; that
+  mismatch is an open question below. v0.5 also already lists `BL-SEASON` as an optional blotter worksheet item with the
+  same option codes and a distinct stage identity.
+- **An Intensity of 0 needs no application change.** The sheet's rule that a circled Intensity 0 means not detected is
+  entered through the existing not-detected rule: `detected` false, `intensity` 0, `liking` empty and `response_status`
+  `not_detected`, which `ResponseInput` already enforces (a not-detected row must have intensity 0 and no liking).
 - **The paper-only answers cannot be entered after F1 through any existing path.** A pre-reveal write to a locked stage
   is refused (`Stage is locked; original responses are retained`), and F1 locks every blotter stage before the
   household reveal. The `post-reveal` route accepts a write after reveal, but it is the wrong provenance (an informed
@@ -895,7 +908,7 @@ No implementation starts before both.
 
 | Area | Change |
 | :--- | :--- |
-| Schema (`schemas/calibration.py`) | Relax the blotter refusal for event type; keep every other stage rule; keep the duplicate and standalone `none` and `cannot_judge` rules; decide the blotter field names so a blotter value cannot be read as a skin value |
+| Schema (`schemas/calibration.py`) | Relax the blotter refusal for event type and, if the owner decides to key it, season; keep every other stage rule; keep the duplicate and standalone `none` and `cannot_judge` rules; decide the blotter field names so a blotter value cannot be read as a skin value |
 | ORM and migration | Wear and buy columns exist. Event type can reuse `FitChoice` (no stage CHECK), so a forward-only native option needs no table change; any late-entry option (below) needs a new column or table, a migration, and care with the append-only trigger and `v_training_rows` |
 | Service (`calibration_service.py`) | `observe_once` stage handling; for any late-entry option, a new entry type allowed after lock that must not supersede the original answer |
 | Frontend | A blotter wear, buy and event group in `blotterGroups`; the observation panel `save()` and its numeric-field loop; the paper transcription wizard and `PaperSheetFields.tsx`; `transcription.ts` completeness; existing tests `instrumentChoices.test.ts` and `SampleObservationR7b.test.tsx` |
@@ -946,8 +959,9 @@ carry the Proposed amendments. Liking stays the primary target.
 
 **Acceptance criteria (draft, for owner review).**
 
-- The blotter form captures would wear, would buy and event type for an evaluator, and the paper transcription wizard
-  does the same, with the sheet's scale anchors and eight event codes.
+- The blotter form captures would wear, would buy and event type (and season, if the owner decides to key it) for an
+  evaluator, and the paper transcription wizard does the same, with the sheet's scale anchors, eight event codes and
+  seven season codes.
 - A blotter value is stored under a stage-qualified name and is not readable as a skin-stage value in
   `v_training_rows`, `ml/dataset.py`, the feature snapshot, the evidence export or the checkpoint manifest, shown by a
   test that fails if they are pooled.
@@ -972,6 +986,12 @@ build, and the owner's acceptance. None exists yet.
 - The added time and fatigue per sample. The owner's figures are about 25 answers per sample rising to 28 or more for children (not
   counted in the repository); whether that is acceptable is a facilitator and owner question the dry run can
   inform.
+- Whether season (`season_fit`) is to be keyed after F1 at all. The sheet asks it on paper, and the options and the
+  stage rule are as above. If it is keyed, whether it shares the `FitChoice` season dimension with the skin stage or has
+  its own, so that a blotter season can never be read as a skin-stage `season_fit` (the same question as for event type
+  below), and how `year_round` exclusivity is settled: v0.5 treats `year_round` as exclusive, the schema makes only `none`
+  and `cannot_judge` exclusive, and the sheet ticks `year_round` alone, so the schema either tightens or the instrument
+  loosens.
 - Whether the paper-retention and scan sign-off in the F1 gate (12 months, destroyed with the database) covers these
   fields as written, or needs a wording check.
 - Whether the F1 gate's rule that the sheet and slip ids equal the P6.3-rehearsed ids (waived on 2026-11-27) needs a

@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Docs: facilitated session sheet v3.0 procedure (run sheet, manager and participant guides, calibration notes, F1
+  gate wording, P6 runbook note). One generic double-sided handwritten sheet; Intensity 0 means not detected (no
+  Detected row); no "Not answering because" box (the facilitator writes a margin note and the transcriber chooses
+  `skipped`, `unable_to_assess` or `interrupted`); ranking opt-outs map to `skipped` and `unable_to_assess`; consent
+  recorded once in the evaluator packet and copied into the per-session consent note; rules card and property guide as
+  one-time handouts; would wear, would buy, type of event and season are paper only and scanned in F1; keying in
+  position order with the typed code as confirmation; a per-evaluator tracker proposed in place of Part E. The F1 gate
+  names sheet v3.0 and records the P6.3 waiver interaction as an open question. Season (`season_fit`) is added to the
+  Proposed post-F1 blotter capture item, the roadmap mirror, the tech-spec note and the Proposed ADR-005 and ADR-009
+  amendments. No application change.
 - CI: Claude Tier 0 baseline PR review caller
   (`.github/workflows/claude-baseline-review.yml`), a thin caller of the org
   reusable in `ByronWilliamsCPA/.github`. Part of the org-wide

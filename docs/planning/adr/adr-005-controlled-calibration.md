@@ -460,8 +460,15 @@ Implications the owner is asked to confirm:
 **Owner decision that prompts it (2026-11-27).** The F1 evaluator paper sheet (version `v3.0`) asks, per sample at the
 blind blotter stage, would wear (0 to 10, Never to Definitely), would buy (0 to 10, Never to Definitely) and type of
 event (multi-select: work or school, at home, social outing, formal event, outdoor activity, something else, none of
-these, cannot judge). For F1 the answers are paper only: scanned, the originals kept under the existing paper-retention
-sign-off, and not entered in the application. The application is to be changed after F1 to capture them. Plan item:
+these, cannot judge). The same sheet also asks Season (`season_fit`: spring, summer, fall, winter, year-round, none of
+these, cannot judge), with the same treatment. For F1 the answers are paper only: scanned, the originals kept under the
+existing paper-retention sign-off, and not entered in the application. The application is to be changed after F1 to
+capture them; whether season is to be keyed is an open owner question. Season is stage-gated by the schema validator at
+the blotter stage exactly like `setting_fit` (a non-empty `season_fit` on a non-skin stage is refused), and its
+options are `spring`, `summer`, `fall`, `winter`, `year_round`, `none` and `cannot_judge`. Instrument v0.5 treats
+`year_round` as exclusive, while the schema makes only `none` and `cannot_judge` exclusive; that mismatch is open and is
+not settled here. The sheet's rule that a circled Intensity 0 means not detected maps to the existing not-detected rule
+(`detected` false, `intensity` 0, `liking` empty), so it needs no application change. Plan item:
 [PROJECT-PLAN section 11a](../PROJECT-PLAN.md#post-f1-follow-up-blotter-stage-would-wear-would-buy-and-event-type-capture-proposed-2026-11-27).
 
 **Reconciliation with the accepted text.** Verified against the code at `a2f240c` on 2026-11-27.
@@ -505,6 +512,9 @@ fields of the same names, collected on the blind blotter before any skin applica
   as a target in place of a skin-stage value, in training rows, features, exports or checkpoint manifests. The existing
   skin-stage-only rule for `season_fit` and `setting_fit` is unchanged; the blotter event type is a separate question,
   not a relaxation of it, and whether it shares the `setting` dimension of `FitChoice` is open.
+- Season is treated like event type: the existing skin-stage-only rule for `season_fit` is unchanged, a blotter-stage
+  season is a separate question under a stage-qualified name if it is ever keyed, and nothing here relaxes the
+  schema's season refusal.
 - A blotter value gathered from the non-blind mapping holder is non-blind and excluded from blind-baseline training, as
   that evaluator's other values already are.
 

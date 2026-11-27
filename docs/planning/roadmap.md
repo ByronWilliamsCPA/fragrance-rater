@@ -71,7 +71,8 @@ R14's documentation items gate nothing. R8 may land after the P6 go decision but
    [ADR-008](adr/adr-008-authentication-and-production-boundary.md#proposed-amendment-2026-11-27-linking-logins-to-reviewers)
    first. See [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#post-f1-follow-up-evaluator-login-linkage-proposed-2026-11-27).
 7. After F1 only (proposed 2026-11-27, not started, gates neither P6 nor F1 and changes no gate): capture would wear,
-   would buy and type of event natively at the blind blotter stage. For F1 these answers are on the paper sheet only
+   would buy, type of event and season (`season_fit`, stage-gated like `setting_fit`; whether season is keyed at all is
+   an open owner question) natively at the blind blotter stage. For F1 these answers are on the paper sheet only
    (owner decision 2026-11-27): scanned and retained, not entered in the application. Blotter wear and buy are a
    different measure from the skin-stage fields and are never pooled with them. Nothing in it changes program `v3.2`
    or the F1 procedure; it needs an owner decision on the Proposed amendments in

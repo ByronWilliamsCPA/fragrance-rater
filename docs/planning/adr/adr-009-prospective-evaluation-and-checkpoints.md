@@ -230,8 +230,11 @@ household reveal, holdout eligibility and the decision rule are unchanged.
 > **Status of this amendment: Proposed, 2026-11-27.** Not accepted and not implemented. Every accepted amendment above
 > stands as written until the product owner accepts this one. It changes no gate and does not gate P6 or F1.
 
-The F1 paper sheet (version `v3.0`) asks would wear, would buy and type of event at the blind blotter stage (owner
-decision 2026-11-27), and for F1 the answers stay on paper (scanned, retained, not entered in the application). See
+The F1 paper sheet (version `v3.0`) asks would wear, would buy, type of event and season (`season_fit`) at the blind
+blotter stage (owner decision 2026-11-27), and for F1 the answers stay on paper (scanned, retained, not entered in the
+application). Season is stage-gated by the schema validator at the blotter stage like `setting_fit`; whether it is keyed
+after F1 is open, and v0.5 treats `year_round` as exclusive where the schema makes only `none` and `cannot_judge`
+exclusive (an open question, not settled here). See
 [ADR-005's matching Proposed amendment](adr-005-controlled-calibration.md#2026-11-27-proposed-amendment-blotter-stage-would-wear-would-buy-and-event-type)
 for the reconciliation with the 2026-09-19, 2026-09-21 and 2026-11-24 amendments and the plan item for the options.
 

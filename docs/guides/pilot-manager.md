@@ -85,10 +85,15 @@ software parts are merged is stated here and nowhere else in this guide; do not 
 
 The printed materials are the [session sheet](../facilitated-session-sheet.md), the
 [conditions slip](../facilitated-conditions-slip.md), the
-[property guide handout](../facilitated-property-guide.md) (give it to each evaluator before the first session), and the
-[facilitator run sheet](../facilitated-run-sheet.md). Follow the run sheet for room setup, ventilation, round
-timing, silent work, interruptions, paper handling and the transcription window. The run sheet and both forms are
-drafts until the P6.3 rehearsal.
+[property guide handout](../facilitated-property-guide.md) (given once to each evaluator, with the rules card, before the
+first session, not per session), and the [facilitator run sheet](../facilitated-run-sheet.md). The F1 session sheet is
+`facilitated-session-sheet v3.0`: one generic double-sided form with handwritten session, evaluator reference, record ID
+and codes, Intensity 0 meaning not detected (no Detected row), no "Not answering because" box, and no consent or data
+classification field. Consent is recorded once per evaluator in the evaluator packet; the app wizard still asks for a
+consent note per session, which you copy from the packet. Would wear, would buy, type of event and season are asked on
+the sheet and are scanned and retained, not keyed in F1. Follow the run sheet for room setup, ventilation, round
+timing, silent work, interruptions, paper handling, keying order and the transcription window. The run sheet and both
+forms are drafts; the P6.3 rehearsal was waived on 2026-11-27, so v3.0 has not been rehearsed.
 
 ### What is merged and what is pending
 
@@ -167,10 +172,11 @@ This is the detail behind the fixed values above, and the route for an Advanced 
    sessions and that each hidden repeat sits at least twice the session size in positions after its original, then
    enroll the six evaluators one by one. Enrollment fixes the order within each session for that evaluator (a Latin-square row by enrollment ordinal and
    session number); the actual order is stored.
-5. Generate the manager-only mapping and print the blind labels. Build the facilitator spray sheets and each
-   evaluator's pre-printed code and atomizer rows with `scripts/make_spray_sheets.py` (the mapping needs an `atomizer`
-   column, such as `B07`, one atomizer per vial); its output is facilitator-only, goes to the
-   gitignored `tmp_cleanup/spray-sheets/` by default, and is never committed.
+5. Generate the manager-only mapping and build the facilitator spray sheets with `scripts/make_spray_sheets.py` (the
+   mapping needs an `atomizer` column, such as `B07`, one atomizer per vial); its output is facilitator-only, goes to the
+   gitignored `tmp_cleanup/spray-sheets/` by default, and is never committed. Sheet v3.0 has nothing pre-printed per
+   evaluator or per session: print copies of the one generic master (one per evaluator per session), and the evaluator
+   writes the code, which is the atomizer label.
 
 ### Flag the holder as non-blind
 
@@ -231,12 +237,17 @@ Enter one evaluator at a time through the single recorder login and compare each
 before saving, because a saved observation cannot be edited. Enter an ambiguous mark as blank plus a flag. A column
 first smelled after the provisional 2-minute ceiling (counted from that evaluator's own spray of the blotter they smelled)
 is entered with a `spray_to_smell_ceiling_exceeded` flag. Enter each evaluator's own spray time: it is their own and
-differs between evaluators, and after a fresh blotter. Type the blind code from the paper column for each column. In
-program `v3.2` the codes are shared by all six evaluators, so the server accepts a code from any evaluator's sheet and
-will not refuse a sheet entered under the wrong evaluator: enter one evaluator's whole stack at a time, and check the
-name and paper record ID against the enrollment on screen before saving. Keep
+differs between evaluators, and after a fresh blotter. Key the columns in the app's position order and type the
+handwritten code from the paper column for each one; the typed code is only a confirmation, and a mis-written code is
+refused with no override. In program `v3.2` the codes are shared by all six evaluators, so the server accepts a code from
+any evaluator's sheet and will not refuse a sheet entered under the wrong evaluator: enter one evaluator's whole stack at
+a time, and check the evaluator reference and paper record ID against the enrollment on screen before saving. A circled
+Intensity 0 is entered as detected No (detected false, intensity 0, liking empty, `not_detected`). For an empty column with
+no Intensity circled, choose `skipped`, `unable_to_assess` or `interrupted` from the facilitator's margin note; the ranking
+opt-outs map to `skipped` ("I would rather not rank") and `unable_to_assess` ("I could not tell them apart"). Copy the
+per-session consent note from the evaluator packet. Do not key would wear, would buy, type of event or season in F1. Keep
 the original sheets and slips, scan them, and store the scans outside the repository; the retention period is 12 months after
-the evaluation ends, decided by the owner on 2026-11-25 (see below). Record each sheet's version id and the conditions slip's version id in the declaration.
+the evaluation ends, decided by the owner on 2026-11-25 (see below). Record each sheet's version id (`facilitated-session-sheet v3.0`) and the conditions slip's version id in the declaration. A compact per-evaluator tracker (sheet printed, completed, scanned, transcribed, checked, margin notes) is proposed in place of the old per-session Part E reconciliation; it needs the owner's confirmation.
 
 ### Individual blotters (F1)
 
@@ -259,7 +270,7 @@ for the procedure. In short:
   blotter (owner decision, 2026-11-25); write the values in the declaration.
 - **Shared codes in `v3.2` (owner decision, 2026-11-27).** All six evaluators see one code per physical sample, equal
   to the label on the atomizer (the app screen shows the code, which is the atomizer label), so an evaluator can pull
-  the right sample from the app alone. Repeats keep their own codes. The stored codes were replaced by a reviewed data
+  the right sample from the app alone. Repeats keep their own codes. On the v3.0 sheet the evaluator writes the code by hand. The stored codes were replaced by a reviewed data
   update. Consequences: the wrong-evaluator check is procedural, one evaluator's reveal would unblind the others (the
   `HOUSEHOLD` reveal already reveals everyone together), a later add-evaluator enrollment gets random codes until a
   build containing #243 is deployed and pinned (then it inherits the shared codes) and otherwise needs the same update,
@@ -277,9 +288,9 @@ and the owner decides then), and no guardian clause is added to the consent text
 household only). The full record is in the [F1 gate](../planning/gates/f1.md). On 2026-11-26 the owner also decided
 that evaluators walk up to the vials as they are ready to spray their own blotter; the facilitator does not schedule or
 control turns at the vials. On 2026-11-27 the owner added the atomizer label: every sample sits in a standardized
-atomizer (B01 to B39, H01 to H10) and each evaluator's header prints that label under each blind code. Never show an
-evaluator a vial number, a brand, a name or any other identity; the atomizer label printed on the container and header
-is the only location key they see. The P6.3 rehearsal observes this approach.
+atomizer (B01 to B39, H01 to H10), and the label is the code, which the evaluator writes on the v3.0 sheet. Never show an
+evaluator a vial number, a brand, a name or any other identity; the atomizer label printed on the container is the only
+location key they see. The waived P6.3 rehearsal would have observed this approach; it has not been observed.
 
 ## Measure and close the workflow
 

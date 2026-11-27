@@ -54,11 +54,13 @@ about signing in, blind calibration on screen, and skin observations do not appl
 1. **No logins and no phones.** Phones stay outside the room or switched off. The facilitator, who is also an
    evaluator, helps you keep your blotters, tray and sheet organized and types your answers into the application
    afterward. In your sessions the facilitator does not score; the facilitator's own scoring is done separately.
-2. **One paper sheet per session.** You get one sheet with three sample columns. The codes printed on the sheet are
-   the codes of the blotters you will smell. Write only what you perceive. Never write what a sample might be.
+2. **One paper sheet per session.** You get one sheet, printed on both sides, with three sample columns. The top of the
+   sheet (session, evaluator reference, record ID) is filled in by hand, and you write the code of each sample in its
+   column; the code is the label on the atomizer. Write only what you perceive. Never write what a sample might be.
+   You are given a rules card and a property guide once, at the start, not at every session.
 3. **Your own blotters.** You have your own tray of three coded blotters, and you spray your own, one at a time, as you
-   are shown. You smell it once and write the time you first smell it. Your sheet shows your own codes, which are not
-   the codes on anyone else's sheet; do not try to match codes or guess what others are smelling, and do not compare.
+   are shown. You smell it once and write the time you first smell it. The codes are the atomizer labels, and everyone
+   uses the same codes, in a different order; do not try to guess what others are smelling, and do not compare.
    Work silently until the facilitator announces the reveal, and do not talk about any sample or score to anyone, in
    or out of the room, until then.
 4. **Write your spray time, then smell at once** and write the time you first smell it. A provisional ceiling of
@@ -66,15 +68,18 @@ about signing in, blind calibration on screen, and skin observations do not appl
    pass before you have smelled it, spray a fresh blotter of the same sample and write the new spray time on your
    sheet. If you smell late anyway, write the time you actually smelled. Nothing is thrown away. The short wait
    between samples for clean air is a separate thing and is not your 2 minute window.
-5. **A zero is a real answer; blank means "not answering".** Do not guess a mark. If you cannot smell a sample,
-   circle **No** under Detected and leave the rest of that column blank. If a mark is ambiguous the facilitator enters
-   it as blank with a flag.
+5. **Intensity 0 means not detected; a zero elsewhere is a real answer.** Do not guess a mark. If you cannot smell a
+   sample, circle **0** on the Intensity row, write the times, initial the column and leave the rest of that column
+   blank. If you leave a column empty without circling an Intensity, the facilitator writes a short note on your sheet
+   saying why. If a mark is ambiguous the facilitator enters it as blank with a flag.
 6. **Separate conditions slip.** If you accepted the session-context consent, you also complete a short conditions
    slip alone before the first spray and hand it back face down. It is filed apart from your score sheet and linked
-   only by a random record ID. Consent was recorded once with you present before session 1; you can withdraw it at
-   any time.
-7. **Rank at the end, then hand in the sheet.** Rank only after all three columns are initialed, then give the sheet
-   to the facilitator and stay silent.
+   only by the record ID. Consent was recorded once with you present before session 1, in your packet and not on the
+   sheet; you can withdraw it at any time.
+7. **Rank at the end, then hand in the sheet.** Rank only after all three columns are initialed (turn the sheet over for
+   the notes, the questions about when and where you would wear it, and the ranking). You may tick **I would rather not
+   rank** or **I could not tell them apart**. Then give the sheet to the facilitator and stay silent. The answers about
+   wearing, buying, events and seasons are kept on paper only.
 8. **Everyone finishes before the next session.** The facilitator has to enter all six sheets first, so expect a gap
    of at least three hours between sessions on the same day.
 
@@ -86,7 +91,7 @@ non-pilot samples first. Everyone is included. Your repeat answers are described
 threshold is applied.
 
 **Your paper.** The original sheet and slip are kept and scanned by the facilitator under the retention period fixed
-for the pilot. The sheet carries a version id (`facilitated-session-sheet v2.2` at the time of writing, still a
+for the pilot. The sheet carries a version id (`facilitated-session-sheet v3.0` at the time of writing, still a
 draft); a sheet with no version id is not used.
 
 Printed forms: [session sheet](../facilitated-session-sheet.md), [conditions slip](../facilitated-conditions-slip.md),
