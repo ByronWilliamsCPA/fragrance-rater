@@ -95,6 +95,16 @@ the same day, tried physically, and abandoned because it got two evaluators thro
 and unused. See the
 [ADR-005 2026-11-25 addendum](planning/adr/adr-005-controlled-calibration.md#2026-11-25-addendum-group-blotter-mode-abandoned-for-f1-individual-blotters-return).
 
+**Shared codes in the F1 program (2026-11-27).** The statements above that blind codes are random and
+evaluator-specific describe what enrollment generates. For the F1 program (`v3.2`) the owner decided on 2026-11-27 that
+all six evaluators see one shared code per physical sample, equal to the label on the atomizer, with repeats keeping
+distinct codes. The stored codes were replaced in production by a reviewed one-off data update; the enrollments'
+recorded label scheme remains `random`, and there was no code change, build or deploy. The consequence for the workflow
+is that the server's blind-code check can no longer tell one evaluator's sheet from another's in that program, so the
+wrong-evaluator check is procedural (one recorder, one evaluator's sheets at a time). The decision, the accepted
+consequences and what remains owed are in the [F1 gate sign-off 19](planning/gates/f1.md); the protocol note is in the
+[ADR-005 2026-11-27 note](planning/adr/adr-005-controlled-calibration.md#2026-11-27-note-shared-blind-codes-equal-to-the-atomizer-label-in-the-f1-program).
+
 Enrollment support for shared triples, the household reveal and the holdout gate are work items in the
 [project plan](planning/PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24); until each
 merges, only the independent per-evaluator shuffle and the per-enrollment reveal described above exist.
