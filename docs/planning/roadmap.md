@@ -1,6 +1,6 @@
 # Fragrance Rater Execution Roadmap
 
-> **Status**: Active mirror | **Updated**: 2026-11-25
+> **Status**: Active mirror | **Updated**: 2026-11-27
 
 The [Authoritative Project Plan](PROJECT-PLAN.md) owns scope, status, acceptance criteria,
 risks, and evidence. This page is a compact execution view and must be updated from that plan in
@@ -16,9 +16,9 @@ the same pull request.
 | P3 | Product UX foundation | Complete | P0 and P2 complete | Routed shell and accessibility baseline accepted |
 | P4 | Participant experience | Complete | P3 complete | Participant workflows require no IDs or API tools |
 | P5 | Manager and operations experience | Complete | P4 complete | Setup, mapping, enrollment, progress, reveal, reporting, and operational workflows usable through UI |
-| P6 | Integrated pilot readiness | In progress; external execution pending | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
-| R | Review remediation and ML foundation | In progress; ML skeleton, affinity-v2, R1-R5 done; R6 mechanism merged (#151, #157), alias decisions can proceed against the validated manifest and no longer gate F1; R7a merged (#160, #161); R7b merged (#165, #167); R8 done (#172, #181, #182); R13 done (#168, #173-#175); R14 done (#170, #171, #177, #178, #179, #192, #193) | P5 complete | R1-R4, R7a-R7b, R13, and R14's secrets, topology-validator, and backup items merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 (R6's 43-version alias decisions excepted: owner decision 2026-11-26 makes them a D1 prerequisite) |
-| F1 | Initial family perfume pilot | Planned | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
+| P6 | Integrated pilot readiness | In progress; external execution pending. Owner waived P6.3 on 2026-11-27 (F1 gate sign-off 18; a waiver, not a pass) and the P6.6 `go` was recorded with the waivers (#239); P6.2 and P6.4 are unrecorded, P6.1 and P6.5 partly done | P1 controls, P2, and P5 complete | P1 evidence, deployed device matrix, synthetic rehearsal, operations drill, and `go` decision accepted |
+| R | Review remediation and ML foundation | In progress; ML skeleton, affinity-v2, R1-R5 done; R6 mechanism merged (#151, #157), alias decisions can proceed against the validated manifest and no longer gate F1; R7a merged (#160, #161); R7b merged (#165, #167), its acceptance export still owed (P6.3 waived, no substitute chosen); R8 done (#172, #181, #182); R13 done (#168, #173-#175); R14 done (#170, #171, #177, #178, #179, #192, #193) | P5 complete | R1-R4, R7a-R7b, R13, and R14's secrets, topology-validator, and backup items merged before the P6 go decision (R7b specifically before the P6.3 synthetic rehearsal); R2 and R5-R8 merged before F1 (R6's 43-version alias decisions excepted: owner decision 2026-11-26 makes them a D1 prerequisite) |
+| F1 | Initial family perfume pilot | Planned; program v3.2 activated 2026-11-27 (`HOUSEHOLD` reveal, `INDIVIDUAL` blotters, 49 memberships, build `94f6cf22`), six evaluators enrolled | P6 complete | Real-use evidence reviewed and a proceed-to-D1 decision recorded; revise/extend/stop leaves F1 open |
 | D1 | Source and vocabulary foundation | Planned | F1 complete; R6's 43-version alias decisions made | Authorized snapshots and versioned alias/taxonomy mappings accepted |
 | D2 | Reproducible catalog statistics | Planned | D1 complete | Deterministic statistics artifact and denominator tests accepted |
 | D3 | Post-reveal exploration | Planned | D2 and P1 complete | Accessible, disclosure-safe evidence-layer profiles accepted |
@@ -49,21 +49,21 @@ rehearsal path; the merged wizard (#216) has a checkpoint panel in Program setup
 mode on 2026-11-25 (one blotter per sample passed round the six evaluators, shared codes and order, a provisional
 2 minute spray-to-first-smell ceiling); its code pull request (PR 220) is merged and its documentation pull request (PR 219) merged after it. The same day the owner tried it physically, got two evaluators
 through in two minutes, and abandoned it for F1: F1 uses one blotter per evaluator per sample, each evaluator
-spraying their own, with the 2 minute ceiling kept per own blotter; the group code stays merged and unused. P6.3 must rehearse paper plus
-transcription in the six-person format; the merged code is the rehearsed instrument. R9-R12 are maintainability sprints and gate nothing, and
+spraying their own, with the 2 minute ceiling kept per own blotter; the group code stays merged and unused. P6.3 was to rehearse paper plus
+transcription in the six-person format (the owner waived it on 2026-11-27, F1 gate sign-off 18); the merged code is the F1 instrument. R9-R12 are maintainability sprints and gate nothing, and
 R14's documentation items gate nothing. R8 may land after the P6 go decision but must land before F1.
 
 ## Immediate queue
 
 1. Milestone R sprints in order: R1-R5 (done), R6 (mechanism merged; alias decisions are a D1 prerequisite, not an F1 blocker,
-   by owner decision 2026-11-26), then R7a and R7b (both merged; R7b's acceptance export still comes from the P6.3 deployed run) before the P6 go
+   by owner decision 2026-11-26), then R7a and R7b (both merged; R7b's acceptance export is still owed: the P6.3 deployed run it was to come from was waived on 2026-11-27 and the owner has not chosen a substitute) before the P6 go
    decision, and R8 (merged) before F1 (R13 and R14 also merged); see [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#11a-milestone-r-review-remediation-and-ml-foundation)
    for scope, lead model, and gate.
 2. Use the P6 runbook and retained-evidence templates against the final release candidate.
 3. Complete P1 evidence: physical manifest, authorized fixtures, backup clone, migration,
    concurrency, and recovery.
-4. Run the authenticated device, synthetic workflow, quality, and operations rehearsals.
-5. Begin F1 with actual pilot perfumes only after the P6 go decision.
+4. Run the authenticated device, synthetic workflow, quality, and operations rehearsals. As of 2026-11-27 the synthetic workflow rehearsal (P6.3) is waived by the owner, P6.2 and P6.4 are unrecorded, and P6.1 and P6.5 are partly done.
+5. Begin F1 with actual pilot perfumes only after the P6 go decision. The `go` was recorded on 2026-11-27 with the waivers; the F1 program is `v3.2` (see [PROJECT-PLAN.md section 11](PROJECT-PLAN.md)).
 
 ## Delivered historical scope
 

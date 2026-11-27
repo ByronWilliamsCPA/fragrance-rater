@@ -382,7 +382,13 @@ END BASELINE DEVELOPMENT STANDARDS
 > reproduction) is merged (#181), as is its review follow-up (#182: flag-resolution outcome stored, snapshot race),
 > so R8 is done. R13 is done (#168, #173-#175). R14 is done: PRs 1, 2 and 3a merged (#170, #171, #179) and PR 3b
 > merged on 2026-11-06 (#192 runtime hardening and `BUILD_ENV` removal, #193 digest-pinned base images and cosign
-> signing). The project plan owns milestone status.
+> signing). On 2026-11-27 the owner **waived** the P6.3 six-person synthetic rehearsal (F1 gate sign-off 18); it is
+> a waiver, not a pass. The P6.6 decision `go` was recorded at the owner's instruction (#239) with the waivers; P6.2 and
+> P6.4 are unrecorded, and P6.1 and P6.5 are partly done. The R7b P6.3 acceptance export is still owed, and the owner
+> has not chosen how to evidence R7b instead. The F1 program is v3.2, activated 2026-11-27 (`HOUSEHOLD` reveal,
+> `INDIVIDUAL` blotters, 49 memberships, pinned to build `94f6cf22`); v3.1 is inert. The six real evaluators are
+> enrolled and the holder is flagged non-blind. The Family pilot screen (#240) is merged and not deployed to
+> production. The project plan owns milestone status.
 
 **Planning Documents** (in `docs/planning/`):
 
@@ -427,9 +433,9 @@ END BASELINE DEVELOPMENT STANDARDS
 | P3 | Role-aware routed product foundation |
 | P4 | Complete participant experience |
 | P5 | Complete manager, reporting, and operations experience |
-| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1 (R6's alias decisions excepted: a D1 prerequisite by owner decision 2026-11-26); R1-R5, R7a, R8, R13 and R14 are done, R7b's code is merged but its P6.3 acceptance export is still owed, R6's alias decisions can now proceed against the validated P1.1 manifest |
-| P6 | Deployed synthetic rehearsal and pilot-readiness decision |
-| F1 | Initial family pilot using actual perfumes |
+| R | Review remediation and ML foundation sprints R1-R15 (PROJECT-PLAN section 11a names the lead model per sprint); R1-R4 and R7a-R7b gate P6 closure (R7b via P6.3), as do R13 and R14's secrets, validator, and backup items; R2 and R5-R8 gate F1 (R6's alias decisions excepted: a D1 prerequisite by owner decision 2026-11-26); R1-R5, R7a, R8, R13 and R14 are done, R7b's code is merged but its P6.3 acceptance export is still owed (P6.3 waived 2026-11-27; no substitute chosen), R6's alias decisions can now proceed against the validated P1.1 manifest |
+| P6 | Deployed synthetic rehearsal and pilot-readiness decision (P6.3 waived by the owner 2026-11-27, F1 gate sign-off 18; P6.6 `go` recorded with waivers) |
+| F1 | Initial family pilot using actual perfumes (program v3.2 activated 2026-11-27, six evaluators enrolled) |
 | D1 | Source and vocabulary foundation |
 | D2 | Reproducible catalog statistics |
 | D3 | Post-reveal exploration |

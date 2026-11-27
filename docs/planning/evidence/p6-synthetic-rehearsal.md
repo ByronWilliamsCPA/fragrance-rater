@@ -10,13 +10,13 @@ tags:
   - evaluation
 ---
 
-**Status:** Pending target deployment
+**Status:** Not completed; the P6.3 rehearsal was waived by the owner on 2026-11-27 (F1 gate sign-off 18). A waiver, not a pass
 
 **Private evidence location:** Pending
 
 **Release commit and image digests:** Pending
 
-**R7b participant-instrument build exercised (commit SHA and image digests):** Pending
+**R7b participant-instrument build exercised (commit SHA and image digests):** Not recorded; the R7b acceptance export from a synthetic run is still owed
 
 Use unmistakably synthetic evaluator names, catalog versions, observations, and outcomes. Record
 the UTC start/end time, operator, role account, expected result, observed result, pass/fail, and
@@ -24,41 +24,41 @@ private artifact reference for each step.
 
 | Step | Required result | Result | Evidence reference |
 | :--- | :--- | :--- | :--- |
-| Create versioned program | Draft has a unique name and version | Pending | Pending |
-| Select exact catalog versions | Name, house, concentration, and `version_key` match manifest | Pending | Pending |
-| Assign baseline, repeat, holdout, and another role | Frozen preview preserves roles and repeat link | Pending | Pending |
-| Activate definition | Confirmation is required; later mutation is rejected | Pending | Pending |
-| Enroll evaluator and recorder | Named assignment and randomized sessions appear | Pending | Pending |
-| Print mapping and labels | Manager sees correct mapping; participant cannot retrieve it | Pending | Pending |
-| Record and lock blind blotter work | Zero, null, text, and normal values persist correctly | Pending | Pending |
-| Finalize skin plan and record skin work | Empty or selected plan and elapsed observations persist | Pending | Pending |
-| Reveal and add post-reveal response | Blockers enforce policy; holdout remains concealed as required | Pending | Pending |
-| Record repeated ordinary encounters | History retains both encounters and correct dates | Pending | Pending |
-| Create and reopen recommendations | Reopen is idempotent and creates no duplicate impressions | Pending | Pending |
-| View explanation | Deterministic fallback remains usable without the LLM provider | Pending | Pending |
-| Append feedback revisions | Interest and sampling revisions remain ordered and immutable | Pending | Pending |
-| Link a later synthetic outcome | Pre-impression outcome is rejected; later outcome links once | Pending | Pending |
-| Filter and export metrics | Window, population, exclusions, denominators, versions, strategy, and snapshot persist | Pending | Pending |
-| Record failure and recovery | Status identifies and then clears the affected evaluator | Pending | Pending |
-| Interrupt and retry | Saved state resumes without duplicate data or transition | Pending | Pending |
+| Create versioned program | Draft has a unique name and version | Waived 2026-11-27 (sign-off 18) | None |
+| Select exact catalog versions | Name, house, concentration, and `version_key` match manifest | Waived 2026-11-27 (sign-off 18) | None |
+| Assign baseline, repeat, holdout, and another role | Frozen preview preserves roles and repeat link | Waived 2026-11-27 (sign-off 18) | None |
+| Activate definition | Confirmation is required; later mutation is rejected | Waived 2026-11-27 (sign-off 18) | None |
+| Enroll evaluator and recorder | Named assignment and randomized sessions appear | Waived 2026-11-27 (sign-off 18) | None |
+| Print mapping and labels | Manager sees correct mapping; participant cannot retrieve it | Waived 2026-11-27 (sign-off 18) | None |
+| Record and lock blind blotter work | Zero, null, text, and normal values persist correctly | Waived 2026-11-27 (sign-off 18) | None |
+| Finalize skin plan and record skin work | Empty or selected plan and elapsed observations persist | Waived 2026-11-27 (sign-off 18) | None |
+| Reveal and add post-reveal response | Blockers enforce policy; holdout remains concealed as required | Waived 2026-11-27 (sign-off 18) | None |
+| Record repeated ordinary encounters | History retains both encounters and correct dates | Waived 2026-11-27 (sign-off 18) | None |
+| Create and reopen recommendations | Reopen is idempotent and creates no duplicate impressions | Waived 2026-11-27 (sign-off 18) | None |
+| View explanation | Deterministic fallback remains usable without the LLM provider | Waived 2026-11-27 (sign-off 18) | None |
+| Append feedback revisions | Interest and sampling revisions remain ordered and immutable | Waived 2026-11-27 (sign-off 18) | None |
+| Link a later synthetic outcome | Pre-impression outcome is rejected; later outcome links once | Waived 2026-11-27 (sign-off 18) | None |
+| Filter and export metrics | Window, population, exclusions, denominators, versions, strategy, and snapshot persist | Waived 2026-11-27 (sign-off 18) | None |
+| Record failure and recovery | Status identifies and then clears the affected evaluator | Waived 2026-11-27 (sign-off 18) | None |
+| Interrupt and retry | Saved state resumes without duplicate data or transition | Waived 2026-11-27 (sign-off 18) | None |
 
-These rows are required when F1 runs in the facilitated format (see the [P6 gate](../gates/p6.md)). All rows are pending; none is
-evidence yet.
+These rows are required when F1 runs in the facilitated format (see the [P6 gate](../gates/p6.md)). All rows are waived (2026-11-27, sign-off 18); none is
+evidence.
 
 | Step | Required result | Result | Evidence reference |
 | :--- | :--- | :--- | :--- |
-| Sheet and slip versions rehearsed | Version id of the paper sheet and of the conditions slip recorded; equals the ids F1 will name | Pending | Pending |
-| Shared-triple enrollment of six synthetic evaluators | `INDIVIDUAL` blotter mode; same session composition, per-session Latin-square rotation, random per-evaluator codes, preview matches stored plan | Pending | Pending |
-| Paper session for six evaluators | Silent parallel sheets completed for at least one full session on paper, then one evaluator at a time transcribed through one recorder login | Pending | Pending |
-| Blind-code confirmation and ambiguous marks | A mismatched code is not saved, including one sheet deliberately entered under the wrong evaluator (expected 409 with per-evaluator codes; record honestly if it is not caught); an ambiguous mark enters as blank plus a flag | Pending | Pending |
-| Individual blotter flow and ceiling | One blotter per evaluator per sample, each evaluator spraying their own; the facilitator organizes and does not evaluate; actual sprayed, first-smelled and column-finished times recorded; provisional 2-minute ceiling counted from each evaluator's own spray confirmed or replaced; breaches flagged | Pending | Pending |
-| Fresh blotter | At least one rehearsed fresh blotter (same sample, same blind code, sprayed when that evaluator's own window passed unsmelled); each sheet's Time sprayed is the spray time of the blotter that evaluator smelled; transcription enters each evaluator's own spray time; count of fresh blotters recorded | Pending | Pending |
-| No group flag | No session carries `group_shared_blotter` (group blotter mode is built and unused); pooled reliability has the holder split only | Pending | Pending |
-| Non-blind holder | Holder's enrollment flagged non-blind; training eligibility excludes it and evaluation keeps it | Pending | Pending |
-| Checkpoints before holdouts | A holdout write is refused before that evaluator's own checkpoint (409) and accepted after; an explicit evidence time before the checkpoint is refused (422); checkpoints created by a manager | Pending | Pending |
-| Household reveal | Refused until every enrollment is ready; one atomic reveal after the holdouts | Pending | Pending |
-| Skin-absent by design | Five evaluators finalize an empty plan; completeness denominators count skin only for evaluators with a plan | Pending | Pending |
-| Paper retention | Scans stored privately; retention period fixed by the owner is recorded | Pending | Pending |
+| Sheet and slip versions rehearsed | Version id of the paper sheet and of the conditions slip recorded; equals the ids F1 will name | Waived 2026-11-27 (sign-off 18) | None |
+| Shared-triple enrollment of six synthetic evaluators | `INDIVIDUAL` blotter mode; same session composition, per-session Latin-square rotation, random per-evaluator codes, preview matches stored plan | Waived 2026-11-27 (sign-off 18) | None |
+| Paper session for six evaluators | Silent parallel sheets completed for at least one full session on paper, then one evaluator at a time transcribed through one recorder login | Waived 2026-11-27 (sign-off 18) | None |
+| Blind-code confirmation and ambiguous marks | A mismatched code is not saved, including one sheet deliberately entered under the wrong evaluator (expected 409 with per-evaluator codes; record honestly if it is not caught); an ambiguous mark enters as blank plus a flag | Waived 2026-11-27 (sign-off 18) | None |
+| Individual blotter flow and ceiling | One blotter per evaluator per sample, each evaluator spraying their own; the facilitator organizes and does not evaluate; actual sprayed, first-smelled and column-finished times recorded; provisional 2-minute ceiling counted from each evaluator's own spray confirmed or replaced; breaches flagged | Waived 2026-11-27 (sign-off 18) | None |
+| Fresh blotter | At least one rehearsed fresh blotter (same sample, same blind code, sprayed when that evaluator's own window passed unsmelled); each sheet's Time sprayed is the spray time of the blotter that evaluator smelled; transcription enters each evaluator's own spray time; count of fresh blotters recorded | Waived 2026-11-27 (sign-off 18) | None |
+| No group flag | No session carries `group_shared_blotter` (group blotter mode is built and unused); pooled reliability has the holder split only | Waived 2026-11-27 (sign-off 18) | None |
+| Non-blind holder | Holder's enrollment flagged non-blind; training eligibility excludes it and evaluation keeps it | Waived 2026-11-27 (sign-off 18) | None |
+| Checkpoints before holdouts | A holdout write is refused before that evaluator's own checkpoint (409) and accepted after; an explicit evidence time before the checkpoint is refused (422); checkpoints created by a manager | Waived 2026-11-27 (sign-off 18) | None |
+| Household reveal | Refused until every enrollment is ready; one atomic reveal after the holdouts | Waived 2026-11-27 (sign-off 18) | None |
+| Skin-absent by design | Five evaluators finalize an empty plan; completeness denominators count skin only for evaluators with a plan | Waived 2026-11-27 (sign-off 18) | None |
+| Paper retention | Scans stored privately; retention period fixed by the owner is recorded | Waived 2026-11-27 (sign-off 18) | None |
 
 Attach a redacted metrics export manifest containing its filename, SHA-256 hash, byte count,
 redaction reviewer, and private location. Do not commit the export itself.
