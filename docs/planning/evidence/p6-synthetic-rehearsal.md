@@ -88,6 +88,6 @@ Recorded as they happened. They are notes, not evidence: no row above is marked 
   A manager-only "Add an evaluator" screen is built in a separate change, and the owner decided when it goes live
   (see the F1 gate, sign-off 15).
 
-**Rehearsal result:** Pending
+**Rehearsal result:** Not completed. The owner waived the remainder on 2026-11-27 after step 3.1 (see F1 gate sign-off 18). No row above beyond steps 1.x to 3.1 is evidenced.
 
 **Reviewer and UTC date:** Pending
