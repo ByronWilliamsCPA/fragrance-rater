@@ -36,7 +36,8 @@ configured manager usernames before opening the program.
 
 ## Enroll, label, and operate
 
-Enroll the named evaluator and grant only the recorder usernames that need access. (The
+If the evaluator is not in the Evaluator list yet, first add them in the **Add an evaluator** box at the top of
+the Enrollment section; they are then selected in the list ready to enroll. Enroll the named evaluator and grant only the recorder usernames that need access. (The
 [facilitated variant](#facilitated-six-evaluator-variant) uses one recorder login for all six evaluators.) Choose the
 blind label scheme at enrollment: **Standard** (for example `E01-S1-2`, the default and easiest
 to label) or **Random code** (8 hex characters). Standard labels reveal which sessions are
