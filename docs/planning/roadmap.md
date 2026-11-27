@@ -64,6 +64,12 @@ R14's documentation items gate nothing. R8 may land after the P6 go decision but
    concurrency, and recovery.
 4. Run the authenticated device, synthetic workflow, quality, and operations rehearsals. As of 2026-11-27 the synthetic workflow rehearsal (P6.3) is waived by the owner, P6.2 and P6.4 are unrecorded, and P6.1 and P6.5 are partly done.
 5. Begin F1 with actual pilot perfumes only after the P6 go decision. The `go` was recorded on 2026-11-27 with the waivers; the F1 program is `v3.2` (see [PROJECT-PLAN.md section 11](PROJECT-PLAN.md)).
+6. After F1 only (proposed 2026-11-27, not started, gates neither P6 nor F1 and changes no gate): link each evaluator to
+   her own login, through a provider-neutral identity rather than an Authentik username, and allow mixed facilitator and
+   self entry. Nothing in it changes program `v3.2` or the F1 procedure;
+   it needs an owner decision on the Proposed amendment in
+   [ADR-008](adr/adr-008-authentication-and-production-boundary.md#proposed-amendment-2026-11-27-linking-logins-to-reviewers)
+   first. See [PROJECT-PLAN.md section 11a](PROJECT-PLAN.md#post-f1-follow-up-evaluator-login-linkage-proposed-2026-11-27).
 
 ## Delivered historical scope
 

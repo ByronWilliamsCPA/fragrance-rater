@@ -108,6 +108,56 @@ Validation: `tests/unit/test_api/test_calibration_audit.py`, `tests/unit/test_se
 (`TestNoStoreDefault`), and `tests/unit/test_logging.py` (a JSON record carries `correlation_id`;
 secrets are redacted; keys are masked in dumps; the lifespan applies the settings).
 
+## Proposed amendment (2026-11-27): linking logins to reviewers
+
+> **Status of this section: Proposed.** The Accepted decision text above is unchanged and stays in force until the
+> owner reviews the design and accepts this amendment. Nothing here changes program `v3.2`, the F1 procedure or any
+> gate; for F1 the single recorder login transcribes every evaluator's sheets.
+
+**History, as recorded in the repo.** The R3 amendment of 2026-10-21 (commit `10bd5d8`, PR #144, merged 2026-10-30)
+closed architecture review items S-05 and B-10. It applied the owner's Q5 decision of 2026-10-21 ("household members
+do not read each other's evidence") by reusing `recorder_usernames` as the read grant, and it recorded one side effect
+in these words: "A user with no recorder assignment therefore cannot read any history, their own included, until a
+manager enrolls them; the owner accepted this over linking Authentik users to reviewers." PR #144 lists the same side
+effect as a "Behavior change, accepted by the owner" and leaves write scoping unchanged. Neither this ADR nor the PR
+description discusses linking beyond that clause or states a reason against it, so the repo documents a scope choice
+made inside a security remediation.
+
+**History, the owner's recollection (2026-11-27; not verified in the repo).** The underlying reason for keeping
+reviewer and login independent was that the owner did not want an app that other people may eventually be allowed to
+use to depend on logging in through the owner's personal Authentik account. For an earlier app the owner used Supabase
+for login and the database.
+
+**Why it needs to change.** On 2026-11-27 the owner required that, after F1, each evaluator can be linked to her own
+login and that mixed entry is possible (the facilitator enters some of an evaluator's sessions, the evaluator enters
+others). The owner has indicated that the "accepted this over linking" clause will have to be overturned. The design is
+in [PROJECT-PLAN section 11a](../PROJECT-PLAN.md#post-f1-follow-up-evaluator-login-linkage-proposed-2026-11-27) and is
+not decided.
+
+**Proposed change, kept narrow.**
+
+1. Supersede only the clause "the owner accepted this over linking Authentik users to reviewers".
+2. Design principle: link a reviewer to a provider-neutral external identity, an (issuer, subject) pair, not to an
+   Authentik username. Today `recorder_usernames` matches the trimmed `X-Authentik-Username` header value exactly and
+   case-sensitively; that string is the coupling to the owner's Authentik account the owner's recollection says to
+   avoid. The first slice may link family evaluators who are already inside the owner's Authentik, which does not
+   conflict with that concern; a path for people outside it is designed for but built only when outsiders are in scope.
+3. Keep Q5. A linked participant reads only her own reviewer's evidence; household members still do not read each
+   other's evidence, and a manager still reads every reviewer. Linking also removes the side effect the clause
+   accepted, because a linked participant can read her own history without a recorder assignment.
+4. Keep "Reviewer identity and authenticated recorder identity remain independent." A link maps an external identity
+   to a reviewer without merging the two: every write is still stamped with the login that made it (`recorded_by`),
+   and whose experience is recorded is still `reviewer_id`.
+5. Keep reveal, mapping, checkpoints and guardian consent for minors manager-controlled. Under shared blind codes one
+   evaluator's reveal would unblind the others.
+6. Keep the trust boundary above. Forwarded identity headers stay trusted only because topology and the nginx header
+   rule make the proxy the sole path to the backend. A token-based path for non-Authentik identities must verify
+   signatures itself in the backend (JWKS, issuer, audience, expiry), must not accept a client-supplied identity header,
+   and must not weaken the header-trust boundary.
+
+**Status.** Proposed. It becomes Accepted only after the design review, and any implementation needs a migration, a
+backend change and a new frontend build under the build-freeze rule.
+
 ## Consequences
 
 - Production Compose and Unraid networking must prevent direct backend exposure.

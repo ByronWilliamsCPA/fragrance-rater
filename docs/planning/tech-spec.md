@@ -250,6 +250,28 @@ Generated OpenAPI is the field reference; this section records the blind-code ru
   codes the check still catches the wrong sample but cannot tell one evaluator's sheet from another's, so catching a
   sheet entered under the wrong evaluator is procedural in such a program (F1 gate sign-off 19).
 
+### Evaluator login linkage (Proposed, post-F1)
+
+Current contract, verified against the code at `6635413`: a non-manager login acts for an evaluator only if it is listed
+in `Enrollment.recorder_usernames`, set at enrollment and not changed by any route afterward. Every listed login has the
+same rights (blind view, session start and end, observations, stage locks, skin plan, consent), `Reviewer` has no login
+column, and the server records no entry mode and no session owner. `Observation.recorded_by` is stored but is not in the
+evidence export, and observation and session writes emit no audit event. Reviewer identity and `recorded_by` stay
+independent (see the trust boundary above). Authorization matches the `X-Authentik-Username` header value exactly
+and case-sensitively; the forwarded uid and email are read but not used for it, and the backend has no token
+verification.
+
+Proposed target, not decided and not part of the F1 instrument: a link from a provider-neutral external identity (an
+(issuer, subject) pair, not an Authentik username) to the reviewer it may act for, a
+participant role with narrower rights than a recorder, a server-computed entry mode, session ownership with a manager
+hand-off, `recorded_by` and entry source in the export, audit events for those writes, and an explicit correction path
+in place of silent supersession. Options and trade-offs are in
+[PROJECT-PLAN section 11a](PROJECT-PLAN.md#post-f1-follow-up-evaluator-login-linkage-proposed-2026-11-27); the policy
+change is the Proposed amendment in
+[ADR-008](adr/adr-008-authentication-and-production-boundary.md#proposed-amendment-2026-11-27-linking-logins-to-reviewers).
+Reveal, mapping and checkpoints stay manager-only, and any token-based path must verify signatures in the backend and
+leave the forwarded-header trust boundary intact. This section changes no current contract.
+
 ## D1 source and vocabulary contract
 
 Every source or vocabulary snapshot records:

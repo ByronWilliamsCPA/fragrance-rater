@@ -695,6 +695,146 @@ Known gaps and questions carried by these items, not yet resolved:
   up to the vials as they are ready to spray their own blotter and the facilitator does not schedule turns at the
   vials; P6.3 observes it.
 
+### Post-F1 follow-up: evaluator login linkage (proposed 2026-11-27)
+
+**Status:** Proposed; not started; no owner design decision yet. It does not gate P6 or F1, and it changes no gate,
+sprint or milestone status. It is tracked here as its own item, not as a numbered sprint (the convention of the F1
+facilitated-format work items above), so the Milestone R sprint list stays R1-R15.
+
+**Scope.** Nothing in this item changes program `v3.2`, the F1 procedure, the F1 instrument or the pinned build. For
+F1 only the single recorder login transcribes every evaluator's sheets (owner decision, 2026-11-27, consistent with
+[F1 gate sign-off 19](gates/f1.md)). Any code from this item needs a new build and the owner's explicit decision under
+the build-freeze rule, so it cannot reach F1 participants unless the owner chooses that.
+
+**Owner requirement (2026-11-27), for after F1.** Evaluators must be linkable to their own logins, and mixed entry must
+be possible: the facilitator may enter some of an evaluator's sessions, and that evaluator may enter others herself.
+
+**Entry gate.** F1 evidence reviewed, and an owner decision on the Proposed amendment in
+[ADR-008](adr/adr-008-authentication-and-production-boundary.md#proposed-amendment-2026-11-27-linking-logins-to-reviewers).
+No implementation starts before both.
+
+**Design principle (proposed).** Link a reviewer to a provider-neutral external identity, an (issuer, subject) pair,
+not to an Authentik username. The owner's recollection (2026-11-27, not verified in the repo, recorded in ADR-008) is that
+the original reason for keeping login and reviewer independent was not wanting an app that others may eventually use to
+depend on the owner's personal Authentik account; the repo itself documents only the R3 scope trade-off.
+
+**What exists today.** Verified against the code at `6635413`; the parts not verified are listed as open questions
+below.
+
+- The only link between a non-manager login and an evaluator is `Enrollment.recorder_usernames` (a JSON list on the
+  enrollment). It is written when the enrollment is created and no route or service in `src/` changes it afterward, so a
+  change after enrollment is a manual SQL edit. The `Reviewer` model has no login column.
+- The coupling to avoid: authorization matches the `X-Authentik-Username` header value, trimmed and otherwise exact and
+  case-sensitive (`username in recorder_usernames`). The identity object also carries the `X-Authentik-Uid` and
+  `X-Authentik-Email` headers, but nothing in `src/` uses them for authorization, and there is no token, JWKS or OIDC
+  verification code in the backend.
+- `CalibrationService.enrollment` refuses a non-manager who is not listed, and the presentation- and session-keyed
+  paths (`target`, `session_target`) go through it. A manager passes the check by being on
+  `CALIBRATION_ADMIN_USERNAMES` (`core/auth.py`). The same list is the read grant for the evaluator's history (ADR-008,
+  R3 amendment, Q5).
+- Every listed login has identical rights: read the blind view, start and end sessions, write observations, lock stages,
+  plan skin tests, lock the skin plan, record and withdraw the reviewer's consent. Mapping, checkpoints and household
+  reveal are manager-only. There is no participant role.
+- The frontend decides paper-transcription mode from the program's reveal policy alone (`isTranscribed` in
+  `frontend/src/content/transcription.ts` returns true for `HOUSEHOLD`). The backend `observe_once` never reads the
+  reveal policy or any entry mode, so nothing on the server distinguishes a facilitator's transcription from an
+  evaluator's own entry.
+- A single-enrollment reveal on a `HOUSEHOLD` program is refused server-side
+  (`DisclosureGate.require_enrollment_reveal_allowed`), and the household reveal is manager-only. Under shared blind
+  codes one evaluator's reveal would unblind the others, so reveal must stay manager-controlled for any shared-code
+  program.
+- `start_session` refuses a second start, but `CalibrationSession` records no actor (it has `started_at`, `ended_at`
+  and the timezone, with no `started_by` or `recorded_by`), and a different listed login can still write observations
+  to a started session.
+- Observations have no uniqueness on presentation, stage and phase. A second submission with a new or no idempotency
+  key appends a row, and the table is append-only by database trigger. `v_training_rows` keeps the latest `PRE_REVEAL`
+  observation per presentation and stage (by `created_at`, then `id`, ignoring rows marked `invalidated`), whoever wrote
+  it, and counts a stage only once it is locked. So until the stage is locked a later entry silently supersedes an
+  earlier one.
+- `Observation.recorded_by` is stored, but `observation_payload` (used by the evidence export) omits `recorded_by`,
+  `training_eligibility` and `idempotency_key`, so the export cannot show who entered a row.
+- The audit trail (`log_audit_event`) covers program, enrollment, consent, lock, reveal, checkpoint and mapping actions.
+  The observation, exposure, session start and session end routes emit none.
+
+**Design (proposal, options and trade-offs; nothing here is decided).**
+
+1. Where the link lives. Option A: a mapping table, for example `reviewer_identities`, keyed by
+   (issuer, subject) and unique on that pair, linking an external identity to a reviewer (a reviewer may have several
+   identities, and one identity several reviewers, which a guardian with minors needs); the participant role itself
+   lives on the enrollment, so a link alone grants nothing. It is provider-neutral and fits history and recommendation
+   reads, at the cost of a new personal-data mapping with its own removal rules. Option B: a per-enrollment list beside
+   `recorder_usernames` (for example `participant_usernames`). It reuses the existing shape and scopes the grant to one
+   program, but it keeps the username coupling, repeats for every enrollment and gives no person-level view. Option C:
+   a login column on `Reviewer`. It is the simplest and the least flexible (one login per reviewer, no guardian case)
+   and it couples the reviewer row to one provider. The ADR-008 amendment asks the owner to choose; Option A is the one
+   that follows the design principle.
+2. A participant role with narrow rights: the evaluator's own blind view, start and end of her own sessions, and her own
+   observations and exposure stamps. No consent recording, reveal, skin-plan, mapping or stage lock unless a
+   justification is written down; guardian consent for minors stays with the manager.
+3. An entry mode computed on the server, independent of the reveal policy, and enforced in `observe_once`, so the
+   client cannot choose it. Whether it is stored per session or per observation is open.
+4. Session ownership stamped when a session starts (who, and self-entered versus facilitator-transcribed), with writes
+   from a different login rejected except by a manager. This is what makes mixed entry safe, at the cost of a manager
+   step to hand a session across.
+5. `recorded_by` and the entry source added to the evidence export, and audit events added for observation, exposure,
+   session start and session end writes.
+6. An explicit correction path, so that a second pre-lock entry for the same presentation and stage is never a silent
+   replacement: either refuse a second entry and offer a correction that links to the row it replaces, or keep both and
+   require a stated reason. This interacts with the `v_training_rows` supersession rule and needs review against the R8
+   dataset rules.
+7. Delivery: an Alembic migration, a backend change, a frontend change and a new frontend build. Check
+   `alembic heads` before adding the revision.
+8. The ADR-008 amendment, and a review of the [F1 gate sign-off 19](gates/f1.md) consequences afterward. Under shared
+   codes a facilitator's transcription still cannot catch a sheet entered under the wrong evaluator (the blind code is
+   the same for everyone), so that consequence stays procedural for transcribed entry; a participant identity that sees
+   only its own enrollment would remove it for self-entry.
+
+**Phasing (proposal).**
+
+- First slice: family evaluators, who are already inside the owner's Authentik, are linked through Authentik. This
+  does not conflict with the owner's concern, provided the stored key is the provider-neutral (issuer, subject) pair
+  (for Authentik, its issuer and the stable user id, not the username string) and the matching code has one seam where a
+  second provider could be added. Built in the first slice: the identity mapping table and the (issuer, subject)
+  extraction from the forwarded headers, the participant role on the enrollment, the server-computed entry mode,
+  session ownership, the export and audit changes and the correction path, with the migration and a new build.
+- Deferred until outsiders are actually in scope: a path for people outside the owner's Authentik. Options, with
+  trade-offs. Supabase Auth (the obvious candidate given the owner's earlier app): a managed hosted IdP, quick to adopt,
+  but a second system and vendor, and it would hold participants' emails. Any generic OIDC provider: provider-neutral and
+  swappable, but the backend must carry token verification and its operation. Authentik enrollment or invitation flows:
+  no new system, but it keeps outsiders inside the owner's Authentik, which is the coupling the owner wants to avoid for
+  a shared app. Designed for now (the key is (issuer, subject)), built later.
+
+**Acceptance criteria (draft, for owner review).**
+
+- An evaluator signs in as herself, sees only her own blind view, and can enter her own sessions. A different evaluator's
+  login and a manager's behave as the ownership rule says.
+- A mixed-entry program (some sessions transcribed by the facilitator, some entered by the evaluator) exports one
+  row per observation with `recorded_by` and the entry source, and no row silently replaces another.
+- Reveal, mapping, checkpoints and consent for minors remain manager-only, and a participant identity cannot reach them.
+- Reads follow ADR-008 Q5: a linked participant reads only her own reviewer's evidence.
+- Trust boundary: the forwarded-header path is unchanged and a client cannot supply identity headers through it. Any
+  token-based path verifies signature (JWKS), issuer, audience and expiry in the backend itself and is covered by tests
+  that forged, expired, wrong-audience and wrong-issuer tokens are refused.
+- Authorization-matrix and disclosure tests cover the new role on every route in the existing matrix.
+
+**Evidence (to be retained).** The ADR-008 decision, the migration and its test, the extended authorization matrix, an
+export of a mixed-entry program, and the owner's acceptance. None exists yet.
+
+**Open questions (not verified, do not assume).**
+
+- Whether Option A, B or C, and whether one identity may map to several reviewers (guardian with minors).
+- Whether entry mode and session owner are stored per session, per observation or both.
+- Which (issuer, subject) Authentik supplies in this deployment (the forwarded `X-Authentik-Uid` is read today but
+  unused, and its stability and the issuer value are not verified).
+- The trust-boundary design for any token path: where verification lives, how JWKS keys are fetched and rotated, and how
+  the path is kept separate from the forwarded-header path.
+- Privacy, for owner decision: a hosted identity provider would hold participants' emails, including minors', while the
+  fragrance and evaluation data stay in the owner's PostgreSQL (authentication only). Whether a minor may have an
+  identity of her own, and what guardian consent and the existing consent text must say about it, is open; this item
+  draws no legal conclusion.
+- Whether any tooling outside `src/` writes `recorder_usernames` (only `src/` was searched).
+- Whether the exposure route should be treated as part of the participant role.
+
 ## 11b. Integration status as of 2026-11-07
 
 This section records state and proposes actions. It does not change any milestone gate. Items under "pending owner
