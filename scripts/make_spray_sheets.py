@@ -5,7 +5,16 @@ blotters. In individual mode (the F1 mode, and the default) each evaluator gets
 their own tray of three and sprays their own blotters; in group blotter mode
 (built, not used by F1 after the 2026-11-25 physical attempt) one blotter per
 sample is passed around the six evaluators in a fixed seat order. This tool
-turns the facilitator's private mapping into two kinds of output:
+turns the facilitator's private mapping into two kinds of output.
+
+Note (sheet v3.0): the evaluator-facing header output is superseded. Session
+sheet v3.0 is one generic two-sided form with handwritten identity, session
+numbers and sample codes (``scripts/render_session_sheet.py``), so it does not
+use the per-evaluator header files. The headers are still written, unchanged and
+still stamped with ``SHEET_VERSION`` (the v2.2 layout they belong to), for the
+facilitator-only spray sheets and ``paper-record-index.csv`` that v3.0 still
+uses.
+
 
 * Facilitator-only spray sheets (one per session) that list, per vial and
   atomizer, which blind code goes on which evaluator's tray and position, plus
@@ -410,7 +419,10 @@ def evaluator_header(
     sheet_version: str,
     mode: str = DEFAULT_MODE,
 ) -> str:
-    """Render the evaluator-facing header for one tray.
+    """Render the evaluator-facing header for one tray (superseded by sheet v3.0).
+
+    Sheet v3.0 does not print this header: its identity and codes are handwritten.
+    The output is kept for the v2.2 layout and is stamped ``SHEET_VERSION``.
 
     It carries only the sheet version, the blotter mode, the paper record ID, the
     evaluator reference, the blind codes in tray order and the atomizer label
