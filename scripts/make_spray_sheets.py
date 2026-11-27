@@ -7,15 +7,19 @@ their own tray of three and sprays their own blotters; in group blotter mode
 sample is passed around the six evaluators in a fixed seat order. This tool
 turns the facilitator's private mapping into two kinds of output:
 
-* Facilitator-only spray sheets (one per session) that list, per vial, which
-  blind code goes on which evaluator's tray and position, plus the same data per
-  evaluator tray, with blank time columns. These carry vial numbers and must
-  never leave the facilitator's hands.
+* Facilitator-only spray sheets (one per session) that list, per vial and
+  atomizer, which blind code goes on which evaluator's tray and position, plus
+  the same data per evaluator tray, with blank time columns. These carry vial
+  numbers and must never leave the facilitator's hands.
 * Evaluator-facing header files (one per evaluator per session) carrying only
   the sheet version, the blotter mode, a random paper record ID, the evaluator
-  reference and the three blind codes in tray order. These never carry a vial number, a session
-  key, or any identity. The paper record ID links the score sheet to the
-  separate conditions slip and is random, so it reveals nothing.
+  reference, the three blind codes in tray order and, directly under them, the
+  atomizer label for each code. These never carry a vial number or identity (and
+  no session key); they do carry the atomizer label, which is a physical-location
+  key printed on the container, not an identity. The evaluator matches the blind
+  code to the atomizer in the same column and sprays from that atomizer. The paper
+  record ID links the score sheet to the separate conditions slip and is random,
+  so it reveals nothing.
 
 A facilitator-only index (``paper-record-index.csv``) maps each paper record ID
 back to the evaluator reference and session key. It also stays private.
@@ -23,7 +27,7 @@ back to the evaluator reference and session key. It also stays private.
 Input format (a CSV with a header row, or a JSON list of objects with the same
 keys). One row per evaluator tray position:
 
-    session,vial,evaluator,position,blind_code[,persistent][,paper_record_id]
+    session,vial,evaluator,position,blind_code,atomizer[,persistent][,paper_record_id]
 
 * ``session``: the facilitator's private key for the sitting (any non-empty
   text). It is used only on facilitator-only output.
@@ -34,6 +38,11 @@ keys). One row per evaluator tray position:
   holds it (the enrollment's physical blind code). The code is not generated
   here, because a code that differs from the application's would defeat the
   transcription check.
+* ``atomizer``: the label printed on the standardized atomizer the sample sits
+  in, as printed (for example ``B07`` or ``H03``). Required. Within the file a
+  vial and an atomizer must correspond one-to-one in every mode: one vial is
+  always in the same atomizer and one atomizer never serves two vials. Evaluators
+  see this label (and never the vial number) on their header.
 * ``persistent`` (optional): ``yes`` marks a persistent or aversive vial, so the
   spray sheet reminds the facilitator to extend the clean-air interval to about
   5 minutes. That interval (between the last sniff of one sample and the first
@@ -81,11 +90,11 @@ import shutil
 import subprocess  # nosec B404 - fixed git argv only, never a shell
 import sys
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-SHEET_VERSION = "facilitated-session-sheet v2.1"
+SHEET_VERSION = "facilitated-session-sheet v2.2"
 MODES = ("individual", "group")
 DEFAULT_MODE = "individual"
 # Spray-to-first-smell ceiling, provisional until P6.3. It is NOT the clean-air
@@ -99,7 +108,14 @@ MODE_LABELS = {
 DEFAULT_TRAY_SIZE = 3
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "tmp_cleanup" / "spray-sheets"
-REQUIRED_COLUMNS = ("session", "vial", "evaluator", "position", "blind_code")
+REQUIRED_COLUMNS = (
+    "session",
+    "vial",
+    "evaluator",
+    "position",
+    "blind_code",
+    "atomizer",
+)
 _CODE = re.compile(r"^[A-Za-z0-9]{1,24}$")
 _SLUG = re.compile(r"[^A-Za-z0-9]+")
 
@@ -117,6 +133,7 @@ class TrayRow:
     evaluator: str
     position: int
     blind_code: str
+    atomizer: str
     persistent: bool
     paper_record_id: str
 
@@ -191,6 +208,10 @@ def parse_mapping(path: Path) -> list[TrayRow]:
         for column in REQUIRED_COLUMNS:
             _text(raw, column, line)
         code = _text(raw, "blind_code", line)
+        atomizer = _text(raw, "atomizer", line)
+        if "|" in atomizer:
+            message = f"record {line}: atomizer must not contain '|'"
+            raise MappingError(message)
         if not _CODE.match(code):
             message = f"record {line}: blind_code must be 1-24 letters or digits"
             raise MappingError(message)
@@ -213,6 +234,7 @@ def parse_mapping(path: Path) -> list[TrayRow]:
                 evaluator=evaluator,
                 position=position,
                 blind_code=code,
+                atomizer=atomizer,
                 persistent=str(raw.get("persistent") or "").strip().lower()
                 in {"yes", "y", "true", "1"},
                 paper_record_id=supplied,
@@ -265,6 +287,34 @@ def _check_group_codes(rows: list[TrayRow]) -> None:
         raise MappingError(message)
 
 
+def _check_atomizers(rows: list[TrayRow]) -> None:
+    """Check that vials and atomizers correspond one-to-one across the file.
+
+    Args:
+        rows: Parsed tray rows.
+
+    Raises:
+        MappingError: If a vial has more than one atomizer or an atomizer serves
+            more than one vial.
+    """
+    atomizers_of: dict[str, set[str]] = defaultdict(set)
+    vials_of: dict[str, set[str]] = defaultdict(set)
+    for row in rows:
+        atomizers_of[row.vial].add(row.atomizer.upper())
+        vials_of[row.atomizer.upper()].add(row.vial)
+    for vial, atomizers in sorted(atomizers_of.items()):
+        if len(atomizers) > 1:
+            message = f"vial {vial} has more than one atomizer: {', '.join(sorted(atomizers))}"
+            raise MappingError(message)
+    for atomizer, vials in sorted(vials_of.items()):
+        if len(vials) > 1:
+            message = (
+                f"atomizer {atomizer} is used for more than one vial: "
+                f"{', '.join(sorted(vials))}"
+            )
+            raise MappingError(message)
+
+
 def validate(rows: list[TrayRow], tray_size: int, mode: str = DEFAULT_MODE) -> None:
     """Check the shared-triple and uniqueness rules.
 
@@ -313,6 +363,7 @@ def validate(rows: list[TrayRow], tray_size: int, mode: str = DEFAULT_MODE) -> N
         if len(sets) > 1:
             message = f"session {session}: evaluators do not share the same vials"
             raise MappingError(message)
+    _check_atomizers(rows)
 
 
 def _slug(text: str) -> str:
@@ -349,18 +400,7 @@ def assign_record_ids(rows: list[TrayRow]) -> list[TrayRow]:
                 candidate = f"PR-{secrets.token_hex(3).upper()}"
             used.add(candidate)
             chosen[key] = candidate
-    return [
-        TrayRow(
-            r.session,
-            r.vial,
-            r.evaluator,
-            r.position,
-            r.blind_code,
-            r.persistent,
-            chosen[(r.session, r.evaluator)],
-        )
-        for r in rows
-    ]
+    return [replace(r, paper_record_id=chosen[(r.session, r.evaluator)]) for r in rows]
 
 
 def evaluator_header(
@@ -373,8 +413,8 @@ def evaluator_header(
     """Render the evaluator-facing header for one tray.
 
     It carries only the sheet version, the blotter mode, the paper record ID, the
-    evaluator reference and the blind codes in tray order: no vial, session key
-    or identity.
+    evaluator reference, the blind codes in tray order and the atomizer label
+    under each code: no vial, session key or identity.
 
     Args:
         evaluator: The opaque evaluator reference.
@@ -388,6 +428,7 @@ def evaluator_header(
     """
     ordered = sorted(tray, key=lambda r: r.position)
     codes = " | ".join(r.blind_code for r in ordered)
+    atomizers = " | ".join(r.atomizer for r in ordered)
     return (
         f"Sheet version: {sheet_version}\n\n"
         "| Field | Entry |\n| --- | --- |\n"
@@ -396,6 +437,7 @@ def evaluator_header(
         f"| Blotter mode (pre-printed) | {MODE_LABELS[mode]} |\n\n"
         "| Row | Sample 1 | Sample 2 | Sample 3 |\n| --- | --- | --- | --- |\n"
         f"| Blind code (pre-printed) | {codes} |\n"
+        f"| Atomizer | {atomizers} |\n"
     )
 
 
@@ -426,7 +468,10 @@ def _trays_by_evaluator(rows: list[TrayRow]) -> list[str]:
     lines: list[str] = []
     for evaluator in sorted(by_eval):
         tray = sorted(by_eval[evaluator], key=lambda r: r.position)
-        cells = "; ".join(f"{r.position}: {r.blind_code} (vial {r.vial})" for r in tray)
+        cells = "; ".join(
+            f"{r.position}: {r.blind_code} (vial {r.vial}, atomizer {r.atomizer})"
+            for r in tray
+        )
         lines.append(f"- {evaluator} ({tray[0].paper_record_id}): {cells}")
     return lines
 
@@ -457,15 +502,15 @@ def _individual_spray_sheet(session: str, tray_size: int, rows: list[TrayRow]) -
         lines += [
             f"## Round {position}: tray position {position}",
             "",
-            "| Vial | Evaluator | Blind code | Persistent | Sprayed (hh:mm:ss) |",
-            "| --- | --- | --- | --- | --- |",
+            "| Vial | Atomizer | Evaluator | Blind code | Persistent | Sprayed (hh:mm:ss) |",
+            "| --- | --- | --- | --- | --- | --- |",
         ]
         in_round = sorted(
             (r for r in rows if r.position == position),
             key=lambda r: (r.vial, r.evaluator),
         )
         lines += [
-            f"| {r.vial} | {r.evaluator} | {r.blind_code} | "
+            f"| {r.vial} | {r.atomizer} | {r.evaluator} | {r.blind_code} | "
             f"{'extend clean air to about 5 min' if r.persistent else ''} | |"
             for r in in_round
         ]
@@ -532,7 +577,7 @@ def _group_spray_sheet(
             else "no"
         )
         lines += [
-            f"## Sample {position}: vial {first.vial}, blind code {first.blind_code}",
+            f"## Sample {position}: vial {first.vial}, atomizer {first.atomizer}, blind code {first.blind_code}",
             "",
             f"Persistent: {persistent}",
             "",

@@ -86,7 +86,7 @@ non-pilot samples first. Everyone is included. Your repeat answers are described
 threshold is applied.
 
 **Your paper.** The original sheet and slip are kept and scanned by the facilitator under the retention period fixed
-for the pilot. The sheet carries a version id (`facilitated-session-sheet v2.1` at the time of writing, still a
+for the pilot. The sheet carries a version id (`facilitated-session-sheet v2.2` at the time of writing, still a
 draft); a sheet with no version id is not used.
 
 Printed forms: [session sheet](../facilitated-session-sheet.md), [conditions slip](../facilitated-conditions-slip.md),

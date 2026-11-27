@@ -13,7 +13,7 @@ tags:
 
 | Field | Entry |
 | --- | --- |
-| Sheet version | facilitated-session-sheet v2.1 |
+| Sheet version | facilitated-session-sheet v2.2 |
 | Blotter mode (pre-printed) | ☐ Individual trays (your own blotters, your own codes) ☐ Group blotter (not used) |
 | Paper record ID (pre-printed; the conditions slip, if any, carries the same ID) | ______________________________ |
 | Data classification | ☐ Synthetic rehearsal ☐ Approved family pilot |
@@ -31,6 +31,7 @@ Circle one value per row. Anchors: the lowest value and the highest value are na
 | Row | Scale | Sample 1 | Sample 2 | Sample 3 |
 | --- | --- | --- | --- | --- |
 | Blind code (pre-printed) | | | | |
+| Atomizer (pre-printed) | | | | |
 | Time sprayed (you write, hh:mm:ss; when you sprayed the blotter you smelled) | | | | |
 | Time first smelled (hh:mm:ss) | | | | |
 | Time this column finished (hh:mm:ss) | | | | |
@@ -108,7 +109,7 @@ Samples can share a place: give two samples 1, and the next sample is 3.
 
 ## Facilitator sheet: handling and instructions {.sheet-2 .print-break}
 
-Sheet version: `facilitated-session-sheet v2.1`
+Sheet version: `facilitated-session-sheet v2.2`
 
 **Print layout.** Print one set per evaluator for each blotter session, double-sided with a long-edge flip, on two
 sheets of US Letter paper (four pages). **Sheet 1** (pages 1 and 2: Parts A to D) is the evaluator sheet, the only
@@ -118,8 +119,8 @@ be re-paired. After the session, clip sheet 2 behind that evaluator's sheet 1; t
 page 1. The rules on page 3 are the briefing text: brief from them, or hand sheet 2 to an
 evaluator who asks to read them before the first sample. Build the print files with `scripts/print_forms.sh`.
 
-The manager pre-prints the physical blind codes in the sample header row, and the blotter mode in Part A, and nothing
-else that identifies a fragrance. Each evaluator's header carries their own three codes, which are not the codes on any
+The manager pre-prints the blind codes, the atomizer label under each (a location key, not an identity), and the blotter
+mode in Part A, and nothing else that identifies a fragrance. Each evaluator's header carries their own three codes, which are not the codes on any
 other evaluator's sheet. Do not write the fragrance identity, experimental role, repeat relationship, holdout status, or mapping anywhere on either sheet. The
 facilitator keeps completed sheets as private evidence and enters them through the authenticated application.
 Nobody discusses a sample or a score with anyone until the household reveal.
@@ -153,6 +154,8 @@ per sample, each evaluator spraying their own, and keeps the 2 minute ceiling, n
 spray to their own first smell. It is a wording-only change: it records no new field, and the Blotter mode row stays
 and now records Individual. The 2 minute spray-to-first-smell ceiling is not the 2 minute clean-air interval between
 samples; they are different numbers.
+`v2.2` (2026-11-27) adds the pre-printed **Atomizer** row under the Blind code row: samples now sit in labelled atomizers
+(B01 to B39, H01 to H10) that evaluators spray from. No new recorded field.
 
 ## Rules for the evaluator {.sheet-2}
 
@@ -203,4 +206,4 @@ Correction or explanation: ____________________________________________________
 _______________________________________________________________________________
 ```
 
-Sheet version: facilitated-session-sheet v2.1
+Sheet version: facilitated-session-sheet v2.2

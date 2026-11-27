@@ -289,7 +289,7 @@ superseded where it conflicts. It marks no gate as passed, and the ceiling is st
 - **Not the clean-air interval.** The inter-stimulus interval (at least 2 minutes of clean air between the last
   sniff of one sample and the first sniff of the next, about 5 minutes after a persistent sample) is a different
   number and is unchanged. The two must not be conflated.
-- **Implementation state.** The sheet (`facilitated-session-sheet v2.0` at that time; `v2.1` after the addendum below), the run sheet and the spray-sheet generator
+- **Implementation state.** The sheet (`facilitated-session-sheet v2.0` at that time; `v2.1` after the addendum below; `v2.2` from 2026-11-27), the run sheet and the spray-sheet generator
   describe the procedure. The application support (program `blotter_mode`, shared codes and order at enrollment, the
   flag, the 2 minute check) merged in #220, and the server-side safeguards below merged in #221; see
   [PROJECT-PLAN.md section 11a](../PROJECT-PLAN.md#f1-facilitated-format-work-items-decided-2026-11-24). Merged code is
@@ -361,7 +361,9 @@ marks no gate as passed.
   checkpoint is refused (422); the facilitator still runs no holdout sitting until all six checkpoints exist, which is
   procedure. The readiness view reports `holdouts_open` per row, and `holdouts_open_program_wide` is always false.
 - **Sheet.** `facilitated-session-sheet v2.1` is a wording-only change that records no new field; the Part A Blotter
-  mode row stays and records Individual.
+  mode row stays and records Individual. `v2.2` (2026-11-27) adds a pre-printed Atomizer row under the blind code row
+  (a physical-location key for the standardized atomizers B01-B39 and H01-H10, not an identity); it records no new
+  field. See the [F1 gate](../gates/f1.md) sign-off 16.
 
 ## 2026-11-24 amendment: `would_buy` stays on the blind skin form (pending owner confirmation)
 

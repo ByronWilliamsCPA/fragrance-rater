@@ -122,7 +122,8 @@ requests before relying on it.
    enroll the six evaluators one by one. Enrollment fixes the order within each session for that evaluator (a Latin-square row by enrollment ordinal and
    session number); the actual order is stored.
 5. Generate the manager-only mapping and print the blind labels. Build the facilitator spray sheets and each
-   evaluator's pre-printed code row with `scripts/make_spray_sheets.py`; its output is facilitator-only, goes to the
+   evaluator's pre-printed code and atomizer rows with `scripts/make_spray_sheets.py` (the mapping needs an `atomizer`
+   column, such as `B07`, one atomizer per vial); its output is facilitator-only, goes to the
    gitignored `tmp_cleanup/spray-sheets/` by default, and is never committed.
 
 ### Flag the holder as non-blind
@@ -213,8 +214,10 @@ no linked prediction is required per holdout, a withdrawn evaluator needs no cod
 and the owner decides then), and no guardian clause is added to the consent text (the application is for the owner's
 household only). The full record is in the [F1 gate](../planning/gates/f1.md). On 2026-11-26 the owner also decided
 that evaluators walk up to the vials as they are ready to spray their own blotter; the facilitator does not schedule or
-control turns at the vials. Never show an evaluator a vial number or any identity. The P6.3 rehearsal observes this
-approach.
+control turns at the vials. On 2026-11-27 the owner added the atomizer label: every sample sits in a standardized
+atomizer (B01 to B39, H01 to H10) and each evaluator's header prints that label under each blind code. Never show an
+evaluator a vial number, a brand, a name or any other identity; the atomizer label printed on the container and header
+is the only location key they see. The P6.3 rehearsal observes this approach.
 
 ## Measure and close the workflow
 

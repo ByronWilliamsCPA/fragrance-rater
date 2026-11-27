@@ -16,8 +16,25 @@ if TYPE_CHECKING:
     from types import ModuleType
 
 ROOT = Path(__file__).parents[3]
-HEADER = ["session", "vial", "evaluator", "position", "blind_code", "persistent"]
+HEADER = [
+    "session",
+    "vial",
+    "evaluator",
+    "position",
+    "blind_code",
+    "persistent",
+    "atomizer",
+]
 VIALS = {"A": ["V01", "V02", "V03"], "B": ["V04", "V05", "V06"]}
+ATOMIZERS = {
+    "V01": "B07",
+    "V02": "B21",
+    "V03": "H03",
+    "V04": "B12",
+    "V05": "B33",
+    "V06": "H09",
+}
+ATOMIZER_COLUMN = HEADER.index("atomizer")
 EVALUATORS = ["E1", "E2", "E3"]
 
 
@@ -54,6 +71,7 @@ def synthetic_rows() -> list[list[str]]:
                         str(position),
                         f"ZZ{counter:04d}",
                         persistent,
+                        ATOMIZERS[vial],
                     ]
                 )
     return rows
@@ -83,7 +101,7 @@ def test_outputs_are_written_and_evaluator_files_leak_nothing(tmp_path: Path) ->
     ]
     for header in headers:
         text = header.read_text(encoding="utf-8")
-        assert "facilitated-session-sheet v2.1" in text
+        assert "facilitated-session-sheet v2.2" in text
         assert "Individual trays" in text
         assert "Blind code (pre-printed)" in text
         for token in forbidden:
@@ -133,6 +151,7 @@ def test_json_input_and_supplied_record_ids(tmp_path: Path) -> None:
             "evaluator": "E1",
             "position": n,
             "blind_code": f"QQ{n}",
+            "atomizer": f"B0{n}",
             "paper_record_id": "PR-FIXED1",
         }
         for n in (1, 2, 3)
@@ -222,7 +241,15 @@ def group_rows() -> list[list[str]]:
             for position, vial in enumerate(vials, start=1):
                 persistent = "yes" if vial == "V02" else ""
                 rows.append(
-                    [session, vial, evaluator, str(position), codes[vial], persistent]
+                    [
+                        session,
+                        vial,
+                        evaluator,
+                        str(position),
+                        codes[vial],
+                        persistent,
+                        ATOMIZERS[vial],
+                    ]
                 )
     return rows
 
@@ -244,7 +271,7 @@ def test_group_mode_accepts_shared_codes_and_order(tmp_path: Path) -> None:
     ]
     texts = [h.read_text(encoding="utf-8") for h in headers]
     for text, header in zip(texts, headers, strict=True):
-        assert "facilitated-session-sheet v2.1" in text
+        assert "facilitated-session-sheet v2.2" in text
         assert "Group blotter" in text
         for token in forbidden:
             assert token not in text
@@ -352,3 +379,140 @@ def test_individual_spray_sheet_states_both_numbers(tmp_path: Path) -> None:
     assert "2 minutes (provisional)" in text
     assert "different number" in text
     assert "5 minutes" not in text.split("different number")[0]
+
+
+def _run(tmp_path: Path, rows: list[list[str]], mode: str) -> tuple[int, Path]:
+    """Write a mapping, run the tool in the given mode and return code and output."""
+    mapping = write_csv(tmp_path / "mapping.csv", rows)
+    out = tmp_path / "out"
+    args = ["--mapping", str(mapping), "--output-dir", str(out), "--mode", mode]
+    return tool.main(args), out
+
+
+def _rows_for(mode: str) -> list[list[str]]:
+    """Return the synthetic mapping for the given mode."""
+    return group_rows() if mode == "group" else synthetic_rows()
+
+
+def _header_for(out: Path, rows: list[list[str]], session: str, evaluator: str) -> str:
+    """Return the evaluator header text for one session and evaluator."""
+    index = list(
+        csv.DictReader(
+            (out / "facilitator-only" / "paper-record-index.csv").open(encoding="utf-8")
+        )
+    )
+    record = next(
+        r for r in index if r["session"] == session and r["evaluator"] == evaluator
+    )
+    file = next((out / "evaluator-headers").glob(f"{record['paper_record_id']}-*.md"))
+    assert rows
+    return file.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("mode", ["individual", "group"])
+def test_header_prints_atomizer_row_in_tray_order_without_vials(
+    tmp_path: Path, mode: str
+) -> None:
+    """The atomizer row sits under the code row, in tray order, with no vial value."""
+    rows = _rows_for(mode)
+    status, out = _run(tmp_path, rows, mode)
+    assert status == 0
+    mine = [r for r in rows if r[0] == "A" and r[2] == "E2"]
+    codes = " | ".join(r[4] for r in mine)
+    atomizers = " | ".join(r[ATOMIZER_COLUMN] for r in mine)
+    text = _header_for(out, rows, "A", "E2")
+    assert (
+        f"| Blind code (pre-printed) | {codes} |\n| Atomizer | {atomizers} |\n" in text
+    )
+    for vials in VIALS.values():
+        for vial in vials:
+            assert vial not in text
+    assert "persistent" not in text
+    assert "extend" not in text
+
+
+@pytest.mark.parametrize("mode", ["individual", "group"])
+def test_spray_sheet_shows_the_atomizer_next_to_the_vial(
+    tmp_path: Path, mode: str
+) -> None:
+    """The facilitator-only sheet carries the atomizer beside each vial."""
+    status, out = _run(tmp_path, _rows_for(mode), mode)
+    assert status == 0
+    text = (out / "facilitator-only" / "spray-sheet-session-A.md").read_text(
+        encoding="utf-8"
+    )
+    assert "(vial V01, atomizer B07)" in text
+    if mode == "group":
+        assert "## Sample 1: vial V01, atomizer B07, blind code" in text
+    else:
+        assert "| Vial | Atomizer | Evaluator |" in text
+        assert "| V01 | B07 | E1 |" in text
+
+
+@pytest.mark.parametrize("mode", ["individual", "group"])
+def test_missing_atomizer_column_is_rejected(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: str
+) -> None:
+    """A CSV without the atomizer column, or with a blank value, is rejected."""
+    rows = [r[:ATOMIZER_COLUMN] for r in _rows_for(mode)]
+    mapping = tmp_path / "mapping.csv"
+    with mapping.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(HEADER[:ATOMIZER_COLUMN])
+        writer.writerows(rows)
+    out = tmp_path / "out"
+    args = ["--mapping", str(mapping), "--output-dir", str(out), "--mode", mode]
+    assert tool.main(args) == 2
+    assert "atomizer" in capsys.readouterr().err
+    assert not out.exists()
+
+    blank = _rows_for(mode)
+    blank[0][ATOMIZER_COLUMN] = " "
+    status, out = _run(tmp_path, blank, mode)
+    assert status == 2
+    assert "'atomizer' is required" in capsys.readouterr().err
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("mode", ["individual", "group"])
+def test_atomizer_reused_across_two_vials_is_rejected(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: str
+) -> None:
+    """One atomizer may not serve two different vials."""
+    rows = _rows_for(mode)
+    for row in rows:
+        if row[1] == "V02":
+            row[ATOMIZER_COLUMN] = ATOMIZERS["V01"]
+    status, out = _run(tmp_path, rows, mode)
+    assert status == 2
+    err = capsys.readouterr().err
+    assert "atomizer B07 is used for more than one vial" in err
+    assert "V01, V02" in err
+    assert not out.exists()
+
+
+@pytest.mark.parametrize("mode", ["individual", "group"])
+def test_one_vial_with_two_atomizers_is_rejected(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: str
+) -> None:
+    """One vial may not appear under two different atomizers."""
+    rows = _rows_for(mode)
+    rows[0][ATOMIZER_COLUMN] = "B99"
+    status, out = _run(tmp_path, rows, mode)
+    assert status == 2
+    err = capsys.readouterr().err
+    assert f"vial {rows[0][1]} has more than one atomizer" in err
+    assert "B99" in err
+    assert not out.exists()
+
+
+def test_atomizer_with_a_table_separator_is_rejected(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An atomizer label that would break the printed table is rejected."""
+    rows = synthetic_rows()
+    rows[0][ATOMIZER_COLUMN] = "B|07"
+    status, out = _run(tmp_path, rows, "individual")
+    assert status == 2
+    assert "atomizer must not contain" in capsys.readouterr().err
+    assert not out.exists()
