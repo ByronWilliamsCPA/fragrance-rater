@@ -74,7 +74,7 @@ are" (how much weight this record should carry).
 | Section | Field | Entry |
 | --- | --- | --- |
 | Where and when would you wear it | Type of event | Tick all that fit: Work or school, At home, Social outing, Formal event, Outdoor activity, Something else. Tick only this: None of these; Cannot judge |
-| Where and when would you wear it | Season | Tick all that fit: Spring, Summer, Fall, Winter. Tick only this: Year-round; None of these; Cannot judge |
+| Where and when would you wear it | Season | Tick all that fit: Spring, Summer, Fall, Winter, Year-round (Year-round may be combined, for example with Spring). Tick only this: None of these; Cannot judge |
 | Notes | Perceived notes | words, separate with commas |
 | Notes | What you liked | words |
 | Notes | What you disliked | words |

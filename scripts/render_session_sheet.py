@@ -53,7 +53,7 @@ EVENT_CHOICES = (
     "Outdoor activity",
     "Something else",
 )
-SEASON_CHOICES = ("Spring", "Summer", "Fall", "Winter")
+SEASON_CHOICES = ("Spring", "Summer", "Fall", "Winter", "Year-round")
 NOTE_ROWS: tuple[tuple[str, str, bool], ...] = (
     ("Perceived notes", "separate with commas", True),
     ("What you liked", "", False),
@@ -198,7 +198,6 @@ def _event_rows() -> str:
         _tick_grid(
             SEASON_CHOICES,
             (
-                ("Year-round", True),
                 ("None of these", True),
                 ("Cannot judge", True),
             ),
