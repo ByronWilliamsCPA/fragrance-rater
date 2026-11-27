@@ -15,7 +15,7 @@ their own blotter, and smells it themselves. The facilitator helps the other fiv
 organized and does not evaluate in those sessions. (A group blotter procedure, one blotter per sample passed round all
 six, was tried physically on 2026-11-25 and abandoned: it got two evaluators through in two minutes. See
 [Group blotter mode: built, not used](#group-blotter-mode-built-not-used).) It pairs with the
-[facilitated session sheet](facilitated-session-sheet.md) (version `facilitated-session-sheet v2.1`) and the
+[facilitated session sheet](facilitated-session-sheet.md) (version `facilitated-session-sheet v2.2`) and the
 [conditions slip](facilitated-conditions-slip.md) (version `facilitated-conditions-slip v1.0`).
 
 Everything here is a draft for the P6.3 rehearsal. Numbers marked **provisional** are confirmed or changed by that
@@ -136,11 +136,13 @@ themselves may be children or adults. No phones; phones are left outside or swit
 
 ## Spray sheets
 
-Generate the facilitator spray sheets and each evaluator's pre-printed header row of blind codes with
-`scripts/make_spray_sheets.py` from a local mapping file. Its default output directory is `tmp_cleanup/spray-sheets/`,
+Generate the facilitator spray sheets and each evaluator's pre-printed header rows (blind codes, with the atomizer label
+under each) with `scripts/make_spray_sheets.py` from a local mapping file. Every mapping row needs the `atomizer` column
+(the label printed on the container, for example `B07` or `H03`); the tool rejects a mapping where a vial has two
+atomizers or one atomizer serves two vials. Its default output directory is `tmp_cleanup/spray-sheets/`,
 which is gitignored and local-only. The spray sheets contain vial numbers and are facilitator-only. The per-evaluator
-header files contain only blind codes, the blotter mode, the evaluator reference, a random paper record ID and the
-sheet version. Run it without `--mode`, or with `--mode individual`, for individual trays (each evaluator holds their
+header files contain only blind codes, the atomizer label under each code, the blotter mode, the evaluator reference,
+a random paper record ID and the sheet version. Run it without `--mode`, or with `--mode individual`, for individual trays (each evaluator holds their
 own codes; this is the F1 mode). The `--mode group` option is kept for the unused group blotter mode. Never
 commit, upload or email the mapping file or the facilitator-only output. Print the header files and put the
 facilitator sheets in a folder that stays with you.
@@ -185,7 +187,10 @@ What this means for the sheets and the data (verified in `shared_triples.py` and
   pre-exposure declaration.
 - **Vial access (owner decision, 2026-11-26):** evaluators walk up to the vials as they are ready to spray their own
   blotter. The facilitator does not schedule or control turns at the vials. The facilitator still helps keep blotters
-  and sheets organized and does not evaluate in these sessions. No evaluator is shown a vial number or any identity.
+  and sheets organized and does not evaluate in these sessions. Evaluators see only the atomizer label printed on
+  the container and under each blind code on their header, never a vial number, brand, name or other identity; the
+  facilitator-only spray sheets keep the vial and the mapping private. The evaluator matches the blind code on their
+  header to the atomizer in the same column and sprays from that atomizer.
   Because the spray time is each evaluator's own, the 2 minute rule below applies unchanged: if an evaluator misses the
   window, they spray a fresh blotter of the same sample. P6.3 observes this: how often evaluators queued or crowded at
   the vials, and how many fresh blotters were needed. If the walk-up approach had to be changed, note it in the

@@ -419,7 +419,9 @@ Expected: `HTTP 201` twelve times. A `409 REVIEWER_EXISTS` means a name was alre
 
 **Judgement call: the physical samples.** Six vials of unmistakably synthetic liquid, labelled by the owner with the six
 names above (water, or a coloured water; never a real fragrance). The vial label is the only place the mapping lives on
-paper and is facilitator-only.
+paper and is facilitator-only. Pour each into a standardized atomizer like the F1 ones and put a short label on the
+atomizer, `R1` to `R6` (the rehearsal's stand-in for the F1 labels `B01` to `B39` and `H01` to `H10`); evaluators see
+that atomizer label on their header and the container, never the vial label.
 
 ### 2.2 Program setup on the laptop (UI)
 
@@ -497,7 +499,7 @@ and fragrance names, so it never leaves the private directory.
 ```bash
 for n in 1 2 3 4 5 6; do apij GET /calibration/enrollments/${ENR[E$n]}/mapping > "$EVID/map-E$n.json"; done
 for n in 1 2 3 4 5 6; do
-  jq --arg ev "E$n" 'map({session:(if .role=="HOLDOUT" then "holdout" else "baseline" end), vial:.fragrance_name, evaluator:$ev, position:.position, blind_code:.blind_code})' "$EVID/map-E$n.json"
+  jq --arg ev "E$n" --argjson atom '{"SYNTH water A":"R1","SYNTH water B":"R2","SYNTH water C":"R3","SYNTH water D":"R4","SYNTH water E":"R5","SYNTH water F":"R6"}' 'map({session:(if .role=="HOLDOUT" then "holdout" else "baseline" end), vial:.fragrance_name, atomizer:($atom[.fragrance_name]), evaluator:$ev, position:.position, blind_code:.blind_code})' "$EVID/map-E$n.json"
 done | jq -s 'add' > "$EVID/mapping.json"
 jq length "$EVID/mapping.json"        # expect 36 (six evaluators, six positions each)
 cd ~/dev/fragrance-rater && uv run python scripts/make_spray_sheets.py --mapping "$EVID/mapping.json" --output-dir "$EVID/spray-sheets"
@@ -506,7 +508,9 @@ cd ~/dev/fragrance-rater && uv run python scripts/make_spray_sheets.py --mapping
 **Judgement call:** the `session` key is `baseline` or `holdout` because this program has exactly one session of each
 (the sessions of one enrollment have no guaranteed order in the mapping output, so the role is a safer key than the
 position in the list). The script writes `facilitator-only/` spray sheets and `paper-record-index.csv` (vial numbers,
-facilitator only) and `evaluator-headers/` files (paper record ID, evaluator reference, blind codes only). It refuses to
+facilitator only) and `evaluator-headers/` files (paper record ID, evaluator reference, blind codes and the atomizer label
+under each; no vial). Every mapping row needs the `atomizer` column and the script rejects a vial with two atomizers or an
+atomizer shared by two vials. It refuses to
 write inside a git repository unless the directory is ignored; `$EVID` is outside one.
 
 Print the forms (needs pandoc and Google Chrome; the default output directory is the gitignored `tmp_cleanup/print`, so
@@ -520,15 +524,17 @@ Expected: four PDFs; the session sheet is four pages (two duplex sheets) and the
 
 | Print | Version | Count for the evening |
 | :--- | :--- | :--- |
-| Session sheet | `facilitated-session-sheet v2.1` | 12 (six evaluators, two sittings), plus 2 spares |
+| Session sheet | `facilitated-session-sheet v2.2` | 12 (six evaluators, two sittings), plus 2 spares |
 | Conditions slip | `facilitated-conditions-slip v1.0` | 12, for the evaluators who accept session context, plus 2 spares |
 | Spray sheets and headers | from `make_spray_sheets.py` | one header per evaluator per sitting (12); two facilitator sheets |
 | Property guide | `facilitated-property-guide v1.0` | optional; it is outside the P6.3 instrument, so if it is handed out, write that down and do not count it as rehearsed |
 | Run sheet | `facilitated-run-sheet` | one, for the facilitator |
 
 Before the evening, fill in each printed sheet from its header: Part A (paper record ID, evaluator reference, blotter
-mode `Individual trays`, Data classification `Synthetic rehearsal`) and the blind code row of Part B, and have a second
-person check every code against the header file. **Judgement call:** the repository renders the blank sheet and a
+mode `Individual trays`, Data classification `Synthetic rehearsal`) and the blind code and atomizer rows of Part B, and have a second
+person check every code and atomizer against the header file.
+**Reprint required:** the six rehearsal headers must be reprinted with the v2.2 layout (atomizer row under the blind
+code row) before the 3.2 sittings; a header printed before 2026-11-27 has no atomizer row and is not used. **Judgement call:** the repository renders the blank sheet and a
 separate header file; how the pre-printed values reach the paper is not stated, so time how long hand filling takes
 and write it in the log (the real F1 has the same job at 17 sessions).
 
@@ -808,7 +814,7 @@ owner, after the evening**, from `$EVID`. This runbook does not fill it and mark
 | Release commit and image digests | step 0.5 (`release-running.txt`) |
 | R7b participant-instrument build exercised | same commit and digests, plus the footer text and `instrument_version` in the export |
 | Operator, UTC start and end | the evening log |
-| Sheet and slip versions rehearsed | `facilitated-session-sheet v2.1`, `facilitated-conditions-slip v1.0` (and a note that the property guide was outside the instrument) |
+| Sheet and slip versions rehearsed | `facilitated-session-sheet v2.2`, `facilitated-conditions-slip v1.0` (and a note that the property guide was outside the instrument) |
 | Shared-triple enrollment of six | step 2.3 preview and readiness output |
 | Paper session for six, transcribed through one login | 3.2, 3.4 |
 | Blind-code confirmation, ambiguous marks | `failure-1.txt`, and how the ambiguous mark was entered |
