@@ -425,17 +425,20 @@ that atomizer label on their header and the container, never the vial label.
 
 ### 2.2 Program setup on the laptop (UI)
 
-Sign in through the public URL, open **Program setup** (manager only). Use these labels (verified in
-`ProgramSetupPage.tsx`).
+Sign in through the public URL, open **Program setup** (manager only). It opens the **Family pilot** screen, which
+cannot create a program; the rehearsal builds its own throwaway program, so follow **Advanced setup (not needed for the
+family pilot)** (`/programs/advanced`). F1 itself does not do this: its program is loaded by the operator script. Use
+these labels on Advanced setup (verified in `ProgramSetupPage.tsx`).
 
 1. **1. Program definition**: Name `SYNTHETIC REHEARSAL 2026-11`, Version `rehearsal-1`, Description `Light dry run, water
    samples only`, Blotter mode `INDIVIDUAL` (the default), press **Create draft**.
-2. In the reveal policy control of the checkpoints panel (select **Reveal policy**, option "Whole household together,
-   after the final samples", then **Save reveal policy**). It can only be changed while the program is a draft.
+2. In the Definition section, set **Reveal policy for this program** to "Whole household together, after the final
+   samples"; it saves when you change it. It can only be changed while the program is a draft, and activation locks it.
 3. **Find catalog version** (search `SYNTH water`), pick the exact version in **Exact catalog version**, set **Role**
    `UNIVERSAL_BASELINE` for A, B, C (Group `Baseline`) and `HOLDOUT` for D, E, F (Group `Holdout`), fill **Version
    verification evidence** with `Synthetic water sample; no real product`, press **Add version**. Six times.
-4. Review **Frozen definition preview**, press **Activate and lock definition**, then **Confirm activation**.
+4. Review **Frozen definition preview**, press **Activate and lock definition**, read the confirmation (it states that
+   activation is permanent and names the reveal policy and member count it locks), then **Confirm activation**.
 
 Pass rule: activation succeeds, the program status is active, and before pressing activate you have confirmed step 0.6
 (a pinned instrument). Then read the pin that was recorded:
@@ -448,7 +451,9 @@ Expected: one id. The recorded `instrument_version` is checked in the export in 
 
 ### 2.3 Session-plan preview and enrollment (UI)
 
-In **2. Enrollment**: pick **Evaluator** `SYNTH Evaluator E1`; **Authorized recorder usernames**: the Authentik username you
+Stay on Advanced setup, because **Preview session plan** is only there. (The Family pilot screen's **Enroll** sends the
+same fixed values without the preview: shared sessions of three, random codes, you as the recorder.) In **2.
+Enrollment**: pick **Evaluator** `SYNTH Evaluator E1`; **Authorized recorder usernames**: the Authentik username you
 sign in with (the one `CALIBRATION_ADMIN_USERNAMES` names); **Samples per session** `3`; **Session order** option "Shared
 sessions, balanced order per evaluator (facilitated)"; press **Preview session plan** and open the "Session plan
 preview" region (with "Show fragrance identities (manager only)"). Expected: two sessions of three, the first with the
@@ -470,7 +475,8 @@ Expected: six distinct ids. These are not secret, but the mapping reachable thro
 
 ### 2.4 Non-blind call for the holder (UI), before any exposure
 
-In **Evaluator who holds the answer key** (the non-blind panel): select **Evaluator who holds the mapping**
+On Advanced setup, in **Evaluator who holds the answer key** (the non-blind panel; on the Family pilot screen the
+**Facilitator (non-blind)** tick does the same at enrollment): select **Evaluator who holds the mapping**
 `SYNTH Evaluator E1`; **Written reason**: `Declared mapping holder; facilitates, transcribes and controls the reveal
 (synthetic rehearsal)`; press **Mark evaluator non-blind**, then **Confirm non-blind**. Write the UTC date and time in
 `$EVID/non-blind-call.txt`: it must precede the first exposure of step 3, and the same date goes into the private
@@ -479,7 +485,8 @@ idempotent (it returns `flagged` and `already_flagged` session lists).
 
 ### 2.5 Readiness view (UI) and a first look
 
-Open the checkpoints panel (heading "Checkpoints and reveal") and press **Refresh readiness**. Expected before any
+Open the checkpoints panel (heading "Checkpoints and reveal"; it is on both the Family pilot screen and Advanced
+setup) and press **Refresh readiness**. Expected before any
 sheet is entered: six rows, Checkpoint column showing a blocker label (not "Frozen"), Reveal column not "Ready to
 reveal". Cross-check with the API (it also shows the per-evaluator `holdouts_open`, which the screen does not name):
 
@@ -835,8 +842,9 @@ not run rather than leaving them blank.
 
 ## Step 4. P6.4 light checks on the facilitator's pages (HOST, ALONE; the reload check during step 3)
 
-Pages in scope: the transcription wizard (**Calibration**) and the manager screens (**Program setup**, the checkpoints
-panel). No evaluator-facing screen exists in the facilitated format. Use the laptop and its normal browser.
+Pages in scope: the transcription wizard (**Calibration**) and the manager screens (**Program setup**: the Family
+pilot screen, Advanced setup and the checkpoints panel). No evaluator-facing screen exists in the facilitated format.
+Use the laptop and its normal browser.
 
 - **Keyboard.** Transcribe one evaluator's column using only the keyboard: Tab order follows the visual order, focus is
   always visible, every field has a label, the confirmation dialogs ("Confirm blotter lock", "Confirm checkpoints",

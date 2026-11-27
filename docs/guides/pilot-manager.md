@@ -24,20 +24,28 @@ configured manager usernames before opening the program.
 
 ## Build and freeze a program
 
-1. Open **Program setup** and create a named, versioned draft.
+This section is for the general program builder, which lives under **Program setup**, **Advanced setup (not needed for
+the family pilot)** (`/programs/advanced`). The F1 family pilot does not use it: its one program is loaded by the
+operator script, and you enroll evaluators from the plain **Family pilot** screen (see
+[Enroll from the Family pilot screen](#enroll-from-the-family-pilot-screen)).
+
+1. Open **Program setup**, follow **Advanced setup (not needed for the family pilot)**, and create a named, versioned
+   draft. Choose the reveal policy in the same Definition section before you activate.
 2. Search the catalog and select the exact name, house, concentration, and `version_key` shown on
    the physical sample.
 3. Record the identity evidence and assign the intended role. Link hidden repeats to the exact
    baseline membership.
 4. Compare the draft with the reviewed physical manifest. Resolve every mismatch; never guess a
    version.
-5. Review the frozen-definition preview and confirm activation. Activation is irreversible for
-   that program definition.
+5. Review the frozen-definition preview and confirm activation. The activation confirmation names the program and
+   states that activation is permanent and locks the reveal policy and the members. It is irreversible for that
+   program definition.
 
 ## Enroll, label, and operate
 
-If the evaluator is not in the Evaluator list yet, first add them in the **Add an evaluator** box at the top of
-the Enrollment section; they are then selected in the list ready to enroll. Enroll the named evaluator and grant only the recorder usernames that need access. (The
+On **Advanced setup**, if the evaluator is not in the Evaluator list yet, first add them in the **Add an evaluator**
+box at the top of the Enrollment section; they are then selected in the list ready to enroll. Enroll the named
+evaluator and grant only the recorder usernames that need access. (The
 [facilitated variant](#facilitated-six-evaluator-variant) uses one recorder login for all six evaluators.) Choose the
 blind label scheme at enrollment: **Standard** (for example `E01-S1-2`, the default and easiest
 to label) or **Random code** (8 hex characters). Standard labels reveal which sessions are
@@ -100,14 +108,42 @@ drafts until the P6.3 rehearsal.
 A merged item is not gate evidence: none of this has been rehearsed in P6.3. Re-read this table against the merged pull
 requests before relying on it.
 
+### Enroll from the Family pilot screen
+
+**Program setup** opens the **Family pilot** screen. It has one job: enroll the six evaluators with the F1 settings and
+run the steps after the sittings. It never creates a program; the operator script loads the one F1 program (active,
+household reveal, individual blotters, 49 members: 33 baseline, 6 hidden repeats and 10 holdouts).
+
+1. The program card shows its name, version, status, reveal policy, blotter mode and member counts by role. If it says
+   "No family pilot program is active. Ask the operator to load one.", stop: nothing here can create the program.
+   The card never names a member's fragrance, so the answer key stays hidden; the members are the fixed `B01` to
+   `B39` and `H01` to `H10` bottles.
+2. Every evaluator is listed as Enrolled or Not enrolled. Add a missing evaluator with **Add an evaluator**.
+3. Decide who the facilitator is **before** enrolling. Tick **Facilitator (non-blind)** on that evaluator's row only,
+   then press **Enroll**. The screen enrolls with fixed values (shared sessions of three samples in a balanced
+   Latin-square order, random blind labels, no persistent or animalic flags, and you as the one recorder login) and,
+   for the facilitator, then marks the enrollment non-blind with the reason "Facilitator who labels and sprays the
+   samples". If that second call fails, the screen says the evaluator is enrolled but not flagged and offers
+   **Retry non-blind flag**; do not let any sample be sprayed until it succeeds.
+4. Enroll the six evaluators **in order**: each evaluator's rotation comes from the enrollment ordinal.
+5. After the sittings, use the same screen for **Freeze checkpoints**, **Reveal the household** and **Show session
+   progress**. The reveal policy appears there as read-only text, and the irreversible actions keep their
+   confirmations.
+
+Anything else (a different label scheme or session size, persistent flags, **Preview session plan**, building or
+activating a program) is on **Advanced setup**, which F1 does not need.
+
 ### Enroll with shared triples
 
+This is the detail behind the fixed values above, and the route for an Advanced setup enrollment.
+
 1. Create and activate the program as usual. For a household reveal, set the reveal policy to `HOUSEHOLD` on the
-   draft program (at creation, or with `PUT /api/v1/calibration/programs/{program_id}/reveal-policy` while the
-   program is still a draft). The default `ENROLLMENT` reveals each evaluator separately and leaks across
+   draft program (in the Definition section of Advanced setup, before **Activate and lock definition**, or with
+   `PUT /api/v1/calibration/programs/{program_id}/reveal-policy` while the program is still a draft). The default
+   `ENROLLMENT` reveals each evaluator separately and leaks across
    evaluators who share triples. The server allows `HOUSEHOLD` with the default `INDIVIDUAL` blotter mode, which is the F1 plan. (A
    `SHARED_GROUP` program, which F1 does not use, always reveals as a household.)
-2. In **Program setup**, leave the blotter mode at `INDIVIDUAL` (the default) and choose the shared-triples
+2. In **Advanced setup**, leave the blotter mode at `INDIVIDUAL` (the default) and choose the shared-triples
    algorithm `shared-triples-latin-rotation-v1`: standard labels are refused with it, and blind codes are random and
    specific to each evaluator, because with shared triples a label that names the session would reveal session identity
    and holdout status. Every enrollment of a program must use the same shared algorithm. Do not choose `SHARED_GROUP`
@@ -127,6 +163,9 @@ requests before relying on it.
    gitignored `tmp_cleanup/spray-sheets/` by default, and is never committed.
 
 ### Flag the holder as non-blind
+
+On the Family pilot screen the **Facilitator (non-blind)** tick does this at enrollment. To flag an evaluator who is
+already enrolled, use **Evaluator who holds the answer key** on Advanced setup, or call the route directly:
 
 Call `POST /api/v1/calibration/enrollments/{enrollment_id}/non-blind` for the holder's enrollment, with a written
 explanation (for example "declared mapping holder; facilitates, transcribes and controls the reveal"). It raises one
@@ -149,7 +188,8 @@ create the checkpoints as a manager:
   prediction snapshot per program holdout. Skipped enrollments are listed with a reason.
 
 This holds in every program with holdouts, including the P6 synthetic rehearsal, until a manager checkpoint button
-exists in the wizard; #216 (merged) adds a checkpoint and household reveal panel in **Program setup**. The owner decided on 2026-11-25 that F1 does not require a
+exists in the wizard; #216 (merged) adds a checkpoint and household reveal panel, shown on both the Family pilot
+screen and Advanced setup. The owner decided on 2026-11-25 that F1 does not require a
 linked prediction per holdout; the call freezes predictions by default, and the declaration should state what was
 frozen.
 
