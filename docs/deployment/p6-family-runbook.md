@@ -30,6 +30,16 @@ tags:
     obsolete for F1. PR #243 adds a `shared` label scheme to enrollment (merged, not recorded as deployed), but the
     rehearsal enrollment on Advanced setup below does not use it.
 
+!!! note "Sheet v3.0 supersedes the sheet steps below (2026-11-27)"
+    The F1 session sheet is now `facilitated-session-sheet v3.0`, a generic handwritten double-sided form (one sheet, two
+    sides, nothing pre-printed per session or evaluator, no Part E, no Detected row, no "Not answering because" box, no
+    consent or data classification field; Intensity 0 means not detected). The sheet steps below were written for v2.2
+    and are kept as the record of the scoped rehearsal, which the owner waived. If the rehearsal is ever run, run it
+    with v3.0 and the [run sheet](../facilitated-run-sheet.md), and check the print step against the current
+    `scripts/print_forms.sh`, whose page-count check and header files belong to the sheet and tooling change set and
+    were not re-verified here. Whether a v3.0 sheet is compatible with the F1 gate's statement that sheet and slip ids
+    equal the rehearsed ids is an open owner question (see the [F1 gate](../planning/gates/f1.md)).
+
 ## How to read this page
 
 Every step carries one or more tags:
@@ -544,7 +554,7 @@ Expected: four PDFs; the session sheet is four pages (two duplex sheets) and the
 
 | Print | Version | Count for the evening |
 | :--- | :--- | :--- |
-| Session sheet | `facilitated-session-sheet v2.2` | 12 (six evaluators, two sittings), plus 2 spares |
+| Session sheet | `facilitated-session-sheet v2.2` as scoped before the waiver; v3.0 for F1 (see the note above) | 12 (six evaluators, two sittings), plus 2 spares |
 | Conditions slip | `facilitated-conditions-slip v1.0` | 12, for the evaluators who accept session context, plus 2 spares |
 | Spray sheets and headers | from `make_spray_sheets.py` | one header per evaluator per sitting (12); two facilitator sheets |
 | Property guide | `facilitated-property-guide v1.0` | optional; it is outside the P6.3 instrument, so if it is handed out, write that down and do not count it as rehearsed |
@@ -642,7 +652,7 @@ For each of E1, E2, E3, E4, E5 (the owner alone; nobody else touches the laptop)
    **Time first smelled**, **Time this column finished** and the scores; compare the screen with the paper; **Save
    observation**. A saved observation cannot be edited. An ambiguous mark is entered blank plus a flag.
 4. **Lock blotter responses**, then **Confirm blotter lock**; do the ranking (**Save ranking**, or the "rather not
-   rank" options); **Facilitator: continue** with the session end time; complete Part E on the paper sheet and sign.
+   rank" options); **Facilitator: continue** with the session end time; under v2.2, complete Part E on the paper sheet and sign (v3.0 has no Part E; a per-evaluator tracker is proposed instead).
 5. Skin plan: **Finalize skin-test plan**, then **Confirm final plan**. **Judgement call:** the dry run does not rehearse
    skin tests; all six finalize an empty plan, which the household policy needs before a checkpoint. In F1 only the
    owner (E1) does skin tests.
@@ -803,8 +813,8 @@ identities (manager only)" preview, which only a manager can open. Save the outp
 
 ### 3.11 Paper, scans and retention (ALONE)
 
-Scan every page of every session sheet (all four pages; the second sheet is Part E and the instructions), keep the
-originals, scan the slips into a different folder, keep sheets and slips in separate folders and never write an
+Scan every page of every session sheet (under v2.2 all four pages, the second sheet being Part E and the instructions;
+under v3.0 both sides of the one sheet), keep the originals, scan the slips into a different folder, keep sheets and slips in separate folders and never write an
 identity, role or mapping on a sheet or a filename. Paper, scans and slips are kept 12 months after the evaluation ends
 and destroyed together with the database and its backups (owner decision, matching the consent text). Keep the deviation
 log with the sheets, apart from the mapping.
@@ -836,7 +846,7 @@ owner, after the evening**, from `$EVID`. This runbook does not fill it and mark
 | Release commit and image digests | step 0.5 (`release-running.txt`) |
 | R7b participant-instrument build exercised | same commit and digests, plus the footer text and `instrument_version` in the export |
 | Operator, UTC start and end | the evening log |
-| Sheet and slip versions rehearsed | `facilitated-session-sheet v2.2`, `facilitated-conditions-slip v1.0` (and a note that the property guide was outside the instrument) |
+| Sheet and slip versions rehearsed | `facilitated-session-sheet v2.2` as scoped (v3.0 for F1, see the note above), `facilitated-conditions-slip v1.0` (and a note that the property guide was outside the instrument) |
 | Shared-triple enrollment of six | step 2.3 preview and readiness output |
 | Paper session for six, transcribed through one login | 3.2, 3.4 |
 | Blind-code confirmation, ambiguous marks | `failure-1.txt`, and how the ambiguous mark was entered |

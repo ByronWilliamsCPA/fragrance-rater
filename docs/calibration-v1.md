@@ -100,6 +100,16 @@ the same day, tried physically, and abandoned because it got two evaluators thro
 and unused. See the
 [ADR-005 2026-11-25 addendum](planning/adr/adr-005-controlled-calibration.md#2026-11-25-addendum-group-blotter-mode-abandoned-for-f1-individual-blotters-return).
 
+**Session sheet v3.0 (owner decision 2026-11-27).** The F1 paper sheet is `facilitated-session-sheet v3.0`, one generic
+double-sided form with nothing pre-printed per session or evaluator (session, evaluator reference, record ID and the three
+codes are handwritten). Intensity 0 means not detected, which is entered as detected false, intensity 0, liking empty and
+`not_detected` (the existing rule, no application change); the sheet has no Detected row, no "Not answering because" box
+and no consent or data classification field. Consent is recorded once per evaluator in the evaluator packet and copied
+into the wizard's per-session consent note at transcription. Would wear, would buy, type of event and season are asked on
+the sheet and are paper only in F1 (scanned and retained, not keyed); capture after F1 is a Proposed plan item that gates
+neither P6 nor F1. See the [run sheet](facilitated-run-sheet.md) and the
+[F1 gate](planning/gates/f1.md); this paragraph adds no accepted protocol rule.
+
 **Shared codes in the F1 program (2026-11-27).** The statements above that blind codes are random and
 evaluator-specific describe what enrollment generates. For the F1 program (`v3.2`) the owner decided on 2026-11-27 that
 all six evaluators see one shared code per physical sample, equal to the label on the atomizer, with repeats keeping
