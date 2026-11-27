@@ -1,3 +1,4 @@
+import axios from 'axios'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api } from '../api/client'
 import type {
@@ -37,6 +38,8 @@ const roles = [
   'OWNED_VALIDATION',
   'OTHER',
 ]
+
+const EVALUATOR_NAME_MAX = 100
 
 const INDEPENDENT_SHUFFLE = 'system-random-shuffle-v1'
 const SHARED_TRIPLES = 'shared-triples-latin-rotation-v1'
@@ -94,6 +97,8 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
   const [fragellaUsage, setFragellaUsage] = useState<FragellaUsage | null>(null)
   const [algorithm, setAlgorithm] = useState(INDEPENDENT_SHUFFLE)
   const [templatePreview, setTemplatePreview] = useState<SessionTemplatePreview | null>(null)
+  const [reviewerId, setReviewerId] = useState('')
+  const [newEvaluatorName, setNewEvaluatorName] = useState('')
   // Bumped whenever the preview's inputs change, so a response to an older
   // request cannot restore a plan for a different program or session size.
   const previewRequest = useRef(0)
@@ -259,13 +264,42 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
     await reload()
     if (shared) {
       // Keep the shared settings for the next evaluator; clear only who.
-      const reviewer = form.elements.namedItem('reviewer_id')
-      if (reviewer instanceof HTMLSelectElement) reviewer.value = ''
       invalidatePreview()
     } else {
       form.reset()
     }
+    setReviewerId('')
     task.setNotice('Evaluator enrolled; sessions and blind codes are ready.')
+  }
+
+  async function addEvaluator() {
+    const name = newEvaluatorName.trim()
+    if (name.length < 1 || name.length > EVALUATOR_NAME_MAX) {
+      task.setError(`Enter the evaluator's name, 1 to ${EVALUATOR_NAME_MAX} characters.`)
+      return
+    }
+    let created: Person
+    try {
+      created = (await api.post<Person>('/reviewers', { name })).data
+    } catch (reason) {
+      // Only the duplicate-name conflict gets its own wording; the server's
+      // message repeats the submitted name, so it is not shown. Anything else
+      // goes through the shared request-error handling in useTask.
+      if (axios.isAxiosError(reason) && reason.response?.status === 409) {
+        task.setError('That name is already in use. Choose a different name.')
+        return
+      }
+      throw reason
+    }
+    // #ASSUME: timing-dependencies: the parent's reload() resolves only after
+    // the refreshed reviewers prop is committed, so the new option exists
+    // before it is selected.
+    // #VERIFY: if the option were missing, a controlled select would fall back
+    // to the empty "Choose evaluator" entry and the manager would pick by hand.
+    await reload()
+    setNewEvaluatorName('')
+    setReviewerId(created.id)
+    task.setNotice('Evaluator added. They can now be enrolled below.')
   }
 
   async function loadOperations() {
@@ -588,6 +622,31 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
         <div>
           <h3>2. Enrollment</h3>
           <form
+            aria-labelledby="add-evaluator-heading"
+            onSubmit={(event) => {
+              event.preventDefault()
+              void task.run(addEvaluator)
+            }}
+          >
+            <h4 id="add-evaluator-heading">Add an evaluator</h4>
+            <p id="add-evaluator-hint">
+              A new person must be added here before they can be enrolled below.
+            </p>
+            <label>
+              Evaluator name
+              <input
+                name="new_evaluator_name"
+                value={newEvaluatorName}
+                maxLength={EVALUATOR_NAME_MAX}
+                aria-describedby="add-evaluator-hint"
+                required
+                onChange={(event) => setNewEvaluatorName(event.target.value)}
+              />
+            </label>
+            <button disabled={task.busy}>Add evaluator</button>
+          </form>
+          <hr />
+          <form
             onSubmit={(event) => {
               event.preventDefault()
               void task.run(() => enroll(event.currentTarget))
@@ -595,7 +654,12 @@ export function ProgramSetupPage({ programs, reviewers, reload, initialProgramId
           >
             <label>
               Evaluator
-              <select name="reviewer_id" required>
+              <select
+                name="reviewer_id"
+                value={reviewerId}
+                required
+                onChange={(event) => setReviewerId(event.target.value)}
+              >
                 <option value="">Choose evaluator</option>
                 {reviewers.map((reviewer) => (
                   <option key={reviewer.id} value={reviewer.id}>

@@ -104,8 +104,8 @@ function renderPage(blotterMode?: 'INDIVIDUAL' | 'SHARED_GROUP', reload = () => 
       initialProgramId="p"
     />
   )
-  const form = screen.getByRole('heading', { name: '2. Enrollment' }).nextElementSibling
-  if (!(form instanceof HTMLFormElement)) throw new Error('Enrollment form missing')
+  const form = screen.getByRole('button', { name: 'Enroll evaluator' }).closest('form')
+  if (!form) throw new Error('Enrollment form missing')
   return within(form)
 }
 
