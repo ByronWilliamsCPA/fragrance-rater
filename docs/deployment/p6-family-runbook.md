@@ -19,6 +19,16 @@ tags:
     filled only after the steps have actually run, by the owner. A change to the participant build, the session sheet or
     the conditions slip after the rehearsal voids it.
 
+!!! note "Status and shared codes, 2026-11-27"
+    The owner waived the P6.3 rehearsal on 2026-11-27 (see the [P6 gate](../planning/gates/p6.md)), so steps 3.2 to
+    3.12 were not run. Separately, the F1 program `v3.2` now uses one shared code per physical sample, equal to the
+    atomizer label and the same for all six evaluators ([F1 gate sign-off 19](../planning/gates/f1.md)). This runbook
+    describes a synthetic rehearsal program created by the app, whose codes are random and per evaluator. Where it says
+    so below, that is true of the rehearsal program only: in `v3.2` the blind-code check cannot catch a sheet entered
+    under the wrong evaluator, and the guard is procedural (one recorder, one evaluator's sheets at a time, name and
+    record ID checked against the enrollment on screen before saving). Headers with random 8-character codes are
+    obsolete for F1.
+
 ## How to read this page
 
 Every step carries one or more tags:
@@ -656,7 +666,9 @@ Expected: `HTTP 409` with the body detail `The blind code entered does not match
 before anything is written). Pass rule: 409 and that message. If the call is accepted (the code happened to be E3's own,
 which random codes make vanishingly unlikely, or the check did not run), record it honestly as a failure of the guard.
 This guard shows that the codes belong to the enrollment on screen; it is not proof of which person wrote the paper,
-which is why step 1 above (name and record ID checked by eye) stays.
+which is why step 1 above (name and record ID checked by eye) stays. This test would pass only on a program with random
+per-evaluator codes. It does not apply to the F1 program `v3.2`, where the codes are shared and the server accepts the
+code for any evaluator (F1 gate sign-off 19).
 
 ### 3.5 Freeze checkpoints: one per enrollment that is ready (ALONE, laptop)
 

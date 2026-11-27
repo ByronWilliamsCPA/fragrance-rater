@@ -365,6 +365,36 @@ marks no gate as passed.
   (a physical-location key for the standardized atomizers B01-B39 and H01-H10, not an identity); it records no new
   field. See the [F1 gate](../gates/f1.md) sign-off 16.
 
+## 2026-11-27 note: shared blind codes equal to the atomizer label in the F1 program
+
+This note adds to the decisions above and does not rewrite them. The "Blind codes" row of the 2026-11-24 table (the
+`random` scheme with evaluator-specific codes) and the 2026-11-25 addendum's statement that individual blotters give
+every evaluator random evaluator-specific codes describe what enrollment generates, and they were the decision when
+written.
+
+On 2026-11-27 the owner decided that, in the F1 program, all six evaluators see one shared code per physical sample,
+equal to the label on the atomizer (B01 to B39 and H01 to H10), with the repeats keeping their own distinct codes so
+that a repeat stays hidden. The stated reasons are that paper is only a fallback, that sessions may be spread over
+several sittings, that the uniform container plus the code is blind enough, and that per-evaluator random codes made it
+impossible to know from the app alone which sample to pull. The change was made to production program `v3.2` as a
+reviewed one-off data update (stored codes replaced and `shared_blind_code` set), with no code change, build or deploy.
+The enrollments' recorded label scheme remains `random`. Individual blotters, the Latin-square order and the household
+reveal are unchanged.
+
+What this changes in the protocol as written above:
+
+- The statement that the blind-code guard refuses a sheet entered under the wrong evaluator does not hold for `v3.2`,
+  because the typed code now matches for any evaluator. The guard becomes procedural (one recorder, one evaluator's
+  sheets at a time, name and record ID checked against the enrollment on screen).
+- The shared-code consequences that the group-blotter addendum recorded as accepted for `SHARED_GROUP` (one evaluator's
+  reveal would unblind the others; the holdout partition is readable from the codes) now apply to `v3.2` in individual
+  mode. The household reveal that `v3.2` already uses covers the first.
+- A later add-evaluator enrollment would get random codes again and needs the same reviewed update, or a shared-label
+  enroll scheme in code after F1. That code change is not made and needs a new build and a pin decision.
+
+The full record, the preconditions and post-checks of the update, and the other accepted consequences are in the
+[F1 gate sign-off 19](../gates/f1.md).
+
 ## 2026-11-24 amendment: `would_buy` stays on the blind skin form (pending owner confirmation)
 
 > **Status of this amendment: pending owner confirmation of the leakage and analysis implications
