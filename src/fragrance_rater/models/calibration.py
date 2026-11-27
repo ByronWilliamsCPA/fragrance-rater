@@ -651,9 +651,11 @@ class Presentation(Base):
         physical_sample_confirmed: The operator confirmed that the physical
             sample matches the membership's version (P1.1 validator's
             ``physical_sample_confirmed``, which had no column).
-        shared_blind_code: True when ``blind_code`` is shared by every evaluator
-            in a ``SHARED_GROUP`` program (one blotter per sample for the
-            group); such a code is unique only within one session.
+        shared_blind_code: True when ``blind_code`` is one code per sample that
+            every evaluator in the program holds: a ``SHARED_GROUP`` program's
+            blotter, or a shared-triples program enrolled with
+            ``label_scheme="shared"``. Such a code is unique only within one
+            session.
         intended_position: The 1-based position in the session that the
             enrollment's randomization assigned, written once at schedule
             generation and never changed. ``position`` is the order the
@@ -668,11 +670,20 @@ class Presentation(Base):
     # SHARED_GROUP program gives every evaluator the same code for a sample, so
     # a code legitimately appears once per evaluator's session; the
     # (session_id, blind_code) constraint keeps it unique inside one session.
-    # #ASSUME: data-integrity: a shared code never equals another stimulus's
-    # code. No portable constraint can say so across the two row kinds, so the
-    # enrollment service draws each shared code against every existing code.
+    # #ASSUME: data-integrity: a shared code never equals an individual
+    # presentation's code. No portable constraint can say so across the two row
+    # kinds, so each enrollment path checks it: the group-blotter path draws
+    # codes against every existing code, and the shared-triples path
+    # (label_scheme="shared") checks a first enrollment's supplied codes against
+    # existing individual codes only. Neither compares a shared code with the
+    # shared codes of another program, so two programs may use the same shared
+    # code (B01 in each, say). That is safe only because nothing looks a
+    # presentation up by blind code across programs: every lookup is scoped to
+    # a session or an enrollment.
     # #VERIFY: test_group_blotter_enrollment (codes distinct per membership and
-    # never equal to an existing individual code).
+    # never equal to an existing individual code) and
+    # test_a_code_colliding_with_an_existing_individual_code_is_refused. If a
+    # cross-program lookup by blind code is ever added, scope it by program.
     __table_args__ = (
         UniqueConstraint("session_id", "position"),
         UniqueConstraint("session_id", "blind_code"),

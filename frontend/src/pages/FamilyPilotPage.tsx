@@ -20,10 +20,14 @@ type Props = {
 
 /**
  * The family pilot is one fixed design, so enrollment sends fixed values and
- * has no controls: shared sessions in a balanced Latin-square order, random
- * blind labels (a standard label's session number would say who shares a
- * fragrance), three samples per session, and no persistent or animalic flags.
- * The enroll tests pin this payload.
+ * has no controls: shared sessions in a balanced Latin-square order, shared
+ * blind labels (one code per sample, never a standard label, whose session
+ * number would say who shares a fragrance), three samples per session, and no
+ * persistent or animalic flags. The page supplies no codes: the server gives
+ * each evaluator the codes the program's existing enrollments already hold. A
+ * program's first shared enrollment, or a program whose enrollments used random
+ * codes, needs the API with `membership_codes`; this page cannot do that and
+ * shows the server's refusal. The enroll tests pin this payload.
  */
 const SHARED_TRIPLES = 'shared-triples-latin-rotation-v1'
 const SAMPLES_PER_SESSION = 3

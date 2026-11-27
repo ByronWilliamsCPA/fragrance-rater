@@ -101,12 +101,13 @@ def body(reviewer_id: str, **extra) -> dict[str, object]:
     }
 
 
-async def codes_of(test_app, enrollment_id: str) -> list[str]:
+async def mapping_of(test_app, enrollment_id: str) -> dict[str, str]:
+    """Membership id to blind code, from the manager-only mapping sheet."""
     response = await test_app.get(
-        f"{PREFIX}/enrollments/{enrollment_id}", headers=MANAGER
+        f"{PREFIX}/enrollments/{enrollment_id}/mapping", headers=MANAGER
     )
     assert response.status_code == 200
-    return [p["blind_code"] for p in response.json()["presentations"]]
+    return {row["membership_id"]: row["blind_code"] for row in response.json()}
 
 
 @pytest.mark.asyncio
@@ -137,9 +138,10 @@ async def test_shared_enrollments_carry_one_code_per_membership(test_app):
         headers=MANAGER,
     )
     assert second.status_code == 201
-    first_codes = await codes_of(test_app, first.json()["id"])
-    second_codes = await codes_of(test_app, second.json()["id"])
-    assert sorted(first_codes) == sorted(codes.values()) == sorted(second_codes)
+    # Compare the membership-to-code mapping itself, so codes swapped between
+    # memberships (a sorted list would still match) fail this test.
+    assert await mapping_of(test_app, first.json()["id"]) == codes
+    assert await mapping_of(test_app, second.json()["id"]) == codes
     again = await test_app.post(
         f"{PREFIX}/programs/{program_id}/enroll",
         json=body(reviewer_ids[1]),

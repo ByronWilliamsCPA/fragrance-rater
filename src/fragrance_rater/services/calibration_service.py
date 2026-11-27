@@ -100,6 +100,10 @@ _SHARED_CODES_NOT_SHARED = (
 _SHARED_CODES_DISAGREE = (
     "The program's earlier enrollments disagree on the blind codes of its samples"
 )
+_SHARED_CODES_UNCOVERED = (
+    "The program's recorded blind codes do not cover exactly the samples of its "
+    "session template, so they cannot be inherited"
+)
 _SHARED_CODES_REUSED = (
     "The program's recorded blind codes give one code to more than one sample"
 )
@@ -145,7 +149,8 @@ def confirm_blind_code(presentation: Presentation, confirmed: str | None) -> Non
     """Refuse a write whose confirmed blind code is not this sample's code.
 
     The facilitator reads the code off the paper column; a mismatch means the
-    column is open on the wrong sample or the wrong evaluator's enrollment.
+    column is open on the wrong sample. Under per-evaluator codes it also meant
+    the wrong evaluator's enrollment; shared codes no longer carry that signal.
 
     Args:
         presentation (Presentation): The sample being written.
@@ -154,8 +159,16 @@ def confirm_blind_code(presentation: Presentation, confirmed: str | None) -> Non
     """
     # #CRITICAL: data-integrity: a transcribed column keyed to the wrong sample
     # is silent corruption (observations are append-only and locked).
+    # With label_scheme "shared" the code names the sample, not the evaluator:
+    # every evaluator's enrollment holds the same code, so this check still
+    # catches the wrong sample but no longer catches a column typed into the
+    # wrong evaluator's enrollment. Do not rely on it for that.
     # #VERIFY: a transcription client always sends confirmed_blind_code; tests
-    # cover a mismatch (409), a case-insensitive match, and omission.
+    # cover a mismatch (409), a case-insensitive match, and omission. The
+    # wrong-evaluator guard is procedural (docs/planning/gates/f1.md, sign-off
+    # 19, consequence (a)): one recorder, one evaluator's sheets at a time, and
+    # the name and paper record ID on the sheet checked against the enrollment
+    # on screen before saving.
     if confirmed is not None and (
         confirmed.strip().upper() != presentation.blind_code.strip().upper()
     ):
@@ -516,8 +529,10 @@ class CalibrationService:
         session_created_at = now_naive_utc()
         # #ASSUME: Concurrency: the enrollment ordinal below is a row count, so
         # two simultaneous standard-scheme enrollments could compute the same
-        # prefix. #VERIFY: Presentation.blind_code is globally UNIQUE, so a
-        # collision fails the transaction loudly instead of duplicating labels.
+        # prefix. #VERIFY: an individual (shared_blind_code false) code is
+        # globally UNIQUE through a partial unique index, so a collision fails
+        # the transaction loudly instead of duplicating labels. Shared codes
+        # are unique per session only and do not use this prefix.
         enrollment_ordinal = (
             await self.db.scalar(select(func.count()).select_from(Enrollment)) or 1
         )
@@ -834,7 +849,7 @@ class CalibrationService:
         recorded = await self._recorded_shared_codes(program_id)
         if recorded is not None:
             if set(recorded) != ids:
-                reject(_SHARED_CODES_DISAGREE)
+                reject(_SHARED_CODES_UNCOVERED)
             if supplied is not None and supplied != recorded:
                 reject(_SHARED_CODES_DIFFER)
             return recorded

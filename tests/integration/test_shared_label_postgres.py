@@ -3,8 +3,9 @@
 The unit suite proves the code assignment on SQLite; this proves the same
 enrollments pass the production partial unique index
 (``WHERE shared_blind_code = false``) and ``UNIQUE(session_id, blind_code)``:
-two evaluators hold the identical shared code for a sample, a third inherits it,
-and no code repeats inside a session. Every test runs in one transaction and
+seven evaluators hold the identical shared code for a sample (the seventh is the
+case after the Latin rotation's period of six), and no code repeats inside a
+session. Every test runs in one transaction and
 rolls it back.
 
 Skipped unless ``P1_DATABASE_URL`` points at a migrated PostgreSQL database.
@@ -77,7 +78,7 @@ async def _fragrance(db: AsyncSession) -> Fragrance:
 async def test_shared_label_enrollments_run_on_postgres(session: AsyncSession) -> None:
     program = Program(name=f"S {uuid4().hex}", version="1", reveal_policy="HOUSEHOLD")
     session.add(program)
-    reviewers = [Reviewer(name=f"S {uuid4().hex}") for _ in range(3)]
+    reviewers = [Reviewer(name=f"S {uuid4().hex}") for _ in range(7)]
     session.add_all(reviewers)
     await session.flush()
     service = CalibrationService(session)

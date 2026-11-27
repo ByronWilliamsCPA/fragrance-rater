@@ -10,7 +10,7 @@ import pytest
 import pytest_asyncio
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from fragrance_rater.models.calibration import (
     CalibrationSession,
@@ -402,6 +402,95 @@ async def test_earlier_enrollments_that_disagree_are_refused_not_guessed(
         await service.enroll(program.id, shared_input("evaluator-2"))
     assert error.value.status_code == 409
     assert await enrollment_count(async_session) == 2
+
+
+@pytest.mark.asyncio
+async def test_one_code_recorded_for_two_samples_is_refused(async_session, f1_program):
+    service, program = f1_program
+    codes = await label_codes(async_session, program)
+    first = await service.enroll(
+        program.id, shared_input("evaluator-0", membership_codes=codes)
+    )
+    rows = await service.presentations(first.id)
+    # Two samples in different sessions, so the per-session constraint holds
+    # and only the program-level rule can catch the repeated code.
+    other = next(r for r in rows[1:] if r.session_id != rows[0].session_id)
+    other.blind_code = rows[0].blind_code
+    await async_session.flush()
+    with pytest.raises(HTTPException, match="more than one sample") as error:
+        await service.enroll(program.id, shared_input("evaluator-1"))
+    assert error.value.status_code == 409
+    assert await enrollment_count(async_session) == 1
+
+
+@pytest.mark.asyncio
+async def test_recorded_codes_that_do_not_match_the_template_have_their_own_message(
+    async_session, f1_program
+):
+    service, program = f1_program
+    codes = await label_codes(async_session, program)
+    await service.enroll(
+        program.id, shared_input("evaluator-0", membership_codes=codes)
+    )
+    second = await service.enroll(program.id, shared_input("evaluator-1"))
+    _, other = await build_program(
+        async_session,
+        name="Another program",
+        fragrance_prefix="other",
+        baseline=3,
+        repeats=0,
+        holdouts=0,
+        reviewers=0,
+    )
+    foreign = await async_session.scalar(
+        select(Membership.id).where(Membership.program_id == other.id)
+    )
+    # A later enrollment records a sample the first enrollment's template lacks,
+    # under its own distinct code: every code is consistent, but the recorded
+    # set no longer matches the template. That is a coverage problem, not a
+    # disagreement between enrollments, and it must say so.
+    row = (await service.presentations(second.id))[0]
+    row.membership_id = foreign
+    row.blind_code = "B99"
+    await async_session.flush()
+    with pytest.raises(HTTPException, match="do not cover") as error:
+        await service.enroll(program.id, shared_input("evaluator-2"))
+    assert error.value.status_code == 409
+    assert "disagree" not in str(error.value.detail)
+    assert await enrollment_count(async_session) == 2
+
+
+@pytest.mark.asyncio
+async def test_the_production_shape_converted_random_codes_are_inherited(
+    async_session, f1_program
+):
+    """Six random-code enrollments, converted by UPDATE, then a seventh."""
+    service, program = f1_program
+    program_id = program.id
+    random_input = [
+        EnrollmentInput(
+            reviewer_id=f"evaluator-{k}",
+            recorder_usernames=["f"],
+            randomization_algorithm=SHARED,
+            label_scheme="random",
+        )
+        for k in range(6)
+    ]
+    enrollments = [await service.enroll(program_id, data) for data in random_input]
+    codes = await label_codes(async_session, program)
+    for membership_id, code in codes.items():
+        await async_session.execute(
+            update(Presentation)
+            .where(Presentation.membership_id == membership_id)
+            .values(blind_code=code, shared_blind_code=True)
+        )
+    await async_session.flush()
+    async_session.expire_all()
+    seventh = await service.enroll(program_id, shared_input("evaluator-6"))
+    assert await code_map(async_session, seventh) == codes
+    for enrollment in enrollments:
+        assert await code_map(async_session, enrollment) == codes
+    assert all(r.shared_blind_code for r in await service.presentations(seventh.id))
 
 
 @pytest.mark.asyncio
