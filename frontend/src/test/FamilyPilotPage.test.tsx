@@ -187,6 +187,10 @@ describe('family pilot page: program', () => {
     enrolled = ['r1']
     renderPage()
     await screen.findByText('3 baseline, 1 hidden repeats, 2 holdouts')
+    // The readiness panel remounts when the enrollment count arrives; settle it first so the
+    // absence checks below see the final page.
+    expect(await screen.findByRole('button', { name: 'Freeze checkpoints' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Show session progress' })).toBeInTheDocument()
 
     for (const name of [
       /create draft/i,
@@ -209,8 +213,6 @@ describe('family pilot page: program', () => {
       expect(screen.queryByLabelText(label)).toBeNull()
     }
     expect(screen.queryByLabelText('Reveal policy')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Freeze checkpoints' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show session progress' })).toBeInTheDocument()
   })
 
   it('links to the advanced page and a deep link to another program', async () => {
