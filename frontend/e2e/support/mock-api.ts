@@ -10,6 +10,8 @@ import type {
   Observation,
   Person,
   Program,
+  ProgramMember,
+  ProgramReadiness,
 } from '../../src/api/types'
 
 export interface MockRoutes {
@@ -76,6 +78,55 @@ export function bootstrapRoutes(
         program_version: '1',
       },
     ] satisfies EnrollmentSummary[],
+  }
+}
+
+/**
+ * The one program shape the Family pilot screen offers: active, household
+ * reveal, one blotter per evaluator. Members are role-only because that screen
+ * counts them and never renders their identities.
+ */
+export function familyPilotRoutes(
+  options: {
+    enrollments?: ProgramReadiness['enrollments']
+  } = {}
+): MockRoutes {
+  const roles = [
+    ...Array.from({ length: 33 }, () => 'UNIVERSAL_BASELINE'),
+    ...Array.from({ length: 6 }, () => 'HIDDEN_REPEAT'),
+    ...Array.from({ length: 10 }, () => 'HOLDOUT'),
+  ]
+  return {
+    '/calibration/programs': [
+      {
+        id: 'p1',
+        name: 'Family pilot',
+        version: '3.2',
+        status: 'active',
+        reveal_policy: 'HOUSEHOLD',
+        blotter_mode: 'INDIVIDUAL',
+      },
+    ] satisfies Program[],
+    '/calibration/programs/p1/members': roles.map((role, index) => ({
+      id: `m${index}`,
+      fragrance_id: `f${index}`,
+      fragrance_name: `Hidden name ${index}`,
+      fragrance_brand: `Hidden brand ${index}`,
+      concentration: 'EDP',
+      version_key: '1',
+      role,
+      repeat_of_id: null,
+      group_name: 'Baseline',
+      identity_evidence: null,
+      fragella: null,
+    })) satisfies ProgramMember[],
+    '/calibration/programs/p1/readiness': {
+      program_id: 'p1',
+      reveal_policy: 'HOUSEHOLD',
+      household_reveal_ready: false,
+      household_revealed: false,
+      enrollments: options.enrollments ?? [],
+    } satisfies ProgramReadiness,
   }
 }
 

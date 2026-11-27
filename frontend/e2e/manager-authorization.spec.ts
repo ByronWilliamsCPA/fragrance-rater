@@ -4,10 +4,11 @@ import { mockApi, bootstrapRoutes, participantAccess, managerAccess } from './su
 // #ASSUME: data-integrity: the redirect and route-guard mechanism below were
 // verified against the real App.tsx and routing/routes.ts source (not the
 // plan's guessed code):
-// - navigationItems in routes.ts marks '/programs' `managerOnly: true`, but
-//   that flag is never read at render time. The actual guard is a useEffect
-//   in App.tsx that runs once appData has loaded without error: if
-//   `route === 'programs' && !appData.capabilities.canManagePrograms`, it
+// - navigationItems in routes.ts marks '/programs' and '/programs/advanced'
+//   `managerOnly: true`, but that flag is never read at render time. The
+//   actual guard is a useEffect in App.tsx that runs once appData has loaded
+//   without error: if `(route === 'programs' || route === 'programsAdvanced')
+//   && !appData.capabilities.canManagePrograms`, it
 //   calls `navigate('calibration', true)`, which pushes history state to
 //   `/calibration`. The plan's brief guessed `/calibration` as the redirect
 //   target and that guess was correct.
@@ -15,36 +16,61 @@ import { mockApi, bootstrapRoutes, participantAccess, managerAccess } from './su
 //   directly, so participantAccess (`manager: false`) and managerAccess
 //   (`manager: true`) do produce the differing authorization outcome the
 //   guard reads.
-// - App.tsx only renders <ProgramSetupPage> when
-//   `route === 'programs' && appData.capabilities.canManagePrograms` both
-//   hold, so a non-manager who is (hypothetically) not redirected still
-//   never sees the "Program setup" heading; the heading-count-0 assertion
-//   covers both the redirect and the render guard.
+// - App.tsx only renders <FamilyPilotPage> (/programs) or <ProgramSetupPage>
+//   (/programs/advanced) when the route matches and
+//   `appData.capabilities.canManagePrograms` holds, so a non-manager who is
+//   (hypothetically) not redirected still never sees either heading; the
+//   heading-count-0 assertions cover both the redirect and the render guard.
 // #VERIFY: re-check both App.tsx's useEffect condition and capabilitiesFor()
 // if manager gating grows a role beyond the current boolean `manager` flag.
 test.describe('Manager route authorization', () => {
-  test('redirects a non-manager away from /programs', async ({ page }) => {
-    await mockApi(page, bootstrapRoutes(participantAccess))
+  for (const path of ['/programs', '/programs/advanced']) {
+    test(`redirects a non-manager away from ${path}`, async ({ page }) => {
+      await mockApi(page, bootstrapRoutes(participantAccess))
 
-    await page.goto('/programs')
+      await page.goto(path)
 
-    await expect(page).toHaveURL('/calibration')
-    await expect(page.getByRole('heading', { name: 'Program setup' })).toHaveCount(0)
-  })
+      await expect(page).toHaveURL('/calibration')
+      await expect(page.getByRole('heading', { name: 'Family pilot' })).toHaveCount(0)
+      await expect(page.getByRole('heading', { name: 'Advanced program setup' })).toHaveCount(0)
+    })
+  }
 
-  test('allows a manager to reach /programs', async ({ page }) => {
+  test('allows a manager to reach the Family pilot screen at /programs', async ({ page }) => {
     await mockApi(page, bootstrapRoutes(managerAccess))
 
     await page.goto('/programs')
 
     await expect(page).toHaveURL('/programs')
-    await expect(page.getByRole('heading', { name: 'Program setup' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Family pilot' })).toBeVisible()
+  })
+
+  test('allows a manager to reach Advanced setup at /programs/advanced', async ({ page }) => {
+    await mockApi(page, bootstrapRoutes(managerAccess))
+
+    await page.goto('/programs/advanced')
+
+    await expect(page).toHaveURL('/programs/advanced')
+    await expect(page.getByRole('heading', { name: 'Advanced program setup' })).toBeVisible()
+  })
+
+  test('the Family pilot screen links to Advanced setup', async ({ page }) => {
+    await mockApi(page, bootstrapRoutes(managerAccess))
+
+    await page.goto('/programs')
+    await page
+      .getByRole('link', { name: 'Advanced setup (not needed for the family pilot)' })
+      .click()
+
+    await expect(page).toHaveURL('/programs/advanced')
+    await expect(page.getByRole('heading', { name: 'Advanced program setup' })).toBeVisible()
   })
 
   // #ASSUME: data-integrity: the activation control and 403 handling below
   // were verified against the real ProgramSetupPage.tsx and api/client.ts
   // source, and differ from the plan's brief in several ways:
-  // - The activation button only renders once a program is selected from the
+  // - The activation moved with the full page to /programs/advanced. The
+  //   activation button only renders once a program is selected from the
   //   "Program" <select> AND `selectedProgram.status === 'draft'`, and stays
   //   disabled until at least one program member has loaded. bootstrapRoutes'
   //   default program fixture (`{ id: 'p1', name: 'Baseline', version: '1' }`)
@@ -98,9 +124,11 @@ test.describe('Manager route authorization', () => {
         route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({}) }),
     })
 
-    await page.goto('/programs')
+    await page.goto('/programs/advanced')
     await page.getByLabel('Program').selectOption('p1')
     await page.getByRole('button', { name: 'Activate and lock definition' }).click()
+    // The in-page confirm names what activation locks before anything is sent.
+    await expect(page.getByText(/is permanent and cannot be undone/)).toBeVisible()
     await page.getByRole('button', { name: 'Confirm activation' }).click()
 
     await expect(page.getByText('You do not have access to this action.')).toBeVisible()

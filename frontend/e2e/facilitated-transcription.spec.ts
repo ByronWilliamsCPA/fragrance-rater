@@ -131,7 +131,9 @@ test.describe('Marking the answer-key holder non-blind', () => {
       },
     })
 
-    await page.goto('/programs')
+    // The free-form non-blind panel is part of Advanced setup; the Family pilot
+    // screen flags the facilitator at enrollment instead (see family-pilot.spec.ts).
+    await page.goto('/programs/advanced')
     await page.getByLabel('Program').selectOption('p1')
 
     await expect(page.getByText(/excluded from blind-baseline training/)).toBeVisible()

@@ -230,7 +230,7 @@ test.describe('Session-scoped guided calibration', () => {
   })
 })
 
-test.describe('Checkpoints and reveal in Program setup', () => {
+test.describe('Checkpoints and reveal on the Family pilot screen', () => {
   test('freezes checkpoints for ready evaluators and scans clean', async ({ page }) => {
     const sent: unknown[] = []
     await mockApi(page, {
@@ -278,8 +278,9 @@ test.describe('Checkpoints and reveal in Program setup', () => {
       },
     })
 
+    // The single active household-reveal program is picked automatically.
     await page.goto('/programs')
-    await page.getByLabel('Program').selectOption('p1')
+    await expect(page.getByRole('heading', { name: 'Family pilot' })).toBeVisible()
 
     const readiness = page.getByRole('table', { name: 'Checkpoint and reveal readiness' })
     await expect(readiness.getByText('Ready for a checkpoint')).toBeVisible()

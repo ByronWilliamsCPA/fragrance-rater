@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import {
   bootstrapRoutes,
   enrollmentFixture,
+  familyPilotRoutes,
   fragranceCatalog,
   managerAccess,
   mockApi,
@@ -16,7 +17,7 @@ import {
  */
 const WIDTH = 360
 
-const routes: { path: string; heading: string | RegExp }[] = [
+const routes: { path: string; heading: string | RegExp; mocks?: Record<string, unknown> }[] = [
   { path: '/', heading: 'Welcome' },
   { path: '/home', heading: 'Workspace' },
   { path: '/calibration?assignment=enr1', heading: 'Sessions' },
@@ -25,12 +26,13 @@ const routes: { path: string; heading: string | RegExp }[] = [
   { path: '/recommendations', heading: 'Recommendations' },
   { path: '/about', heading: 'How this project learns your taste' },
   { path: '/evidence', heading: 'Why better fragrance discovery matters' },
-  { path: '/programs', heading: 'Program setup' },
+  { path: '/programs', heading: 'Family pilot', mocks: familyPilotRoutes() },
+  { path: '/programs/advanced', heading: 'Advanced program setup', mocks: familyPilotRoutes() },
 ]
 
 test.use({ viewport: { width: WIDTH, height: 800 } })
 
-for (const { path, heading } of routes) {
+for (const { path, heading, mocks } of routes) {
   test(`${path} does not scroll sideways at ${WIDTH}px`, async ({ page }) => {
     await mockApi(page, {
       ...bootstrapRoutes(managerAccess),
@@ -38,6 +40,7 @@ for (const { path, heading } of routes) {
       '/fragrances': fragranceCatalog,
       '/evaluations': [],
       '/recommendation-measurement/runs': recommendationRunFixture(),
+      ...mocks,
     })
 
     await page.goto(path)
