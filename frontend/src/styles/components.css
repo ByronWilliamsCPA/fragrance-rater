@@ -1257,6 +1257,13 @@ article {
   accent-color: var(--color-mark);
 }
 
+.choice--target input[type='checkbox'] {
+  /* WCAG 2.5.8: the box itself is the target, so it meets the 24px minimum. */
+  width: var(--target-min);
+  height: var(--target-min);
+  margin: 0;
+}
+
 .choice label {
   margin: 0;
   font-size: var(--text-body);
@@ -1420,4 +1427,36 @@ article {
 /* Four short columns fit a phone; the wrapper only scrolls if a value is long. */
 .review-facts-wrap {
   overflow-x: auto;
+}
+
+/* ---- Fixed facts: a label and its value, one pair per row --------------- */
+
+.detail-list {
+  display: grid;
+  max-width: none;
+  margin: 0 0 var(--space-4);
+}
+
+.detail-list > div {
+  display: grid;
+  grid-template-columns: minmax(7rem, 11rem) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: var(--rule-hairline) solid var(--color-rule-hairline);
+}
+
+.detail-list dt {
+  color: var(--color-ink-muted);
+  font-size: var(--text-label);
+}
+
+.detail-list dd {
+  margin: 0;
+}
+
+@media (max-width: 30rem) {
+  .detail-list > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
 }

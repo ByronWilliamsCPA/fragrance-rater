@@ -7,6 +7,7 @@ import { CalibrationPage } from './pages/CalibrationPage'
 import { CalibrationProtocolPage } from './pages/CalibrationProtocolPage'
 import { EvidencePage } from './pages/EvidencePage'
 import { HouseIntakePage } from './pages/HouseIntakePage'
+import { FamilyPilotPage } from './pages/FamilyPilotPage'
 import { ProgramSetupPage } from './pages/ProgramSetupPage'
 import { RatingsPage } from './pages/RatingsPage'
 import { RecommendationsPage } from './pages/RecommendationsPage'
@@ -46,7 +47,11 @@ function App() {
   )
 
   const programId = useMemo(
-    () => programLinkFor(query, programs.map((program) => program.id)),
+    () =>
+      programLinkFor(
+        query,
+        programs.map((program) => program.id)
+      ),
     [programs, query]
   )
 
@@ -58,7 +63,7 @@ function App() {
     if (isHouseContributor && route !== 'house') navigate('house', true)
     else if (
       !isHouseContributor &&
-      (route === 'programs' || route === 'house') &&
+      (route === 'programs' || route === 'programsAdvanced' || route === 'house') &&
       !canManagePrograms
     )
       navigate('calibration', true)
@@ -122,11 +127,22 @@ function App() {
       {route === 'protocol' && <CalibrationProtocolPage navigate={navigate} />}
       {route === 'recommendations' && <RecommendationsPage reviewers={appData.reviewers} />}
       {route === 'ratings' && <RatingsPage reviewers={appData.reviewers} />}
-      {route === 'programs' && appData.capabilities.canManagePrograms && (
+      {route === 'programs' && canManagePrograms && (
+        <FamilyPilotPage
+          programs={appData.programs}
+          reviewers={appData.reviewers}
+          username={appData.access.username}
+          reload={appData.reload}
+          navigate={navigate}
+          initialProgramId={programId}
+        />
+      )}
+      {route === 'programsAdvanced' && canManagePrograms && (
         <ProgramSetupPage
           programs={appData.programs}
           reviewers={appData.reviewers}
           reload={appData.reload}
+          navigate={navigate}
           initialProgramId={programId}
         />
       )}

@@ -232,6 +232,6 @@ describe('WorkspacePage', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Manage programs' }))
 
-    expect(await screen.findByRole('heading', { name: 'Program setup' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Family pilot' })).toBeInTheDocument()
   })
 })

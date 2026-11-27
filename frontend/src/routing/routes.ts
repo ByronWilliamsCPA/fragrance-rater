@@ -42,8 +42,18 @@ const routeDefinitions = [
     route: 'programs',
     label: 'Program setup',
     path: '/programs',
-    documentTitle: 'Program setup',
+    documentTitle: 'Family pilot',
     managerOnly: true,
+  },
+  {
+    // The full program builder, kept for deliberate non-pilot work. Reached only
+    // from a link on the family pilot page, so it has no nav entry of its own.
+    route: 'programsAdvanced',
+    label: 'Advanced program setup',
+    path: '/programs/advanced',
+    documentTitle: 'Advanced program setup',
+    managerOnly: true,
+    hiddenFromNav: true,
   },
   {
     route: 'house',

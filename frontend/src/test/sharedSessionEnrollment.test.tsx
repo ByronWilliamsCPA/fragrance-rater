@@ -101,6 +101,7 @@ function renderPage(blotterMode?: 'INDIVIDUAL' | 'SHARED_GROUP', reload = () => 
       ]}
       reviewers={[{ id: 'rev', name: 'Evaluator One' }]}
       reload={reload}
+      navigate={vi.fn()}
       initialProgramId="p"
     />
   )
@@ -229,7 +230,7 @@ describe('shared-session enrollment', () => {
   })
 
   it('creates a draft without a mode unless the group session is chosen', async () => {
-    render(<ProgramSetupPage programs={[]} reviewers={[]} reload={() => Promise.resolve()} />)
+    render(<ProgramSetupPage programs={[]} reviewers={[]} reload={() => Promise.resolve()} navigate={vi.fn()} />)
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'F1' } })
     fireEvent.change(screen.getByLabelText('Version'), { target: { value: '2' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create draft' }))
