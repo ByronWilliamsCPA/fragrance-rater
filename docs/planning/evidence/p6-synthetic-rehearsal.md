@@ -63,6 +63,31 @@ evidence yet.
 Attach a redacted metrics export manifest containing its filename, SHA-256 hash, byte count,
 redaction reviewer, and private location. Do not commit the export itself.
 
+## Observations during the dry run
+
+Recorded as they happened. They are notes, not evidence: no row above is marked complete by them.
+
+- Program `rehearsal-1` was a setup mistake (one stimulus used twice, another missing) that was activated and so
+  locked; program definitions cannot be edited or deleted after activation. It was abandoned with 0 enrollments and
+  `rehearsal-2` was created and activated instead.
+- Six synthetic evaluators were enrolled in order E1 to E6 through the API (shared-triple template, random
+  per-enrollment blind codes). E1 was flagged non-blind before any exposure (2026-11-26 23:06 UTC).
+- Consent was recorded for E2 to E6 between 03:20 and 03:22 UTC on 2026-11-27 ("signed on paper"). E1's consent was
+  granted and then withdrawn on purpose by the owner five seconds later (03:11 UTC) to see the effect. Both events are
+  kept in the log, no evaluation was affected, and E1 continues as an evaluator who declined the conditions questions.
+- **Finding 1.** Pressing Continue on the consent screen starts the session. All six first sessions were started at
+  the consent minute (03:11 to 03:22 UTC), not at a sitting time, and the app refuses a second start. The owner
+  accepted this for the rehearsal. For F1, record consent together with the start time written on the paper sheet at
+  transcription, and do not press Continue at the sitting.
+- **Finding 2.** Consent cannot be granted again or changed in the app once its session has started, because the
+  intro screen shows only for an unstarted session. A mistaken withdrawal then needs an operator API call.
+- **Finding 3.** A mistake in a program setup cannot be fixed in the app, and the session-plan error "needs more
+  baseline stimuli" is generic: `generate_template` collapses every template error into one message, so it hides
+  which rule failed. Worth a clearer message after F1.
+- **Finding 4.** The manager screens have no way to add an evaluator; a person is created with `POST /reviewers`.
+  A manager-only "Add an evaluator" screen is built in a separate change, and the owner decided when it goes live
+  (see the F1 gate, sign-off 15).
+
 **Rehearsal result:** Pending
 
 **Reviewer and UTC date:** Pending
